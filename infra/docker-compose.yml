@@ -33,6 +33,7 @@ services:
     volumes:
       - ../backend/src:/app/src:ro # dev : code monté (install éditable)
       - ../backend/pyproject.toml:/app/pyproject.toml:ro # config lint/types à jour
+      - ../backend/tests:/app/tests:ro # dev : tests montés
       - ../db:/db:ro
 
   worker:
