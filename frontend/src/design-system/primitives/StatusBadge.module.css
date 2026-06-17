@@ -9,12 +9,6 @@
   font-weight: var(--weight-medium);
   white-space: nowrap;
 }
-.point {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: currentColor;
-}
 .ok {
   color: var(--status-ok);
   background: var(--status-ok-bg);

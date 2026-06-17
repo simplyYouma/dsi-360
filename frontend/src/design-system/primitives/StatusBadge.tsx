@@ -10,22 +10,15 @@ interface StatusBadgeProps {
   statut?: Statut;
   /** Couleur catégorielle (ex. "var(--cat-1)") — touche de couleur sans valeur de statut. */
   couleur?: string;
-  /** Affiche une pastille ronde devant le libellé. */
-  pastille?: boolean;
 }
 
 /** Étiquette de statut/catégorie. Tons sémantiques OU palette catégorielle (var(--cat-n)). */
-export function StatusBadge({
-  children,
-  statut = 'neutre',
-  couleur,
-  pastille = true,
-}: StatusBadgeProps): JSX.Element {
+export function StatusBadge({ children, statut = 'neutre', couleur }: StatusBadgeProps): JSX.Element {
   const styleCategoriel =
     couleur !== undefined
       ? {
           color: couleur,
-          background: `color-mix(in srgb, ${couleur} 12%, transparent)`,
+          background: `color-mix(in srgb, ${couleur} 14%, transparent)`,
         }
       : undefined;
   return (
@@ -33,7 +26,6 @@ export function StatusBadge({
       className={cx(styles.badge, couleur === undefined && styles[statut])}
       style={styleCategoriel}
     >
-      {pastille && <span className={styles.point} />}
       {children}
     </span>
   );

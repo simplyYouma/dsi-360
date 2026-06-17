@@ -1,7 +1,8 @@
 .shell {
   display: grid;
   grid-template-columns: 256px 1fr;
-  height: 100%;
+  height: 100dvh; /* la coquille occupe l'écran ; seul le contenu défile */
+  overflow: hidden;
   transition: grid-template-columns 0.18s ease;
 }
 .replie {
@@ -149,6 +150,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0; /* indispensable pour que .contenu (flex) défile au lieu de pousser la page */
   background: var(--bg);
 }
 .topbar {
@@ -202,6 +204,38 @@
 }
 .contenu {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-6);
+}
+
+/* ---- Responsive : sous 960px, sidebar en icônes seules (libellés masqués) ---- */
+@media (max-width: 960px) {
+  .shell,
+  .replie {
+    grid-template-columns: 72px 1fr;
+  }
+  .marqueTexte,
+  .lienTexte,
+  .profilInfos {
+    display: none;
+  }
+  .pied {
+    flex-direction: column;
+  }
+  .lien {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .recherche {
+    display: none;
+  }
+  .topbar {
+    padding: 0 var(--space-3);
+  }
+  .contenu {
+    padding: var(--space-4);
+  }
 }

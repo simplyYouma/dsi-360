@@ -35,7 +35,7 @@ export function AppShell(): JSX.Element {
               to={chemin}
               end={chemin === '/'}
               className={({ isActive }) => cx(styles.lien, isActive && styles.actif)}
-              title={replie ? libelle : undefined}
+              title={libelle}
             >
               <Icone size={20} className={styles.lienIcone} aria-hidden="true" />
               {!replie && <span className={styles.lienTexte}>{libelle}</span>}
