@@ -1,0 +1,49 @@
+[project]
+name = "dsi360"
+version = "0.1.0"
+description = "DSI 360 — plateforme de gouvernance et pilotage de la DSI (AFG Bank Mali)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.137",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "argon2-cffi>=23.1",
+    "pyjwt>=2.13",
+    "python-multipart>=0.0.20",
+    "celery[redis]>=5.4",
+    "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.9", "mypy>=1.14", "pytest>=8.3", "pytest-asyncio>=0.25"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "B", "UP", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Depends/Query/Path en valeur par défaut = idiome officiel FastAPI (pas un bug B008).
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Header", "fastapi.Form", "fastapi.File",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

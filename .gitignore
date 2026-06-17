@@ -23,3 +23,4 @@ Thumbs.db
 
 # Sources de conception confidentielles (banque) — jamais publiees
 docs/_sources-conception/
+infra/nginx/certs/

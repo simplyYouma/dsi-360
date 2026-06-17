@@ -1,0 +1,69 @@
+/* DSI 360 — tokens du design system. Un seul point de pilotage de la charte (cf. docs/05).
+   Charte claire/premium par défaut ; thème sombre via [data-theme="dark"]. Couleur = sens. */
+
+:root,
+[data-theme='light'] {
+  --brand: #2f4bff; /* accent sobre de marque */
+  --accent: var(--brand);
+  --accent-hover: #1f3ae0;
+  --accent-subtle: #eef1ff;
+  --on-accent: #ffffff;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --bg-subtle: #f1f3f5;
+  --border: #e6e8ec;
+  --text: #14161a;
+  --text-muted: #6b7280;
+
+  --status-ok: #1f9d55;
+  --status-ok-bg: #e7f6ee;
+  --status-warn: #c77700;
+  --status-warn-bg: #fdf2e0;
+  --status-danger: #d64545;
+  --status-danger-bg: #fdecec;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-md: 0 4px 12px rgba(15, 15, 17, 0.08);
+}
+
+[data-theme='dark'] {
+  --accent: #5b73ff;
+  --accent-hover: #7287ff;
+  --accent-subtle: #1a1f3a;
+  --bg: #0f1115;
+  --surface: #16191f;
+  --bg-subtle: #1b1f26;
+  --border: #2a2f37;
+  --text: #e8eaed;
+  --text-muted: #9aa3af;
+  --status-ok: #2fb869;
+  --status-ok-bg: #11261a;
+  --status-warn: #e0a64b;
+  --status-warn-bg: #2a2113;
+  --status-danger: #e5736b;
+  --status-danger-bg: #2a1717;
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
