@@ -1,0 +1,22 @@
+# 00 — Index de la documentation DSI 360
+
+Guide de lecture. La **source de vérité unique** est [`/CLAUDE.md`](../CLAUDE.md) : commencer par là.
+
+## Ordre de lecture conseillé
+1. [`/CLAUDE.md`](../CLAUDE.md) — vision, périmètre (9 modules), principes, stack proposée, roadmap.
+2. [`adr/0001-choix-de-la-stack.md`](adr/0001-choix-de-la-stack.md) — **décision de stack à valider par la DSI** (comparaison cahier vs proposition).
+3. [`01-ARCHITECTURE.md`](01-ARCHITECTURE.md) — couches, flux de données, déploiement. ✅
+4. [`02-DOMAIN-MODEL.md`](02-DOMAIN-MODEL.md) — modèle de domaine (Activité, SLA, cycles de vie, profils). ✅
+5. [`05-DESIGN-SYSTEM.md`](05-DESIGN-SYSTEM.md) — tokens, composants maison, charte (cf. images d'inspi). ✅
+6. À produire ensuite :
+   - `03-API-CONTRACTS.md` — conventions REST, endpoints, format d'erreur, versioning.
+   - `04-SECURITY.md` — auth AD/LDAP/M365, RBAC (7 profils), cloisonnement, audit.
+   - `07-ROADMAP.md` — phases, livrables, jalons.
+
+## Décisions d'architecture (ADR)
+Chaque décision structurante est tracée dans [`adr/`](adr/). Une décision changée n'est pas
+effacée : on ajoute un nouvel ADR qui supersède l'ancien.
+
+## Sources de conception
+Matériel de départ (cahier des charges, doc portail, procédures ITIL SI-12.01→05, rapport
+d'incident, images d'inspiration UI) : [`_sources-conception/`](_sources-conception/).
