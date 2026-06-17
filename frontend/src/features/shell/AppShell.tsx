@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { PanelLeft, Search, Bell, Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { useAuth } from '@/lib/auth';
 import { cx } from '@/common/cx';
 import logo from '@/assets/brand/logo-dsi360.svg';
 import { SECTIONS } from './navigation';
@@ -10,12 +11,11 @@ import { FilAriane } from './FilAriane';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
-// Graine d'avatar = identité de l'utilisateur connecté (provisoire avant l'authentification).
-const SEED_UTILISATEUR = 'fatou.yattara@afgbank.ml';
 
 /** Shell applicatif premium : sidebar repliable (sections) + topbar. Contenu via <Outlet/>. */
-export function AppShell(): JSX.Element {
+export function AppShell(): JSX.Element | null {
   const { theme, basculer } = useTheme();
+  const { moi, deconnecter } = useAuth();
   const [replie, setReplie] = useState(() => localStorage.getItem(CLE_REPLI) === '1');
 
   const basculerSidebar = (): void => {
@@ -24,6 +24,8 @@ export function AppShell(): JSX.Element {
       return !r;
     });
   };
+
+  if (moi === null) return null; // le shell n'est rendu qu'authentifié (garde dans App)
 
   return (
     <div className={cx(styles.shell, replie && styles.replie)}>
@@ -61,13 +63,20 @@ export function AppShell(): JSX.Element {
 
         <div className={styles.pied}>
           <div className={styles.profil}>
-            <AvatarPersonnage seed={SEED_UTILISATEUR} taille={36} />
+            <AvatarPersonnage seed={moi.email} taille={36} />
             <span className={styles.profilInfos}>
-              <span className={styles.profilNom}>Fatou Y.</span>
-              <span className={styles.profilRole}>Administrateur</span>
+              <span className={styles.profilNom}>
+                {moi.prenom} {moi.nom}
+              </span>
+              <span className={styles.profilRole}>{moi.profil_libelle}</span>
             </span>
           </div>
-          <button className={styles.deconnexion} title="Déconnexion" aria-label="Déconnexion">
+          <button
+            className={styles.deconnexion}
+            onClick={() => void deconnecter()}
+            title="Déconnexion"
+            aria-label="Déconnexion"
+          >
             <LogOut size={18} />
           </button>
         </div>
@@ -87,7 +96,7 @@ export function AppShell(): JSX.Element {
             <button className={styles.iconeBtn} aria-label="Notifications">
               <Bell size={20} />
             </button>
-            <AvatarPersonnage seed={SEED_UTILISATEUR} taille={36} />
+            <AvatarPersonnage seed={moi.email} taille={36} />
           </div>
         </header>
 

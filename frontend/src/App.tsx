@@ -1,11 +1,31 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { LoginPage } from '@/features/auth/LoginPage';
 import { AppShell } from '@/features/shell/AppShell';
 import { PagePlaceholder } from '@/features/shell/PagePlaceholder';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { NAVIGATION } from '@/features/shell/navigation';
 
-/** Racine : routeur + shell premium. L'authentification arrivera au lot P1-0 (garde de routes). */
-export function App(): JSX.Element {
+/** Aiguillage selon l'état d'authentification (garde de routes). */
+function Racine(): JSX.Element {
+  const { statut, moi } = useAuth();
+
+  if (statut === 'chargement') {
+    return (
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'grid',
+          placeItems: 'center',
+          color: 'var(--text-muted)',
+        }}
+      >
+        Chargement…
+      </div>
+    );
+  }
+  if (moi === null) return <LoginPage />;
+
   return (
     <BrowserRouter>
       <Routes>
@@ -18,5 +38,13 @@ export function App(): JSX.Element {
         </Route>
       </Routes>
     </BrowserRouter>
+  );
+}
+
+export function App(): JSX.Element {
+  return (
+    <AuthProvider>
+      <Racine />
+    </AuthProvider>
   );
 }
