@@ -22,35 +22,58 @@
 .marque {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  height: 40px;
+  justify-content: center;
+  height: 56px;
   padding: 0 var(--space-2);
 }
 .logo {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: var(--weight-semibold);
+  height: 46px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
-.marqueTexte {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
+.replie .logo {
+  height: 38px;
+}
+/* Thème sombre : le logo a un texte noir → plaque claire discrète pour rester lisible. */
+:global([data-theme='dark']) .logo {
+  background: #ffffff;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
 }
 
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-4);
   flex: 1 1 auto;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: var(--space-2);
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sectionTitre {
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-1);
+  font-size: 0.6875rem;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+/* En mode replié, on remplace l'intitulé de section par un fin séparateur. */
+.replie .sectionTitre {
+  height: 1px;
+  margin: var(--space-2) var(--space-3);
+  padding: 0;
+  overflow: hidden;
+  color: transparent;
+  background: var(--border);
 }
 .lien {
   display: flex;
@@ -128,6 +151,15 @@
 }
 .replie .pied {
   flex-direction: column;
+}
+/* ---- État replié : on masque les libellés, on centre les icônes ---- */
+.replie .lienTexte,
+.replie .profilInfos {
+  display: none;
+}
+.replie .lien {
+  justify-content: center;
+  padding: 0;
 }
 
 /* ---- Avatar (partagé) ---- */
@@ -215,16 +247,27 @@
   .replie {
     grid-template-columns: 72px 1fr;
   }
-  .marqueTexte,
   .lienTexte,
   .profilInfos {
     display: none;
+  }
+  .sectionTitre {
+    height: 1px;
+    margin: var(--space-2) var(--space-3);
+    padding: 0;
+    overflow: hidden;
+    color: transparent;
+    background: var(--border);
+  }
+  .logo {
+    height: 38px;
   }
   .pied {
     flex-direction: column;
   }
   .lien {
     justify-content: center;
+    padding: 0;
   }
 }
 

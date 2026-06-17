@@ -3,12 +3,14 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { PanelLeft, Search, Bell, Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { cx } from '@/common/cx';
-import { NAVIGATION } from './navigation';
+import logo from '@/assets/brand/logo-dsi360.svg';
+import { SECTIONS } from './navigation';
+import { FilAriane } from './FilAriane';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
 
-/** Shell applicatif premium : sidebar repliable + topbar. Contenu via <Outlet/>. */
+/** Shell applicatif premium : sidebar repliable (sections) + topbar. Contenu via <Outlet/>. */
 export function AppShell(): JSX.Element {
   const { theme, basculer } = useTheme();
   const [replie, setReplie] = useState(() => localStorage.getItem(CLE_REPLI) === '1');
@@ -24,34 +26,36 @@ export function AppShell(): JSX.Element {
     <div className={cx(styles.shell, replie && styles.replie)}>
       <aside className={styles.sidebar}>
         <div className={styles.marque}>
-          <span className={styles.logo}>D</span>
-          {!replie && <span className={styles.marqueTexte}>DSI 360</span>}
+          <img src={logo} alt="DSI 360" className={styles.logo} />
         </div>
 
         <nav className={styles.nav}>
-          {NAVIGATION.map(({ chemin, libelle, icone: Icone }) => (
-            <NavLink
-              key={chemin}
-              to={chemin}
-              end={chemin === '/'}
-              className={({ isActive }) => cx(styles.lien, isActive && styles.actif)}
-              title={libelle}
-            >
-              <Icone size={20} className={styles.lienIcone} aria-hidden="true" />
-              {!replie && <span className={styles.lienTexte}>{libelle}</span>}
-            </NavLink>
+          {SECTIONS.map((section) => (
+            <div key={section.titre} className={styles.section}>
+              <span className={styles.sectionTitre}>{section.titre}</span>
+              {section.entrees.map(({ chemin, libelle, icone: Icone }) => (
+                <NavLink
+                  key={chemin}
+                  to={chemin}
+                  end={chemin === '/'}
+                  className={({ isActive }) => cx(styles.lien, isActive && styles.actif)}
+                  title={libelle}
+                >
+                  <Icone size={19} className={styles.lienIcone} aria-hidden="true" />
+                  <span className={styles.lienTexte}>{libelle}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className={styles.pied}>
           <div className={styles.profil}>
             <span className={styles.avatar}>FY</span>
-            {!replie && (
-              <span className={styles.profilInfos}>
-                <span className={styles.profilNom}>Fatou Y.</span>
-                <span className={styles.profilRole}>Administrateur</span>
-              </span>
-            )}
+            <span className={styles.profilInfos}>
+              <span className={styles.profilNom}>Fatou Y.</span>
+              <span className={styles.profilRole}>Administrateur</span>
+            </span>
           </div>
           <button className={styles.deconnexion} title="Déconnexion" aria-label="Déconnexion">
             <LogOut size={18} />
@@ -82,6 +86,7 @@ export function AppShell(): JSX.Element {
         </header>
 
         <main className={styles.contenu}>
+          <FilAriane />
           <Outlet />
         </main>
       </div>
