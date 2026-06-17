@@ -6,7 +6,7 @@ import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { useAuth } from '@/lib/auth';
 import { cx } from '@/common/cx';
 import logo from '@/assets/brand/logo-dsi360.svg';
-import { SECTIONS } from './navigation';
+import { SECTIONS, cleAcces } from './navigation';
 import { FilAriane } from './FilAriane';
 import styles from './AppShell.module.css';
 
@@ -42,10 +42,13 @@ export function AppShell(): JSX.Element | null {
         </div>
 
         <nav className={styles.nav}>
-          {SECTIONS.map((section) => (
+          {SECTIONS.map((section) => {
+            const entrees = section.entrees.filter((e) => moi.acces.includes(cleAcces(e.chemin)));
+            if (entrees.length === 0) return null;
+            return (
             <div key={section.titre} className={styles.section}>
               <span className={styles.sectionTitre}>{section.titre}</span>
-              {section.entrees.map(({ chemin, libelle, icone: Icone }) => (
+              {entrees.map(({ chemin, libelle, icone: Icone }) => (
                 <NavLink
                   key={chemin}
                   to={chemin}
@@ -58,7 +61,8 @@ export function AppShell(): JSX.Element | null {
                 </NavLink>
               ))}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className={styles.pied}>

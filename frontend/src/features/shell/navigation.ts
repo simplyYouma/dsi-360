@@ -59,3 +59,8 @@ export const SECTIONS: SectionNav[] = [
 
 /** Liste à plat (routage + recherche de libellé pour le fil d'Ariane). */
 export const NAVIGATION: EntreeNav[] = SECTIONS.flatMap((s) => s.entrees);
+
+/** Clé d'accès (RBAC) correspondant à un chemin : '/' -> 'tableau-de-bord', '/incidents' -> 'incidents'. */
+export function cleAcces(chemin: string): string {
+  return chemin === '/' ? 'tableau-de-bord' : chemin.slice(1);
+}
