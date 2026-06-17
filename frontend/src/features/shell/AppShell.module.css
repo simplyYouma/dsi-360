@@ -24,11 +24,13 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  min-height: 64px;
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 .logo {
-  height: 56px;
+  height: 46px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
