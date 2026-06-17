@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from dsi360.config import get_settings
 from dsi360.infrastructure.db import get_engine
-from dsi360.interface.routeurs import auth
+from dsi360.interface.routeurs import auth, incidents
 
 
 def creer_app() -> FastAPI:
@@ -38,7 +38,7 @@ def creer_app() -> FastAPI:
 
     v1 = APIRouter(prefix="/api/v1")
     v1.include_router(auth.routeur)
-    # v1.include_router(incidents.routeur) … (modules métier à venir)
+    v1.include_router(incidents.routeur)
     app.include_router(v1)
     return app
 

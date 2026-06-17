@@ -15,6 +15,17 @@ MODULES: tuple[str, ...] = (
     "risque",
 )
 
+# Préfixe de référence lisible par module (ex. INC-2026-00042).
+PREFIXE_REFERENCE: dict[str, str] = {
+    "incident": "INC",
+    "demande": "DEM",
+    "probleme": "PRB",
+    "changement": "CHG",
+    "projet": "PRJ",
+    "audit": "AUD",
+    "risque": "RSQ",
+}
+
 
 def _borne(valeur: int, mini: int = 1, maxi: int = 5) -> int:
     if not mini <= valeur <= maxi:
