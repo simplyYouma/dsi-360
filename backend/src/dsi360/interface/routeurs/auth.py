@@ -1,0 +1,65 @@
+"""Endpoints d'authentification : login, refresh, logout, /moi."""
+
+from typing import Annotated, Any
+
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dsi360.application.auth import authentifier
+from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.repositories import utilisateur as repo
+from dsi360.infrastructure.securite import creer_jeton, decoder_jeton
+from dsi360.interface.schemas import Connexion, Jetons, MoiReponse, Rafraichissement
+from dsi360.interface.securite import UtilisateurCourant
+
+routeur = APIRouter(tags=["authentification"])
+
+Session = Annotated[AsyncSession, Depends(session_scope)]
+
+_REFRESH_INVALIDE = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED, detail="Jeton de rafraîchissement invalide."
+)
+
+
+def _jetons_pour(identifiant: str) -> Jetons:
+    return Jetons(
+        acces=creer_jeton(identifiant, "acces"),
+        refresh=creer_jeton(identifiant, "refresh"),
+    )
+
+
+@routeur.post("/auth/login", response_model=Jetons)
+async def login(corps: Connexion, session: Session) -> Jetons:
+    u = await authentifier(session, corps.email, corps.mot_de_passe)
+    if u is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Identifiants invalides."
+        )
+    return _jetons_pour(str(u["id"]))
+
+
+@routeur.post("/auth/refresh", response_model=Jetons)
+async def refresh(corps: Rafraichissement, session: Session) -> Jetons:
+    try:
+        charge = decoder_jeton(corps.refresh)
+    except jwt.PyJWTError as exc:
+        raise _REFRESH_INVALIDE from exc
+    if charge.get("type") != "refresh":
+        raise _REFRESH_INVALIDE
+    u = await repo.par_id(session, str(charge.get("sub")))
+    if u is None or not u["actif"]:
+        raise _REFRESH_INVALIDE
+    return _jetons_pour(str(u["id"]))
+
+
+@routeur.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout() -> None:
+    # JWT sans état : la déconnexion se fait côté client (oubli des jetons). La révocation
+    # des refresh (liste noire Redis) sera ajoutée au durcissement.
+    return None
+
+
+@routeur.get("/moi", response_model=MoiReponse)
+async def moi(courant: UtilisateurCourant) -> dict[str, Any]:
+    return courant
