@@ -1,0 +1,207 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Plus, Inbox } from 'lucide-react';
+import { Button, Card, Modale, StatusBadge } from '@/design-system/primitives';
+import { ErreurApi } from '@/lib/api';
+import { incidentsApi, type Incident } from './incidentsApi';
+import styles from './IncidentsPage.module.css';
+
+const PRIORITE_COULEUR: Record<number, string> = {
+  1: 'var(--status-danger)',
+  2: 'var(--cat-3)',
+  3: 'var(--cat-7)',
+  4: 'var(--cat-1)',
+  5: 'var(--text-muted)',
+};
+
+const SLA: Record<Incident['statut_sla'], { libelle: string; statut: 'ok' | 'warn' | 'danger' }> = {
+  a_lheure: { libelle: "À l'heure", statut: 'ok' },
+  approche: { libelle: 'Approche', statut: 'warn' },
+  depasse: { libelle: 'Dépassé', statut: 'danger' },
+};
+
+function formaterDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/** Sélecteur de niveau 1..5 (impact / urgence), sans composant natif. */
+function Niveau({
+  valeur,
+  onChange,
+}: {
+  valeur: number;
+  onChange: (n: number) => void;
+}): JSX.Element {
+  return (
+    <div className={styles.niveau}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          className={n === valeur ? styles.niveauActif : styles.niveauItem}
+          onClick={() => onChange(n)}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function IncidentsPage(): JSX.Element {
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [chargement, setChargement] = useState(true);
+  const [modale, setModale] = useState(false);
+
+  const [titre, setTitre] = useState('');
+  const [description, setDescription] = useState('');
+  const [impact, setImpact] = useState(3);
+  const [urgence, setUrgence] = useState(3);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  const charger = useCallback(async (): Promise<void> => {
+    setChargement(true);
+    try {
+      const page = await incidentsApi.lister(1);
+      setIncidents(page.elements);
+    } finally {
+      setChargement(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void charger();
+  }, [charger]);
+
+  const creer = async (): Promise<void> => {
+    setErreur(null);
+    setEnvoi(true);
+    try {
+      await incidentsApi.creer({ titre: titre.trim(), description: description.trim(), impact, urgence });
+      setModale(false);
+      setTitre('');
+      setDescription('');
+      setImpact(3);
+      setUrgence(3);
+      await charger();
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Création impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.entete}>
+        <div>
+          <h1 className={styles.titre}>Incidents</h1>
+          <p className={styles.sous}>Gestion des incidents du système d'information.</p>
+        </div>
+        <Button onClick={() => setModale(true)}>
+          <Plus size={16} />
+          Nouvel incident
+        </Button>
+      </header>
+
+      <Card sansPadding>
+        {chargement ? (
+          <p className={styles.vide}>Chargement…</p>
+        ) : incidents.length === 0 ? (
+          <div className={styles.vide}>
+            <Inbox size={32} />
+            <p>Aucun incident pour le moment.</p>
+          </div>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Titre</th>
+                <th>Priorité</th>
+                <th>Statut</th>
+                <th>SLA</th>
+                <th>Responsable</th>
+                <th>Créé le</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidents.map((i) => (
+                <tr key={i.id}>
+                  <td className="tabular">{i.reference}</td>
+                  <td className={styles.cellTitre}>{i.titre}</td>
+                  <td>
+                    <StatusBadge couleur={PRIORITE_COULEUR[i.priorite] ?? 'var(--text-muted)'}>
+                      P{i.priorite}
+                    </StatusBadge>
+                  </td>
+                  <td>
+                    <StatusBadge>{i.statut}</StatusBadge>
+                  </td>
+                  <td>
+                    <StatusBadge statut={SLA[i.statut_sla].statut}>
+                      {SLA[i.statut_sla].libelle}
+                    </StatusBadge>
+                  </td>
+                  <td className={styles.muted}>
+                    {i.responsable ? `${i.responsable.prenom} ${i.responsable.nom}` : '—'}
+                  </td>
+                  <td className="tabular">{formaterDate(i.cree_le)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      <Modale
+        ouverte={modale}
+        onFermer={() => setModale(false)}
+        titre="Nouvel incident"
+        pied={
+          <>
+            <Button variante="secondaire" onClick={() => setModale(false)}>
+              Annuler
+            </Button>
+            <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3}>
+              {envoi ? 'Création…' : 'Créer'}
+            </Button>
+          </>
+        }
+      >
+        <label className={styles.champ}>
+          <span>Titre</span>
+          <input
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Décrivez l'incident en une phrase"
+          />
+        </label>
+        <label className={styles.champ}>
+          <span>Description</span>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Contexte, impact observé, étapes…"
+          />
+        </label>
+        <div className={styles.niveaux}>
+          <div className={styles.champ}>
+            <span>Impact</span>
+            <Niveau valeur={impact} onChange={setImpact} />
+          </div>
+          <div className={styles.champ}>
+            <span>Urgence</span>
+            <Niveau valeur={urgence} onChange={setUrgence} />
+          </div>
+        </div>
+        {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
+      </Modale>
+    </div>
+  );
+}

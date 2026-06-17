@@ -6,7 +6,13 @@ import { AppShell } from '@/features/shell/AppShell';
 import { PagePlaceholder } from '@/features/shell/PagePlaceholder';
 import { NonAutorise } from '@/features/shell/NonAutorise';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
+import { IncidentsPage } from '@/features/incidents/IncidentsPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
+
+/** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
+const PAGES: Record<string, JSX.Element> = {
+  '/incidents': <IncidentsPage />,
+};
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */
 function RequiertAcces({ cle, children }: { cle: string; children: ReactNode }): JSX.Element {
@@ -46,7 +52,7 @@ function Racine(): JSX.Element {
               path={e.chemin}
               element={
                 <RequiertAcces cle={cleAcces(e.chemin)}>
-                  <PagePlaceholder />
+                  {PAGES[e.chemin] ?? <PagePlaceholder />}
                 </RequiertAcces>
               }
             />
