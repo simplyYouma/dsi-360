@@ -1,0 +1,69 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.entete {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.titre {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.sous {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.demo {
+  font-style: italic;
+}
+
+.grilleKpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.kpiTete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.kpiIcone {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kpiValeur {
+  font-size: 2rem;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.kpiLibelle {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
+}
+
+.placeholderGraph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  border-style: dashed;
+}
+.placeholderTexte {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+  max-width: 48ch;
+}
