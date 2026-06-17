@@ -40,6 +40,21 @@ numérotée**) · `StatusBadge` (pastille + libellé) · `KpiCard` (valeur + del
 `Sparkline` (SVG) · `Donut` · `Toast` (fond sémantique) · `Pagination` · `Modale` · `Skeleton`
 (chargement élégant) · `Avatar` (illustré). **Icônes : Lucide.** **Zéro emoji** dans l'UI.
 
+### 3 bis. Modales (référence premium)
+
+Style retenu (cf. inspiration validée) — composant `Modale` :
+
+- **Surface blanche, très arrondie** (`--radius-xl` ≈ 24 px), **ombre flottante** (`--shadow-lg`),
+  généreusement aérée (`--space-6`).
+- **Bouton fermer circulaire** (≈ 56 px) **flottant en haut à droite**, débordant légèrement le coin,
+  avec sa propre ombre. Sur mobile, il revient dans le coin.
+- **Grand titre** (`--text-2xl`, semibold), puis le corps.
+- **Champ de recherche en pilule** (`--radius-pill`) avec icône à gauche, le cas échéant.
+- **Lignes de liste** (`LigneListe`) : pastille ronde (initiales / icône / avatar) + libellé +
+  **chevron** à droite, surlignage au survol.
+- **Pied d'action aligné à droite** (bouton primaire / secondaire).
+- Ferme via le **X**, **Échap**, ou **clic sur le fond** ; verrouille le défilement ; `aria-modal`.
+
 ## 4. Règles non négociables
 
 - **Aucun composant natif** (listes déroulantes, calendriers, scrollbars, toasts, `alert()`…) : tout maison.

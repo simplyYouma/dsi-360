@@ -46,7 +46,11 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-xl: 24px; /* modales premium */
+  --radius-pill: 999px;
   --shadow-md: 0 4px 12px rgba(15, 15, 17, 0.08);
+  --shadow-lg: 0 24px 60px rgba(15, 15, 17, 0.18); /* modales flottantes */
+  --overlay: rgba(20, 22, 26, 0.45);
 }
 
 [data-theme='dark'] {

@@ -8,10 +8,11 @@ Guide de lecture. La **source de vérité unique** est [`/CLAUDE.md`](../CLAUDE.
 3. [`01-ARCHITECTURE.md`](01-ARCHITECTURE.md) — couches, flux de données, déploiement. ✅
 4. [`02-DOMAIN-MODEL.md`](02-DOMAIN-MODEL.md) — modèle de domaine (Activité, SLA, cycles de vie, profils). ✅
 5. [`05-DESIGN-SYSTEM.md`](05-DESIGN-SYSTEM.md) — tokens, composants maison, charte (cf. images d'inspi). ✅
-6. À produire ensuite :
-   - `03-API-CONTRACTS.md` — conventions REST, endpoints, format d'erreur, versioning.
-   - `04-SECURITY.md` — auth AD/LDAP/M365, RBAC (7 profils), cloisonnement, audit.
-   - `07-ROADMAP.md` — phases, livrables, jalons.
+6. [`03-API-CONTRACTS.md`](03-API-CONTRACTS.md) — conventions REST, endpoints, format d'erreur, versioning. ✅
+7. [`04-SECURITY.md`](04-SECURITY.md) — auth AD/LDAP/M365, RBAC (7 profils), cloisonnement, audit. ✅
+8. [`07-ROADMAP.md`](07-ROADMAP.md) — socle transverse + phases 1/2/3, jalons. ✅
+
+> Doc de conception **complète**. Prochaine étape : vérifier l'exécution du squelette, puis lot P1-0.
 
 ## Décisions d'architecture (ADR)
 Chaque décision structurante est tracée dans [`adr/`](adr/). Une décision changée n'est pas

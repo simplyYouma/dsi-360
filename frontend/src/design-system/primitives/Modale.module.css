@@ -1,0 +1,94 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  z-index: 1000;
+  animation: fondu 0.16s ease;
+}
+
+.modale {
+  position: relative;
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-6);
+  animation: apparition 0.18s ease;
+}
+
+/* Bouton fermer circulaire, flottant en haut à droite (déborde légèrement le coin). */
+.fermer {
+  position: absolute;
+  top: -18px;
+  right: -18px;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+.fermer:hover {
+  background: var(--bg-subtle);
+}
+
+.titre {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-5);
+}
+
+.corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pied {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+/* Sur petit écran, le X revient dans le coin pour ne pas sortir de l'écran. */
+@media (max-width: 600px) {
+  .modale {
+    padding: var(--space-5);
+  }
+  .fermer {
+    top: var(--space-3);
+    right: var(--space-3);
+    width: 44px;
+    height: 44px;
+    box-shadow: none;
+  }
+}
+
+@keyframes fondu {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes apparition {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .modale {
+    animation: none;
+  }
+}
