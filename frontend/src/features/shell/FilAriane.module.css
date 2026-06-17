@@ -16,6 +16,9 @@
 .lien:hover {
   color: var(--text);
 }
+.lien svg {
+  color: var(--secondary);
+}
 .sep {
   color: var(--border);
 }

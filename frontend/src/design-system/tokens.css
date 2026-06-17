@@ -9,6 +9,12 @@
   --accent-subtle: #f0f1f3;
   --on-accent: #ffffff;
 
+  /* Secondaire = vert de la flèche du logo (touche de couleur de marque). */
+  --secondary: #7fc81f;
+  --secondary-hover: #6fb314;
+  --secondary-subtle: #eef7df;
+  --on-secondary: #14161a;
+
   /* Palette catégorielle — touche de couleur pour graphiques, badges, pastilles.
      N'a PAS de valeur de statut (≠ ok/warn/danger). Tons premium et lisibles. */
   --cat-1: #4f6bed; /* indigo */
@@ -69,6 +75,10 @@
   --accent-hover: #e2e4e8;
   --accent-subtle: #23262d;
   --on-accent: #14161a; /* texte foncé sur primaire claire */
+  --secondary: #8fd92f;
+  --secondary-hover: #a3e635;
+  --secondary-subtle: #1e2a12;
+  --on-secondary: #14161a;
   --cat-1: #7d92ff;
   --cat-2: #3fc2b2;
   --cat-3: #edb963;

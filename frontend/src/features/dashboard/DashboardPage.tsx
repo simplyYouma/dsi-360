@@ -55,10 +55,7 @@ export function DashboardPage(): JSX.Element {
     <div className={styles.page}>
       <header className={styles.entete}>
         <h1 className={styles.titre}>Tableau de bord</h1>
-        <p className={styles.sous}>
-          Vue d'ensemble des activités de la DSI — AFG Bank Mali.
-          <span className={styles.demo}> Données de démonstration.</span>
-        </p>
+        <p className={styles.sous}>Vue d'ensemble des activités de la DSI — AFG Bank Mali.</p>
       </header>
 
       <section className={styles.grilleKpi}>

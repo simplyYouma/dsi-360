@@ -23,17 +23,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 56px;
+  height: 76px;
   padding: 0 var(--space-2);
 }
 .logo {
-  height: 46px;
+  height: 62px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
 }
 .replie .logo {
-  height: 38px;
+  height: 46px;
 }
 /* Thème sombre : le logo a un texte noir → plaque claire discrète pour rester lisible. */
 :global([data-theme='dark']) .logo {
@@ -206,6 +206,10 @@
   border-radius: var(--radius-pill);
   color: var(--text-muted);
 }
+.recherche:focus-within {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
 .recherche input {
   border: none;
   outline: none;
@@ -260,7 +264,7 @@
     background: var(--border);
   }
   .logo {
-    height: 38px;
+    height: 46px;
   }
   .pied {
     flex-direction: column;
