@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/common/cx.ts","./src/design-system/themeprovider.tsx","./src/design-system/primitives/button.tsx","./src/design-system/primitives/ligneliste.tsx","./src/design-system/primitives/modale.tsx","./src/design-system/primitives/index.ts"],"version":"5.9.3"}
