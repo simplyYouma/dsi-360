@@ -25,8 +25,13 @@
 
 Aucune valeur en dur dans les composants. Thème **clair par défaut**, **sombre** prévu (`data-theme`).
 
+- **Primaire = NOIRE** (`--accent` ≈ `#16181d` en clair) ; s'inverse en **blanc** sur thème sombre
+  (texte foncé via `--on-accent`). Pas de bleu de marque.
 - **Couleurs** : `--bg`, `--surface`, `--bg-subtle`, `--border`, `--text`, `--text-muted`,
   `--accent` (+ `--accent-subtle`, `--accent-hover`), statuts `--status-ok|warn|danger` (+ `*-bg`).
+- **Palette catégorielle** `--cat-1 … --cat-8` (indigo, teal, ambre, rose, violet, vert, cyan,
+  orange) : **touche de couleur** pour graphiques, badges, pastilles de catégorie. Sans valeur de
+  statut (à ne pas confondre avec ok/warn/danger). La base reste neutre ; la couleur ponctue.
 - **Typo** : échelle `--text-xs … --text-2xl`, poids `--weight-regular|medium|semibold`,
   chiffres **tabulaires** pour les valeurs.
 - **Espacement** : échelle `--space-1 … --space-8`.

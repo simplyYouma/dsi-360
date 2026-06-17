@@ -3,11 +3,22 @@
 
 :root,
 [data-theme='light'] {
-  --brand: #2f4bff; /* accent sobre de marque */
+  --brand: #16181d; /* primaire NOIRE (charte sobre) */
   --accent: var(--brand);
-  --accent-hover: #1f3ae0;
-  --accent-subtle: #eef1ff;
+  --accent-hover: #2c2f37;
+  --accent-subtle: #f0f1f3;
   --on-accent: #ffffff;
+
+  /* Palette catégorielle — touche de couleur pour graphiques, badges, pastilles.
+     N'a PAS de valeur de statut (≠ ok/warn/danger). Tons premium et lisibles. */
+  --cat-1: #4f6bed; /* indigo */
+  --cat-2: #15a394; /* teal */
+  --cat-3: #e0a341; /* ambre */
+  --cat-4: #e2557b; /* rose */
+  --cat-5: #8a5cf6; /* violet */
+  --cat-6: #2fa363; /* vert */
+  --cat-7: #3aa0c9; /* cyan */
+  --cat-8: #e07a3c; /* orange */
 
   --bg: #f6f7f9;
   --surface: #ffffff;
@@ -54,9 +65,18 @@
 }
 
 [data-theme='dark'] {
-  --accent: #5b73ff;
-  --accent-hover: #7287ff;
-  --accent-subtle: #1a1f3a;
+  --accent: #f5f6f8; /* primaire claire sur fond sombre */
+  --accent-hover: #e2e4e8;
+  --accent-subtle: #23262d;
+  --on-accent: #14161a; /* texte foncé sur primaire claire */
+  --cat-1: #7d92ff;
+  --cat-2: #3fc2b2;
+  --cat-3: #edb963;
+  --cat-4: #ef7a98;
+  --cat-5: #a87ffb;
+  --cat-6: #4fc585;
+  --cat-7: #5cc0e6;
+  --cat-8: #f0976a;
   --bg: #0f1115;
   --surface: #16191f;
   --bg-subtle: #1b1f26;
