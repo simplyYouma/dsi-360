@@ -3,10 +3,11 @@
 from typing import Annotated, Any
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.auth import authentifier
+from dsi360.infrastructure.audit import consigner
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import utilisateur as repo
 from dsi360.infrastructure.securite import creer_jeton, decoder_jeton
@@ -30,12 +31,20 @@ def _jetons_pour(identifiant: str) -> Jetons:
 
 
 @routeur.post("/auth/login", response_model=Jetons)
-async def login(corps: Connexion, session: Session) -> Jetons:
+async def login(corps: Connexion, requete: Request, session: Session) -> Jetons:
     u = await authentifier(session, corps.email, corps.mot_de_passe)
     if u is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Identifiants invalides."
         )
+    await consigner(
+        session,
+        action="CONNEXION",
+        acteur_id=str(u["id"]),
+        acteur_email=u["email"],
+        module="authentification",
+        adresse_ip=requete.client.host if requete.client else None,
+    )
     return _jetons_pour(str(u["id"]))
 
 
