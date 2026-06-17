@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { PanelLeft, Search, Bell, Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/design-system/ThemeProvider';
+import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { cx } from '@/common/cx';
 import logo from '@/assets/brand/logo-dsi360.svg';
 import { SECTIONS } from './navigation';
@@ -9,6 +10,8 @@ import { FilAriane } from './FilAriane';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
+// Graine d'avatar = identité de l'utilisateur connecté (provisoire avant l'authentification).
+const SEED_UTILISATEUR = 'fatou.yattara@afgbank.ml';
 
 /** Shell applicatif premium : sidebar repliable (sections) + topbar. Contenu via <Outlet/>. */
 export function AppShell(): JSX.Element {
@@ -27,6 +30,13 @@ export function AppShell(): JSX.Element {
       <aside className={styles.sidebar}>
         <div className={styles.marque}>
           <img src={logo} alt="DSI 360" className={styles.logo} />
+          <button
+            className={styles.pli}
+            onClick={basculerSidebar}
+            aria-label={replie ? 'Déplier le menu' : 'Replier le menu'}
+          >
+            <PanelLeft size={18} />
+          </button>
         </div>
 
         <nav className={styles.nav}>
@@ -51,7 +61,7 @@ export function AppShell(): JSX.Element {
 
         <div className={styles.pied}>
           <div className={styles.profil}>
-            <span className={styles.avatar}>FY</span>
+            <AvatarPersonnage seed={SEED_UTILISATEUR} taille={36} />
             <span className={styles.profilInfos}>
               <span className={styles.profilNom}>Fatou Y.</span>
               <span className={styles.profilRole}>Administrateur</span>
@@ -65,10 +75,6 @@ export function AppShell(): JSX.Element {
 
       <div className={styles.principal}>
         <header className={styles.topbar}>
-          <button className={styles.iconeBtn} onClick={basculerSidebar} aria-label="Replier le menu">
-            <PanelLeft size={20} />
-          </button>
-
           <label className={styles.recherche}>
             <Search size={18} />
             <input placeholder="Rechercher une activité, une référence…" />
@@ -81,7 +87,7 @@ export function AppShell(): JSX.Element {
             <button className={styles.iconeBtn} aria-label="Notifications">
               <Bell size={20} />
             </button>
-            <span className={styles.avatar}>FY</span>
+            <AvatarPersonnage seed={SEED_UTILISATEUR} taille={36} />
           </div>
         </header>
 

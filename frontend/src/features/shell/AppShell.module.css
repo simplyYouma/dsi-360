@@ -22,18 +22,42 @@
 .marque {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 76px;
-  padding: 0 var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 64px;
+  padding: var(--space-2);
 }
 .logo {
-  height: 62px;
+  height: 56px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
 }
+.pli {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.pli:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+/* Replié : logo au-dessus, bouton de pli en dessous, le tout centré. */
+.replie .marque {
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+}
 .replie .logo {
-  height: 46px;
+  height: 42px;
 }
 /* Thème sombre : le logo a un texte noir → plaque claire discrète pour rester lisible. */
 :global([data-theme='dark']) .logo {
@@ -50,6 +74,11 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: var(--space-2);
+  /* Scroller invisible (le contenu reste défilable). */
+  scrollbar-width: none;
+}
+.nav::-webkit-scrollbar {
+  display: none;
 }
 .section {
   display: flex;
