@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     jwt_acces_minutes: int = 15
 
     max_upload_mb: int = 20
+    # Dossier des migrations SQL (monté dans le conteneur api sous /db).
+    migrations_dir: str = "/db/migrations"
 
 
 @lru_cache

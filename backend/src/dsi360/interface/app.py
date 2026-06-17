@@ -5,8 +5,10 @@ au fur et à mesure des lots (cf. docs/07-ROADMAP.md). Architecture en couches :
 """
 
 from fastapi import APIRouter, FastAPI
+from sqlalchemy import text
 
 from dsi360.config import get_settings
+from dsi360.infrastructure.db import get_engine
 
 
 def creer_app() -> FastAPI:
@@ -24,8 +26,14 @@ def creer_app() -> FastAPI:
 
     @app.get("/readyz", tags=["sante"], summary="Prêt")
     async def readyz() -> dict[str, str]:
-        # À enrichir : vérifier la connexion DB/Redis quand les adaptateurs seront en place.
-        return {"statut": "pret"}
+        # Vérifie que la base répond (ping SELECT 1).
+        try:
+            async with get_engine().connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            db = "ok"
+        except Exception:  # noqa: BLE001 — sonde : on rapporte l'état, on ne propage pas.
+            db = "ko"
+        return {"statut": "pret" if db == "ok" else "degrade", "db": db}
 
     v1 = APIRouter(prefix="/api/v1")
     # v1.include_router(incidents.routeur) … (lots à venir)
