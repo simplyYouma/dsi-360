@@ -32,6 +32,7 @@ services:
       - "127.0.0.1:8011:8000" # API en local (debug)
     volumes:
       - ../backend/src:/app/src:ro # dev : code monté (install éditable)
+      - ../backend/pyproject.toml:/app/pyproject.toml:ro # config lint/types à jour
       - ../db:/db:ro
 
   worker:

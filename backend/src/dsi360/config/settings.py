@@ -1,4 +1,4 @@
-"""Configuration applicative — chargée de l'environnement, jamais de secret en dur (cf. SECURITY)."""
+"""Configuration applicative, chargée de l'environnement (jamais de secret en dur)."""
 
 from functools import lru_cache
 from typing import Literal
@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     max_upload_mb: int = 20
     # Dossier des migrations SQL (monté dans le conteneur api sous /db).
     migrations_dir: str = "/db/migrations"
+
+    # Compte administrateur initial (seed). Mot de passe à changer à la 1re connexion.
+    seed_admin_email: str = "admin@afgbank.ml"
+    seed_admin_password: str = "changez-moi"
 
 
 @lru_cache

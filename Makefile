@@ -1,6 +1,6 @@
 COMPOSE = docker compose -f infra/docker-compose.yml --env-file infra/env/.env
 
-.PHONY: help init certs up down logs ps build migrate backend-shell db-shell front-dev
+.PHONY: help init certs up down logs ps build migrate seed backend-shell db-shell front-dev
 
 help: ## Liste les commandes
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n",$$1,$$2}'
@@ -22,8 +22,11 @@ logs: ## Suit les logs
 ps: ## État des conteneurs
 	$(COMPOSE) ps
 
-migrate: ## Applique les migrations SQL (à brancher au lot P1-0)
-	@echo "TODO P1-0 : module de migration (dsi360.infrastructure.db.migrate)"
+migrate: ## Applique les migrations SQL
+	$(COMPOSE) exec -T api python -m dsi360.infrastructure.db.migrate
+
+seed: ## Charge les référentiels + le compte administrateur initial
+	$(COMPOSE) exec -T api python -m dsi360.infrastructure.db.seed
 
 backend-shell: ## Shell dans le conteneur API
 	$(COMPOSE) exec api bash
