@@ -1,0 +1,128 @@
+.cadre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.zone {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+}
+.triable {
+  cursor: pointer;
+  user-select: none;
+}
+.triable:hover {
+  color: var(--text);
+}
+.enteteContenu {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.caret {
+  color: var(--text);
+}
+.caretInverse {
+  transform: rotate(180deg);
+}
+.caretInactif {
+  opacity: 0.4;
+}
+
+.table tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr {
+  transition: background-color 0.1s ease;
+}
+.table tbody tr:hover {
+  background: var(--bg-subtle);
+}
+.cliquable {
+  cursor: pointer;
+}
+
+.droite {
+  text-align: right;
+}
+.centre {
+  text-align: center;
+}
+.message {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--space-8) var(--space-4);
+}
+
+/* Pagination — soft et subtile */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.page,
+.pageActive,
+.pageNav {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
+}
+.page:hover,
+.pageNav:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.pageActive {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pageNav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ellipse {
+  min-width: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}

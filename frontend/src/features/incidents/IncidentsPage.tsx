@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Inbox } from 'lucide-react';
-import { Button, Card, Modale, StatusBadge } from '@/design-system/primitives';
+import { Plus } from 'lucide-react';
+import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { ErreurApi } from '@/lib/api';
 import { incidentsApi, type Incident } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
@@ -20,21 +20,37 @@ const SLA: Record<Incident['statut_sla'], { libelle: string; statut: 'ok' | 'war
 };
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-/** Sélecteur de niveau 1..5 (impact / urgence), sans composant natif. */
-function Niveau({
-  valeur,
-  onChange,
-}: {
-  valeur: number;
-  onChange: (n: number) => void;
-}): JSX.Element {
+const COLONNES: Colonne<Incident>[] = [
+  { cle: 'reference', entete: 'Référence', valeur: (i) => i.reference, largeur: '150px' },
+  { cle: 'titre', entete: 'Titre', rendu: (i) => <strong>{i.titre}</strong>, valeur: (i) => i.titre },
+  {
+    cle: 'priorite',
+    entete: 'Priorité',
+    valeur: (i) => i.priorite,
+    rendu: (i) => (
+      <StatusBadge couleur={PRIORITE_COULEUR[i.priorite] ?? 'var(--text-muted)'}>
+        P{i.priorite}
+      </StatusBadge>
+    ),
+  },
+  { cle: 'statut', entete: 'Statut', rendu: (i) => <StatusBadge>{i.statut}</StatusBadge> },
+  {
+    cle: 'sla',
+    entete: 'SLA',
+    rendu: (i) => <StatusBadge statut={SLA[i.statut_sla].statut}>{SLA[i.statut_sla].libelle}</StatusBadge>,
+  },
+  {
+    cle: 'responsable',
+    entete: 'Responsable',
+    rendu: (i) => (i.responsable ? `${i.responsable.prenom} ${i.responsable.nom}` : '—'),
+  },
+  { cle: 'cree_le', entete: 'Créé le', valeur: (i) => i.cree_le, rendu: (i) => formaterDate(i.cree_le) },
+];
+
+function Niveau({ valeur, onChange }: { valeur: number; onChange: (n: number) => void }): JSX.Element {
   return (
     <div className={styles.niveau}>
       {[1, 2, 3, 4, 5].map((n) => (
@@ -53,6 +69,8 @@ function Niveau({
 
 export function IncidentsPage(): JSX.Element {
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
 
@@ -63,19 +81,20 @@ export function IncidentsPage(): JSX.Element {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = useCallback(async (): Promise<void> => {
+  const charger = useCallback(async (p: number): Promise<void> => {
     setChargement(true);
     try {
-      const page = await incidentsApi.lister(1);
-      setIncidents(page.elements);
+      const data = await incidentsApi.lister(p);
+      setIncidents(data.elements);
+      setTotal(data.total);
     } finally {
       setChargement(false);
     }
   }, []);
 
   useEffect(() => {
-    void charger();
-  }, [charger]);
+    void charger(page);
+  }, [charger, page]);
 
   const creer = async (): Promise<void> => {
     setErreur(null);
@@ -87,7 +106,8 @@ export function IncidentsPage(): JSX.Element {
       setDescription('');
       setImpact(3);
       setUrgence(3);
-      await charger();
+      if (page === 1) await charger(1);
+      else setPage(1);
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Création impossible.');
     } finally {
@@ -108,55 +128,14 @@ export function IncidentsPage(): JSX.Element {
         </Button>
       </header>
 
-      <Card sansPadding>
-        {chargement ? (
-          <p className={styles.vide}>Chargement…</p>
-        ) : incidents.length === 0 ? (
-          <div className={styles.vide}>
-            <Inbox size={32} />
-            <p>Aucun incident pour le moment.</p>
-          </div>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Référence</th>
-                <th>Titre</th>
-                <th>Priorité</th>
-                <th>Statut</th>
-                <th>SLA</th>
-                <th>Responsable</th>
-                <th>Créé le</th>
-              </tr>
-            </thead>
-            <tbody>
-              {incidents.map((i) => (
-                <tr key={i.id}>
-                  <td className="tabular">{i.reference}</td>
-                  <td className={styles.cellTitre}>{i.titre}</td>
-                  <td>
-                    <StatusBadge couleur={PRIORITE_COULEUR[i.priorite] ?? 'var(--text-muted)'}>
-                      P{i.priorite}
-                    </StatusBadge>
-                  </td>
-                  <td>
-                    <StatusBadge>{i.statut}</StatusBadge>
-                  </td>
-                  <td>
-                    <StatusBadge statut={SLA[i.statut_sla].statut}>
-                      {SLA[i.statut_sla].libelle}
-                    </StatusBadge>
-                  </td>
-                  <td className={styles.muted}>
-                    {i.responsable ? `${i.responsable.prenom} ${i.responsable.nom}` : '—'}
-                  </td>
-                  <td className="tabular">{formaterDate(i.cree_le)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+      <Table
+        colonnes={COLONNES}
+        lignes={incidents}
+        cleLigne={(i) => i.id}
+        chargement={chargement}
+        vide="Aucun incident pour le moment."
+        pagination={{ page, total, taille: 15, onPage: setPage }}
+      />
 
       <Modale
         ouverte={modale}

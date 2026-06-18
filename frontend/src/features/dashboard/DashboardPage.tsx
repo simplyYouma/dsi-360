@@ -1,53 +1,25 @@
-import { TriangleAlert, Inbox, Timer, FolderKanban, ShieldAlert } from 'lucide-react';
+import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Card, StatusBadge } from '@/design-system/primitives';
+import { Card } from '@/design-system/primitives';
 import styles from './DashboardPage.module.css';
 
 interface Kpi {
   libelle: string;
   valeur: string;
   icone: LucideIcon;
-  couleur: string; // palette catégorielle (touche de couleur)
-  badge: JSX.Element;
+  couleur: string;
+  note: string;
+  tonNote?: 'ok' | 'warn' | 'danger';
 }
 
-// Données de DÉMONSTRATION (le calcul réel arrive avec le moteur d'indicateurs, lot P1).
+// Données de démonstration (le calcul réel arrive avec le moteur d'indicateurs).
 const KPIS: Kpi[] = [
-  {
-    libelle: 'Incidents ouverts',
-    valeur: '12',
-    icone: TriangleAlert,
-    couleur: 'var(--cat-1)',
-    badge: <StatusBadge statut="warn">3 en approche SLA</StatusBadge>,
-  },
-  {
-    libelle: 'Incidents critiques',
-    valeur: '3',
-    icone: ShieldAlert,
-    couleur: 'var(--cat-4)',
-    badge: <StatusBadge statut="danger">P1</StatusBadge>,
-  },
-  {
-    libelle: 'Respect SLA',
-    valeur: '92 %',
-    icone: Timer,
-    couleur: 'var(--cat-2)',
-    badge: <StatusBadge statut="ok">objectif tenu</StatusBadge>,
-  },
-  {
-    libelle: 'Demandes en cours',
-    valeur: '27',
-    icone: Inbox,
-    couleur: 'var(--cat-7)',
-    badge: <StatusBadge couleur="var(--cat-7)">8 à valider</StatusBadge>,
-  },
-  {
-    libelle: 'Projets en retard',
-    valeur: '2',
-    icone: FolderKanban,
-    couleur: 'var(--cat-3)',
-    badge: <StatusBadge statut="warn">à surveiller</StatusBadge>,
-  },
+  { libelle: 'Incidents ouverts', valeur: '12', icone: TriangleAlert, couleur: 'var(--cat-1)', note: '3 en approche SLA', tonNote: 'warn' },
+  { libelle: 'Incidents critiques', valeur: '3', icone: ShieldAlert, couleur: 'var(--cat-4)', note: 'Priorité P1', tonNote: 'danger' },
+  { libelle: 'Respect SLA', valeur: '92 %', icone: Timer, couleur: 'var(--cat-2)', note: 'Objectif tenu', tonNote: 'ok' },
+  { libelle: 'Demandes en cours', valeur: '27', icone: Inbox, couleur: 'var(--cat-7)', note: '8 à valider' },
+  { libelle: 'Projets en retard', valeur: '2', icone: FolderKanban, couleur: 'var(--cat-3)', note: 'À surveiller', tonNote: 'warn' },
+  { libelle: 'Risques critiques', valeur: '4', icone: Flame, couleur: 'var(--cat-5)', note: 'Revue requise' },
 ];
 
 export function DashboardPage(): JSX.Element {
@@ -58,27 +30,26 @@ export function DashboardPage(): JSX.Element {
         <p className={styles.sous}>Vue d'ensemble des activités de la DSI — AFG Bank Mali.</p>
       </header>
 
-      <section className={styles.grilleKpi}>
-        {KPIS.map(({ libelle, valeur, icone: Icone, couleur, badge }) => (
-          <Card key={libelle}>
+      <section className={styles.grille}>
+        {KPIS.map(({ libelle, valeur, icone: Icone, couleur, note, tonNote }) => (
+          <Card key={libelle} className={styles.kpi}>
             <div className={styles.kpiTete}>
-              <span
-                className={styles.kpiIcone}
-                style={{ color: couleur, background: `color-mix(in srgb, ${couleur} 12%, transparent)` }}
-              >
-                <Icone size={20} />
+              <span className={styles.kpiIcone} style={{ color: couleur }}>
+                <Icone size={18} />
               </span>
-              {badge}
+              <span className={styles.kpiLibelle}>{libelle}</span>
             </div>
             <div className={styles.kpiValeur}>{valeur}</div>
-            <div className={styles.kpiLibelle}>{libelle}</div>
+            <div className={styles.kpiNote} data-ton={tonNote}>
+              {note}
+            </div>
           </Card>
         ))}
       </section>
 
-      <Card className={styles.placeholderGraph}>
-        <span className={styles.placeholderTexte}>
-          Graphiques (composition des statuts, donut de répartition, échéances SLA) — lot P1.
+      <Card className={styles.graph}>
+        <span className={styles.graphTexte}>
+          Graphiques (composition des statuts, donut de répartition, échéances SLA) — à venir.
         </span>
       </Card>
     </div>

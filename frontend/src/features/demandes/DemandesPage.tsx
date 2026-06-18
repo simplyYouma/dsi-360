@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Inbox } from 'lucide-react';
-import { Button, Card, Modale, StatusBadge } from '@/design-system/primitives';
+import { Plus } from 'lucide-react';
+import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -13,12 +13,31 @@ const SLA: Record<Demande['statut_sla'], { libelle: string; statut: 'ok' | 'warn
 };
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
+
+const COLONNES: Colonne<Demande>[] = [
+  { cle: 'reference', entete: 'Référence', valeur: (d) => d.reference, largeur: '150px' },
+  { cle: 'titre', entete: 'Objet', rendu: (d) => <strong>{d.titre}</strong>, valeur: (d) => d.titre },
+  {
+    cle: 'categorie',
+    entete: 'Catégorie',
+    rendu: (d) =>
+      d.categorie ? <StatusBadge couleur="var(--cat-1)">{d.categorie}</StatusBadge> : '—',
+  },
+  { cle: 'statut', entete: 'Statut', rendu: (d) => <StatusBadge>{d.statut}</StatusBadge> },
+  {
+    cle: 'sla',
+    entete: 'SLA',
+    rendu: (d) => <StatusBadge statut={SLA[d.statut_sla].statut}>{SLA[d.statut_sla].libelle}</StatusBadge>,
+  },
+  {
+    cle: 'responsable',
+    entete: 'Demandeur / Resp.',
+    rendu: (d) => (d.responsable ? `${d.responsable.prenom} ${d.responsable.nom}` : '—'),
+  },
+  { cle: 'cree_le', entete: 'Créée le', valeur: (d) => d.cree_le, rendu: (d) => formaterDate(d.cree_le) },
+];
 
 function Niveau({ valeur, onChange }: { valeur: number; onChange: (n: number) => void }): JSX.Element {
   return (
@@ -39,6 +58,8 @@ function Niveau({ valeur, onChange }: { valeur: number; onChange: (n: number) =>
 
 export function DemandesPage(): JSX.Element {
   const [demandes, setDemandes] = useState<Demande[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
@@ -51,20 +72,24 @@ export function DemandesPage(): JSX.Element {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = useCallback(async (): Promise<void> => {
+  const charger = useCallback(async (p: number): Promise<void> => {
     setChargement(true);
     try {
-      const page = await demandesApi.lister(1);
-      setDemandes(page.elements);
+      const data = await demandesApi.lister(p);
+      setDemandes(data.elements);
+      setTotal(data.total);
     } finally {
       setChargement(false);
     }
   }, []);
 
   useEffect(() => {
-    void charger();
+    void charger(page);
+  }, [charger, page]);
+
+  useEffect(() => {
     void demandesApi.categories().then(setCategories);
-  }, [charger]);
+  }, []);
 
   const creer = async (): Promise<void> => {
     setErreur(null);
@@ -83,7 +108,8 @@ export function DemandesPage(): JSX.Element {
       setCategorie(null);
       setImpact(3);
       setUrgence(3);
-      await charger();
+      if (page === 1) await charger(1);
+      else setPage(1);
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Création impossible.');
     } finally {
@@ -104,57 +130,14 @@ export function DemandesPage(): JSX.Element {
         </Button>
       </header>
 
-      <Card sansPadding>
-        {chargement ? (
-          <p className={styles.vide}>Chargement…</p>
-        ) : demandes.length === 0 ? (
-          <div className={styles.vide}>
-            <Inbox size={32} />
-            <p>Aucune demande pour le moment.</p>
-          </div>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Référence</th>
-                <th>Objet</th>
-                <th>Catégorie</th>
-                <th>Statut</th>
-                <th>SLA</th>
-                <th>Demandeur / Resp.</th>
-                <th>Créée le</th>
-              </tr>
-            </thead>
-            <tbody>
-              {demandes.map((d) => (
-                <tr key={d.id}>
-                  <td className="tabular">{d.reference}</td>
-                  <td className={styles.cellTitre}>{d.titre}</td>
-                  <td>
-                    {d.categorie ? (
-                      <StatusBadge couleur="var(--cat-1)">{d.categorie}</StatusBadge>
-                    ) : (
-                      <span className={styles.muted}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    <StatusBadge>{d.statut}</StatusBadge>
-                  </td>
-                  <td>
-                    <StatusBadge statut={SLA[d.statut_sla].statut}>
-                      {SLA[d.statut_sla].libelle}
-                    </StatusBadge>
-                  </td>
-                  <td className={styles.muted}>
-                    {d.responsable ? `${d.responsable.prenom} ${d.responsable.nom}` : '—'}
-                  </td>
-                  <td className="tabular">{formaterDate(d.cree_le)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+      <Table
+        colonnes={COLONNES}
+        lignes={demandes}
+        cleLigne={(d) => d.id}
+        chargement={chargement}
+        vide="Aucune demande pour le moment."
+        pagination={{ page, total, taille: 15, onPage: setPage }}
+      />
 
       <Modale
         ouverte={modale}
