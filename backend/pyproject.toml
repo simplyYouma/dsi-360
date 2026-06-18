@@ -46,6 +46,8 @@ extend-immutable-calls = [
 [tool.ruff.lint.per-file-ignores]
 # Scripts ponctuels (migration/seed) : accès disque synchrone via pathlib accepté.
 "src/dsi360/infrastructure/db/migrate.py" = ["ASYNC240"]
+# Jeu de données de démonstration : longues listes de libellés.
+"src/dsi360/infrastructure/db/donnees_demo.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
