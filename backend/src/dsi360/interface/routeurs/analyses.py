@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import AnalysesReponse, GestionnaireEval
+from dsi360.interface.schemas import AnalysesReponse, GestionnaireDetail, GestionnaireEval
 from dsi360.interface.securite import exiger_acces
 
 routeur = APIRouter(prefix="/analyses", tags=["analyses"])
@@ -213,33 +213,81 @@ async def analyses(
     }
 
 
-_EVAL = text(
-    "SELECT g AS gestionnaire, count(*) AS volume, "
-    "count(*) FILTER (WHERE resolu_le IS NOT NULL OR cloture_le IS NOT NULL) AS resolus, "
-    "round(avg(ttr) FILTER (WHERE ttr > 0) / 1440.0, 1) AS mttr_jours, "
-    "round(avg(trep) FILTER (WHERE trep > 0) / 60.0, 1) AS prise_en_charge_h "
-    "FROM ("
-    "  SELECT a.donnees->>'gestionnaire' AS g, a.resolu_le, a.cloture_le, "
-    "    nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
-    "    nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep "
-    "  FROM core.activite a "
-    "  WHERE a.source = 'IMPORT_SD' AND coalesce(a.donnees->>'gestionnaire', '') <> ''"
-    ") s GROUP BY g ORDER BY volume DESC LIMIT 15"
+# Sous-requête : tickets importés rattachés à un gestionnaire (compte DSI), avec durées.
+_SRC_GEST = (
+    "SELECT r.id::text AS id, r.prenom, r.nom, a.cloture_le, a.resolu_le, "
+    "  nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
+    "  nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep "
+    "FROM core.activite a JOIN core.utilisateur r ON r.id = a.responsable_id "
+    "WHERE a.source = 'IMPORT_SD'"
 )
+
+_EVAL = text(
+    "SELECT s.id, (s.prenom || ' ' || s.nom) AS gestionnaire, count(*) AS volume, "
+    "count(*) FILTER (WHERE s.cloture_le IS NULL) AS charge, "
+    "count(*) FILTER (WHERE s.resolu_le IS NOT NULL OR s.cloture_le IS NOT NULL) AS resolus, "
+    "round(avg(s.ttr) FILTER (WHERE s.ttr > 0) / 1440.0, 1) AS mttr_jours, "
+    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h "
+    f"FROM ({_SRC_GEST}) s GROUP BY s.id, s.prenom, s.nom ORDER BY volume DESC LIMIT 20"
+)
+
+
+def _eval_dict(r: Any) -> dict[str, Any]:
+    return {
+        "id": r["id"],
+        "gestionnaire": r["gestionnaire"],
+        "volume": r["volume"],
+        "charge": r["charge"],
+        "resolus": r["resolus"],
+        "mttr_jours": float(r["mttr_jours"]) if r["mttr_jours"] is not None else None,
+        "prise_en_charge_h": float(r["prise_en_charge_h"])
+        if r["prise_en_charge_h"] is not None
+        else None,
+    }
 
 
 @routeur.get("/gestionnaires", response_model=list[GestionnaireEval])
 async def evaluation_gestionnaires(courant: Courant, session: Session) -> list[dict[str, Any]]:
     lignes = (await session.execute(_EVAL)).mappings().all()
-    return [
-        {
-            "gestionnaire": r["gestionnaire"],
-            "volume": r["volume"],
-            "resolus": r["resolus"],
-            "mttr_jours": float(r["mttr_jours"]) if r["mttr_jours"] is not None else None,
-            "prise_en_charge_h": float(r["prise_en_charge_h"])
-            if r["prise_en_charge_h"] is not None
-            else None,
+    return [_eval_dict(r) for r in lignes]
+
+
+_EVAL_UN = text(
+    "SELECT (s.prenom || ' ' || s.nom) AS gestionnaire, count(*) AS volume, "
+    "count(*) FILTER (WHERE s.cloture_le IS NULL) AS charge, "
+    "count(*) FILTER (WHERE s.resolu_le IS NOT NULL OR s.cloture_le IS NOT NULL) AS resolus, "
+    "round(avg(s.ttr) FILTER (WHERE s.ttr > 0) / 1440.0, 1) AS mttr_jours, "
+    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h "
+    f"FROM ({_SRC_GEST} AND r.id::text = :id) s GROUP BY s.prenom, s.nom"
+)
+
+_ACTIVITE_GEST = text(
+    "SELECT extract(isodow from a.cree_le)::int AS jour, "
+    "extract(hour from a.cree_le)::int AS heure, count(*) AS valeur "
+    "FROM core.activite a WHERE a.responsable_id = cast(:id as uuid) "
+    "AND a.cree_le IS NOT NULL GROUP BY 1, 2"
+)
+
+
+@routeur.get("/gestionnaire/{ident}", response_model=GestionnaireDetail)
+async def gestionnaire_detail(
+    ident: str, courant: Courant, session: Session
+) -> dict[str, Any]:
+    ligne = (await session.execute(_EVAL_UN, {"id": ident})).mappings().first()
+    activite = await _lignes(session, _ACTIVITE_GEST.text, {"id": ident})
+    if ligne is None:
+        nom = await session.scalar(
+            text("SELECT (prenom || ' ' || nom) FROM core.utilisateur WHERE id::text = :id"),
+            {"id": ident},
+        )
+        return {
+            "id": ident,
+            "gestionnaire": nom or "—",
+            "volume": 0,
+            "charge": 0,
+            "resolus": 0,
+            "mttr_jours": None,
+            "prise_en_charge_h": None,
+            "activite": activite,
         }
-        for r in lignes
-    ]
+    return {**_eval_dict({**ligne, "id": ident}), "activite": activite}

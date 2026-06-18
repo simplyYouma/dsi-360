@@ -13,9 +13,13 @@ import {
   ComposedChart,
   Area,
   CartesianGrid,
+  ScatterChart,
+  Scatter,
+  ZAxis,
 } from 'recharts';
 import { Card } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { SelecteurListe } from '@/common/SelecteurListe';
 import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
@@ -23,6 +27,7 @@ import {
   analysesApi,
   type Analyses,
   type GestionnaireEval,
+  type GestionnaireDetail,
   type PointActivite,
 } from './analysesApi';
 
@@ -58,7 +63,6 @@ const SLA_SEGMENTS = [
   { cle: 'approche', nom: 'Approche', couleur: '#c77700' },
   { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
 ] as const;
-const PALETTE = ['#4f6bed', '#15a394', '#e0a341', '#e2557b', '#8a5cf6', '#2fa363', '#3aa0c9', '#e07a3c'];
 
 type CleOnglet = 'apercu' | 'priorites' | 'equipe';
 const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
@@ -213,6 +217,40 @@ function couleurTaux(taux: number): string {
   return taux >= 90 ? 'var(--status-ok)' : taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
 }
 
+// Délai moyen de résolution : vert si rapide, ambre, rouge si lent.
+function couleurMttr(jours: number | null): string {
+  if (jours === null) return 'var(--cat-1)';
+  return jours <= 5 ? '#1f9d55' : jours <= 20 ? '#c77700' : '#d64545';
+}
+
+interface BulleData {
+  x: number;
+  y: number;
+  z: number;
+  id: string;
+  nom: string;
+  couleur: string;
+}
+
+function BulleTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean | undefined;
+  payload?: ReadonlyArray<{ payload?: BulleData }> | undefined;
+}): JSX.Element | null {
+  const point = payload?.[0]?.payload;
+  if (active !== true || point === undefined) return null;
+  return (
+    <div className={styles.bulleTip}>
+      <strong>{point.nom}</strong>
+      <span>
+        {point.x} traités · {point.y} j de délai · {point.z} en charge
+      </span>
+    </div>
+  );
+}
+
 function Jauge({ taux, label, detail }: { taux: number; label: string; detail: string }): JSX.Element {
   const r = 32;
   const circ = 2 * Math.PI * r;
@@ -304,6 +342,8 @@ export function AnalysesPage(): JSX.Element {
   const [evals, setEvals] = useState<GestionnaireEval[]>([]);
   const [jours, setJours] = useState<number | null>(null);
   const [onglet, setOnglet] = useState<CleOnglet>('apercu');
+  const [gestSel, setGestSel] = useState<string | null>(null);
+  const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
 
   useEffect(() => {
     void analysesApi.charger(jours).then(setA);
@@ -311,8 +351,15 @@ export function AnalysesPage(): JSX.Element {
   useEffect(() => {
     void analysesApi.gestionnaires().then(setEvals);
   }, []);
+  useEffect(() => {
+    if (gestSel === null) {
+      setGestDetail(null);
+      return;
+    }
+    setGestDetail(null);
+    void analysesApi.gestionnaire(gestSel).then(setGestDetail);
+  }, [gestSel]);
 
-  const volMax = Math.max(1, ...evals.map((e) => e.volume));
 
   const modules: Segment[] = (a?.par_module ?? []).map((m) => ({
     nom: MODULE_LABEL[m.libelle] ?? m.libelle,
@@ -330,12 +377,16 @@ export function AnalysesPage(): JSX.Element {
     valeur: p.valeur,
     fill: PRIORITE_COULEUR[p.libelle] ?? '#8a93a6',
   }));
-  const responsables = (a?.par_responsable ?? []).map((r, i) => ({
-    libelle: r.libelle,
-    valeur: r.valeur,
-    couleur: PALETTE[i % PALETTE.length] ?? '#4f6bed',
+  const bulles: BulleData[] = evals.map((e) => ({
+    x: e.volume,
+    y: e.mttr_jours ?? 0,
+    z: Math.max(1, e.charge ?? 0),
+    id: e.id,
+    nom: e.gestionnaire,
+    couleur: couleurMttr(e.mttr_jours),
   }));
-  const chargeMax = Math.max(1, ...responsables.map((r) => r.valeur));
+  const detailTaux =
+    gestDetail && gestDetail.volume > 0 ? Math.round((gestDetail.resolus * 100) / gestDetail.volume) : 0;
 
   return (
     <div className={incidents.page}>
@@ -423,14 +474,6 @@ export function AnalysesPage(): JSX.Element {
           <DonutModules data={modules} />
         </Card>
 
-        <Card className={styles.span2}>
-          <h2 className={styles.chartTitre}>Carte d'activité</h2>
-          <p className={styles.chartSous}>
-            Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
-          </p>
-          <HeatmapActivite points={a?.activite ?? []} />
-        </Card>
-
         <Card>
           <h2 className={styles.chartTitre}>Performance SLA par module</h2>
           <p className={styles.chartSous}>Répartition à l'heure · approche · dépassé.</p>
@@ -465,6 +508,14 @@ export function AnalysesPage(): JSX.Element {
             ))}
           </ul>
         </Card>
+
+        <Card className={styles.span2}>
+          <h2 className={styles.chartTitre}>Carte d'activité</h2>
+          <p className={styles.chartSous}>
+            Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
+          </p>
+          <HeatmapActivite points={a?.activite ?? []} />
+        </Card>
         </section>
       )}
 
@@ -472,9 +523,10 @@ export function AnalysesPage(): JSX.Element {
         <section className={styles.grille}>
         <Card>
           <h2 className={styles.chartTitre}>Répartition par priorité</h2>
+          <p className={styles.chartSous}>Activités ouvertes par niveau de priorité (P1 critique → P5 faible).</p>
           <div className={styles.radialBloc}>
-            <ResponsiveContainer width="100%" height={210}>
-              <RadialBarChart innerRadius="28%" outerRadius="100%" data={priorites} startAngle={90} endAngle={-270}>
+            <ResponsiveContainer width="100%" height={300}>
+              <RadialBarChart innerRadius="32%" outerRadius="100%" data={priorites} startAngle={90} endAngle={-270}>
                 <RadialBar dataKey="valeur" cornerRadius={6} background={{ fill: 'var(--bg-subtle)' }}>
                   {priorites.map((p) => (
                     <Cell key={p.name} fill={p.fill} />
@@ -525,78 +577,119 @@ export function AnalysesPage(): JSX.Element {
       )}
 
       {onglet === 'equipe' && (
-        <section className={styles.grille}>
-        <Card className={styles.span2}>
-          <h2 className={styles.chartTitre}>Charge par responsable</h2>
-          {responsables.length === 0 ? (
-            <p className={styles.vide}>Aucune donnée.</p>
-          ) : (
-            <ul className={styles.charge}>
-              {responsables.map((r) => (
-                <li key={r.libelle} className={styles.chargeLigne}>
-                  <AvatarPersonnage seed={r.libelle} taille={30} />
-                  <div className={styles.chargeCorps}>
-                    <div className={styles.chargeTete}>
-                      <span className={styles.chargeNom}>{r.libelle}</span>
-                      <span className={styles.chargeVal}>{r.valeur}</span>
-                    </div>
-                    <div className={styles.chargeBarre}>
-                      <div
-                        className={styles.chargePlein}
-                        style={{ width: `${Math.round((r.valeur * 100) / chargeMax)}%`, background: r.couleur }}
-                      />
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        <>
+          <div className={styles.barreGest}>
+            <span className={styles.barreGestLib}>Gestionnaire</span>
+            <div className={styles.barreGestSelect}>
+              <SelecteurListe
+                options={evals.map((e) => ({ valeur: e.id, libelle: e.gestionnaire }))}
+                valeur={gestSel}
+                onChange={setGestSel}
+                placeholder="Tous les gestionnaires"
+                permettreVide
+                libelleVide="Tous les gestionnaires"
+              />
+            </div>
+          </div>
 
-        <Card className={styles.span2}>
-          <h2 className={styles.chartTitre}>Évaluation des gestionnaires</h2>
-          <p className={styles.chartSous}>
-            Volume traité, délai moyen de résolution (jours) et de prise en charge (heures) —
-            mesures réelles issues du ticketing.
-          </p>
-          {evals.length === 0 ? (
-            <p className={styles.vide}>Aucune donnée d’évaluation.</p>
+          {gestSel === null ? (
+            <section className={styles.grille}>
+              <Card className={styles.span2}>
+                <h2 className={styles.chartTitre}>Cartographie des gestionnaires</h2>
+                <p className={styles.chartSous}>
+                  Une bulle par agent — abscisse : volume traité · ordonnée : délai moyen (jours) ·
+                  taille : charge ouverte. Cliquez une bulle pour le détail.
+                </p>
+                {bulles.length === 0 ? (
+                  <p className={styles.vide}>Aucune donnée.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={360}>
+                    <ScatterChart margin={{ top: 12, right: 24, bottom: 24, left: 4 }}>
+                      <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
+                      <XAxis
+                        type="number"
+                        dataKey="x"
+                        name="Volume"
+                        tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                        axisLine={false}
+                        tickLine={false}
+                        label={{ value: 'Volume traité', position: 'insideBottom', offset: -10, fill: 'var(--text-muted)', fontSize: 12 }}
+                      />
+                      <YAxis
+                        type="number"
+                        dataKey="y"
+                        name="Délai (j)"
+                        tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                        axisLine={false}
+                        tickLine={false}
+                        label={{ value: 'Délai moyen (j)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 12 }}
+                      />
+                      <ZAxis type="number" dataKey="z" range={[120, 900]} name="Charge" />
+                      <Tooltip {...infobulle} cursor={{ strokeDasharray: '3 3' }} content={BulleTooltip} />
+                      <Scatter
+                        data={bulles}
+                        onClick={(e: unknown) => {
+                          const o = e as { id?: string; payload?: { id?: string } };
+                          const id = o.id ?? o.payload?.id;
+                          if (id !== undefined) setGestSel(id);
+                        }}
+                      >
+                        {bulles.map((b) => (
+                          <Cell key={b.id} fill={b.couleur} fillOpacity={0.75} stroke={b.couleur} />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                )}
+                <ul className={styles.miniLegende}>
+                  <li><span className={styles.tiret} style={{ background: '#1f9d55' }} />≤ 5 j</li>
+                  <li><span className={styles.tiret} style={{ background: '#c77700' }} />≤ 20 j</li>
+                  <li><span className={styles.tiret} style={{ background: '#d64545' }} />&gt; 20 j</li>
+                </ul>
+              </Card>
+            </section>
           ) : (
-            <ul className={styles.eval}>
-              {evals.map((g, i) => {
-                const pct = Math.round((g.volume * 100) / volMax);
-                const taux = g.volume > 0 ? Math.round((g.resolus * 100) / g.volume) : 0;
-                return (
-                  <li key={g.gestionnaire} className={styles.evalLigne}>
-                    <span className={styles.evalRang}>{i + 1}</span>
-                    <AvatarPersonnage seed={g.gestionnaire} taille={34} />
-                    <div className={styles.evalCorps}>
-                      <div className={styles.evalTete}>
-                        <span className={styles.evalNom}>{g.gestionnaire}</span>
-                        <span className={styles.evalVol}>{g.volume} tickets</span>
-                      </div>
-                      <div className={styles.evalBarre}>
-                        <div className={styles.evalPlein} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                    <div className={styles.evalMets}>
-                      <span className={styles.metric}>
-                        <b>{g.mttr_jours ?? '—'}</b> j MTTR
-                      </span>
-                      <span className={styles.metric}>
-                        <b>{g.prise_en_charge_h ?? '—'}</b> h prise
-                      </span>
-                      <span className={styles.metric}>
-                        <b>{taux}%</b> résolus
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <section className={styles.grille}>
+              <Card className={styles.span2}>
+                <div className={styles.gestTete}>
+                  <AvatarPersonnage seed={gestDetail?.gestionnaire ?? gestSel} taille={44} />
+                  <div>
+                    <h2 className={styles.chartTitre}>{gestDetail?.gestionnaire ?? '…'}</h2>
+                    <p className={styles.chartSous}>État et charge du gestionnaire</p>
+                  </div>
+                </div>
+                <div className={styles.gestKpis}>
+                  <div className={styles.gestKpi}>
+                    <span className={styles.gestVal}>{gestDetail?.volume ?? '—'}</span>
+                    <span className={styles.gestLib}>Volume traité</span>
+                  </div>
+                  <div className={styles.gestKpi}>
+                    <span className={styles.gestVal} style={{ color: 'var(--cat-1)' }}>{gestDetail?.charge ?? '—'}</span>
+                    <span className={styles.gestLib}>Charge ouverte</span>
+                  </div>
+                  <div className={styles.gestKpi}>
+                    <span className={styles.gestVal} style={{ color: couleurMttr(gestDetail?.mttr_jours ?? null) }}>
+                      {gestDetail?.mttr_jours ?? '—'} j
+                    </span>
+                    <span className={styles.gestLib}>Délai moyen</span>
+                  </div>
+                  <div className={styles.gestKpi}>
+                    <span className={styles.gestVal} style={{ color: couleurTaux(detailTaux) }}>{detailTaux}%</span>
+                    <span className={styles.gestLib}>Taux résolution</span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className={styles.span2}>
+                <h2 className={styles.chartTitre}>Charge horodatée</h2>
+                <p className={styles.chartSous}>
+                  Tickets pris en charge par jour de semaine et heure — rythme de travail de l'agent.
+                </p>
+                <HeatmapActivite points={gestDetail?.activite ?? []} />
+              </Card>
+            </section>
           )}
-        </Card>
-        </section>
+        </>
       )}
     </div>
   );

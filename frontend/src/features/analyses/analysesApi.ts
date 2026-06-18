@@ -60,15 +60,23 @@ export interface Analyses {
 }
 
 export interface GestionnaireEval {
+  id: string;
   gestionnaire: string;
   volume: number;
+  charge: number;
   resolus: number;
   mttr_jours: number | null;
   prise_en_charge_h: number | null;
+}
+
+export interface GestionnaireDetail extends GestionnaireEval {
+  activite: PointActivite[];
 }
 
 export const analysesApi = {
   charger: (jours: number | null): Promise<Analyses> =>
     api.get(`/analyses${jours !== null ? `?jours=${jours}` : ''}`),
   gestionnaires: (): Promise<GestionnaireEval[]> => api.get('/analyses/gestionnaires'),
+  gestionnaire: (id: string): Promise<GestionnaireDetail> =>
+    api.get(`/analyses/gestionnaire/${id}`),
 };

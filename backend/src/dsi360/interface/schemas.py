@@ -466,11 +466,17 @@ class SlaPrioriteItem(BaseModel):
 
 
 class GestionnaireEval(BaseModel):
+    id: str
     gestionnaire: str
     volume: int
+    charge: int
     resolus: int
     mttr_jours: float | None
     prise_en_charge_h: float | None
+
+
+class GestionnaireDetail(GestionnaireEval):
+    activite: list[PointActivite]
 
 
 class AnalysesReponse(BaseModel):

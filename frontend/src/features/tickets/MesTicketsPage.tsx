@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
 import { Inbox } from 'lucide-react';
 import { Table, StatusBadge, type Colonne } from '@/design-system/primitives';
 import { BadgeStatut, BadgePriorite, BadgeSla } from '@/common/statuts';
-import { LIBELLE_MODULE, lienActivite } from '@/common/routesModule';
+import { FicheTransition } from '@/common/FicheTransition';
+import { LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import { mesTicketsApi, type MonTicket } from './mesTicketsApi';
 
@@ -46,17 +46,21 @@ const COLONNES: Colonne<MonTicket>[] = [
 ];
 
 export function MesTicketsPage(): JSX.Element {
-  const navigate = useNavigate();
   const [items, setItems] = useState<MonTicket[]>([]);
   const [chargement, setChargement] = useState(true);
+  const [fiche, setFiche] = useState<{ base: string; id: string } | null>(null);
 
-  useEffect(() => {
+  const charger = useCallback((): void => {
     setChargement(true);
     void mesTicketsApi
       .lister()
       .then(setItems)
       .finally(() => setChargement(false));
   }, []);
+
+  useEffect(() => {
+    charger();
+  }, [charger]);
 
   return (
     <div className={incidents.page}>
@@ -84,11 +88,19 @@ export function MesTicketsPage(): JSX.Element {
           chargement={chargement}
           vide="Aucun ticket assigné."
           onLigne={(t) => {
-            const lien = lienActivite(t.module, t.id);
-            if (lien !== null) navigate(lien);
+            const base = ROUTE_MODULE[t.module];
+            if (base !== undefined) setFiche({ base, id: t.id });
           }}
         />
       )}
+
+      <FicheTransition
+        base={fiche?.base ?? ''}
+        id={fiche?.id ?? null}
+        assignable
+        onFermer={() => setFiche(null)}
+        onChange={charger}
+      />
     </div>
   );
 }
