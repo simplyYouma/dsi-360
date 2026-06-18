@@ -133,19 +133,22 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
               <span className={styles.wfFinal}>État final — aucune évolution possible.</span>
             ) : (
               <div className={styles.transitions}>
-                {detail.transitions_possibles.map((vers) => (
-                  <button
-                    key={vers}
-                    type="button"
-                    className={styles.transBtn}
-                    disabled={envoi}
-                    onClick={() => void transitionner(vers)}
-                  >
-                    <span className={styles.point} style={{ background: couleurStatut(vers) }} />
-                    {vers}
-                    <ArrowRight size={14} className={styles.fleche} />
-                  </button>
-                ))}
+                {detail.transitions_possibles.map((vers) => {
+                  const c = couleurStatut(vers);
+                  return (
+                    <button
+                      key={vers}
+                      type="button"
+                      className={styles.transBtn}
+                      style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+                      disabled={envoi}
+                      onClick={() => void transitionner(vers)}
+                    >
+                      {vers}
+                      <ArrowRight size={14} />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
