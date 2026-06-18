@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.domain.etats import ordre_etats
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import AgentItem, CategorieItem
 from dsi360.interface.securite import utilisateur_courant
@@ -44,3 +45,11 @@ async def agents(
 ) -> list[dict[str, Any]]:
     resultat = await session.execute(_AGENTS)
     return [dict(ligne) for ligne in resultat.mappings().all()]
+
+
+@routeur.get("/etats", response_model=list[str])
+async def etats(
+    module: Annotated[str, Query()],
+    _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+) -> list[str]:
+    return ordre_etats(module)

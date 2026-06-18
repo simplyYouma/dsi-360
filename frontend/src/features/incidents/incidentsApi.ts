@@ -37,7 +37,23 @@ export interface NouvelIncident {
   urgence: number;
 }
 
+export interface FiltresListe {
+  statut?: string | null;
+  responsable_id?: string | null;
+  non_assigne?: boolean;
+}
+
+/** Construit la query string page + filtres (commune incidents/demandes/changements…). */
+export function chaineFiltres(page: number, f?: FiltresListe): string {
+  const p = new URLSearchParams({ page: String(page) });
+  if (f?.statut) p.set('statut', f.statut);
+  if (f?.responsable_id) p.set('responsable_id', f.responsable_id);
+  if (f?.non_assigne) p.set('non_assigne', 'true');
+  return p.toString();
+}
+
 export const incidentsApi = {
-  lister: (page: number): Promise<PageIncidents> => api.get(`/incidents?page=${page}`),
+  lister: (page: number, f?: FiltresListe): Promise<PageIncidents> =>
+    api.get(`/incidents?${chaineFiltres(page, f)}`),
   creer: (corps: NouvelIncident): Promise<{ id: string }> => api.post('/incidents', corps),
 };

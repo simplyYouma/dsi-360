@@ -155,10 +155,19 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
         session: Session,
         page: Annotated[int, Query(ge=1)] = 1,
         statut: Annotated[str | None, Query()] = None,
+        responsable_id: Annotated[str | None, Query()] = None,
+        non_assigne: Annotated[bool, Query()] = False,
     ) -> dict[str, Any]:
         direction = None if courant["transverse"] else courant["direction"]
         lignes, total = await repo.lister(
-            session, module, direction=direction, statut=statut, page=page, taille=_TAILLE
+            session,
+            module,
+            direction=direction,
+            statut=statut,
+            page=page,
+            taille=_TAILLE,
+            responsable_id=responsable_id,
+            non_assigne=non_assigne,
         )
         maintenant = datetime.now(UTC)
         return {

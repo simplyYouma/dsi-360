@@ -1,0 +1,24 @@
+.barre {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.filtre {
+  width: 230px;
+  max-width: 100%;
+}
+.reset {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.reset:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}

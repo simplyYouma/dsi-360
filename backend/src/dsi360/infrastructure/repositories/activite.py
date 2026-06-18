@@ -87,6 +87,8 @@ async def lister(
     statut: str | None,
     page: int,
     taille: int,
+    responsable_id: str | None = None,
+    non_assigne: bool = False,
 ) -> tuple[list[RowMapping], int]:
     params: dict[str, Any] = {"module": module}
     filtres = ""
@@ -96,6 +98,11 @@ async def lister(
     if statut is not None:
         filtres += " AND a.statut = :statut"
         params["statut"] = statut
+    if responsable_id is not None:
+        filtres += " AND a.responsable_id = cast(:resp as uuid)"
+        params["resp"] = responsable_id
+    if non_assigne:
+        filtres += " AND a.responsable_id IS NULL"
 
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{filtres}"), params) or 0
     params_page = {**params, "limite": taille, "decalage": (page - 1) * taille}

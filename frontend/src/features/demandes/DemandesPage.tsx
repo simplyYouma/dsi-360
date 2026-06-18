@@ -5,10 +5,12 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import { demandesApi, type Categorie, type Demande } from './demandesApi';
 
 const SLA: Record<Demande['statut_sla'], { libelle: string; statut: 'ok' | 'warn' | 'danger' }> = {
@@ -59,6 +61,7 @@ export function DemandesPage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
+  const [filtres, setFiltres] = useState<FiltresListe>({});
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -68,16 +71,19 @@ export function DemandesPage(): JSX.Element {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = useCallback(async (p: number): Promise<void> => {
-    setChargement(true);
-    try {
-      const data = await demandesApi.lister(p);
-      setDemandes(data.elements);
-      setTotal(data.total);
-    } finally {
-      setChargement(false);
-    }
-  }, []);
+  const charger = useCallback(
+    async (p: number): Promise<void> => {
+      setChargement(true);
+      try {
+        const data = await demandesApi.lister(p, filtres);
+        setDemandes(data.elements);
+        setTotal(data.total);
+      } finally {
+        setChargement(false);
+      }
+    },
+    [filtres],
+  );
 
   useEffect(() => {
     void charger(page);
@@ -128,6 +134,15 @@ export function DemandesPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <FiltreTickets
+        module="demande"
+        valeur={filtres}
+        onChange={(f) => {
+          setPage(1);
+          setFiltres(f);
+        }}
+      />
 
       <Table
         colonnes={COLONNES}
