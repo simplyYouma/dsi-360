@@ -9,6 +9,7 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { IncidentsPage } from '@/features/incidents/IncidentsPage';
 import { DemandesPage } from '@/features/demandes/DemandesPage';
 import { ProjetsPage } from '@/features/projets/ProjetsPage';
+import { ChangementsPage } from '@/features/changements/ChangementsPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
@@ -16,6 +17,7 @@ const PAGES: Record<string, JSX.Element> = {
   '/incidents': <IncidentsPage />,
   '/demandes': <DemandesPage />,
   '/projets': <ProjetsPage />,
+  '/changements': <ChangementsPage />,
 };
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */

@@ -11,6 +11,7 @@ from dsi360.config import get_settings
 from dsi360.infrastructure.db import get_engine
 from dsi360.interface.routeurs import (
     auth,
+    changements,
     demandes,
     incidents,
     projets,
@@ -49,6 +50,7 @@ def creer_app() -> FastAPI:
     v1.include_router(tableau_de_bord.routeur)
     v1.include_router(incidents.routeur)
     v1.include_router(demandes.routeur)
+    v1.include_router(changements.routeur)
     v1.include_router(projets.routeur)
     app.include_router(v1)
     return app
