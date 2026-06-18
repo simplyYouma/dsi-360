@@ -7,7 +7,7 @@ retards), répartitions (module, priorité, direction, charge), matrice des risq
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,12 +40,22 @@ async def _lignes(
 
 
 @routeur.get("", response_model=AnalysesReponse)
-async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
-    cond = ""
+async def analyses(
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+) -> dict[str, Any]:
+    cond_dir = ""
     params: dict[str, Any] = {}
     if not courant["transverse"]:
-        cond = " AND d.code = :dir"
-        params = {"dir": courant["direction"]}
+        cond_dir = " AND d.code = :dir"
+        params["dir"] = courant["direction"]
+    # Filtre période (sur la date de création) appliqué aux agrégations, hors tendance.
+    periode = ""
+    if jours is not None:
+        periode = " AND a.cree_le >= now() - make_interval(days => :jours)"
+        params["jours"] = jours
+    cond = cond_dir + periode
 
     total = await session.scalar(text(f"SELECT count(*) {_OUVERTES}{cond}"), params) or 0
 
@@ -133,9 +143,9 @@ async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
         "    date_trunc('week', now()), interval '1 week') AS debut) "
         "SELECT to_char(s.debut, 'DD/MM') AS periode, "
         f"  (SELECT count(*) {_JOINTURE} WHERE a.cree_le >= s.debut "
-        f"    AND a.cree_le < s.debut + interval '1 week'{cond}) AS crees, "
+        f"    AND a.cree_le < s.debut + interval '1 week'{cond_dir}) AS crees, "
         f"  (SELECT count(*) {_JOINTURE} WHERE a.resolu_le >= s.debut "
-        f"    AND a.resolu_le < s.debut + interval '1 week'{cond}) AS resolus "
+        f"    AND a.resolu_le < s.debut + interval '1 week'{cond_dir}) AS resolus "
         "FROM semaines s ORDER BY s.debut",
         params,
     )
@@ -159,6 +169,15 @@ async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
     ]
     reel_total = sum(p["total"] for p in sla_par_priorite)
     reel_ok = sum(p["dans_delai"] for p in sla_par_priorite)
+
+    # Carte d'activité : volume de tickets par jour de semaine (1=lundi) × heure.
+    activite = await _lignes(
+        session,
+        "SELECT extract(isodow from a.cree_le)::int AS jour, "
+        "extract(hour from a.cree_le)::int AS heure, count(*) AS valeur "
+        f"{_JOINTURE} WHERE a.cree_le IS NOT NULL{cond} GROUP BY 1, 2",
+        params,
+    )
 
     avec_sla = sla["a_lheure"] + sla["approche"] + sla["depasse"]
     # Respect réel prioritaire (durées mesurées) ; repli sur les échéances en cours sinon.
@@ -190,6 +209,7 @@ async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
         "sla_par_priorite": sla_par_priorite,
         "matrice_risques": matrice_risques,
         "tendance": tendance,
+        "activite": activite,
     }
 
 

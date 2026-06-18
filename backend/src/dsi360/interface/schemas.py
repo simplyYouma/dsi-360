@@ -452,6 +452,12 @@ class PointTendance(BaseModel):
     resolus: int
 
 
+class PointActivite(BaseModel):
+    jour: int  # 1 = lundi … 7 = dimanche
+    heure: int
+    valeur: int
+
+
 class SlaPrioriteItem(BaseModel):
     priorite: str
     dans_delai: int
@@ -479,3 +485,4 @@ class AnalysesReponse(BaseModel):
     sla_par_priorite: list[SlaPrioriteItem]
     matrice_risques: list[CaseRisque]
     tendance: list[PointTendance]
+    activite: list[PointActivite]

@@ -38,6 +38,12 @@ export interface SlaPriorite {
   taux: number;
 }
 
+export interface PointActivite {
+  jour: number; // 1 = lundi … 7 = dimanche
+  heure: number;
+  valeur: number;
+}
+
 export interface Analyses {
   total: number;
   kpis: Kpis;
@@ -50,6 +56,7 @@ export interface Analyses {
   sla_par_priorite: SlaPriorite[];
   matrice_risques: CaseRisque[];
   tendance: PointTendance[];
+  activite: PointActivite[];
 }
 
 export interface GestionnaireEval {
@@ -61,6 +68,7 @@ export interface GestionnaireEval {
 }
 
 export const analysesApi = {
-  charger: (): Promise<Analyses> => api.get('/analyses'),
+  charger: (jours: number | null): Promise<Analyses> =>
+    api.get(`/analyses${jours !== null ? `?jours=${jours}` : ''}`),
   gestionnaires: (): Promise<GestionnaireEval[]> => api.get('/analyses/gestionnaires'),
 };

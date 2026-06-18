@@ -4,8 +4,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   ResponsiveContainer,
@@ -14,14 +12,19 @@ import {
   RadialBar,
   ComposedChart,
   Area,
-  Line,
+  CartesianGrid,
 } from 'recharts';
 import { Card } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
-import { analysesApi, type Analyses, type GestionnaireEval } from './analysesApi';
+import {
+  analysesApi,
+  type Analyses,
+  type GestionnaireEval,
+  type PointActivite,
+} from './analysesApi';
 
 const MODULE_LABEL: Record<string, string> = {
   incident: 'Incidents',
@@ -56,6 +59,19 @@ const SLA_SEGMENTS = [
   { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
 ] as const;
 const PALETTE = ['#4f6bed', '#15a394', '#e0a341', '#e2557b', '#8a5cf6', '#2fa363', '#3aa0c9', '#e07a3c'];
+
+type CleOnglet = 'apercu' | 'priorites' | 'equipe';
+const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
+  { cle: 'apercu', libelle: "Vue d'ensemble" },
+  { cle: 'priorites', libelle: 'Risques & priorités' },
+  { cle: 'equipe', libelle: 'Équipe & gestionnaires' },
+];
+const PERIODES: { libelle: string; jours: number | null }[] = [
+  { libelle: '7 j', jours: 7 },
+  { libelle: '30 j', jours: 30 },
+  { libelle: '90 j', jours: 90 },
+  { libelle: 'Tout', jours: null },
+];
 
 // ---------------------------------------------------------------- KPI
 
@@ -191,14 +207,108 @@ function MatriceRisques({ cases }: { cases: Analyses['matrice_risques'] }): JSX.
   );
 }
 
+// ---------------------------------------------------------------- Jauge circulaire (SVG)
+
+function couleurTaux(taux: number): string {
+  return taux >= 90 ? 'var(--status-ok)' : taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
+}
+
+function Jauge({ taux, label, detail }: { taux: number; label: string; detail: string }): JSX.Element {
+  const r = 32;
+  const circ = 2 * Math.PI * r;
+  const couleur = couleurTaux(taux);
+  return (
+    <div className={styles.jauge}>
+      <svg viewBox="0 0 80 80" className={styles.jaugeSvg}>
+        <circle cx="40" cy="40" r={r} fill="none" stroke="var(--bg-subtle)" strokeWidth="8" />
+        <circle
+          cx="40"
+          cy="40"
+          r={r}
+          fill="none"
+          stroke={couleur}
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - taux / 100)}
+          transform="rotate(-90 40 40)"
+          style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+        />
+        <text x="40" y="38" textAnchor="middle" fontSize="17" fontWeight="600" fill="var(--text)">
+          {taux}%
+        </text>
+        <text x="40" y="53" textAnchor="middle" fontSize="9" fill="var(--text-muted)">
+          {label}
+        </text>
+      </svg>
+      <span className={styles.jaugeDetail}>{detail}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Carte d'activité (heatmap calendrier)
+
+const JOURS_SEMAINE = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+function HeatmapActivite({ points }: { points: PointActivite[] }): JSX.Element {
+  const carte = new Map<string, number>();
+  let max = 1;
+  for (const p of points) {
+    carte.set(`${p.jour}-${p.heure}`, p.valeur);
+    if (p.valeur > max) max = p.valeur;
+  }
+  return (
+    <div className={styles.heat}>
+      {JOURS_SEMAINE.map((nom, ji) => (
+        <div key={nom} className={styles.heatLigne}>
+          <span className={styles.heatJour}>{nom}</span>
+          <div className={styles.heatCells}>
+            {Array.from({ length: 24 }, (_, h) => {
+              const v = carte.get(`${ji + 1}-${h}`) ?? 0;
+              const intensite = v === 0 ? 0 : Math.round((20 + 80 * (v / max)));
+              return (
+                <span
+                  key={h}
+                  className={styles.heatCell}
+                  title={`${nom} ${h}h — ${v} ticket(s)`}
+                  style={{
+                    background:
+                      v === 0
+                        ? 'var(--bg-subtle)'
+                        : `color-mix(in srgb, var(--secondary) ${intensite}%, transparent)`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div className={styles.heatAxe}>
+        <span />
+        <div className={styles.heatHeures}>
+          <span>0 h</span>
+          <span>6 h</span>
+          <span>12 h</span>
+          <span>18 h</span>
+          <span>23 h</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AnalysesPage(): JSX.Element {
   const [a, setA] = useState<Analyses | null>(null);
   const [evals, setEvals] = useState<GestionnaireEval[]>([]);
+  const [jours, setJours] = useState<number | null>(null);
+  const [onglet, setOnglet] = useState<CleOnglet>('apercu');
 
   useEffect(() => {
-    void analysesApi.charger().then(setA);
+    void analysesApi.charger(jours).then(setA);
+  }, [jours]);
+  useEffect(() => {
     void analysesApi.gestionnaires().then(setEvals);
   }, []);
 
@@ -225,6 +335,7 @@ export function AnalysesPage(): JSX.Element {
     valeur: r.valeur,
     couleur: PALETTE[i % PALETTE.length] ?? '#4f6bed',
   }));
+  const chargeMax = Math.max(1, ...responsables.map((r) => r.valeur));
 
   return (
     <div className={incidents.page}>
@@ -234,6 +345,17 @@ export function AnalysesPage(): JSX.Element {
           <p className={incidents.sous}>
             Pilotage transverse : performance SLA, charge, priorités et exposition au risque.
           </p>
+        </div>
+        <div className={styles.periodes}>
+          {PERIODES.map((p) => (
+            <button
+              key={p.libelle}
+              className={jours === p.jours ? styles.periodeOn : styles.periode}
+              onClick={() => setJours(p.jours)}
+            >
+              {p.libelle}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -253,7 +375,20 @@ export function AnalysesPage(): JSX.Element {
         })}
       </section>
 
-      <section className={styles.grille}>
+      <div className={styles.onglets}>
+        {ONGLETS.map((o) => (
+          <button
+            key={o.cle}
+            className={onglet === o.cle ? styles.ongletOn : styles.onglet}
+            onClick={() => setOnglet(o.cle)}
+          >
+            {o.libelle}
+          </button>
+        ))}
+      </div>
+
+      {onglet === 'apercu' && (
+        <section className={styles.grille}>
         <Card className={styles.span2}>
           <h2 className={styles.chartTitre}>Tendance — créations vs résolutions</h2>
           <p className={styles.chartSous}>Volume hebdomadaire sur les 8 dernières semaines.</p>
@@ -264,12 +399,17 @@ export function AnalysesPage(): JSX.Element {
                   <stop offset="0%" stopColor="#4f6bed" stopOpacity={0.32} />
                   <stop offset="100%" stopColor="#4f6bed" stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id="grad-resolus" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1f9d55" stopOpacity={0.26} />
+                  <stop offset="100%" stopColor="#1f9d55" stopOpacity={0} />
+                </linearGradient>
               </defs>
+              <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="var(--border)" />
               <XAxis dataKey="periode" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
               <YAxis hide allowDecimals={false} />
-              <Tooltip {...infobulle} />
+              <Tooltip {...infobulle} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
               <Area type="monotone" dataKey="crees" name="Créées" stroke="#4f6bed" strokeWidth={2.5} fill="url(#grad-crees)" dot={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="resolus" name="Résolues" stroke="#1f9d55" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+              <Area type="monotone" dataKey="resolus" name="Résolues" stroke="#1f9d55" strokeWidth={2.5} fill="url(#grad-resolus)" dot={false} activeDot={{ r: 4 }} />
             </ComposedChart>
           </ResponsiveContainer>
           <ul className={styles.miniLegende}>
@@ -283,34 +423,53 @@ export function AnalysesPage(): JSX.Element {
           <DonutModules data={modules} />
         </Card>
 
+        <Card className={styles.span2}>
+          <h2 className={styles.chartTitre}>Carte d'activité</h2>
+          <p className={styles.chartSous}>
+            Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
+          </p>
+          <HeatmapActivite points={a?.activite ?? []} />
+        </Card>
+
         <Card>
           <h2 className={styles.chartTitre}>Performance SLA par module</h2>
-          <p className={styles.chartSous}>À l'heure, en approche et dépassé.</p>
-          <ResponsiveContainer width="100%" height={Math.max(180, slaModules.length * 38)}>
-            <BarChart layout="vertical" data={slaModules} margin={{ top: 0, right: 12, left: 8, bottom: 0 }} barCategoryGap={10}>
-              <XAxis type="number" hide allowDecimals={false} />
-              <YAxis type="category" dataKey="nom" width={104} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
-              <Tooltip {...infobulle} cursor={{ fill: 'var(--bg-subtle)' }} />
-              {SLA_SEGMENTS.map((s, i) => (
-                <Bar
-                  key={s.cle}
-                  dataKey={s.cle}
-                  name={s.nom}
-                  stackId="sla"
-                  fill={s.couleur}
-                  radius={i === SLA_SEGMENTS.length - 1 ? [0, 6, 6, 0] : [0, 0, 0, 0]}
-                  barSize={18}
-                />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          <p className={styles.chartSous}>Répartition à l'heure · approche · dépassé.</p>
+          <ul className={styles.stack}>
+            {slaModules.map((m) => {
+              const tot = Math.max(1, m.a_lheure + m.approche + m.depasse);
+              return (
+                <li key={m.nom} className={styles.stackLigne}>
+                  <span className={styles.stackNom}>{m.nom}</span>
+                  <div className={styles.stackBarre}>
+                    {SLA_SEGMENTS.map((s) => {
+                      const v = m[s.cle];
+                      if (v === 0) return null;
+                      return (
+                        <span
+                          key={s.cle}
+                          className={styles.stackSeg}
+                          title={`${s.nom} : ${v}`}
+                          style={{ width: `${(100 * v) / tot}%`, background: s.couleur }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <span className={styles.stackTot}>{m.a_lheure + m.approche + m.depasse}</span>
+                </li>
+              );
+            })}
+          </ul>
           <ul className={styles.miniLegende}>
             {SLA_SEGMENTS.map((s) => (
               <li key={s.cle}><span className={styles.tiret} style={{ background: s.couleur }} />{s.nom}</li>
             ))}
           </ul>
         </Card>
+        </section>
+      )}
 
+      {onglet === 'priorites' && (
+        <section className={styles.grille}>
         <Card>
           <h2 className={styles.chartTitre}>Répartition par priorité</h2>
           <div className={styles.radialBloc}>
@@ -350,46 +509,47 @@ export function AnalysesPage(): JSX.Element {
           {(a?.sla_par_priorite ?? []).length === 0 ? (
             <p className={styles.vide}>Aucune donnée de résolution.</p>
           ) : (
-            <ul className={styles.slaPrio}>
-              {(a?.sla_par_priorite ?? []).map((p) => {
-                const couleur =
-                  p.taux >= 90 ? 'var(--status-ok)' : p.taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
-                return (
-                  <li key={p.priorite} className={styles.slaPrioLigne}>
-                    <span className={styles.slaPrioNom}>{p.priorite}</span>
-                    <div className={styles.slaPrioBarre}>
-                      <div className={styles.slaPrioPlein} style={{ width: `${p.taux}%`, background: couleur }} />
-                    </div>
-                    <span className={styles.slaPrioTaux} style={{ color: couleur }}>
-                      {p.taux}%
-                    </span>
-                    <span className={styles.slaPrioVol}>
-                      {p.dans_delai}/{p.total}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className={styles.jauges}>
+              {(a?.sla_par_priorite ?? []).map((p) => (
+                <Jauge
+                  key={p.priorite}
+                  taux={p.taux}
+                  label={p.priorite}
+                  detail={`${p.dans_delai}/${p.total}`}
+                />
+              ))}
+            </div>
           )}
         </Card>
+        </section>
+      )}
 
+      {onglet === 'equipe' && (
+        <section className={styles.grille}>
         <Card className={styles.span2}>
           <h2 className={styles.chartTitre}>Charge par responsable</h2>
           {responsables.length === 0 ? (
             <p className={styles.vide}>Aucune donnée.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={Math.max(160, responsables.length * 40)}>
-              <BarChart layout="vertical" data={responsables} margin={{ top: 0, right: 28, left: 8, bottom: 0 }}>
-                <XAxis type="number" hide allowDecimals={false} />
-                <YAxis type="category" dataKey="libelle" width={150} tickLine={false} axisLine={false} tick={{ fontSize: 13, fill: 'var(--text-muted)' }} />
-                <Tooltip {...infobulle} cursor={{ fill: 'var(--bg-subtle)' }} />
-                <Bar dataKey="valeur" radius={[0, 8, 8, 0]} barSize={18} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 12 }}>
-                  {responsables.map((r) => (
-                    <Cell key={r.libelle} fill={r.couleur} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ul className={styles.charge}>
+              {responsables.map((r) => (
+                <li key={r.libelle} className={styles.chargeLigne}>
+                  <AvatarPersonnage seed={r.libelle} taille={30} />
+                  <div className={styles.chargeCorps}>
+                    <div className={styles.chargeTete}>
+                      <span className={styles.chargeNom}>{r.libelle}</span>
+                      <span className={styles.chargeVal}>{r.valeur}</span>
+                    </div>
+                    <div className={styles.chargeBarre}>
+                      <div
+                        className={styles.chargePlein}
+                        style={{ width: `${Math.round((r.valeur * 100) / chargeMax)}%`, background: r.couleur }}
+                      />
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
 
@@ -436,7 +596,8 @@ export function AnalysesPage(): JSX.Element {
             </ul>
           )}
         </Card>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
