@@ -44,6 +44,15 @@ export interface Analyses {
   tendance: PointTendance[];
 }
 
+export interface GestionnaireEval {
+  gestionnaire: string;
+  volume: number;
+  resolus: number;
+  mttr_jours: number | null;
+  prise_en_charge_h: number | null;
+}
+
 export const analysesApi = {
   charger: (): Promise<Analyses> => api.get('/analyses'),
+  gestionnaires: (): Promise<GestionnaireEval[]> => api.get('/analyses/gestionnaires'),
 };

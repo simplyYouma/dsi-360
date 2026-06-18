@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import AnalysesReponse
+from dsi360.interface.schemas import AnalysesReponse, GestionnaireEval
 from dsi360.interface.securite import exiger_acces
 
 routeur = APIRouter(prefix="/analyses", tags=["analyses"])
@@ -155,3 +155,35 @@ async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
         "matrice_risques": matrice_risques,
         "tendance": tendance,
     }
+
+
+_EVAL = text(
+    "SELECT g AS gestionnaire, count(*) AS volume, "
+    "count(*) FILTER (WHERE resolu_le IS NOT NULL OR cloture_le IS NOT NULL) AS resolus, "
+    "round(avg(ttr) FILTER (WHERE ttr > 0) / 1440.0, 1) AS mttr_jours, "
+    "round(avg(trep) FILTER (WHERE trep > 0) / 60.0, 1) AS prise_en_charge_h "
+    "FROM ("
+    "  SELECT a.donnees->>'gestionnaire' AS g, a.resolu_le, a.cloture_le, "
+    "    nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
+    "    nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep "
+    "  FROM core.activite a "
+    "  WHERE a.source = 'IMPORT_SD' AND coalesce(a.donnees->>'gestionnaire', '') <> ''"
+    ") s GROUP BY g ORDER BY volume DESC LIMIT 15"
+)
+
+
+@routeur.get("/gestionnaires", response_model=list[GestionnaireEval])
+async def evaluation_gestionnaires(courant: Courant, session: Session) -> list[dict[str, Any]]:
+    lignes = (await session.execute(_EVAL)).mappings().all()
+    return [
+        {
+            "gestionnaire": r["gestionnaire"],
+            "volume": r["volume"],
+            "resolus": r["resolus"],
+            "mttr_jours": float(r["mttr_jours"]) if r["mttr_jours"] is not None else None,
+            "prise_en_charge_h": float(r["prise_en_charge_h"])
+            if r["prise_en_charge_h"] is not None
+            else None,
+        }
+        for r in lignes
+    ]

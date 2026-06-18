@@ -17,10 +17,11 @@ import {
   Line,
 } from 'recharts';
 import { Card } from '@/design-system/primitives';
+import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
-import { analysesApi, type Analyses } from './analysesApi';
+import { analysesApi, type Analyses, type GestionnaireEval } from './analysesApi';
 
 const MODULE_LABEL: Record<string, string> = {
   incident: 'Incidents',
@@ -194,10 +195,14 @@ function MatriceRisques({ cases }: { cases: Analyses['matrice_risques'] }): JSX.
 
 export function AnalysesPage(): JSX.Element {
   const [a, setA] = useState<Analyses | null>(null);
+  const [evals, setEvals] = useState<GestionnaireEval[]>([]);
 
   useEffect(() => {
     void analysesApi.charger().then(setA);
+    void analysesApi.gestionnaires().then(setEvals);
   }, []);
+
+  const volMax = Math.max(1, ...evals.map((e) => e.volume));
 
   const modules: Segment[] = (a?.par_module ?? []).map((m) => ({
     nom: MODULE_LABEL[m.libelle] ?? m.libelle,
@@ -353,6 +358,50 @@ export function AnalysesPage(): JSX.Element {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          )}
+        </Card>
+
+        <Card className={styles.span2}>
+          <h2 className={styles.chartTitre}>Évaluation des gestionnaires</h2>
+          <p className={styles.chartSous}>
+            Volume traité, délai moyen de résolution (jours) et de prise en charge (heures) —
+            mesures réelles issues du ticketing.
+          </p>
+          {evals.length === 0 ? (
+            <p className={styles.vide}>Aucune donnée d’évaluation.</p>
+          ) : (
+            <ul className={styles.eval}>
+              {evals.map((g, i) => {
+                const pct = Math.round((g.volume * 100) / volMax);
+                const taux = g.volume > 0 ? Math.round((g.resolus * 100) / g.volume) : 0;
+                return (
+                  <li key={g.gestionnaire} className={styles.evalLigne}>
+                    <span className={styles.evalRang}>{i + 1}</span>
+                    <AvatarPersonnage seed={g.gestionnaire} taille={34} />
+                    <div className={styles.evalCorps}>
+                      <div className={styles.evalTete}>
+                        <span className={styles.evalNom}>{g.gestionnaire}</span>
+                        <span className={styles.evalVol}>{g.volume} tickets</span>
+                      </div>
+                      <div className={styles.evalBarre}>
+                        <div className={styles.evalPlein} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <div className={styles.evalMets}>
+                      <span className={styles.metric}>
+                        <b>{g.mttr_jours ?? '—'}</b> j MTTR
+                      </span>
+                      <span className={styles.metric}>
+                        <b>{g.prise_en_charge_h ?? '—'}</b> h prise
+                      </span>
+                      <span className={styles.metric}>
+                        <b>{taux}%</b> résolus
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </Card>
       </section>

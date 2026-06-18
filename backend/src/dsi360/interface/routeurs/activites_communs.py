@@ -251,6 +251,25 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
                     status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
                 )
         await repo.assigner(session, ident, corps.responsable_id)
+        # Notifie l'agent nouvellement assigné (sauf s'il s'assigne lui-même).
+        if (
+            corps.responsable_id is not None
+            and corps.responsable_id != avant["resp_id"]
+            and corps.responsable_id != courant["id"]
+        ):
+            await session.execute(
+                text(
+                    "INSERT INTO core.notification "
+                    "(destinataire_id, activite_id, type, titre, message) "
+                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', :titre, :msg)"
+                ),
+                {
+                    "dest": corps.responsable_id,
+                    "aid": avant["id"],
+                    "titre": f"Ticket assigné : {avant['reference']}",
+                    "msg": avant["titre"],
+                },
+            )
         await audit.consigner(
             session,
             action="ASSIGNATION",

@@ -443,6 +443,14 @@ class PointTendance(BaseModel):
     resolus: int
 
 
+class GestionnaireEval(BaseModel):
+    gestionnaire: str
+    volume: int
+    resolus: int
+    mttr_jours: float | None
+    prise_en_charge_h: float | None
+
+
 class AnalysesReponse(BaseModel):
     total: int
     kpis: KpisAnalyse
