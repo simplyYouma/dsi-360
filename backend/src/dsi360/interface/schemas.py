@@ -127,6 +127,13 @@ class NotificationsReponse(BaseModel):
     non_lus: int
 
 
+class PreferencesNotif(BaseModel):
+    interne: bool = True
+    email: bool = True
+    teams: bool = False
+    whatsapp: bool = False
+
+
 # --- Administration ---
 
 

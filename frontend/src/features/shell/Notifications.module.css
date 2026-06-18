@@ -65,15 +65,91 @@
   font-weight: var(--weight-semibold);
   font-size: var(--text-sm);
 }
-.toutLu {
+.actionsTete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lien {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   font-size: var(--text-xs);
   color: var(--secondary-hover);
 }
-.toutLu:hover {
+.lien:hover {
   text-decoration: underline;
+}
+.icone {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+.icone:hover {
+  color: var(--text);
+}
+
+/* Préférences de canaux */
+.canaux {
+  list-style: none;
+}
+.canal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.canaux li:last-child {
+  border-bottom: none;
+}
+.canalNom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tag {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+.toggle,
+.toggleOn {
+  width: 34px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  position: relative;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.toggleOn {
+  background: var(--secondary);
+  border-color: var(--secondary);
+}
+.toggle:disabled,
+.toggleOn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pastilleT {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: left 0.12s ease;
+}
+.toggleOn .pastilleT {
+  left: 15px;
 }
 .vide {
   display: flex;
