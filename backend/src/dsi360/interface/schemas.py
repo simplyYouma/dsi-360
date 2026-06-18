@@ -107,6 +107,15 @@ class AssignationDemande(BaseModel):
     responsable_id: str | None = None
 
 
+class AssignationLot(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=500)
+    responsable_id: str | None = None
+
+
+class ResultatAssignationLot(BaseModel):
+    assignes: int
+
+
 class AgentItem(BaseModel):
     id: str
     nom: str

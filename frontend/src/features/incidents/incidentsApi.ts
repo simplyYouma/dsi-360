@@ -52,6 +52,15 @@ export function chaineFiltres(page: number, f?: FiltresListe): string {
   return p.toString();
 }
 
+/** Assignation en lot, commune aux modules d'activité (base = /incidents, /demandes…). */
+export function assignerLot(
+  base: string,
+  ids: string[],
+  responsable_id: string | null,
+): Promise<{ assignes: number }> {
+  return api.post(`${base}/assignation-lot`, { ids, responsable_id });
+}
+
 export const incidentsApi = {
   lister: (page: number, f?: FiltresListe): Promise<PageIncidents> =>
     api.get(`/incidents?${chaineFiltres(page, f)}`),

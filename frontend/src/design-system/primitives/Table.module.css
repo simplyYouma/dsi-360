@@ -19,6 +19,37 @@
   font-size: var(--text-sm);
 }
 
+/* ---- Sélection de lignes ---- */
+.selCol {
+  width: 44px;
+  text-align: center;
+  padding-left: var(--space-3);
+}
+.case,
+.caseCochee {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.case:hover {
+  border-color: var(--text-muted);
+}
+.caseCochee {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ligneCochee {
+  background: var(--secondary-subtle);
+}
+
 .table thead th {
   position: sticky;
   top: 0;

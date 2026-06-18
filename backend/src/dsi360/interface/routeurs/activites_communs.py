@@ -29,8 +29,10 @@ from dsi360.interface.schemas import (
     ActiviteCreation,
     ActiviteDetail,
     AssignationDemande,
+    AssignationLot,
     CreationReponse,
     PageActivites,
+    ResultatAssignationLot,
     TransitionDemande,
 )
 from dsi360.interface.securite import exiger_acces
@@ -221,6 +223,53 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
         base = _detail(module, r, datetime.now(UTC))
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
         return base
+
+    # Déclaré avant /{ident} pour éviter que "assignation-lot" soit pris pour un identifiant.
+    @routeur.post("/assignation-lot", response_model=ResultatAssignationLot)
+    async def assigner_lot(
+        corps: AssignationLot, courant: Courant, session: Session
+    ) -> dict[str, int]:
+        if corps.responsable_id is not None:
+            existe = await session.scalar(
+                text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+                {"id": corps.responsable_id},
+            )
+            if existe is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+                )
+        assignes = 0
+        for ident in corps.ids:
+            r = await repo.par_id(session, module, ident)
+            if r is None or not _visible(r, courant):
+                continue  # on ignore silencieusement hors périmètre / introuvable
+            await repo.assigner(session, ident, corps.responsable_id)
+            assignes += 1
+        if assignes > 0 and corps.responsable_id not in (None, courant["id"]):
+            await session.execute(
+                text(
+                    "INSERT INTO core.notification "
+                    "(destinataire_id, type, titre, message) "
+                    "VALUES (cast(:dest as uuid), 'ASSIGNATION', :titre, :msg)"
+                ),
+                {
+                    "dest": corps.responsable_id,
+                    "titre": f"{assignes} ticket(s) assigné(s)",
+                    "msg": f"{assignes} {tag.lower()} vous ont été affectés.",
+                },
+            )
+        await audit.consigner(
+            session,
+            action="ASSIGNATION_LOT",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=f"{assignes} tickets",
+            nouvelle={"responsable_id": corps.responsable_id, "assignes": assignes},
+        )
+        await session.commit()
+        return {"assignes": assignes}
 
     @routeur.get("/{ident}", response_model=ActiviteDetail)
     async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:

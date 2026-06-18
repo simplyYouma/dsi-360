@@ -6,11 +6,12 @@ import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
+import { DispatchBar } from '@/common/DispatchBar';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
-import type { FiltresListe } from '@/features/incidents/incidentsApi';
+import { assignerLot, type FiltresListe } from '@/features/incidents/incidentsApi';
 import { demandesApi, type Categorie, type Demande } from './demandesApi';
 
 const SLA: Record<Demande['statut_sla'], { libelle: string; statut: 'ok' | 'warn' | 'danger' }> = {
@@ -62,6 +63,7 @@ export function DemandesPage(): JSX.Element {
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
   const [filtres, setFiltres] = useState<FiltresListe>({});
+  const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -140,9 +142,22 @@ export function DemandesPage(): JSX.Element {
         valeur={filtres}
         onChange={(f) => {
           setPage(1);
+          setSelection(new Set());
           setFiltres(f);
         }}
       />
+
+      {selection.size > 0 && (
+        <DispatchBar
+          count={selection.size}
+          onEffacer={() => setSelection(new Set())}
+          onAssigner={async (resp) => {
+            await assignerLot('/demandes', [...selection], resp);
+            setSelection(new Set());
+            await charger(page);
+          }}
+        />
+      )}
 
       <Table
         colonnes={COLONNES}
@@ -151,7 +166,31 @@ export function DemandesPage(): JSX.Element {
         chargement={chargement}
         vide="Aucune demande pour le moment."
         onLigne={(d) => setFicheId(d.id)}
-        pagination={{ page, total, taille: 15, onPage: setPage }}
+        pagination={{
+          page,
+          total,
+          taille: 15,
+          onPage: (p) => {
+            setSelection(new Set());
+            setPage(p);
+          },
+        }}
+        selection={{
+          selectionnes: selection,
+          onBasculer: (id) =>
+            setSelection((s) => {
+              const n = new Set(s);
+              if (n.has(id)) n.delete(id);
+              else n.add(id);
+              return n;
+            }),
+          onTout: (ids, tout) =>
+            setSelection((s) => {
+              const n = new Set(s);
+              ids.forEach((i) => (tout ? n.add(i) : n.delete(i)));
+              return n;
+            }),
+        }}
       />
 
       <FicheTransition

@@ -1,9 +1,28 @@
 import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
-import { ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { MouseEvent, ReactNode } from 'react';
+import { ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { cx } from '@/common/cx';
 import { Skeleton } from './Skeleton';
 import styles from './Table.module.css';
+
+export interface SelectionTable {
+  selectionnes: Set<string>;
+  onBasculer: (id: string) => void;
+  onTout: (ids: string[], tout: boolean) => void;
+}
+
+function Case({ coche, onClick }: { coche: boolean; onClick: (e: MouseEvent) => void }): JSX.Element {
+  return (
+    <button
+      type="button"
+      className={coche ? styles.caseCochee : styles.case}
+      onClick={onClick}
+      aria-label="Sélectionner"
+    >
+      {coche && <Check size={13} />}
+    </button>
+  );
+}
 
 export interface Colonne<T> {
   cle: string;
@@ -31,6 +50,7 @@ interface TableProps<T> {
   chargement?: boolean;
   onLigne?: (ligne: T) => void;
   pagination?: Pagination;
+  selection?: SelectionTable;
 }
 
 function pagesAffichees(courante: number, nb: number): (number | '…')[] {
@@ -56,6 +76,7 @@ export function Table<T>({
   chargement = false,
   onLigne,
   pagination,
+  selection,
 }: TableProps<T>): JSX.Element {
   const [tri, setTri] = useState<{ cle: string; sens: 1 | -1 } | null>(null);
 
@@ -83,6 +104,10 @@ export function Table<T>({
   };
 
   const nbPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.taille)) : 1;
+  const idsPage = lignesTriees.map(cleLigne);
+  const toutCoche =
+    selection !== undefined && idsPage.length > 0 && idsPage.every((id) => selection.selectionnes.has(id));
+  const nbColonnes = colonnes.length + (selection ? 1 : 0);
 
   return (
     <div className={styles.cadre}>
@@ -90,6 +115,11 @@ export function Table<T>({
         <table className={styles.table}>
           <thead>
             <tr>
+              {selection && (
+                <th className={styles.selCol}>
+                  <Case coche={toutCoche} onClick={() => selection.onTout(idsPage, !toutCoche)} />
+                </th>
+              )}
               {colonnes.map((c) => {
                 const actif = tri?.cle === c.cle;
                 return (
@@ -133,17 +163,31 @@ export function Table<T>({
               ))
             ) : lignesTriees.length === 0 ? (
               <tr>
-                <td colSpan={colonnes.length} className={styles.message}>
+                <td colSpan={nbColonnes} className={styles.message}>
                   {vide ?? 'Aucun élément.'}
                 </td>
               </tr>
             ) : (
-              lignesTriees.map((ligne) => (
+              lignesTriees.map((ligne) => {
+                const id = cleLigne(ligne);
+                const coche = selection?.selectionnes.has(id) ?? false;
+                return (
                 <tr
-                  key={cleLigne(ligne)}
-                  className={onLigne ? styles.cliquable : undefined}
+                  key={id}
+                  className={cx(onLigne && styles.cliquable, coche && styles.ligneCochee)}
                   onClick={onLigne ? () => onLigne(ligne) : undefined}
                 >
+                  {selection && (
+                    <td className={styles.selCol}>
+                      <Case
+                        coche={coche}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selection.onBasculer(id);
+                        }}
+                      />
+                    </td>
+                  )}
                   {colonnes.map((c) => (
                     <td
                       key={c.cle}
@@ -156,7 +200,8 @@ export function Table<T>({
                     </td>
                   ))}
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
