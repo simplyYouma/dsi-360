@@ -2,21 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Modale, Skeleton } from '@/design-system/primitives';
 import { api, ErreurApi } from '@/lib/api';
-import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
+import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
 import styles from './FicheTransition.module.css';
 
 interface Detail {
   reference: string;
   titre: string;
   statut: string;
-  priorite: number;
-  categorie: string | null;
-  statut_sla: 'a_lheure' | 'approche' | 'depasse';
-  sla_resolution_le: string | null;
-  cree_le: string;
-  responsable: { prenom: string; nom: string } | null;
   description: string | null;
   transitions_possibles: string[];
+  // Champs optionnels selon le module (activité, risque…).
+  priorite?: number;
+  criticite?: number;
+  categorie?: string | null;
+  statut_sla?: 'a_lheure' | 'approche' | 'depasse';
+  sla_resolution_le?: string | null;
+  cree_le?: string;
+  responsable?: { prenom: string; nom: string } | null;
 }
 
 interface FicheTransitionProps {
@@ -87,7 +89,11 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
         <div className={styles.fiche}>
           <div className={styles.tete}>
             <h3 className={styles.titre}>{detail.titre}</h3>
-            <BadgePriorite priorite={detail.priorite} />
+            {detail.priorite !== undefined ? (
+              <BadgePriorite priorite={detail.priorite} />
+            ) : detail.criticite !== undefined ? (
+              <BadgeCriticite niveau={detail.criticite} />
+            ) : null}
           </div>
 
           <dl className={styles.meta}>
@@ -97,30 +103,42 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
                 <BadgeStatut statut={detail.statut} />
               </dd>
             </div>
-            <div className={styles.metaItem}>
-              <dt>Échéance SLA</dt>
-              <dd>
-                <BadgeSla etat={detail.statut_sla} />
-              </dd>
-            </div>
-            <div className={styles.metaItem}>
-              <dt>Catégorie</dt>
-              <dd className={styles.valeur}>{detail.categorie ?? '—'}</dd>
-            </div>
-            <div className={styles.metaItem}>
-              <dt>Responsable</dt>
-              <dd className={styles.valeur}>
-                {detail.responsable ? `${detail.responsable.prenom} ${detail.responsable.nom}` : '—'}
-              </dd>
-            </div>
-            <div className={styles.metaItem}>
-              <dt>Échéance</dt>
-              <dd className={styles.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
-            </div>
-            <div className={styles.metaItem}>
-              <dt>Créé le</dt>
-              <dd className={styles.valeur}>{formaterDate(detail.cree_le)}</dd>
-            </div>
+            {detail.statut_sla !== undefined && (
+              <div className={styles.metaItem}>
+                <dt>Échéance SLA</dt>
+                <dd>
+                  <BadgeSla etat={detail.statut_sla} />
+                </dd>
+              </div>
+            )}
+            {detail.categorie !== undefined && (
+              <div className={styles.metaItem}>
+                <dt>Catégorie</dt>
+                <dd className={styles.valeur}>{detail.categorie ?? '—'}</dd>
+              </div>
+            )}
+            {detail.responsable !== undefined && (
+              <div className={styles.metaItem}>
+                <dt>Responsable</dt>
+                <dd className={styles.valeur}>
+                  {detail.responsable
+                    ? `${detail.responsable.prenom} ${detail.responsable.nom}`
+                    : '—'}
+                </dd>
+              </div>
+            )}
+            {detail.sla_resolution_le !== undefined && (
+              <div className={styles.metaItem}>
+                <dt>Échéance</dt>
+                <dd className={styles.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
+              </div>
+            )}
+            {detail.cree_le !== undefined && (
+              <div className={styles.metaItem}>
+                <dt>Créé le</dt>
+                <dd className={styles.valeur}>{formaterDate(detail.cree_le)}</dd>
+              </div>
+            )}
           </dl>
 
           {detail.description !== null && detail.description !== '' && (

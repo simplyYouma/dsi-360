@@ -62,3 +62,11 @@ const SLA: Record<EtatSla, { libelle: string; statut: 'ok' | 'warn' | 'danger' }
 export function BadgeSla({ etat }: { etat: EtatSla }): JSX.Element {
   return <StatusBadge statut={SLA[etat].statut}>{SLA[etat].libelle}</StatusBadge>;
 }
+
+const CRITICITE_MOT = ['', 'Très faible', 'Faible', 'Moyenne', 'Élevée', 'Critique'];
+
+/** Criticité d'un risque (1..5) : vert (faible) → ambre (moyenne) → rouge (élevée/critique). */
+export function BadgeCriticite({ niveau }: { niveau: number }): JSX.Element {
+  const statut = niveau >= 4 ? 'danger' : niveau === 3 ? 'warn' : 'ok';
+  return <StatusBadge statut={statut}>{CRITICITE_MOT[niveau] ?? `Niveau ${niveau}`}</StatusBadge>;
+}

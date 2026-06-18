@@ -142,6 +142,43 @@ class AvancementDemande(BaseModel):
     avancement: int = Field(ge=0, le=100)
 
 
+# --- Risques IT ---
+
+
+class RisqueCreation(BaseModel):
+    titre: str = Field(min_length=3, max_length=200)
+    description: str | None = None
+    direction_id: str | None = None
+    responsable_id: str | None = None
+    probabilite: int = Field(ge=1, le=5)
+    impact: int = Field(ge=1, le=5)
+
+
+class RisqueResume(BaseModel):
+    id: str
+    reference: str
+    titre: str
+    statut: str
+    direction: str | None
+    responsable: ResponsableBref | None
+    probabilite: int
+    impact: int
+    criticite: int
+    cree_le: datetime
+
+
+class RisqueDetail(RisqueResume):
+    description: str | None
+    transitions_possibles: list[str]
+
+
+class PageRisques(BaseModel):
+    elements: list[RisqueResume]
+    total: int
+    page: int
+    taille: int
+
+
 # --- Tableau de bord ---
 
 

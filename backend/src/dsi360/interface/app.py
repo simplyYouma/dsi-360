@@ -17,6 +17,7 @@ from dsi360.interface.routeurs import (
     incidents,
     projets,
     referentiels,
+    risques,
     tableau_de_bord,
 )
 
@@ -53,6 +54,7 @@ def creer_app() -> FastAPI:
     v1.include_router(demandes.routeur)
     v1.include_router(changements.routeur)
     v1.include_router(audit_reco.routeur)
+    v1.include_router(risques.routeur)
     v1.include_router(projets.routeur)
     app.include_router(v1)
     return app
