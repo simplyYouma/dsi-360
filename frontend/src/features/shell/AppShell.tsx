@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { PanelLeft, Search, Bell, Moon, Sun, LogOut } from 'lucide-react';
+import { Search, Bell, Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { useAuth } from '@/lib/auth';
@@ -12,6 +12,32 @@ import { FilAriane } from './FilAriane';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
+
+/** Icône de pli : panneau dont la partie gauche est pleine (ouvert) ou vide (replié). */
+function IconePli({ ouvert }: { ouvert: boolean }): JSX.Element {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      {ouvert && (
+        <path
+          d="M5.5 4 H9 V20 H5.5 A2.5 2.5 0 0 1 3 17.5 V6.5 A2.5 2.5 0 0 1 5.5 4 Z"
+          fill="currentColor"
+          stroke="none"
+        />
+      )}
+    </svg>
+  );
+}
 
 /** Shell applicatif premium : sidebar repliable (sections) + topbar. Contenu via <Outlet/>. */
 export function AppShell(): JSX.Element | null {
@@ -40,7 +66,7 @@ export function AppShell(): JSX.Element | null {
             onClick={basculerSidebar}
             aria-label={replie ? 'Déplier le menu' : 'Replier le menu'}
           >
-            <PanelLeft size={18} />
+            <IconePli ouvert={!replie} />
           </button>
         </div>
 

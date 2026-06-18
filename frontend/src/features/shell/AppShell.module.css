@@ -27,7 +27,11 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  /* Lueur dégradée douce (vert de marque en haut-gauche, accent en bas-droite). */
+  background:
+    radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--secondary) 22%, transparent), transparent 55%),
+    radial-gradient(120% 120% at 100% 100%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 55%),
+    var(--surface);
 }
 .logo {
   height: 56px;
