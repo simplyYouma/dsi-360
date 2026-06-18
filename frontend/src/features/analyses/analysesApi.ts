@@ -76,7 +76,8 @@ export interface GestionnaireDetail extends GestionnaireEval {
 export const analysesApi = {
   charger: (jours: number | null): Promise<Analyses> =>
     api.get(`/analyses${jours !== null ? `?jours=${jours}` : ''}`),
-  gestionnaires: (): Promise<GestionnaireEval[]> => api.get('/analyses/gestionnaires'),
-  gestionnaire: (id: string): Promise<GestionnaireDetail> =>
-    api.get(`/analyses/gestionnaire/${id}`),
+  gestionnaires: (jours: number | null): Promise<GestionnaireEval[]> =>
+    api.get(`/analyses/gestionnaires${jours !== null ? `?jours=${jours}` : ''}`),
+  gestionnaire: (id: string, jours: number | null): Promise<GestionnaireDetail> =>
+    api.get(`/analyses/gestionnaire/${id}${jours !== null ? `?jours=${jours}` : ''}`),
 };

@@ -213,23 +213,28 @@ async def analyses(
     }
 
 
-# Sous-requête : tickets importés rattachés à un gestionnaire (compte DSI), avec durées.
-_SRC_GEST = (
-    "SELECT r.id::text AS id, r.prenom, r.nom, a.cloture_le, a.resolu_le, "
-    "  nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
-    "  nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep "
-    "FROM core.activite a JOIN core.utilisateur r ON r.id = a.responsable_id "
-    "WHERE a.source = 'IMPORT_SD'"
-)
+# Filtre période (sur la date de création) injectable dans les requêtes gestionnaires.
+def _periode(jours: int | None) -> str:
+    return " AND a.cree_le >= now() - make_interval(days => :jours)" if jours is not None else ""
 
-_EVAL = text(
-    "SELECT s.id, (s.prenom || ' ' || s.nom) AS gestionnaire, count(*) AS volume, "
+
+_AGREGATS_GEST = (
+    "count(*) AS volume, "
     "count(*) FILTER (WHERE s.cloture_le IS NULL) AS charge, "
     "count(*) FILTER (WHERE s.resolu_le IS NOT NULL OR s.cloture_le IS NOT NULL) AS resolus, "
     "round(avg(s.ttr) FILTER (WHERE s.ttr > 0) / 1440.0, 1) AS mttr_jours, "
-    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h "
-    f"FROM ({_SRC_GEST}) s GROUP BY s.id, s.prenom, s.nom ORDER BY volume DESC LIMIT 20"
+    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h"
 )
+
+
+def _src_gest(extra: str) -> str:
+    return (
+        "SELECT r.id::text AS id, r.prenom, r.nom, a.cloture_le, a.resolu_le, "
+        "  nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
+        "  nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep "
+        "FROM core.activite a JOIN core.utilisateur r ON r.id = a.responsable_id "
+        f"WHERE a.source = 'IMPORT_SD'{extra}"
+    )
 
 
 def _eval_dict(r: Any) -> dict[str, Any]:
@@ -247,34 +252,45 @@ def _eval_dict(r: Any) -> dict[str, Any]:
 
 
 @routeur.get("/gestionnaires", response_model=list[GestionnaireEval])
-async def evaluation_gestionnaires(courant: Courant, session: Session) -> list[dict[str, Any]]:
-    lignes = (await session.execute(_EVAL)).mappings().all()
+async def evaluation_gestionnaires(
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+) -> list[dict[str, Any]]:
+    requete = (
+        f"SELECT s.id, (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
+        f"FROM ({_src_gest(_periode(jours))}) s "
+        "GROUP BY s.id, s.prenom, s.nom ORDER BY volume DESC LIMIT 20"
+    )
+    params = {"jours": jours} if jours is not None else {}
+    lignes = (await session.execute(text(requete), params)).mappings().all()
     return [_eval_dict(r) for r in lignes]
-
-
-_EVAL_UN = text(
-    "SELECT (s.prenom || ' ' || s.nom) AS gestionnaire, count(*) AS volume, "
-    "count(*) FILTER (WHERE s.cloture_le IS NULL) AS charge, "
-    "count(*) FILTER (WHERE s.resolu_le IS NOT NULL OR s.cloture_le IS NOT NULL) AS resolus, "
-    "round(avg(s.ttr) FILTER (WHERE s.ttr > 0) / 1440.0, 1) AS mttr_jours, "
-    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h "
-    f"FROM ({_SRC_GEST} AND r.id::text = :id) s GROUP BY s.prenom, s.nom"
-)
-
-_ACTIVITE_GEST = text(
-    "SELECT extract(isodow from a.cree_le)::int AS jour, "
-    "extract(hour from a.cree_le)::int AS heure, count(*) AS valeur "
-    "FROM core.activite a WHERE a.responsable_id = cast(:id as uuid) "
-    "AND a.cree_le IS NOT NULL GROUP BY 1, 2"
-)
 
 
 @routeur.get("/gestionnaire/{ident}", response_model=GestionnaireDetail)
 async def gestionnaire_detail(
-    ident: str, courant: Courant, session: Session
+    ident: str,
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
 ) -> dict[str, Any]:
-    ligne = (await session.execute(_EVAL_UN, {"id": ident})).mappings().first()
-    activite = await _lignes(session, _ACTIVITE_GEST.text, {"id": ident})
+    params: dict[str, Any] = {"id": ident}
+    if jours is not None:
+        params["jours"] = jours
+    requete = (
+        f"SELECT (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
+        f"FROM ({_src_gest(_periode(jours) + ' AND r.id::text = :id')}) s "
+        "GROUP BY s.prenom, s.nom"
+    )
+    ligne = (await session.execute(text(requete), params)).mappings().first()
+    activite = await _lignes(
+        session,
+        "SELECT extract(isodow from a.cree_le)::int AS jour, "
+        "extract(hour from a.cree_le)::int AS heure, count(*) AS valeur "
+        "FROM core.activite a WHERE a.responsable_id = cast(:id as uuid) "
+        f"AND a.cree_le IS NOT NULL{_periode(jours)} GROUP BY 1, 2",
+        params,
+    )
     if ligne is None:
         nom = await session.scalar(
             text("SELECT (prenom || ' ' || nom) FROM core.utilisateur WHERE id::text = :id"),

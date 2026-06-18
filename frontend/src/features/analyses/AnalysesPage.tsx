@@ -349,16 +349,16 @@ export function AnalysesPage(): JSX.Element {
     void analysesApi.charger(jours).then(setA);
   }, [jours]);
   useEffect(() => {
-    void analysesApi.gestionnaires().then(setEvals);
-  }, []);
+    void analysesApi.gestionnaires(jours).then(setEvals);
+  }, [jours]);
   useEffect(() => {
     if (gestSel === null) {
       setGestDetail(null);
       return;
     }
     setGestDetail(null);
-    void analysesApi.gestionnaire(gestSel).then(setGestDetail);
-  }, [gestSel]);
+    void analysesApi.gestionnaire(gestSel, jours).then(setGestDetail);
+  }, [gestSel, jours]);
 
 
   const modules: Segment[] = (a?.par_module ?? []).map((m) => ({
