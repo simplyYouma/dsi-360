@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, KeyRound } from 'lucide-react';
+import { Plus, Pencil, KeyRound, Dices } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { SelecteurListe } from '@/common/SelecteurListe';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
+
+/** Mot de passe temporaire fort (sans caractères ambigus). */
+function genererMotDePasse(): string {
+  const jeu = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%&*';
+  const tirage = new Uint32Array(14);
+  crypto.getRandomValues(tirage);
+  let mdp = '';
+  for (const n of tirage) mdp += jeu.charAt(n % jeu.length);
+  return mdp;
+}
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import a from './AdministrationPage.module.css';
 import {
@@ -224,52 +235,47 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
             <input value={nom} onChange={(e) => setNom(e.target.value)} />
           </label>
         </div>
-        <div className={styles.champ}>
-          <span>Profil</span>
-          <div className={styles.chips}>
-            {profils.map((p) => (
-              <button
-                key={p.code}
-                type="button"
-                className={cx(p.code === profil ? styles.chipActif : styles.chip)}
-                onClick={() => setProfil(p.code)}
-              >
-                {p.libelle}
-              </button>
-            ))}
+        <div className={styles.niveaux}>
+          <div className={styles.champ}>
+            <span>Profil</span>
+            <SelecteurListe
+              options={profils.map((p) => ({ valeur: p.code, libelle: p.libelle }))}
+              valeur={profil === '' ? null : profil}
+              onChange={(v) => setProfil(v ?? '')}
+              placeholder="Choisir un profil"
+            />
           </div>
-        </div>
-        <div className={styles.champ}>
-          <span>Direction (cloisonnement)</span>
-          <div className={styles.chips}>
-            <button
-              type="button"
-              className={cx(direction === null ? styles.chipActif : styles.chip)}
-              onClick={() => setDirection(null)}
-            >
-              Aucune
-            </button>
-            {directions.map((d) => (
-              <button
-                key={d.code}
-                type="button"
-                className={cx(d.code === direction ? styles.chipActif : styles.chip)}
-                onClick={() => setDirection(d.code)}
-              >
-                {d.libelle}
-              </button>
-            ))}
+          <div className={styles.champ}>
+            <span>Direction (cloisonnement)</span>
+            <SelecteurListe
+              options={directions.map((d) => ({ valeur: d.code, libelle: d.libelle }))}
+              valeur={direction}
+              onChange={setDirection}
+              permettreVide
+              libelleVide="Aucune (transverse)"
+              placeholder="Choisir une direction"
+            />
           </div>
         </div>
         {modale?.id === null ? (
           <label className={styles.champ}>
             <span>Mot de passe initial (8+ car., à changer à la 1re connexion)</span>
-            <input
-              type="text"
-              value={motDePasse}
-              onChange={(e) => setMotDePasse(e.target.value)}
-              placeholder="Mot de passe temporaire"
-            />
+            <div className={a.champMdp}>
+              <input
+                type="text"
+                value={motDePasse}
+                onChange={(e) => setMotDePasse(e.target.value)}
+                placeholder="Mot de passe temporaire"
+              />
+              <button
+                type="button"
+                className={a.genererMdp}
+                title="Générer un mot de passe aléatoire"
+                onClick={() => setMotDePasse(genererMotDePasse())}
+              >
+                <Dices size={16} />
+              </button>
+            </div>
           </label>
         ) : (
           <label className={styles.champ}>
