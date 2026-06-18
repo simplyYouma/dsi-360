@@ -7,6 +7,11 @@
 }
 .zone {
   overflow-x: auto;
+  scrollbar-width: none; /* scroller discret/invisible (défilement conservé) */
+}
+.zone::-webkit-scrollbar {
+  height: 0;
+  display: none;
 }
 .table {
   width: 100%;
