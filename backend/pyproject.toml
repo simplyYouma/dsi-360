@@ -48,6 +48,9 @@ extend-immutable-calls = [
 "src/dsi360/infrastructure/db/migrate.py" = ["ASYNC240"]
 # Jeu de données de démonstration : longues listes de libellés.
 "src/dsi360/infrastructure/db/donnees_demo.py" = ["E501"]
+# Pipeline d'ingestion : littéraux SQL d'upsert et mapping de colonnes longs.
+"src/dsi360/infrastructure/ingestion.py" = ["E501"]
+"src/dsi360/application/ingestion.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

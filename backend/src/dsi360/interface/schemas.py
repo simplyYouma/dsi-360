@@ -144,6 +144,47 @@ class PreferencesNotif(BaseModel):
     whatsapp: bool = False
 
 
+# --- Ingestion / Ticketing ---
+
+
+class RapportImport(BaseModel):
+    total: int
+    incidents: int
+    demandes: int
+    crees: int
+    mis_a_jour: int
+    demandeurs_crees: int
+    gestionnaires_non_reconnus: list[str]
+
+
+class DemandeurItem(BaseModel):
+    id: str
+    nom_complet: str
+    direction: str | None
+    email: str | None
+    actif: bool
+
+
+class PageDemandeurs(BaseModel):
+    elements: list[DemandeurItem]
+    total: int
+    page: int
+    taille: int
+
+
+class DemandeurCreation(BaseModel):
+    nom_complet: str = Field(min_length=2, max_length=160)
+    direction_code: str | None = None
+    email: str | None = None
+
+
+class DemandeurMaj(BaseModel):
+    nom_complet: str = Field(min_length=2, max_length=160)
+    direction_code: str | None = None
+    email: str | None = None
+    actif: bool
+
+
 # --- Administration ---
 
 
