@@ -107,6 +107,22 @@ async def lister(
     return list(lignes.mappings().all()), total
 
 
+async def lister_tout(
+    session: AsyncSession, module: str, *, direction: str | None, limite: int = 5000
+) -> list[RowMapping]:
+    """Toutes les activités du périmètre (sans pagination) — pour les exports."""
+    params: dict[str, Any] = {"module": module, "limite": limite}
+    cond = ""
+    if direction is not None:
+        cond = " AND d.code = :direction"
+        params["direction"] = direction
+    lignes = await session.execute(
+        text(f"SELECT {_LISTE_CHAMPS} {_BASE}{cond} ORDER BY a.cree_le DESC LIMIT :limite"),
+        params,
+    )
+    return list(lignes.mappings().all())
+
+
 async def changer_statut(
     session: AsyncSession,
     identifiant: str,

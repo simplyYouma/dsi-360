@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { BoutonsExport } from '@/common/BoutonsExport';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -124,10 +125,13 @@ export function DemandesPage(): JSX.Element {
           <h1 className={styles.titre}>Demandes de service</h1>
           <p className={styles.sous}>Comptes, habilitations, logiciels, VPN, matériel, assistance.</p>
         </div>
-        <Button onClick={() => setModale(true)}>
-          <Plus size={16} />
-          Nouvelle demande
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <BoutonsExport base="/demandes" />
+          <Button onClick={() => setModale(true)}>
+            <Plus size={16} />
+            Nouvelle demande
+          </Button>
+        </div>
       </header>
 
       <Table

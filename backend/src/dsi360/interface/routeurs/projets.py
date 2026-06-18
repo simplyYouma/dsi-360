@@ -3,7 +3,7 @@
 import json
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,7 @@ from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdit
 from dsi360.application.projets import creer_projet, maj_avancement
 from dsi360.domain.etats import transitions_possibles
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
     AvancementDemande,
@@ -118,6 +119,47 @@ async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> di
         acteur=courant,
     )
     return {"id": ident}
+
+
+_ENTETES = ["Référence", "Projet", "Statut", "Chef de projet", "Avancement", "Échéance", "Créé le"]
+
+
+@routeur.get("/export")
+async def exporter(
+    courant: Courant,
+    session: Session,
+    format: Annotated[str, Query(alias="format")] = "csv",
+) -> Response:
+    direction = None if courant["transverse"] else courant["direction"]
+    lignes = await repo.lister_tout(session, MODULE, direction=direction)
+    donnees: list[list[Any]] = []
+    for r in lignes:
+        d = _donnees(r)
+        chef = f"{r['resp_prenom']} {r['resp_nom']}" if r["resp_email"] is not None else ""
+        donnees.append(
+            [
+                r["reference"],
+                r["titre"],
+                r["statut"],
+                chef,
+                f"{int(d.get('avancement', 0))}%",
+                d.get("date_fin") or "",
+                r["cree_le"].strftime("%Y-%m-%d %H:%M"),
+            ]
+        )
+    if format == "xlsx":
+        contenu = vers_xlsx(_ENTETES, donnees, "projets")
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    else:
+        contenu = vers_csv(_ENTETES, donnees)
+        media = "text/csv"
+        ext = "csv"
+    return Response(
+        content=contenu,
+        media_type=media,
+        headers={"Content-Disposition": f"attachment; filename=projets-export.{ext}"},
+    )
 
 
 @routeur.get("/{ident}", response_model=ProjetDetail)

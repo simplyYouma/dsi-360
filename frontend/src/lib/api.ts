@@ -71,6 +71,28 @@ async function requete<T>(chemin: string, options: RequestInit = {}, reessayer =
   return (await res.json()) as T;
 }
 
+/** Télécharge un fichier protégé (jeton Bearer) et déclenche l'enregistrement navigateur. */
+export async function telecharger(chemin: string): Promise<void> {
+  const headers = new Headers();
+  if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
+  let res = await fetch(`${BASE}${chemin}`, { headers });
+  if (res.status === 401 && (await tenterRafraichir())) {
+    if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
+    res = await fetch(`${BASE}${chemin}`, { headers });
+  }
+  if (!res.ok) throw new ErreurApi(res.status, res.statusText);
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const correspondance = /filename=([^;]+)/.exec(disposition);
+  const nom = correspondance?.[1]?.trim() ?? 'export';
+  const url = URL.createObjectURL(blob);
+  const lien = document.createElement('a');
+  lien.href = url;
+  lien.download = nom;
+  lien.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(chemin: string): Promise<T> => requete<T>(chemin),
   post: <T>(chemin: string, corps?: unknown): Promise<T> =>

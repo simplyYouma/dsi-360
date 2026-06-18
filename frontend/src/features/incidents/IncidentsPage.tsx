@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { BoutonsExport } from '@/common/BoutonsExport';
 import { ErreurApi } from '@/lib/api';
 import { incidentsApi, type Incident } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
@@ -122,10 +123,13 @@ export function IncidentsPage(): JSX.Element {
           <h1 className={styles.titre}>Incidents</h1>
           <p className={styles.sous}>Gestion des incidents du système d'information.</p>
         </div>
-        <Button onClick={() => setModale(true)}>
-          <Plus size={16} />
-          Nouvel incident
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <BoutonsExport base="/incidents" />
+          <Button onClick={() => setModale(true)}>
+            <Plus size={16} />
+            Nouvel incident
+          </Button>
+        </div>
       </header>
 
       <Table

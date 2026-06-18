@@ -15,6 +15,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "celery[redis]>=5.4",
     "structlog>=24.4",
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +53,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["asyncpg.*", "celery.*"]
+module = ["asyncpg.*", "celery.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

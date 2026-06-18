@@ -8,7 +8,7 @@ d'accès RBAC, le module domaine et l'URL.
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ from dsi360.application.activites import (
 from dsi360.domain.etats import transitions_possibles
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
     ActiviteCreation,
@@ -82,6 +83,35 @@ def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
     return r["direction"] is None or r["direction"] == courant["direction"]
 
 
+ENTETES_EXPORT = [
+    "Référence",
+    "Titre",
+    "Statut",
+    "Priorité",
+    "Catégorie",
+    "Direction",
+    "Échéance SLA",
+    "Créé le",
+    "Responsable",
+]
+
+
+def _ligne_export(r: RowMapping) -> list[Any]:
+    resp = f"{r['resp_prenom']} {r['resp_nom']}" if r["resp_email"] is not None else ""
+    echeance = r["sla_resolution_le"].strftime("%Y-%m-%d %H:%M") if r["sla_resolution_le"] else ""
+    return [
+        r["reference"],
+        r["titre"],
+        r["statut"],
+        f"P{r['priorite']}" if r["priorite"] is not None else "",
+        r["categorie"] or "",
+        r["direction"] or "",
+        echeance,
+        r["cree_le"].strftime("%Y-%m-%d %H:%M"),
+        resp,
+    ]
+
+
 Session = Annotated[AsyncSession, Depends(session_scope)]
 
 
@@ -131,6 +161,30 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
             acteur=courant,
         )
         return {"id": ident}
+
+    @routeur.get("/export")
+    async def exporter(
+        courant: Courant,
+        session: Session,
+        format: Annotated[str, Query(alias="format")] = "csv",
+    ) -> Response:
+        direction = None if courant["transverse"] else courant["direction"]
+        lignes = await repo.lister_tout(session, module, direction=direction)
+        donnees = [_ligne_export(r) for r in lignes]
+        if format == "xlsx":
+            contenu = vers_xlsx(ENTETES_EXPORT, donnees, tag)
+            media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ext = "xlsx"
+        else:
+            contenu = vers_csv(ENTETES_EXPORT, donnees)
+            media = "text/csv"
+            ext = "csv"
+        nom = f"{prefixe.strip('/')}-export.{ext}"
+        return Response(
+            content=contenu,
+            media_type=media,
+            headers={"Content-Disposition": f"attachment; filename={nom}"},
+        )
 
     @routeur.get("/{ident}", response_model=ActiviteDetail)
     async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:

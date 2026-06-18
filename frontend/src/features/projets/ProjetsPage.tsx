@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { BoutonsExport } from '@/common/BoutonsExport';
 import { ErreurApi } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { projetsApi, type Projet } from './projetsApi';
@@ -114,10 +115,13 @@ export function ProjetsPage(): JSX.Element {
           <h1 className={styles.titre}>Projets</h1>
           <p className={styles.sous}>Suivi des projets de la DSI : planning, budget, avancement.</p>
         </div>
-        <Button onClick={() => setModale(true)}>
-          <Plus size={16} />
-          Nouveau projet
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <BoutonsExport base="/projets" />
+          <Button onClick={() => setModale(true)}>
+            <Plus size={16} />
+            Nouveau projet
+          </Button>
+        </div>
       </header>
 
       <Table
