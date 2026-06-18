@@ -18,7 +18,7 @@ from dsi360.application.activites import (
     creer_activite,
     transition,
 )
-from dsi360.domain.etats import transitions_possibles
+from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
@@ -74,6 +74,7 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "resolu_le": r["resolu_le"],
         "cloture_le": r["cloture_le"],
         "transitions_possibles": transitions_possibles(module, r["statut"]),
+        "etats": ordre_etats(module),
     }
 
 

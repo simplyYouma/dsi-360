@@ -78,6 +78,14 @@ def etat_initial(module: str) -> str:
     return next(iter(etats))
 
 
+def ordre_etats(module: str) -> list[str]:
+    """Liste ordonnée des états du module (ordre chronologique du cycle de vie)."""
+    etats = TRANSITIONS.get(module)
+    if etats is None:
+        raise ValueError(f"Module inconnu : {module}")
+    return list(etats.keys())
+
+
 def transitions_possibles(module: str, etat: str) -> list[str]:
     etats = TRANSITIONS.get(module)
     if etats is None:

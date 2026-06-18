@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
 from dsi360.application.risques import creer_risque
-from dsi360.domain.etats import transitions_possibles
+from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
@@ -64,6 +64,7 @@ def _detail(r: RowMapping) -> dict[str, Any]:
         **_resume(r),
         "description": r["description"],
         "transitions_possibles": transitions_possibles(MODULE, r["statut"]),
+        "etats": ordre_etats(MODULE),
     }
 
 

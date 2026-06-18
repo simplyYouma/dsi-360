@@ -74,6 +74,7 @@ class ActiviteDetail(ActiviteResume):
     resolu_le: datetime | None
     cloture_le: datetime | None
     transitions_possibles: list[str]
+    etats: list[str]
 
 
 class PageActivites(BaseModel):
@@ -170,6 +171,7 @@ class RisqueResume(BaseModel):
 class RisqueDetail(RisqueResume):
     description: str | None
     transitions_possibles: list[str]
+    etats: list[str]
 
 
 class PageRisques(BaseModel):

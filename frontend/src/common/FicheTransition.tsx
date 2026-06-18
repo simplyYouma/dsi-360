@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Modale, Skeleton } from '@/design-system/primitives';
 import { api, ErreurApi } from '@/lib/api';
+import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
 import styles from './FicheTransition.module.css';
 
@@ -11,6 +12,7 @@ interface Detail {
   statut: string;
   description: string | null;
   transitions_possibles: string[];
+  etats: string[];
   // Champs optionnels selon le module (activité, risque…).
   priorite?: number;
   criticite?: number;
@@ -146,29 +148,46 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
           )}
 
           <div className={styles.workflow}>
-            <span className={styles.wfTitre}>Faire évoluer</span>
-            {detail.transitions_possibles.length === 0 ? (
-              <span className={styles.wfFinal}>État final — aucune évolution possible.</span>
-            ) : (
-              <div className={styles.transitions}>
-                {detail.transitions_possibles.map((vers) => {
-                  const c = couleurStatut(vers);
-                  return (
-                    <button
-                      key={vers}
-                      type="button"
-                      className={styles.transBtn}
-                      style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
-                      disabled={envoi}
-                      onClick={() => void transitionner(vers)}
-                    >
-                      {vers}
-                      <ArrowRight size={14} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            <span className={styles.wfTitre}>Cycle de vie</span>
+            <ol className={styles.etapes}>
+              {detail.etats.map((etat, i) => {
+                const idx = detail.etats.indexOf(detail.statut);
+                const estCourant = etat === detail.statut;
+                const passe = i < idx;
+                const cliquable = detail.transitions_possibles.includes(etat);
+                const c = couleurStatut(etat);
+                return (
+                  <li
+                    key={etat}
+                    className={cx(
+                      styles.etape,
+                      passe && styles.passe,
+                      estCourant && styles.actuel,
+                      !passe && !estCourant && !cliquable && styles.futur,
+                    )}
+                  >
+                    <span
+                      className={styles.puce}
+                      style={estCourant ? { borderColor: c, background: c } : undefined}
+                    />
+                    {cliquable && !estCourant ? (
+                      <button
+                        type="button"
+                        className={styles.etapeBtn}
+                        style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+                        disabled={envoi}
+                        onClick={() => void transitionner(etat)}
+                      >
+                        {etat}
+                        <ArrowRight size={13} />
+                      </button>
+                    ) : (
+                      <span className={styles.etapeLabel}>{etat}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
           </div>
 
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
