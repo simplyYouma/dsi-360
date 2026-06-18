@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import CategorieItem
+from dsi360.interface.schemas import AgentItem, CategorieItem
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/referentiels", tags=["referentiels"])
@@ -15,6 +15,15 @@ routeur = APIRouter(prefix="/referentiels", tags=["referentiels"])
 _CATEGORIES = text(
     "SELECT id::text AS id, code, libelle FROM core.categorie "
     "WHERE module = :module ORDER BY libelle"
+)
+
+# Agents DSI assignables (gestionnaires de tickets).
+_AGENTS = text(
+    "SELECT u.id::text AS id, (u.prenom || ' ' || u.nom) AS nom, p.code AS profil "
+    "FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+    "WHERE u.actif AND p.code IN "
+    "('ADMIN','DSI','CHEF_SERVICE','CHEF_PROJET','TECHNICIEN') "
+    "ORDER BY u.prenom, u.nom"
 )
 
 
@@ -25,4 +34,13 @@ async def categories(
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
 ) -> list[dict[str, Any]]:
     resultat = await session.execute(_CATEGORIES, {"module": module})
+    return [dict(ligne) for ligne in resultat.mappings().all()]
+
+
+@routeur.get("/agents", response_model=list[AgentItem])
+async def agents(
+    session: Annotated[AsyncSession, Depends(session_scope)],
+    _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+) -> list[dict[str, Any]]:
+    resultat = await session.execute(_AGENTS)
     return [dict(ligne) for ligne in resultat.mappings().all()]

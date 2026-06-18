@@ -13,7 +13,8 @@ _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
     a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, a.donnees,
     c.libelle AS categorie, d.code AS direction,
-    r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email
+    r.id::text AS resp_id, r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email,
+    dem.nom_complet AS demandeur_nom
 """
 
 _BASE = """
@@ -21,6 +22,7 @@ _BASE = """
     LEFT JOIN core.categorie c ON c.id = a.categorie_id
     LEFT JOIN core.direction d ON d.id = a.direction_id
     LEFT JOIN core.utilisateur r ON r.id = a.responsable_id
+    LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id
     WHERE a.module = :module
 """
 
@@ -121,6 +123,16 @@ async def lister_tout(
         params,
     )
     return list(lignes.mappings().all())
+
+
+async def assigner(session: AsyncSession, identifiant: str, responsable_id: str | None) -> None:
+    """Affecte (ou retire) le gestionnaire DSI d'une activité."""
+    await session.execute(
+        text(
+            "UPDATE core.activite SET responsable_id = cast(:resp as uuid) WHERE id::text = :id"
+        ),
+        {"id": identifiant, "resp": responsable_id},
+    )
 
 
 async def changer_statut(

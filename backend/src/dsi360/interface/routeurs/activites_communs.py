@@ -5,11 +5,12 @@ transition (machine à états) sont identiques d'un module à l'autre — seules
 d'accès RBAC, le module domaine et l'URL.
 """
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import RowMapping
+from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import (
@@ -27,6 +28,7 @@ from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
     ActiviteCreation,
     ActiviteDetail,
+    AssignationDemande,
     CreationReponse,
     PageActivites,
     TransitionDemande,
@@ -49,6 +51,21 @@ def _responsable(r: RowMapping) -> dict[str, str] | None:
     return {"prenom": r["resp_prenom"], "nom": r["resp_nom"], "email": r["resp_email"]}
 
 
+def _donnees(r: RowMapping) -> dict[str, Any]:
+    valeur = r["donnees"]
+    if isinstance(valeur, str):
+        valeur = json.loads(valeur)
+    return dict(valeur) if isinstance(valeur, dict) else {}
+
+
+def _gestionnaire(r: RowMapping) -> str | None:
+    """Gestionnaire DSI : compte rattaché si présent, sinon nom conservé à l'import."""
+    if r["resp_email"] is not None:
+        return f"{r['resp_prenom']} {r['resp_nom']}"
+    valeur = _donnees(r).get("gestionnaire")
+    return str(valeur) if valeur else None
+
+
 def _resume(r: RowMapping, maintenant: datetime) -> dict[str, Any]:
     return {
         "id": r["id"],
@@ -62,6 +79,9 @@ def _resume(r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "statut_sla": _statut_sla(r["sla_resolution_le"], maintenant),
         "cree_le": r["cree_le"],
         "responsable": _responsable(r),
+        "demandeur": r["demandeur_nom"],
+        "gestionnaire": _gestionnaire(r),
+        "responsable_id": r["resp_id"],
     }
 
 
@@ -213,6 +233,36 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
             ) from exc
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.post("/{ident}/assignation", response_model=ActiviteDetail)
+    async def assigner(
+        ident: str, corps: AssignationDemande, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        avant = await charger_visible(session, ident, courant)
+        if corps.responsable_id is not None:
+            existe = await session.scalar(
+                text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+                {"id": corps.responsable_id},
+            )
+            if existe is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+                )
+        await repo.assigner(session, ident, corps.responsable_id)
+        await audit.consigner(
+            session,
+            action="ASSIGNATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            ancienne={"responsable_id": avant["resp_id"]},
+            nouvelle={"responsable_id": corps.responsable_id},
+        )
+        await session.commit()
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)
 

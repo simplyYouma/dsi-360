@@ -75,6 +75,9 @@ class ActiviteResume(BaseModel):
     statut_sla: str
     cree_le: datetime
     responsable: ResponsableBref | None
+    demandeur: str | None
+    gestionnaire: str | None
+    responsable_id: str | None
 
 
 class ActiviteDetail(ActiviteResume):
@@ -98,6 +101,16 @@ class PageActivites(BaseModel):
 
 class TransitionDemande(BaseModel):
     vers: str = Field(min_length=1)
+
+
+class AssignationDemande(BaseModel):
+    responsable_id: str | None = None
+
+
+class AgentItem(BaseModel):
+    id: str
+    nom: str
+    profil: str
 
 
 class CreationReponse(BaseModel):

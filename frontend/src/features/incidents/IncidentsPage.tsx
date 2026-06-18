@@ -47,10 +47,16 @@ const COLONNES: Colonne<Incident>[] = [
     entete: 'SLA',
     rendu: (i) => <StatusBadge statut={SLA[i.statut_sla].statut}>{SLA[i.statut_sla].libelle}</StatusBadge>,
   },
+  { cle: 'demandeur', entete: 'Demandeur', rendu: (i) => i.demandeur ?? '—' },
   {
-    cle: 'responsable',
-    entete: 'Responsable',
-    rendu: (i) => (i.responsable ? `${i.responsable.prenom} ${i.responsable.nom}` : '—'),
+    cle: 'gestionnaire',
+    entete: 'Gestionnaire',
+    rendu: (i) =>
+      i.gestionnaire ? (
+        i.gestionnaire
+      ) : (
+        <span style={{ color: 'var(--text-muted)' }}>Non assigné</span>
+      ),
   },
   { cle: 'cree_le', entete: 'Créé le', valeur: (i) => i.cree_le, rendu: (i) => formaterDate(i.cree_le) },
 ];
@@ -134,6 +140,7 @@ export function IncidentsPage(): JSX.Element {
       <FicheTransition
         base="/incidents"
         id={ficheId}
+        assignable
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Modale, Skeleton } from '@/design-system/primitives';
+import { SelecteurListe } from '@/common/SelecteurListe';
 import { api, ErreurApi } from '@/lib/api';
 import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
 import styles from './FicheTransition.module.css';
+
+interface Agent {
+  id: string;
+  nom: string;
+  profil: string;
+}
 
 interface Detail {
   reference: string;
@@ -22,6 +29,9 @@ interface Detail {
   sla_resolution_le?: string | null;
   cree_le?: string;
   responsable?: { prenom: string; nom: string } | null;
+  demandeur?: string | null;
+  gestionnaire?: string | null;
+  responsable_id?: string | null;
 }
 
 interface FicheTransitionProps {
@@ -29,6 +39,8 @@ interface FicheTransitionProps {
   id: string | null;
   onFermer: () => void;
   onChange: () => void;
+  /** Active l'assignation du gestionnaire DSI (modules ticketing : factory d'activités). */
+  assignable?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -41,8 +53,15 @@ function formaterDate(iso: string | null): string {
 }
 
 /** Fiche d'une activité : détails présentés proprement + transitions d'état (couleurs sémantiques). */
-export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitionProps): JSX.Element {
+export function FicheTransition({
+  base,
+  id,
+  onFermer,
+  onChange,
+  assignable = false,
+}: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -56,6 +75,24 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  useEffect(() => {
+    if (assignable && agents.length === 0) void api.get<Agent[]>('/referentiels/agents').then(setAgents);
+  }, [assignable, agents.length]);
+
+  const assigner = async (responsableId: string | null): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(await api.post<Detail>(`${base}/${id}/assignation`, { responsable_id: responsableId }));
+      onChange();
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Assignation impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
 
   const transitionner = async (vers: string): Promise<void> => {
     if (id === null) return;
@@ -122,7 +159,27 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
                 <dd className={styles.valeur}>{detail.categorie ?? '—'}</dd>
               </div>
             )}
-            {detail.responsable !== undefined && (
+            {detail.demandeur ? (
+              <div className={styles.metaItem}>
+                <dt>Demandeur</dt>
+                <dd className={styles.valeur}>{detail.demandeur}</dd>
+              </div>
+            ) : null}
+            {assignable ? (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Gestionnaire</dt>
+                <dd>
+                  <SelecteurListe
+                    options={agents.map((a) => ({ valeur: a.id, libelle: a.nom }))}
+                    valeur={detail.responsable_id ?? null}
+                    onChange={(v) => void assigner(v)}
+                    permettreVide
+                    libelleVide="Non assigné"
+                    placeholder="Assigner à un agent DSI…"
+                  />
+                </dd>
+              </div>
+            ) : detail.responsable !== undefined ? (
               <div className={styles.metaItem}>
                 <dt>Responsable</dt>
                 <dd className={styles.valeur}>
@@ -131,7 +188,7 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
                     : '—'}
                 </dd>
               </div>
-            )}
+            ) : null}
             {detail.sla_resolution_le !== undefined && (
               <div className={styles.metaItem}>
                 <dt>Échéance</dt>

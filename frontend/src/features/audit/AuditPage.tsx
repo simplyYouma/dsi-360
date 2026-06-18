@@ -125,6 +125,7 @@ export function AuditPage(): JSX.Element {
       <FicheTransition
         base="/audit"
         id={ficheId}
+        assignable
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />

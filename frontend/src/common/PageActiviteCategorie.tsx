@@ -147,7 +147,7 @@ export function PageActiviteCategorie({
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
 
-      <FicheTransition base={base} id={ficheId} onFermer={() => setFicheId(null)} onChange={() => void charger(page)} />
+      <FicheTransition base={base} id={ficheId} assignable onFermer={() => setFicheId(null)} onChange={() => void charger(page)} />
 
       <Modale
         ouverte={modale}

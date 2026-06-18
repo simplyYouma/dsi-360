@@ -36,10 +36,16 @@ const COLONNES: Colonne<Demande>[] = [
     entete: 'SLA',
     rendu: (d) => <StatusBadge statut={SLA[d.statut_sla].statut}>{SLA[d.statut_sla].libelle}</StatusBadge>,
   },
+  { cle: 'demandeur', entete: 'Demandeur', rendu: (d) => d.demandeur ?? '—' },
   {
-    cle: 'responsable',
-    entete: 'Demandeur / Resp.',
-    rendu: (d) => (d.responsable ? `${d.responsable.prenom} ${d.responsable.nom}` : '—'),
+    cle: 'gestionnaire',
+    entete: 'Gestionnaire',
+    rendu: (d) =>
+      d.gestionnaire ? (
+        d.gestionnaire
+      ) : (
+        <span style={{ color: 'var(--text-muted)' }}>Non assigné</span>
+      ),
   },
   { cle: 'cree_le', entete: 'Créée le', valeur: (d) => d.cree_le, rendu: (d) => formaterDate(d.cree_le) },
 ];
@@ -136,6 +142,7 @@ export function DemandesPage(): JSX.Element {
       <FicheTransition
         base="/demandes"
         id={ficheId}
+        assignable
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />

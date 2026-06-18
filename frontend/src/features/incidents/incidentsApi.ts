@@ -18,6 +18,9 @@ export interface Incident {
   statut_sla: 'a_lheure' | 'approche' | 'depasse';
   cree_le: string;
   responsable: ResponsableBref | null;
+  demandeur: string | null;
+  gestionnaire: string | null;
+  responsable_id: string | null;
 }
 
 export interface PageIncidents {

@@ -146,6 +146,7 @@ export function ChangementsPage(): JSX.Element {
       <FicheTransition
         base="/changements"
         id={ficheId}
+        assignable
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />
