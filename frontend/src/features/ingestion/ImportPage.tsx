@@ -122,28 +122,11 @@ export function ImportPage(): JSX.Element {
               <CheckCircle2 size={18} className={styles.ok} />
               <span>
                 <strong>{rapport.incidents}</strong> incidents et{' '}
-                <strong>{rapport.demandes}</strong> demandes intégrés.
+                <strong>{rapport.demandes}</strong> demandes intégrés. Les gestionnaires du rapport
+                sont les agents DSI : <strong>{rapport.gestionnaires_crees}</strong> nouveau(x)
+                compte(s) créé(s) et rattaché(s) aux tickets.
               </span>
             </div>
-
-            {rapport.gestionnaires_non_reconnus.length > 0 && (
-              <div className={styles.bloc}>
-                <h2 className={styles.blocTitre}>
-                  Gestionnaires non rattachés ({rapport.gestionnaires_non_reconnus.length})
-                </h2>
-                <p className={styles.blocSous}>
-                  Ces noms n’ont pas de compte DSI correspondant. Le nom est conservé sur chaque
-                  ticket ; créez les comptes dans Administration pour les rattacher au prochain import.
-                </p>
-                <div className={styles.chips}>
-                  {rapport.gestionnaires_non_reconnus.map((g) => (
-                    <span key={g} className={styles.chip}>
-                      {g}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </Card>
         </>
       )}

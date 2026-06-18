@@ -7,7 +7,7 @@ export interface RapportImport {
   crees: number;
   mis_a_jour: number;
   demandeurs_crees: number;
-  gestionnaires_non_reconnus: string[];
+  gestionnaires_crees: number;
 }
 
 export const importApi = {

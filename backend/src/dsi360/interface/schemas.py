@@ -189,7 +189,7 @@ class RapportImport(BaseModel):
     crees: int
     mis_a_jour: int
     demandeurs_crees: int
-    gestionnaires_non_reconnus: list[str]
+    gestionnaires_crees: int
 
 
 class DemandeurItem(BaseModel):

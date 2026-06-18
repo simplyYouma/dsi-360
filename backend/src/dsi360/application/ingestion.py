@@ -34,6 +34,39 @@ async def _index_gestionnaires(session: AsyncSession) -> dict[str, str]:
     return index
 
 
+_CREER_AGENT = text(
+    "INSERT INTO core.utilisateur "
+    "(email, nom, prenom, profil_id, direction_id, source_auth, doit_changer_mdp) VALUES ("
+    " :email, :nom, :prenom, "
+    " (SELECT id FROM core.profil WHERE code = 'TECHNICIEN'), "
+    " (SELECT id FROM core.direction WHERE code = 'DSI'), 'LOCAL', true) "
+    "ON CONFLICT (email) DO NOTHING RETURNING id::text"
+)
+
+
+async def _gestionnaire_id(session: AsyncSession, cache: dict[str, str], nom: str | None) -> str | None:
+    """Le gestionnaire EST un agent DSI : on rattache au compte existant, sinon on le crée.
+
+    Source unique : les utilisateurs et les gestionnaires des tickets désignent les mêmes personnes.
+    """
+    if nom is None or nom.strip() == "":
+        return None
+    cle = _norme(nom)
+    if cle in cache:
+        return cache[cle]
+    parts = nom.split()
+    prenom = parts[0]
+    nom_famille = " ".join(parts[1:]) or parts[0]
+    email = f"{cle.replace(' ', '.')}@afgbank.ml"
+    ident = await session.scalar(_CREER_AGENT, {"email": email, "nom": nom_famille, "prenom": prenom})
+    if ident is None:  # email déjà pris (homonyme/slug identique) : on récupère le compte
+        ident = await session.scalar(
+            text("SELECT id::text FROM core.utilisateur WHERE email = :e"), {"e": email}
+        )
+    cache[cle] = str(ident)
+    return str(ident)
+
+
 async def _demandeur_id(session: AsyncSession, cache: dict[str, str], nom: str | None) -> str | None:
     if nom is None or nom.strip() == "":
         return None
@@ -93,20 +126,18 @@ async def importer_tickets(
     session: AsyncSession, contenu: bytes, acteur: dict[str, Any]
 ) -> dict[str, Any]:
     tickets = analyser_classeur(contenu)
-    gestionnaires = await _index_gestionnaires(session)
+    cache_gest = await _index_gestionnaires(session)  # comptes existants -> évite les doublons
     cache_dem: dict[str, str] = {}
     cache_cat: dict[str, str] = {}
 
     crees = maj = 0
     par_module = {"incident": 0, "demande": 0}
     demandeurs_avant = await session.scalar(text("SELECT count(*) FROM core.demandeur")) or 0
-    non_reconnus: set[str] = set()
+    agents_avant = await session.scalar(text("SELECT count(*) FROM core.utilisateur")) or 0
 
     for t in tickets:
         gest = t["gestionnaire"]
-        responsable_id = gestionnaires.get(_norme(gest)) if gest else None
-        if gest and responsable_id is None:
-            non_reconnus.add(gest)
+        responsable_id = await _gestionnaire_id(session, cache_gest, gest)
 
         donnees = {
             "sous_categorie": t["sous_categorie"],
@@ -149,7 +180,10 @@ async def importer_tickets(
             maj += 1
         par_module[t["module"]] += 1
 
-    demandeurs_crees = (await session.scalar(text("SELECT count(*) FROM core.demandeur")) or 0) - demandeurs_avant
+    apres_dem = await session.scalar(text("SELECT count(*) FROM core.demandeur")) or 0
+    apres_agents = await session.scalar(text("SELECT count(*) FROM core.utilisateur")) or 0
+    demandeurs_crees = apres_dem - demandeurs_avant
+    gestionnaires_crees = apres_agents - agents_avant
 
     await audit.consigner(
         session,
@@ -159,7 +193,12 @@ async def importer_tickets(
         module="ingestion",
         cible_type="rapport_tickets",
         cible_id=f"{len(tickets)} tickets",
-        nouvelle={"crees": crees, "mis_a_jour": maj, "demandeurs_crees": demandeurs_crees},
+        nouvelle={
+            "crees": crees,
+            "mis_a_jour": maj,
+            "demandeurs_crees": demandeurs_crees,
+            "gestionnaires_crees": gestionnaires_crees,
+        },
     )
     await session.commit()
 
@@ -170,5 +209,5 @@ async def importer_tickets(
         "crees": crees,
         "mis_a_jour": maj,
         "demandeurs_crees": demandeurs_crees,
-        "gestionnaires_non_reconnus": sorted(non_reconnus),
+        "gestionnaires_crees": gestionnaires_crees,
     }
