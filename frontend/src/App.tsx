@@ -12,6 +12,7 @@ import { ProjetsPage } from '@/features/projets/ProjetsPage';
 import { ChangementsPage } from '@/features/changements/ChangementsPage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
+import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
@@ -22,6 +23,30 @@ const PAGES: Record<string, JSX.Element> = {
   '/changements': <ChangementsPage />,
   '/audit': <AuditPage />,
   '/risques': <RisquesPage />,
+  '/cybersecurite': (
+    <PageActiviteCategorie
+      titre="Cybersécurité"
+      sous="Habilitations sensibles, comptes admin, vulnérabilités, correctifs, MFA, IAM."
+      base="/cybersecurite"
+      module="cybersecurite"
+      labelObjet="Élément"
+      labelCategorie="Type"
+      labelNouveau="Nouvel élément"
+      couleurCategorie="var(--cat-4)"
+    />
+  ),
+  '/gouvernance': (
+    <PageActiviteCategorie
+      titre="Gouvernance DSI"
+      sous="COPIL, comités, décisions DG, engagements et plans d'actions."
+      base="/gouvernance"
+      module="gouvernance"
+      labelObjet="Sujet"
+      labelCategorie="Type"
+      labelNouveau="Nouveau point"
+      couleurCategorie="var(--cat-6)"
+    />
+  ),
 };
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */

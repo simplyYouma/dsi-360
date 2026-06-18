@@ -46,6 +46,22 @@ CATEGORIES: dict[str, list[tuple[str, str]]] = {
         ("CONF", "Confidentialité"),
         ("INTEG", "Intégrité"),
     ],
+    "cybersecurite": [
+        ("HABILITATION", "Habilitation sensible"),
+        ("COMPTE_ADMIN", "Compte administrateur"),
+        ("REVUE_ACCES", "Revue d'accès"),
+        ("VULNERABILITE", "Vulnérabilité"),
+        ("CORRECTIF", "Correctif"),
+        ("MFA", "MFA"),
+        ("IAM", "Contrôle IAM"),
+    ],
+    "gouvernance": [
+        ("COPIL", "COPIL"),
+        ("COMITE", "Comité DSI"),
+        ("DECISION_DG", "Décision DG"),
+        ("ENGAGEMENT", "Engagement"),
+        ("PLAN_ACTION", "Plan d'actions"),
+    ],
 }
 
 

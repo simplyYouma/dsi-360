@@ -13,6 +13,8 @@ MODULES: tuple[str, ...] = (
     "projet",
     "audit",
     "risque",
+    "cybersecurite",
+    "gouvernance",
 )
 
 # Préfixe de référence lisible par module (ex. INC-2026-00042).
@@ -24,6 +26,8 @@ PREFIXE_REFERENCE: dict[str, str] = {
     "projet": "PRJ",
     "audit": "AUD",
     "risque": "RSQ",
+    "cybersecurite": "CYB",
+    "gouvernance": "GOV",
 }
 
 

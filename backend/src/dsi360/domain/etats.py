@@ -67,6 +67,20 @@ TRANSITIONS: dict[str, dict[str, list[str]]] = {
         "Accepté": ["Revue"],
         "Revue": ["Traitement"],
     },
+    "cybersecurite": {
+        "Ouvert": ["En traitement", "Accepté"],
+        "En traitement": ["Corrigé", "Accepté"],
+        "Corrigé": ["Clôturé", "Réouvert"],
+        "Accepté": ["Clôturé"],
+        "Réouvert": ["En traitement"],
+        "Clôturé": [],
+    },
+    "gouvernance": {
+        "À engager": ["En cours"],
+        "En cours": ["Réalisé", "Reporté"],
+        "Reporté": ["En cours"],
+        "Réalisé": [],
+    },
 }
 
 
