@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { FicheTransition } from '@/common/FicheTransition';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -64,6 +65,7 @@ export function DemandesPage(): JSX.Element {
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
+  const [ficheId, setFicheId] = useState<string | null>(null);
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -140,7 +142,15 @@ export function DemandesPage(): JSX.Element {
         cleLigne={(d) => d.id}
         chargement={chargement}
         vide="Aucune demande pour le moment."
+        onLigne={(d) => setFicheId(d.id)}
         pagination={{ page, total, taille: 15, onPage: setPage }}
+      />
+
+      <FicheTransition
+        base="/demandes"
+        id={ficheId}
+        onFermer={() => setFicheId(null)}
+        onChange={() => void charger(page)}
       />
 
       <Modale

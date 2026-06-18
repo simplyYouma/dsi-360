@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { FicheTransition } from '@/common/FicheTransition';
 import { ErreurApi } from '@/lib/api';
 import { incidentsApi, type Incident } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
@@ -74,6 +75,7 @@ export function IncidentsPage(): JSX.Element {
   const [page, setPage] = useState(1);
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
+  const [ficheId, setFicheId] = useState<string | null>(null);
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -138,7 +140,15 @@ export function IncidentsPage(): JSX.Element {
         cleLigne={(i) => i.id}
         chargement={chargement}
         vide="Aucun incident pour le moment."
+        onLigne={(i) => setFicheId(i.id)}
         pagination={{ page, total, taille: 15, onPage: setPage }}
+      />
+
+      <FicheTransition
+        base="/incidents"
+        id={ficheId}
+        onFermer={() => setFicheId(null)}
+        onChange={() => void charger(page)}
       />
 
       <Modale
