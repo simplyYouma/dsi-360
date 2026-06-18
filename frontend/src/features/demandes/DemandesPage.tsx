@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
+import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -27,7 +28,7 @@ const COLONNES: Colonne<Demande>[] = [
     rendu: (d) =>
       d.categorie ? <StatusBadge couleur="var(--cat-1)">{d.categorie}</StatusBadge> : '—',
   },
-  { cle: 'statut', entete: 'Statut', rendu: (d) => <StatusBadge>{d.statut}</StatusBadge> },
+  { cle: 'statut', entete: 'Statut', rendu: (d) => <BadgeStatut statut={d.statut} /> },
   {
     cle: 'sla',
     entete: 'SLA',

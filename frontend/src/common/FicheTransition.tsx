@@ -1,27 +1,41 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { Button, Modale, StatusBadge } from '@/design-system/primitives';
+import { Button, Modale, Skeleton } from '@/design-system/primitives';
 import { api, ErreurApi } from '@/lib/api';
+import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
+import styles from './FicheTransition.module.css';
 
 interface Detail {
   reference: string;
   titre: string;
   statut: string;
+  priorite: number;
+  categorie: string | null;
+  statut_sla: 'a_lheure' | 'approche' | 'depasse';
+  sla_resolution_le: string | null;
+  cree_le: string;
+  responsable: { prenom: string; nom: string } | null;
   description: string | null;
   transitions_possibles: string[];
 }
 
 interface FicheTransitionProps {
-  /** Base de l'API (ex. "/changements"). */
   base: string;
-  /** Identifiant de l'activité ouverte, ou null si la fiche est fermée. */
   id: string | null;
   onFermer: () => void;
-  /** Appelé après une transition réussie (pour rafraîchir la liste). */
   onChange: () => void;
 }
 
-/** Fiche d'une activité : informations + boutons de transition d'état (machine à états serveur). */
+function formaterDate(iso: string | null): string {
+  if (iso === null) return '—';
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+/** Fiche d'une activité : détails présentés proprement + transitions d'état (couleurs sémantiques). */
 export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -43,8 +57,7 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
     setEnvoi(true);
     setErreur(null);
     try {
-      const maj = await api.post<Detail>(`${base}/${id}/transition`, { vers });
-      setDetail(maj);
+      setDetail(await api.post<Detail>(`${base}/${id}/transition`, { vers }));
       onChange();
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Transition impossible.');
@@ -65,45 +78,79 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
       }
     >
       {detail === null ? (
-        <p style={{ color: 'var(--text-muted)' }}>Chargement…</p>
+        <div className={styles.fiche}>
+          <Skeleton hauteur="22px" largeur="60%" />
+          <Skeleton hauteur="64px" />
+          <Skeleton hauteur="40px" />
+        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <strong style={{ fontSize: 'var(--text-base)' }}>{detail.titre}</strong>
-            <StatusBadge>{detail.statut}</StatusBadge>
+        <div className={styles.fiche}>
+          <div className={styles.tete}>
+            <h3 className={styles.titre}>{detail.titre}</h3>
+            <BadgePriorite priorite={detail.priorite} />
           </div>
+
+          <dl className={styles.meta}>
+            <div className={styles.metaItem}>
+              <dt>Statut</dt>
+              <dd>
+                <BadgeStatut statut={detail.statut} />
+              </dd>
+            </div>
+            <div className={styles.metaItem}>
+              <dt>Échéance SLA</dt>
+              <dd>
+                <BadgeSla etat={detail.statut_sla} />
+              </dd>
+            </div>
+            <div className={styles.metaItem}>
+              <dt>Catégorie</dt>
+              <dd className={styles.valeur}>{detail.categorie ?? '—'}</dd>
+            </div>
+            <div className={styles.metaItem}>
+              <dt>Responsable</dt>
+              <dd className={styles.valeur}>
+                {detail.responsable ? `${detail.responsable.prenom} ${detail.responsable.nom}` : '—'}
+              </dd>
+            </div>
+            <div className={styles.metaItem}>
+              <dt>Échéance</dt>
+              <dd className={styles.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
+            </div>
+            <div className={styles.metaItem}>
+              <dt>Créé le</dt>
+              <dd className={styles.valeur}>{formaterDate(detail.cree_le)}</dd>
+            </div>
+          </dl>
+
           {detail.description !== null && detail.description !== '' && (
-            <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-              {detail.description}
-            </p>
+            <p className={styles.description}>{detail.description}</p>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>Faire évoluer vers</span>
+          <div className={styles.workflow}>
+            <span className={styles.wfTitre}>Faire évoluer</span>
             {detail.transitions_possibles.length === 0 ? (
-              <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                Aucune transition disponible (état final).
-              </span>
+              <span className={styles.wfFinal}>État final — aucune évolution possible.</span>
             ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+              <div className={styles.transitions}>
                 {detail.transitions_possibles.map((vers) => (
-                  <Button
+                  <button
                     key={vers}
-                    variante="secondaire"
+                    type="button"
+                    className={styles.transBtn}
                     disabled={envoi}
                     onClick={() => void transitionner(vers)}
                   >
-                    <ArrowRight size={15} />
+                    <span className={styles.point} style={{ background: couleurStatut(vers) }} />
                     {vers}
-                  </Button>
+                    <ArrowRight size={14} className={styles.fleche} />
+                  </button>
                 ))}
               </div>
             )}
           </div>
 
-          {erreur !== null && (
-            <p style={{ color: 'var(--status-danger)', fontSize: 'var(--text-sm)' }}>{erreur}</p>
-          )}
+          {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
         </div>
       )}
     </Modale>
