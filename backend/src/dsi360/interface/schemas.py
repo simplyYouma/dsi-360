@@ -165,7 +165,15 @@ class RepartitionItem(BaseModel):
     valeur: int
 
 
+class SerieSlaItem(BaseModel):
+    periode: str
+    a_lheure: int
+    approche: int
+    depasse: int
+
+
 class TableauBord(BaseModel):
     cartes: CartesBord
     sla: SlaBuckets
     repartition: list[RepartitionItem]
+    serie: list[SerieSlaItem]

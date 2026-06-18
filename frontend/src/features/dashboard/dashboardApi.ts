@@ -11,6 +11,7 @@ export interface TableauBord {
   };
   sla: { a_lheure: number; approche: number; depasse: number };
   repartition: { module: string; valeur: number }[];
+  serie: { periode: string; a_lheure: number; approche: number; depasse: number }[];
 }
 
 export const dashboardApi = {

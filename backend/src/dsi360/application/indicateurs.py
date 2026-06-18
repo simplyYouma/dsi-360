@@ -39,6 +39,18 @@ LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.cloture_le IS NULL
 """
 
+# Tendance hebdomadaire (8 dernières semaines) des activités par état SLA courant.
+_SERIE = """
+SELECT to_char(date_trunc('week', a.cree_le), 'DD/MM') AS periode,
+  count(*) FILTER (WHERE a.sla_resolution_le > now() + interval '2 hours') AS a_lheure,
+  count(*) FILTER (WHERE a.sla_resolution_le <= now() + interval '2 hours'
+    AND a.sla_resolution_le >= now()) AS approche,
+  count(*) FILTER (WHERE a.sla_resolution_le < now()) AS depasse
+FROM core.activite a
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.sla_resolution_le IS NOT NULL AND a.cree_le >= now() - interval '8 weeks'
+"""
+
 
 async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[str, Any]:
     cond = " AND d.code = :dir" if direction is not None else ""
@@ -50,6 +62,22 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
 
     repartition = (
         (await session.execute(text(_REPARTITION + cond + " GROUP BY a.module"), params))
+        .mappings()
+        .all()
+    )
+
+    serie = (
+        (
+            await session.execute(
+                text(
+                    _SERIE
+                    + cond
+                    + " GROUP BY date_trunc('week', a.cree_le)"
+                    + " ORDER BY date_trunc('week', a.cree_le)"
+                ),
+                params,
+            )
+        )
         .mappings()
         .all()
     )
@@ -69,4 +97,13 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
             "depasse": ligne["sla_depasse"],
         },
         "repartition": [{"module": r["module"], "valeur": r["valeur"]} for r in repartition],
+        "serie": [
+            {
+                "periode": s["periode"],
+                "a_lheure": s["a_lheure"],
+                "approche": s["approche"],
+                "depasse": s["depasse"],
+            }
+            for s in serie
+        ],
     }

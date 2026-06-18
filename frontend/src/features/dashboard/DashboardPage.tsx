@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts';
 import { Card } from '@/design-system/primitives';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
@@ -104,29 +104,68 @@ function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.E
   );
 }
 
-/** Barre « capsule » segmentée (proportions) + légende chiffrée. */
-function CapsuleSla({ data }: { data: Segment[] }): JSX.Element {
-  const total = data.reduce((s, d) => s + d.valeur, 0);
+const AIRES = [
+  { cle: 'a_lheure', nom: "À l'heure", couleur: '#1f9d55' },
+  { cle: 'approche', nom: 'Approche', couleur: '#c77700' },
+  { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
+] as const;
+
+/** Tendance des 3 états SLA en courbes d'aire lissées avec dégradés (par semaine). */
+function TendanceSla({
+  serie,
+  courant,
+}: {
+  serie: TableauBord['serie'];
+  courant: Segment[];
+}): JSX.Element {
   return (
     <div className={styles.slaBloc}>
-      <div className={styles.capsule}>
-        {total === 0 ? (
-          <div className={styles.capsuleVide} />
-        ) : (
-          data
-            .filter((d) => d.valeur > 0)
-            .map((d) => (
-              <div
-                key={d.nom}
-                className={styles.capsuleSeg}
-                style={{ flexGrow: d.valeur, background: d.couleur }}
-                title={`${d.nom} : ${d.valeur}`}
+      {serie.length === 0 ? (
+        <p className={styles.tendanceVide}>Tendance disponible dès les premières activités.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={210}>
+          <AreaChart data={serie} margin={{ top: 8, right: 12, left: -22, bottom: 0 }}>
+            <defs>
+              {AIRES.map((a) => (
+                <linearGradient key={a.cle} id={`grad-${a.cle}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={a.couleur} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={a.couleur} stopOpacity={0} />
+                </linearGradient>
+              ))}
+            </defs>
+            <XAxis
+              dataKey="periode"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+            />
+            <YAxis hide allowDecimals={false} />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                fontSize: 13,
+              }}
+            />
+            {AIRES.map((a) => (
+              <Area
+                key={a.cle}
+                type="monotone"
+                dataKey={a.cle}
+                name={a.nom}
+                stroke={a.couleur}
+                strokeWidth={2.5}
+                fill={`url(#grad-${a.cle})`}
+                dot={false}
+                activeDot={{ r: 4 }}
               />
-            ))
-        )}
-      </div>
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
       <ul className={styles.slaLegende}>
-        {data.map((d) => (
+        {courant.map((d) => (
           <li key={d.nom}>
             <span className={styles.point} style={{ background: d.couleur }} />
             <span className={styles.legendeNom}>{d.nom}</span>
@@ -192,7 +231,7 @@ export function DashboardPage(): JSX.Element {
         </Card>
         <Card>
           <h2 className={styles.chartTitre}>Respect des échéances SLA</h2>
-          <CapsuleSla data={sla} />
+          <TendanceSla serie={tableau?.serie ?? []} courant={sla} />
         </Card>
       </section>
     </div>
