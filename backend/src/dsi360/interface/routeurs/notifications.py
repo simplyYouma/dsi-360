@@ -16,8 +16,11 @@ Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(utilisateur_courant)]
 
 _LISTE = text(
-    "SELECT id, type, titre, message, lu, cree_le FROM core.notification "
-    "WHERE destinataire_id = cast(:id as uuid) ORDER BY id DESC LIMIT 30"
+    "SELECT n.id, n.type, n.titre, n.message, n.lu, n.cree_le, "
+    "a.module AS module, a.id::text AS activite_id "
+    "FROM core.notification n "
+    "LEFT JOIN core.activite a ON a.id = n.activite_id "
+    "WHERE n.destinataire_id = cast(:id as uuid) ORDER BY n.id DESC LIMIT 30"
 )
 _NON_LUS = text(
     "SELECT count(*) FROM core.notification "

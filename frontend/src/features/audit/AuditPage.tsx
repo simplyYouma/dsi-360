@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
+import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
@@ -40,6 +41,7 @@ export function AuditPage(): JSX.Element {
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
+  useFicheUrl(setFicheId);
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');

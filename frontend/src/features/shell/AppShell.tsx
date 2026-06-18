@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Search, Moon, Sun, LogOut } from 'lucide-react';
+import { Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { useAuth } from '@/lib/auth';
@@ -10,6 +10,7 @@ import logoSombre from '@/assets/brand/logo1-blanc.svg';
 import { SECTIONS, cleAcces } from './navigation';
 import { FilAriane } from './FilAriane';
 import { Notifications } from './Notifications';
+import { RechercheGlobale } from './RechercheGlobale';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
@@ -118,10 +119,7 @@ export function AppShell(): JSX.Element | null {
 
       <div className={styles.principal}>
         <header className={styles.topbar}>
-          <label className={styles.recherche}>
-            <Search size={18} />
-            <input placeholder="Rechercher une activité, une référence…" />
-          </label>
+          <RechercheGlobale />
 
           <div className={styles.actions}>
             <button className={styles.iconeBtn} onClick={basculer} aria-label="Changer de thème">

@@ -34,7 +34,7 @@
     var(--surface);
 }
 .logo {
-  height: 66px;
+  height: 56px;
   width: auto;
   max-width: 100%;
   object-fit: contain;

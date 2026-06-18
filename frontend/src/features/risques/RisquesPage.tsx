@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
+import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { BadgeCriticite, BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
@@ -35,6 +36,7 @@ export function RisquesPage(): JSX.Element {
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
+  useFicheUrl(setFicheId);
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');

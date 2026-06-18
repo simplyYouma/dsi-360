@@ -21,15 +21,18 @@
 }
 
 .zone {
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.zone::-webkit-scrollbar {
-  display: none;
+  /* Remplit la hauteur restante de la page ; défilement interne (en-tête + 1re colonne figés). */
+  max-height: calc(100dvh - 15rem);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  scrollbar-width: thin;
 }
 .matrice {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--text-sm);
 }
 .matrice th,
@@ -48,13 +51,21 @@
   font-weight: var(--weight-medium);
   position: sticky;
   left: 0;
+  z-index: 1;
   background: var(--surface);
 }
 .matrice thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   font-size: 0.6875rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  background: var(--bg-subtle);
+}
+.matrice thead th:first-child {
+  z-index: 3;
   background: var(--bg-subtle);
 }
 

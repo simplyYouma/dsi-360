@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, CheckCheck, Inbox, Settings, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, Inbox, Settings, ArrowLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { couleurStatut } from '@/common/statuts';
+import { lienActivite } from '@/common/routesModule';
+import { cx } from '@/common/cx';
 import styles from './Notifications.module.css';
 
 interface Notif {
@@ -11,6 +14,8 @@ interface Notif {
   message: string;
   lu: boolean;
   cree_le: string;
+  module: string | null;
+  activite_id: string | null;
 }
 interface Preferences {
   interne: boolean;
@@ -41,6 +46,7 @@ function formaterDate(iso: string): string {
 }
 
 export function Notifications(): JSX.Element {
+  const navigate = useNavigate();
   const [ouvert, setOuvert] = useState(false);
   const [vuePref, setVuePref] = useState(false);
   const [elements, setElements] = useState<Notif[]>([]);
@@ -72,6 +78,13 @@ export function Notifications(): JSX.Element {
     const maj = { ...pref, [cle]: !pref[cle] };
     setPref(maj);
     await api.put('/notifications/preferences', maj);
+  };
+
+  const ouvrirSujet = (n: Notif): void => {
+    const lien = n.activite_id ? lienActivite(n.module ?? '', n.activite_id) : null;
+    if (lien === null) return;
+    setOuvert(false);
+    navigate(lien);
   };
 
   return (
@@ -146,19 +159,38 @@ export function Notifications(): JSX.Element {
               </div>
             ) : (
               <ul className={styles.liste}>
-                {elements.map((n) => (
-                  <li key={n.id} className={n.lu ? styles.item : styles.itemNonLu}>
-                    <span
-                      className={styles.barre}
-                      style={{ background: TON[n.type] ?? couleurStatut(n.type) }}
-                    />
-                    <div className={styles.corps}>
-                      <span className={styles.itemTitre}>{n.titre}</span>
-                      <span className={styles.itemMsg}>{n.message}</span>
-                      <span className={styles.itemDate}>{formaterDate(n.cree_le)}</span>
-                    </div>
-                  </li>
-                ))}
+                {elements.map((n) => {
+                  const cliquable = n.activite_id !== null && n.module !== null;
+                  const classe = cx(
+                    n.lu ? styles.item : styles.itemNonLu,
+                    cliquable && styles.cliquable,
+                  );
+                  const contenu = (
+                    <>
+                      <span
+                        className={styles.barre}
+                        style={{ background: TON[n.type] ?? couleurStatut(n.type) }}
+                      />
+                      <div className={styles.corps}>
+                        <span className={styles.itemTitre}>{n.titre}</span>
+                        <span className={styles.itemMsg}>{n.message}</span>
+                        <span className={styles.itemDate}>{formaterDate(n.cree_le)}</span>
+                      </div>
+                      {cliquable && <ChevronRight size={16} className={styles.fleche} />}
+                    </>
+                  );
+                  return (
+                    <li key={n.id}>
+                      {cliquable ? (
+                        <button type="button" className={classe} onClick={() => ouvrirSujet(n)}>
+                          {contenu}
+                        </button>
+                      ) : (
+                        <div className={classe}>{contenu}</div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

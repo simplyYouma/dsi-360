@@ -120,6 +120,16 @@ class NotificationItem(BaseModel):
     message: str
     lu: bool
     cree_le: datetime
+    module: str | None
+    activite_id: str | None
+
+
+class ResultatRecherche(BaseModel):
+    module: str
+    id: str
+    reference: str
+    titre: str
+    statut: str
 
 
 class NotificationsReponse(BaseModel):
