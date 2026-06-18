@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, KeyRound } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -138,6 +139,12 @@ function OngletUtilisateurs(): JSX.Element {
   };
 
   const colonnes: Colonne<Utilisateur>[] = [
+    {
+      cle: 'avatar',
+      entete: '',
+      largeur: '44px',
+      rendu: (u) => <AvatarPersonnage seed={u.email} taille={32} />,
+    },
     { cle: 'email', entete: 'E-mail', valeur: (u) => u.email },
     { cle: 'nom', entete: 'Nom', rendu: (u) => <strong>{`${u.prenom} ${u.nom}`}</strong> },
     { cle: 'profil', entete: 'Profil', rendu: (u) => <StatusBadge couleur="var(--cat-1)">{u.profil_libelle}</StatusBadge> },

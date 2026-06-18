@@ -3,6 +3,7 @@ import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'l
 import type { LucideIcon } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts';
 import { Card, Skeleton } from '@/design-system/primitives';
+import { infobulle } from '@/common/infobulle';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
 
@@ -67,15 +68,7 @@ function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.E
               ))}
             </Pie>
             {total > 0 && (
-              <Tooltip
-                allowEscapeViewBox={{ x: false, y: true }}
-                contentStyle={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  fontSize: 13,
-                }}
-              />
+              <Tooltip {...infobulle} />
             )}
           </PieChart>
         </ResponsiveContainer>
@@ -141,15 +134,7 @@ function TendanceSla({
               tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
             />
             <YAxis hide allowDecimals={false} />
-            <Tooltip
-              allowEscapeViewBox={{ x: false, y: true }}
-              contentStyle={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                fontSize: 13,
-              }}
-            />
+            <Tooltip {...infobulle} />
             {AIRES.map((a) => (
               <Area
                 key={a.cle}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card } from '@/design-system/primitives';
+import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
 import { analysesApi, type AnalyseItem, type Analyses } from './analysesApi';
@@ -45,15 +46,7 @@ function Barres({ data }: { data: Barre[] }): JSX.Element {
           axisLine={false}
           tick={{ fontSize: 13, fill: 'var(--text-muted)' }}
         />
-        <Tooltip
-          cursor={{ fill: 'var(--bg-subtle)' }}
-          contentStyle={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 10,
-            fontSize: 13,
-          }}
-        />
+        <Tooltip {...infobulle} cursor={{ fill: 'var(--bg-subtle)' }} />
         <Bar dataKey="valeur" radius={[0, 8, 8, 0]} barSize={18}>
           {data.map((d) => (
             <Cell key={d.libelle} fill={d.couleur} />
