@@ -1,5 +1,6 @@
 """Repository des activités (table générique core.activite, filtré par module)."""
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -10,7 +11,7 @@ from dsi360.domain.activite import PREFIXE_REFERENCE
 
 _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
-    a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le,
+    a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, a.donnees,
     c.libelle AS categorie, d.code AS direction,
     r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email
 """
@@ -37,14 +38,22 @@ async def prochaine_reference(session: AsyncSession, module: str, annee: int) ->
 
 
 async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
+    champs.setdefault("impact", None)
+    champs.setdefault("urgence", None)
+    champs.setdefault("priorite", None)
+    champs.setdefault("categorie_id", None)
+    champs.setdefault("sla_prise_en_charge_le", None)
+    champs.setdefault("sla_resolution_le", None)
+    champs.setdefault("donnees", None)
     requete = text(
         "INSERT INTO core.activite "
         "(reference, module, titre, description, direction_id, categorie_id, demandeur_id, "
         " responsable_id, impact, urgence, priorite, statut, sla_prise_en_charge_le, "
-        " sla_resolution_le) "
+        " sla_resolution_le, donnees) "
         "VALUES (:reference, :module, :titre, :description, cast(:direction_id as uuid), "
         " cast(:categorie_id as uuid), cast(:demandeur_id as uuid), cast(:responsable_id as uuid), "
-        " :impact, :urgence, :priorite, :statut, :sla_prise_en_charge_le, :sla_resolution_le) "
+        " :impact, :urgence, :priorite, :statut, :sla_prise_en_charge_le, :sla_resolution_le, "
+        " coalesce(cast(:donnees as jsonb), '{}'::jsonb)) "
         "RETURNING id::text"
     )
     identifiant = await session.scalar(requete, champs)
@@ -52,11 +61,20 @@ async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
 
 
 async def par_id(session: AsyncSession, module: str, identifiant: str) -> RowMapping | None:
-    requete = text(
-        f"SELECT {_LISTE_CHAMPS}, a.description, a.donnees {_BASE} AND a.id::text = :id"
-    )
+    requete = text(f"SELECT {_LISTE_CHAMPS}, a.description {_BASE} AND a.id::text = :id")
     resultat = await session.execute(requete, {"module": module, "id": identifiant})
     return resultat.mappings().first()
+
+
+async def maj_donnees(session: AsyncSession, identifiant: str, fragment: dict[str, Any]) -> None:
+    """Fusionne un fragment JSON dans la colonne donnees (ex. avancement d'un projet)."""
+    await session.execute(
+        text(
+            "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) WHERE id::text = :id"
+        ),
+        {"id": identifiant, "f": json.dumps(fragment)},
+    )
+    await session.commit()
 
 
 async def lister(

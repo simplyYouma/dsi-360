@@ -95,3 +95,48 @@ class CategorieItem(BaseModel):
     id: str
     code: str
     libelle: str
+
+
+# --- Projets ---
+
+
+class ProjetCreation(BaseModel):
+    titre: str = Field(min_length=3, max_length=200)
+    description: str | None = None
+    direction_id: str | None = None
+    responsable_id: str | None = None  # chef de projet
+    sponsor: str | None = None
+    budget: float | None = None
+    date_debut: str | None = None
+    date_fin: str | None = None
+
+
+class ProjetResume(BaseModel):
+    id: str
+    reference: str
+    titre: str
+    statut: str
+    direction: str | None
+    chef: ResponsableBref | None
+    avancement: int
+    date_fin: str | None
+    cree_le: datetime
+
+
+class ProjetDetail(ProjetResume):
+    description: str | None
+    sponsor: str | None
+    budget: float | None
+    date_debut: str | None
+    transitions_possibles: list[str]
+
+
+class PageProjets(BaseModel):
+    elements: list[ProjetResume]
+    total: int
+    page: int
+    taille: int
+
+
+class AvancementDemande(BaseModel):
+    avancement: int = Field(ge=0, le=100)
