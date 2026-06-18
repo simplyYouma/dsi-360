@@ -8,6 +8,7 @@ gardées en dur côté API, indépendamment de cette matrice.
 # Clés de modules (alignées sur la navigation du front).
 MODULES: tuple[str, ...] = (
     "tableau-de-bord",
+    "analyses",
     "incidents",
     "demandes",
     "projets",
@@ -36,6 +37,7 @@ ACCES_PAR_PROFIL_DEFAUT: dict[str, list[str]] = {
     "DSI": [m for m in MODULES if m != "administration"],
     "CHEF_SERVICE": [
         "tableau-de-bord",
+        "analyses",
         "incidents",
         "demandes",
         "projets",
@@ -46,5 +48,5 @@ ACCES_PAR_PROFIL_DEFAUT: dict[str, list[str]] = {
     "CHEF_PROJET": ["tableau-de-bord", "projets", "changements"],
     "TECHNICIEN": ["tableau-de-bord", "incidents", "demandes", "changements"],
     "METIER": ["tableau-de-bord", "demandes"],
-    "DG": ["tableau-de-bord", "gouvernance", "audit", "risques"],
+    "DG": ["tableau-de-bord", "analyses", "gouvernance", "audit", "risques"],
 }

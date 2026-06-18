@@ -326,3 +326,16 @@ class TableauBord(BaseModel):
     sla: SlaBuckets
     repartition: list[RepartitionItem]
     serie: list[SerieSlaItem]
+
+
+class AnalyseItem(BaseModel):
+    libelle: str
+    valeur: int
+
+
+class AnalysesReponse(BaseModel):
+    total: int
+    par_module: list[AnalyseItem]
+    par_direction: list[AnalyseItem]
+    par_responsable: list[AnalyseItem]
+    sla: SlaBuckets

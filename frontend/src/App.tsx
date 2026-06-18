@@ -15,10 +15,12 @@ import { AuditPage } from '@/features/audit/AuditPage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
 import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
 import { AdministrationPage } from '@/features/administration/AdministrationPage';
+import { AnalysesPage } from '@/features/analyses/AnalysesPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
 const PAGES: Record<string, JSX.Element> = {
+  '/analyses': <AnalysesPage />,
   '/incidents': <IncidentsPage />,
   '/demandes': <DemandesPage />,
   '/projets': <ProjetsPage />,

@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  ChartColumnBig,
   TriangleAlert,
   Inbox,
   FolderKanban,
@@ -28,7 +29,10 @@ export interface SectionNav {
 export const SECTIONS: SectionNav[] = [
   {
     titre: 'Pilotage',
-    entrees: [{ chemin: '/', libelle: 'Tableau de bord', icone: LayoutDashboard, phase: 'P1' }],
+    entrees: [
+      { chemin: '/', libelle: 'Tableau de bord', icone: LayoutDashboard, phase: 'P1' },
+      { chemin: '/analyses', libelle: 'Analyses', icone: ChartColumnBig, phase: 'P1' },
+    ],
   },
   {
     titre: 'Activités',
