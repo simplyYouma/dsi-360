@@ -5,9 +5,11 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
+import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { auditApi, type Categorie, type Recommandation } from './auditApi';
 
@@ -42,6 +44,7 @@ export function AuditPage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
+  const [filtres, setFiltres] = useState<FiltresListe>({});
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -51,16 +54,19 @@ export function AuditPage(): JSX.Element {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = useCallback(async (p: number): Promise<void> => {
-    setChargement(true);
-    try {
-      const data = await auditApi.lister(p);
-      setItems(data.elements);
-      setTotal(data.total);
-    } finally {
-      setChargement(false);
-    }
-  }, []);
+  const charger = useCallback(
+    async (p: number): Promise<void> => {
+      setChargement(true);
+      try {
+        const data = await auditApi.lister(p, filtres);
+        setItems(data.elements);
+        setTotal(data.total);
+      } finally {
+        setChargement(false);
+      }
+    },
+    [filtres],
+  );
 
   useEffect(() => {
     void charger(page);
@@ -111,6 +117,15 @@ export function AuditPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <FiltreTickets
+        module="audit"
+        valeur={filtres}
+        onChange={(f) => {
+          setPage(1);
+          setFiltres(f);
+        }}
+      />
 
       <Table
         colonnes={COLONNES}

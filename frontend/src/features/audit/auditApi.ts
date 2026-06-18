@@ -1,5 +1,5 @@
 import { api } from '@/lib/api';
-import type { Incident } from '@/features/incidents/incidentsApi';
+import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
 
 export type Recommandation = Incident;
@@ -14,8 +14,8 @@ export interface NouvelleRecommandation {
 }
 
 export const auditApi = {
-  lister: (page: number): Promise<{ elements: Recommandation[]; total: number }> =>
-    api.get(`/audit?page=${page}`),
+  lister: (page: number, f?: FiltresListe): Promise<{ elements: Recommandation[]; total: number }> =>
+    api.get(`/audit?${chaineFiltres(page, f)}`),
   creer: (corps: NouvelleRecommandation): Promise<{ id: string }> => api.post('/audit', corps),
   categories: (): Promise<Categorie[]> => api.get('/referentiels/categories?module=audit'),
 };

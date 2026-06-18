@@ -443,6 +443,13 @@ class PointTendance(BaseModel):
     resolus: int
 
 
+class SlaPrioriteItem(BaseModel):
+    priorite: str
+    dans_delai: int
+    total: int
+    taux: int
+
+
 class GestionnaireEval(BaseModel):
     gestionnaire: str
     volume: int
@@ -460,5 +467,6 @@ class AnalysesReponse(BaseModel):
     par_priorite: list[AnalyseItem]
     sla: SlaBuckets
     sla_par_module: list[SlaModule]
+    sla_par_priorite: list[SlaPrioriteItem]
     matrice_risques: list[CaseRisque]
     tendance: list[PointTendance]

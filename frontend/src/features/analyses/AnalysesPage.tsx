@@ -342,6 +342,38 @@ export function AnalysesPage(): JSX.Element {
         </Card>
 
         <Card className={styles.span2}>
+          <h2 className={styles.chartTitre}>Respect du SLA par priorité</h2>
+          <p className={styles.chartSous}>
+            Part des tickets résolus dans la cible (P1 4 h · P2 8 h · P3 24 h · P4 72 h · P5 120 h) —
+            durées réelles.
+          </p>
+          {(a?.sla_par_priorite ?? []).length === 0 ? (
+            <p className={styles.vide}>Aucune donnée de résolution.</p>
+          ) : (
+            <ul className={styles.slaPrio}>
+              {(a?.sla_par_priorite ?? []).map((p) => {
+                const couleur =
+                  p.taux >= 90 ? 'var(--status-ok)' : p.taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
+                return (
+                  <li key={p.priorite} className={styles.slaPrioLigne}>
+                    <span className={styles.slaPrioNom}>{p.priorite}</span>
+                    <div className={styles.slaPrioBarre}>
+                      <div className={styles.slaPrioPlein} style={{ width: `${p.taux}%`, background: couleur }} />
+                    </div>
+                    <span className={styles.slaPrioTaux} style={{ color: couleur }}>
+                      {p.taux}%
+                    </span>
+                    <span className={styles.slaPrioVol}>
+                      {p.dans_delai}/{p.total}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+
+        <Card className={styles.span2}>
           <h2 className={styles.chartTitre}>Charge par responsable</h2>
           {responsables.length === 0 ? (
             <p className={styles.vide}>Aucune donnée.</p>

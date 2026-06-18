@@ -5,11 +5,12 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { api, ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
-import type { Incident } from '@/features/incidents/incidentsApi';
+import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
 
 interface Props {
@@ -46,6 +47,7 @@ export function PageActiviteCategorie({
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
+  const [filtres, setFiltres] = useState<FiltresListe>({});
 
   const [objet, setObjet] = useState('');
   const [description, setDescription] = useState('');
@@ -77,14 +79,16 @@ export function PageActiviteCategorie({
     async (p: number): Promise<void> => {
       setChargement(true);
       try {
-        const data = await api.get<{ elements: Incident[]; total: number }>(`${base}?page=${p}`);
+        const data = await api.get<{ elements: Incident[]; total: number }>(
+          `${base}?${chaineFiltres(p, filtres)}`,
+        );
         setItems(data.elements);
         setTotal(data.total);
       } finally {
         setChargement(false);
       }
     },
-    [base],
+    [base, filtres],
   );
 
   useEffect(() => {
@@ -136,6 +140,15 @@ export function PageActiviteCategorie({
           </Button>
         </div>
       </header>
+
+      <FiltreTickets
+        module={module}
+        valeur={filtres}
+        onChange={(f) => {
+          setPage(1);
+          setFiltres(f);
+        }}
+      />
 
       <Table
         colonnes={colonnes}

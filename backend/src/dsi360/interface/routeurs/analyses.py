@@ -22,6 +22,15 @@ Courant = Annotated[dict[str, Any], Depends(exiger_acces("analyses"))]
 _JOINTURE = "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id"
 _OUVERTES = f"{_JOINTURE} WHERE a.cloture_le IS NULL"
 
+# Cible de résolution (minutes) par priorité — ITIL, paramétrable à terme.
+_CIBLE = (
+    "(CASE a.priorite WHEN 1 THEN 240 WHEN 2 THEN 480 WHEN 3 THEN 1440 "
+    "WHEN 4 THEN 4320 ELSE 7200 END)"
+)
+_TTR = "nullif(a.donnees->>'ttr_minutes', '')::numeric"
+# Population SLA réelle : tickets importés effectivement résolus (durée mesurée > 0).
+_RESOLUS = f"{_JOINTURE} WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL AND {_TTR} > 0"
+
 
 async def _lignes(
     session: AsyncSession, requete: str, params: dict[str, Any]
@@ -131,8 +140,34 @@ async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
         params,
     )
 
+    # SLA réel : respect = durée de résolution <= cible de la priorité (données importées).
+    sla_prio = await _lignes(
+        session,
+        f"SELECT a.priorite AS niveau, count(*) AS total, "
+        f"count(*) FILTER (WHERE {_TTR} <= {_CIBLE}) AS dans_delai "
+        f"{_RESOLUS}{cond} GROUP BY a.priorite ORDER BY a.priorite",
+        params,
+    )
+    sla_par_priorite = [
+        {
+            "priorite": f"P{p['niveau']}",
+            "dans_delai": p["dans_delai"],
+            "total": p["total"],
+            "taux": round(p["dans_delai"] * 100 / p["total"]) if p["total"] else 0,
+        }
+        for p in sla_prio
+    ]
+    reel_total = sum(p["total"] for p in sla_par_priorite)
+    reel_ok = sum(p["dans_delai"] for p in sla_par_priorite)
+
     avec_sla = sla["a_lheure"] + sla["approche"] + sla["depasse"]
-    respect = round(sla["a_lheure"] * 100 / avec_sla) if avec_sla > 0 else 100
+    # Respect réel prioritaire (durées mesurées) ; repli sur les échéances en cours sinon.
+    if reel_total > 0:
+        respect = round(reel_ok * 100 / reel_total)
+    elif avec_sla > 0:
+        respect = round(sla["a_lheure"] * 100 / avec_sla)
+    else:
+        respect = 100
 
     return {
         "total": total,
@@ -152,6 +187,7 @@ async def analyses(courant: Courant, session: Session) -> dict[str, Any]:
             "depasse": sla["depasse"],
         },
         "sla_par_module": sla_par_module,
+        "sla_par_priorite": sla_par_priorite,
         "matrice_risques": matrice_risques,
         "tendance": tendance,
     }

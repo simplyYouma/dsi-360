@@ -26,7 +26,14 @@ SELECT
     AND a.sla_resolution_le <= now() + interval '2 hours' AND a.sla_resolution_le >= now())
     AS sla_approche,
   count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.sla_resolution_le < now()) AS sla_depasse
+    AND a.sla_resolution_le < now()) AS sla_depasse,
+  count(*) FILTER (WHERE a.source='IMPORT_SD'
+    AND nullif(a.donnees->>'ttr_minutes','')::numeric > 0) AS sla_reel_total,
+  count(*) FILTER (WHERE a.source='IMPORT_SD'
+    AND nullif(a.donnees->>'ttr_minutes','')::numeric > 0
+    AND nullif(a.donnees->>'ttr_minutes','')::numeric <=
+      (CASE a.priorite WHEN 1 THEN 240 WHEN 2 THEN 480 WHEN 3 THEN 1440
+        WHEN 4 THEN 4320 ELSE 7200 END)) AS sla_reel_ok
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE 1=1
@@ -57,8 +64,15 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
     params = {"dir": direction} if direction is not None else {}
 
     ligne = (await session.execute(text(_CARTES + cond), params)).mappings().one()
+    # Respect SLA réel (durées mesurées des tickets importés) ; repli sur les échéances en cours.
+    reel_total = ligne["sla_reel_total"] or 0
     total_sla = ligne["sla_total"] or 0
-    respect = round(100 * (ligne["sla_ok"] or 0) / total_sla) if total_sla else 100
+    if reel_total:
+        respect = round(100 * (ligne["sla_reel_ok"] or 0) / reel_total)
+    elif total_sla:
+        respect = round(100 * (ligne["sla_ok"] or 0) / total_sla)
+    else:
+        respect = 100
 
     repartition = (
         (await session.execute(text(_REPARTITION + cond + " GROUP BY a.module"), params))

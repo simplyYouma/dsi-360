@@ -31,6 +31,13 @@ export interface PointTendance {
   resolus: number;
 }
 
+export interface SlaPriorite {
+  priorite: string;
+  dans_delai: number;
+  total: number;
+  taux: number;
+}
+
 export interface Analyses {
   total: number;
   kpis: Kpis;
@@ -40,6 +47,7 @@ export interface Analyses {
   par_priorite: AnalyseItem[];
   sla: { a_lheure: number; approche: number; depasse: number };
   sla_par_module: SlaModule[];
+  sla_par_priorite: SlaPriorite[];
   matrice_risques: CaseRisque[];
   tendance: PointTendance[];
 }
