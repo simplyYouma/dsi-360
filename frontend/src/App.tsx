@@ -14,6 +14,7 @@ import { ChangementsPage } from '@/features/changements/ChangementsPage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
 import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
+import { AdministrationPage } from '@/features/administration/AdministrationPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
@@ -48,6 +49,7 @@ const PAGES: Record<string, JSX.Element> = {
       couleurCategorie="var(--cat-6)"
     />
   ),
+  '/administration': <AdministrationPage />,
 };
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */

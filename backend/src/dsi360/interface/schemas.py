@@ -127,6 +127,86 @@ class NotificationsReponse(BaseModel):
     non_lus: int
 
 
+# --- Administration ---
+
+
+class ProfilItem(BaseModel):
+    code: str
+    libelle: str
+
+
+class DirectionItem(BaseModel):
+    code: str
+    libelle: str
+
+
+class UtilisateurResume(BaseModel):
+    id: str
+    email: str
+    nom: str
+    prenom: str
+    profil: str
+    profil_libelle: str
+    direction: str | None
+    actif: bool
+    doit_changer_mdp: bool
+
+
+class PageUtilisateurs(BaseModel):
+    elements: list[UtilisateurResume]
+    total: int
+    page: int
+    taille: int
+
+
+class CreationUtilisateur(BaseModel):
+    email: str
+    nom: str
+    prenom: str
+    profil_code: str
+    direction_code: str | None = None
+    mot_de_passe: str = Field(min_length=8)
+
+
+class MajUtilisateur(BaseModel):
+    nom: str
+    prenom: str
+    profil_code: str
+    direction_code: str | None = None
+    actif: bool
+
+
+class RoleAcces(BaseModel):
+    profil: str
+    libelle: str
+    acces: list[str]
+
+
+class MatriceAcces(BaseModel):
+    modules: list[str]
+    roles: list[RoleAcces]
+
+
+class MajAcces(BaseModel):
+    profil: str
+    acces: list[str]
+
+
+class EntreeJournal(BaseModel):
+    horodatage: datetime
+    acteur: str | None
+    module: str | None
+    action: str
+    cible: str | None
+
+
+class PageJournal(BaseModel):
+    elements: list[EntreeJournal]
+    total: int
+    page: int
+    taille: int
+
+
 # --- Projets ---
 
 

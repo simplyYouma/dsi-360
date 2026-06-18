@@ -100,4 +100,6 @@ export const api = {
       chemin,
       corps === undefined ? { method: 'POST' } : { method: 'POST', body: JSON.stringify(corps) },
     ),
+  put: <T>(chemin: string, corps: unknown): Promise<T> =>
+    requete<T>(chemin, { method: 'PUT', body: JSON.stringify(corps) }),
 };
