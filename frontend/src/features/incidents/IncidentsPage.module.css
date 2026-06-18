@@ -91,11 +91,16 @@
   box-shadow: 0 0 0 3px var(--secondary-subtle);
 }
 .niveaux {
-  display: flex;
-  gap: var(--space-5);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
 }
 .niveaux .champ {
-  flex: 1 1 auto;
+  min-width: 0; /* autorise le rétrécissement : les champs ne débordent plus de la modale */
+}
+.niveaux .champ input {
+  width: 100%;
+  box-sizing: border-box;
 }
 .niveau {
   display: flex;

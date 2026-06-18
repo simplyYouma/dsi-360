@@ -2,12 +2,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { SelecteurDate } from '@/common/SelecteurDate';
+import { useFicheUrl } from '@/common/useFicheUrl';
 import { ErreurApi } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import { ProjetFiche } from './ProjetFiche';
 import { projetsApi, type Projet } from './projetsApi';
 
 function formaterDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formaterBudget(v: number | null): string {
+  if (v === null) return '—';
+  return new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(v);
 }
 
 function Avancement({ valeur }: { valeur: number }): JSX.Element {
@@ -45,6 +53,13 @@ const COLONNES: Colonne<Projet>[] = [
     valeur: (p) => p.avancement,
     rendu: (p) => <Avancement valeur={p.avancement} />,
   },
+  {
+    cle: 'budget',
+    entete: 'Budget (FCFA)',
+    aligne: 'droite',
+    valeur: (p) => p.budget ?? 0,
+    rendu: (p) => <span className="tabular">{formaterBudget(p.budget)}</span>,
+  },
   { cle: 'date_fin', entete: 'Échéance', rendu: (p) => p.date_fin ?? '—' },
   { cle: 'cree_le', entete: 'Créé le', valeur: (p) => p.cree_le, rendu: (p) => formaterDate(p.cree_le) },
 ];
@@ -55,6 +70,8 @@ export function ProjetsPage(): JSX.Element {
   const [page, setPage] = useState(1);
   const [chargement, setChargement] = useState(true);
   const [modale, setModale] = useState(false);
+  const [ficheId, setFicheId] = useState<string | null>(null);
+  useFicheUrl(setFicheId);
 
   const [titre, setTitre] = useState('');
   const [sponsor, setSponsor] = useState('');
@@ -130,8 +147,11 @@ export function ProjetsPage(): JSX.Element {
         cleLigne={(p) => p.id}
         chargement={chargement}
         vide="Aucun projet pour le moment."
+        onLigne={(p) => setFicheId(p.id)}
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
+
+      <ProjetFiche id={ficheId} onFermer={() => setFicheId(null)} onChange={() => void charger(page)} />
 
       <Modale
         ouverte={modale}
@@ -166,14 +186,14 @@ export function ProjetsPage(): JSX.Element {
               placeholder="0"
             />
           </label>
-          <label className={styles.champ}>
-            <span>Début (AAAA-MM-JJ)</span>
-            <input value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} placeholder="2026-07-01" />
-          </label>
-          <label className={styles.champ}>
-            <span>Échéance (AAAA-MM-JJ)</span>
-            <input value={dateFin} onChange={(e) => setDateFin(e.target.value)} placeholder="2026-12-31" />
-          </label>
+          <div className={styles.champ}>
+            <span>Début</span>
+            <SelecteurDate valeur={dateDebut || null} onChange={(v) => setDateDebut(v ?? '')} placeholder="jj/mm/aaaa" />
+          </div>
+          <div className={styles.champ}>
+            <span>Échéance</span>
+            <SelecteurDate valeur={dateFin || null} onChange={(v) => setDateFin(v ?? '')} placeholder="jj/mm/aaaa" />
+          </div>
         </div>
         <label className={styles.champ}>
           <span>Description</span>

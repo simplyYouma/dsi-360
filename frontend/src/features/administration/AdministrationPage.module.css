@@ -1,7 +1,16 @@
+.barreOnglets {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.barreAction {
+  padding-bottom: var(--space-2);
+}
 .tabs {
   display: flex;
   gap: var(--space-1);
-  border-bottom: 1px solid var(--border);
 }
 .tab,
 .tabActif {

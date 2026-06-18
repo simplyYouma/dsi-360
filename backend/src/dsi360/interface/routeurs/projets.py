@@ -55,6 +55,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "direction": r["direction"],
         "chef": _chef(r),
         "avancement": int(d.get("avancement", 0)),
+        "budget": d.get("budget"),
         "date_fin": d.get("date_fin"),
         "cree_le": r["cree_le"],
     }
@@ -66,7 +67,6 @@ def _detail(r: RowMapping) -> dict[str, Any]:
         **_resume(r),
         "description": r["description"],
         "sponsor": d.get("sponsor"),
-        "budget": d.get("budget"),
         "date_debut": d.get("date_debut"),
         "transitions_possibles": transitions_possibles(MODULE, r["statut"]),
     }

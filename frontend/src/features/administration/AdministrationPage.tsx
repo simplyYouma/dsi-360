@@ -40,7 +40,7 @@ function formaterDateHeure(iso: string): string {
 
 // ---------------------------------------------------------------- Utilisateurs
 
-function OngletUtilisateurs(): JSX.Element {
+function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX.Element {
   const [items, setItems] = useState<Utilisateur[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -90,6 +90,12 @@ function OngletUtilisateurs(): JSX.Element {
     setErreur(null);
     setModale({ id: null });
   };
+
+  // Déclenché par le bouton "Nouvel utilisateur" remonté dans la barre d'onglets.
+  useEffect(() => {
+    if (signalCreation > 0) ouvrirCreation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signalCreation]);
   const ouvrirEdition = (u: Utilisateur): void => {
     setEmail(u.email);
     setNom(u.nom);
@@ -178,12 +184,6 @@ function OngletUtilisateurs(): JSX.Element {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--space-4)' }}>
-        <Button onClick={ouvrirCreation}>
-          <Plus size={16} />
-          Nouvel utilisateur
-        </Button>
-      </div>
       <Table
         colonnes={colonnes}
         lignes={items}
@@ -427,6 +427,7 @@ function OngletJournal(): JSX.Element {
 
 export function AdministrationPage(): JSX.Element {
   const [onglet, setOnglet] = useState<'utilisateurs' | 'acces' | 'journal'>('utilisateurs');
+  const [signalCreation, setSignalCreation] = useState(0);
 
   return (
     <div className={styles.page}>
@@ -437,25 +438,35 @@ export function AdministrationPage(): JSX.Element {
         </div>
       </header>
 
-      <div className={a.tabs}>
-        <button
-          className={onglet === 'utilisateurs' ? a.tabActif : a.tab}
-          onClick={() => setOnglet('utilisateurs')}
-        >
-          Utilisateurs
-        </button>
-        <button className={onglet === 'acces' ? a.tabActif : a.tab} onClick={() => setOnglet('acces')}>
-          Accès
-        </button>
-        <button
-          className={onglet === 'journal' ? a.tabActif : a.tab}
-          onClick={() => setOnglet('journal')}
-        >
-          Journal d’audit
-        </button>
+      <div className={a.barreOnglets}>
+        <div className={a.tabs}>
+          <button
+            className={onglet === 'utilisateurs' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('utilisateurs')}
+          >
+            Utilisateurs
+          </button>
+          <button className={onglet === 'acces' ? a.tabActif : a.tab} onClick={() => setOnglet('acces')}>
+            Accès
+          </button>
+          <button
+            className={onglet === 'journal' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('journal')}
+          >
+            Journal d’audit
+          </button>
+        </div>
+        {onglet === 'utilisateurs' && (
+          <div className={a.barreAction}>
+            <Button onClick={() => setSignalCreation((n) => n + 1)}>
+              <Plus size={16} />
+              Nouvel utilisateur
+            </Button>
+          </div>
+        )}
       </div>
 
-      {onglet === 'utilisateurs' && <OngletUtilisateurs />}
+      {onglet === 'utilisateurs' && <OngletUtilisateurs signalCreation={signalCreation} />}
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}
     </div>

@@ -246,6 +246,7 @@ class ProjetResume(BaseModel):
     direction: str | None
     chef: ResponsableBref | None
     avancement: int
+    budget: float | None
     date_fin: str | None
     cree_le: datetime
 
@@ -253,7 +254,6 @@ class ProjetResume(BaseModel):
 class ProjetDetail(ProjetResume):
     description: str | None
     sponsor: str | None
-    budget: float | None
     date_debut: str | None
     transitions_possibles: list[str]
 
@@ -350,9 +350,40 @@ class AnalyseItem(BaseModel):
     valeur: int
 
 
+class KpisAnalyse(BaseModel):
+    ouvertes: int
+    respect_sla: int
+    mttr_jours: float
+    en_retard: int
+
+
+class SlaModule(BaseModel):
+    module: str
+    a_lheure: int
+    approche: int
+    depasse: int
+
+
+class CaseRisque(BaseModel):
+    probabilite: int
+    impact: int
+    valeur: int
+
+
+class PointTendance(BaseModel):
+    periode: str
+    crees: int
+    resolus: int
+
+
 class AnalysesReponse(BaseModel):
     total: int
+    kpis: KpisAnalyse
     par_module: list[AnalyseItem]
     par_direction: list[AnalyseItem]
     par_responsable: list[AnalyseItem]
+    par_priorite: list[AnalyseItem]
     sla: SlaBuckets
+    sla_par_module: list[SlaModule]
+    matrice_risques: list[CaseRisque]
+    tendance: list[PointTendance]

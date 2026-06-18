@@ -102,4 +102,6 @@ export const api = {
     ),
   put: <T>(chemin: string, corps: unknown): Promise<T> =>
     requete<T>(chemin, { method: 'PUT', body: JSON.stringify(corps) }),
+  patch: <T>(chemin: string, corps: unknown): Promise<T> =>
+    requete<T>(chemin, { method: 'PATCH', body: JSON.stringify(corps) }),
 };

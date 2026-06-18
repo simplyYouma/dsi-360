@@ -62,6 +62,13 @@ TITRES: dict[str, list[str]] = {
         "COPIL trimestriel DSI", "Comité sécurité mensuel", "Décision DG budget cloud",
         "Engagement sur les SLA", "Plan d'actions audit BCEAO",
     ],
+    "projet": [
+        "Migration cœur bancaire", "Refonte du portail agences", "Déploiement MFA groupe",
+        "Datacenter de secours (PRA)", "Dématérialisation des dossiers crédit",
+        "Mise en conformité BCEAO", "Modernisation du réseau interagences",
+        "Nouveau SI décisionnel", "Migration messagerie cloud", "Refonte du site institutionnel",
+        "Centralisation de la sauvegarde", "Automatisation des rapprochements",
+    ],
 }
 
 STATUTS: dict[str, list[str]] = {
@@ -141,10 +148,13 @@ async def creer_donnees() -> None:
                     priorite = None
                     donnees = {
                         "sponsor": random.choice(SPONSORS),
-                        "budget": random.choice([50000, 120000, 250000, 80000]),
-                        "date_debut": (cree_le).date().isoformat(),
+                        "budget": random.choice(
+                            [5_000_000, 8_500_000, 15_000_000, 25_000_000, 42_000_000,
+                             60_000_000, 90_000_000, 120_000_000]
+                        ),
+                        "date_debut": cree_le.date().isoformat(),
                         "date_fin": (cree_le + timedelta(days=random.randint(60, 240))).date().isoformat(),
-                        "avancement": random.choice([0, 15, 30, 50, 75, 90]),
+                        "avancement": random.choice([0, 10, 25, 40, 55, 70, 85, 100]),
                     }
                 else:
                     priorite = calculer_priorite(impact, urgence)
