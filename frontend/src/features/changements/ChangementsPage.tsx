@@ -3,9 +3,9 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
+import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
-import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { changementsApi, type Categorie, type Changement } from './changementsApi';
 
@@ -46,22 +46,12 @@ const COLONNES: Colonne<Changement>[] = [
   { cle: 'cree_le', entete: 'Créé le', valeur: (c) => c.cree_le, rendu: (c) => formaterDate(c.cree_le) },
 ];
 
-function Niveau({ valeur, onChange }: { valeur: number; onChange: (n: number) => void }): JSX.Element {
-  return (
-    <div className={styles.niveau}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          className={n === valeur ? styles.niveauActif : styles.niveauItem}
-          onClick={() => onChange(n)}
-        >
-          {n}
-        </button>
-      ))}
-    </div>
-  );
-}
+// Couleur sémantique du type de changement (gravité / risque).
+const TYPE_COULEUR: Record<string, string> = {
+  STANDARD: 'var(--status-ok)',
+  NORMAL: 'var(--cat-1)',
+  URGENT: 'var(--status-danger)',
+};
 
 export function ChangementsPage(): JSX.Element {
   const [changements, setChangements] = useState<Changement[]>([]);
@@ -180,16 +170,25 @@ export function ChangementsPage(): JSX.Element {
         <div className={styles.champ}>
           <span>Type</span>
           <div className={styles.chips}>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={cx(c.id === categorie ? styles.chipActif : styles.chip)}
-                onClick={() => setCategorie(c.id)}
-              >
-                {c.libelle}
-              </button>
-            ))}
+            {categories.map((c) => {
+              const coul = TYPE_COULEUR[c.code] ?? 'var(--accent)';
+              const actif = c.id === categorie;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={styles.chip}
+                  style={
+                    actif
+                      ? { background: coul, color: '#fff', borderColor: coul }
+                      : { color: coul, borderColor: `color-mix(in srgb, ${coul} 35%, var(--border))` }
+                  }
+                  onClick={() => setCategorie(c.id)}
+                >
+                  {c.libelle}
+                </button>
+              );
+            })}
           </div>
         </div>
         <label className={styles.champ}>
@@ -204,11 +203,11 @@ export function ChangementsPage(): JSX.Element {
         <div className={styles.niveaux}>
           <div className={styles.champ}>
             <span>Impact</span>
-            <Niveau valeur={impact} onChange={setImpact} />
+            <CurseurNiveau valeur={impact} onChange={setImpact} />
           </div>
           <div className={styles.champ}>
             <span>Urgence</span>
-            <Niveau valeur={urgence} onChange={setUrgence} />
+            <CurseurNiveau valeur={urgence} onChange={setUrgence} />
           </div>
         </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}

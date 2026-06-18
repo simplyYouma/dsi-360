@@ -1,0 +1,35 @@
+.bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.piste {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, #1f9d55 0%, #7fc81f 28%, #e0a341 55%, #e07a3c 78%, #d64545 100%);
+  cursor: pointer;
+  margin: 0 9px; /* place pour le curseur aux extrémités */
+}
+.piste:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+}
+.curseur {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 3px solid;
+  box-shadow: var(--shadow-md);
+  transform: translate(-50%, -50%);
+  transition: left 0.12s ease;
+  pointer-events: none;
+}
+.etiquette {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}

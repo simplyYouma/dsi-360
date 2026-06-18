@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
+import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { incidentsApi, type Incident } from './incidentsApi';
@@ -52,23 +53,6 @@ const COLONNES: Colonne<Incident>[] = [
   },
   { cle: 'cree_le', entete: 'Créé le', valeur: (i) => i.cree_le, rendu: (i) => formaterDate(i.cree_le) },
 ];
-
-function Niveau({ valeur, onChange }: { valeur: number; onChange: (n: number) => void }): JSX.Element {
-  return (
-    <div className={styles.niveau}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          className={n === valeur ? styles.niveauActif : styles.niveauItem}
-          onClick={() => onChange(n)}
-        >
-          {n}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export function IncidentsPage(): JSX.Element {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -187,11 +171,11 @@ export function IncidentsPage(): JSX.Element {
         <div className={styles.niveaux}>
           <div className={styles.champ}>
             <span>Impact</span>
-            <Niveau valeur={impact} onChange={setImpact} />
+            <CurseurNiveau valeur={impact} onChange={setImpact} />
           </div>
           <div className={styles.champ}>
             <span>Urgence</span>
-            <Niveau valeur={urgence} onChange={setUrgence} />
+            <CurseurNiveau valeur={urgence} onChange={setUrgence} />
           </div>
         </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
