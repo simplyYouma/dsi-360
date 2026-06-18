@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LoginPage } from '@/features/auth/LoginPage';
+import { ChangerMotDePasse } from '@/features/auth/ChangerMotDePasse';
 import { AppShell } from '@/features/shell/AppShell';
 import { PagePlaceholder } from '@/features/shell/PagePlaceholder';
 import { NonAutorise } from '@/features/shell/NonAutorise';
@@ -75,6 +76,7 @@ function Racine(): JSX.Element {
     );
   }
   if (moi === null) return <LoginPage />;
+  if (moi.doit_changer_mdp) return <ChangerMotDePasse />;
 
   return (
     <BrowserRouter>

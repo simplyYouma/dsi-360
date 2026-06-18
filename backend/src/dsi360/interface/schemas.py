@@ -14,6 +14,11 @@ class Rafraichissement(BaseModel):
     refresh: str
 
 
+class ChangementMotDePasse(BaseModel):
+    ancien: str = Field(min_length=1)
+    nouveau: str = Field(min_length=8)
+
+
 class Jetons(BaseModel):
     acces: str
     refresh: str

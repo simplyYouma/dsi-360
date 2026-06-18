@@ -39,3 +39,14 @@ async def par_id(session: AsyncSession, identifiant: str) -> RowMapping | None:
 async def acces_du_profil(session: AsyncSession, profil_code: str) -> list[str]:
     resultat = await session.execute(_ACCES, {"profil": profil_code})
     return list(resultat.scalars().all())
+
+
+_MAJ_MDP = text(
+    "UPDATE core.utilisateur SET mot_de_passe_hash = :hash, doit_changer_mdp = false "
+    "WHERE id::text = :id"
+)
+
+
+async def definir_mot_de_passe(session: AsyncSession, identifiant: str, empreinte: str) -> None:
+    await session.execute(_MAJ_MDP, {"hash": empreinte, "id": identifiant})
+    await session.commit()

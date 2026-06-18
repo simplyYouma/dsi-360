@@ -3,7 +3,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from dsi360.domain.activite import calculer_criticite, calculer_priorite
-from dsi360.domain.etats import etat_initial, transition_autorisee, transitions_possibles
+from dsi360.domain.etats import (
+    etat_initial,
+    ordre_etats,
+    transition_autorisee,
+    transitions_possibles,
+)
 from dsi360.domain.sla import echeances, statut_sla
 
 
@@ -46,6 +51,18 @@ class TestEtats:
     def test_module_inconnu(self) -> None:
         with pytest.raises(ValueError):
             transitions_possibles("inexistant", "X")
+
+    def test_nouveaux_modules(self) -> None:
+        assert etat_initial("cybersecurite") == "Ouvert"
+        assert etat_initial("gouvernance") == "À engager"
+        assert transition_autorisee("cybersecurite", "Ouvert", "En traitement") is True
+        assert transition_autorisee("gouvernance", "À engager", "En cours") is True
+        assert transition_autorisee("gouvernance", "À engager", "Réalisé") is False
+
+    def test_ordre_etats(self) -> None:
+        ordre = ordre_etats("incident")
+        assert ordre[0] == "Nouveau"
+        assert "Clôturé" in ordre
 
 
 class TestSla:

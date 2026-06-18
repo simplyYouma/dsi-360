@@ -10,8 +10,19 @@ from dsi360.application.auth import authentifier
 from dsi360.infrastructure.audit import consigner
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import utilisateur as repo
-from dsi360.infrastructure.securite import creer_jeton, decoder_jeton
-from dsi360.interface.schemas import Connexion, Jetons, MoiReponse, Rafraichissement
+from dsi360.infrastructure.securite import (
+    creer_jeton,
+    decoder_jeton,
+    hacher_mot_de_passe,
+    verifier_mot_de_passe,
+)
+from dsi360.interface.schemas import (
+    ChangementMotDePasse,
+    Connexion,
+    Jetons,
+    MoiReponse,
+    Rafraichissement,
+)
 from dsi360.interface.securite import UtilisateurCourant
 
 routeur = APIRouter(tags=["authentification"])
@@ -72,3 +83,28 @@ async def logout() -> None:
 @routeur.get("/moi", response_model=MoiReponse)
 async def moi(courant: UtilisateurCourant) -> dict[str, Any]:
     return courant
+
+
+@routeur.post("/auth/mot-de-passe", status_code=status.HTTP_204_NO_CONTENT)
+async def changer_mot_de_passe(
+    corps: ChangementMotDePasse, requete: Request, courant: UtilisateurCourant, session: Session
+) -> None:
+    u = await repo.par_id(session, courant["id"])
+    if (
+        u is None
+        or u["source_auth"] != "LOCAL"
+        or not u["mot_de_passe_hash"]
+        or not verifier_mot_de_passe(u["mot_de_passe_hash"], corps.ancien)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Ancien mot de passe incorrect."
+        )
+    await repo.definir_mot_de_passe(session, courant["id"], hacher_mot_de_passe(corps.nouveau))
+    await consigner(
+        session,
+        action="CHANGEMENT_MDP",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="authentification",
+        adresse_ip=requete.client.host if requete.client else None,
+    )

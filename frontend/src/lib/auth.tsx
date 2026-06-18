@@ -22,6 +22,7 @@ interface AuthCtx {
   moi: Moi | null;
   connecter: (email: string, motDePasse: string) => Promise<void>;
   deconnecter: () => Promise<void>;
+  rafraichir: () => Promise<void>;
 }
 
 const Contexte = createContext<AuthCtx | null>(null);
@@ -72,9 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     setMoi(null);
   }, []);
 
+  const rafraichir = useCallback(async (): Promise<void> => {
+    setMoi(await api.get<Moi>('/moi'));
+  }, []);
+
   const valeur = useMemo(
-    () => ({ statut, moi, connecter, deconnecter }),
-    [statut, moi, connecter, deconnecter],
+    () => ({ statut, moi, connecter, deconnecter, rafraichir }),
+    [statut, moi, connecter, deconnecter, rafraichir],
   );
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;
 }
