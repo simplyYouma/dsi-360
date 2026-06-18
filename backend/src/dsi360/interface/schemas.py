@@ -110,6 +110,23 @@ class CategorieItem(BaseModel):
     libelle: str
 
 
+# --- Notifications ---
+
+
+class NotificationItem(BaseModel):
+    id: int
+    type: str
+    titre: str
+    message: str
+    lu: bool
+    cree_le: datetime
+
+
+class NotificationsReponse(BaseModel):
+    elements: list[NotificationItem]
+    non_lus: int
+
+
 # --- Projets ---
 
 

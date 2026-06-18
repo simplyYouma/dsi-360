@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Search, Bell, Moon, Sun, LogOut } from 'lucide-react';
+import { Search, Moon, Sun, LogOut } from 'lucide-react';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +9,7 @@ import logoClair from '@/assets/brand/logo1.svg';
 import logoSombre from '@/assets/brand/logo1-blanc.svg';
 import { SECTIONS, cleAcces } from './navigation';
 import { FilAriane } from './FilAriane';
+import { Notifications } from './Notifications';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
@@ -126,9 +127,7 @@ export function AppShell(): JSX.Element | null {
             <button className={styles.iconeBtn} onClick={basculer} aria-label="Changer de thème">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-            <button className={styles.iconeBtn} aria-label="Notifications">
-              <Bell size={20} />
-            </button>
+            <Notifications />
             <AvatarPersonnage seed={moi.email} taille={36} />
           </div>
         </header>
