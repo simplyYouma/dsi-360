@@ -5,7 +5,8 @@ import { useTheme } from '@/design-system/ThemeProvider';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { useAuth } from '@/lib/auth';
 import { cx } from '@/common/cx';
-import logo from '@/assets/brand/logo-dsi360.svg';
+import logoClair from '@/assets/brand/logo1.svg';
+import logoSombre from '@/assets/brand/logo1-blanc.svg';
 import { SECTIONS, cleAcces } from './navigation';
 import { FilAriane } from './FilAriane';
 import styles from './AppShell.module.css';
@@ -26,6 +27,8 @@ export function AppShell(): JSX.Element | null {
   };
 
   if (moi === null) return null; // le shell n'est rendu qu'authentifié (garde dans App)
+
+  const logo = theme === 'dark' ? logoSombre : logoClair;
 
   return (
     <div className={cx(styles.shell, replie && styles.replie)}>

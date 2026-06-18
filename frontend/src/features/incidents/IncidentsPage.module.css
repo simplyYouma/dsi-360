@@ -128,3 +128,29 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
 }
+
+/* Sélection par chips (ex. catégories de demande) */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.chip,
+.chipActif {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  font-size: var(--text-sm);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.chip:hover {
+  border-color: var(--text-muted);
+}
+.chipActif {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}

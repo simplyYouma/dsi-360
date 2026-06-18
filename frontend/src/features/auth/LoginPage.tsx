@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Moon, Sun } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/design-system/ThemeProvider';
 import { ErreurApi } from '@/lib/api';
-import logo from '@/assets/brand/logo-dsi360.svg';
+import logoClair from '@/assets/brand/logo1.svg';
+import logoSombre from '@/assets/brand/logo1-blanc.svg';
 import styles from './LoginPage.module.css';
 
 /** Écran de connexion (mode LOCAL ; l'OIDC Entra ID s'ajoutera ici). */
 export function LoginPage(): JSX.Element {
   const { connecter } = useAuth();
+  const { theme, basculer } = useTheme();
+  const logo = theme === 'dark' ? logoSombre : logoClair;
   const [email, setEmail] = useState('');
   const [motDePasse, setMotDePasse] = useState('');
   const [visible, setVisible] = useState(false);
@@ -34,6 +38,14 @@ export function LoginPage(): JSX.Element {
 
   return (
     <div className={styles.page}>
+      <button
+        type="button"
+        className={styles.theme}
+        onClick={basculer}
+        aria-label="Changer de thème"
+      >
+        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+      </button>
       <form className={styles.carte} onSubmit={soumettre}>
         <img src={logo} alt="DSI 360" className={styles.logo} />
         <h1 className={styles.titre}>Connexion</h1>

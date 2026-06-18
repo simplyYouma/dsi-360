@@ -1,10 +1,32 @@
 .page {
+  position: relative;
   min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-5);
   background: var(--bg);
+}
+.theme {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-5);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.theme:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
 }
 .carte {
   width: 100%;

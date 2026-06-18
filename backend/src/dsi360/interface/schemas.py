@@ -89,3 +89,9 @@ class TransitionDemande(BaseModel):
 
 class CreationReponse(BaseModel):
     id: str
+
+
+class CategorieItem(BaseModel):
+    id: str
+    code: str
+    libelle: str

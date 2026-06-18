@@ -7,11 +7,13 @@ import { PagePlaceholder } from '@/features/shell/PagePlaceholder';
 import { NonAutorise } from '@/features/shell/NonAutorise';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { IncidentsPage } from '@/features/incidents/IncidentsPage';
+import { DemandesPage } from '@/features/demandes/DemandesPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
 const PAGES: Record<string, JSX.Element> = {
   '/incidents': <IncidentsPage />,
+  '/demandes': <DemandesPage />,
 };
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */
