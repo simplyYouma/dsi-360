@@ -13,6 +13,7 @@ interface Detail {
   description: string | null;
   transitions_possibles: string[];
   etats: string[];
+  historique: { statut: string; horodatage: string; acteur: string | null }[];
   // Champs optionnels selon le module (activité, risque…).
   priorite?: number;
   criticite?: number;
@@ -69,6 +70,8 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
       setEnvoi(false);
     }
   };
+
+  const visites = new Set((detail?.historique ?? []).map((h) => h.statut));
 
   return (
     <Modale
@@ -149,46 +152,62 @@ export function FicheTransition({ base, id, onFermer, onChange }: FicheTransitio
 
           <div className={styles.workflow}>
             <span className={styles.wfTitre}>Cycle de vie</span>
-            <ol className={styles.etapes}>
-              {detail.etats.map((etat, i) => {
-                const idx = detail.etats.indexOf(detail.statut);
+            <div className={styles.etapes}>
+              {detail.etats.map((etat) => {
+                const visite = visites.has(etat);
                 const estCourant = etat === detail.statut;
-                const passe = i < idx;
+                const passe = visite && !estCourant;
                 const cliquable = detail.transitions_possibles.includes(etat);
                 const c = couleurStatut(etat);
+                if (cliquable && !estCourant) {
+                  return (
+                    <button
+                      key={etat}
+                      type="button"
+                      className={styles.chip}
+                      style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+                      disabled={envoi}
+                      onClick={() => void transitionner(etat)}
+                    >
+                      {etat}
+                      <ArrowRight size={13} />
+                    </button>
+                  );
+                }
                 return (
-                  <li
+                  <span
                     key={etat}
                     className={cx(
-                      styles.etape,
-                      passe && styles.passe,
-                      estCourant && styles.actuel,
-                      !passe && !estCourant && !cliquable && styles.futur,
+                      styles.chip,
+                      passe && styles.chipPasse,
+                      estCourant && styles.chipActuel,
+                      !passe && !estCourant && styles.chipFutur,
                     )}
+                    style={estCourant ? { color: c, borderColor: c } : undefined}
                   >
-                    <span
-                      className={styles.puce}
-                      style={estCourant ? { borderColor: c, background: c } : undefined}
-                    />
-                    {cliquable && !estCourant ? (
-                      <button
-                        type="button"
-                        className={styles.etapeBtn}
-                        style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
-                        disabled={envoi}
-                        onClick={() => void transitionner(etat)}
-                      >
-                        {etat}
-                        <ArrowRight size={13} />
-                      </button>
-                    ) : (
-                      <span className={styles.etapeLabel}>{etat}</span>
-                    )}
-                  </li>
+                    {etat}
+                  </span>
                 );
               })}
-            </ol>
+            </div>
           </div>
+
+          {detail.historique.length > 0 && (
+            <div className={styles.histo}>
+              <span className={styles.wfTitre}>Historique</span>
+              <ol className={styles.histoListe}>
+                {detail.historique.map((h, i) => (
+                  <li key={i} className={styles.histoItem}>
+                    <span className={styles.histoDate}>{formaterDate(h.horodatage)}</span>
+                    <span className={styles.histoStatut} style={{ color: couleurStatut(h.statut) }}>
+                      {h.statut}
+                    </span>
+                    {h.acteur !== null && <span className={styles.histoActeur}>{h.acteur}</span>}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
         </div>

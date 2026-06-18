@@ -52,6 +52,12 @@ class ActiviteCreation(BaseModel):
     responsable_id: str | None = None
 
 
+class EntreeHistorique(BaseModel):
+    statut: str
+    horodatage: datetime
+    acteur: str | None
+
+
 class ActiviteResume(BaseModel):
     id: str
     reference: str
@@ -75,6 +81,7 @@ class ActiviteDetail(ActiviteResume):
     cloture_le: datetime | None
     transitions_possibles: list[str]
     etats: list[str]
+    historique: list[EntreeHistorique]
 
 
 class PageActivites(BaseModel):
@@ -172,6 +179,7 @@ class RisqueDetail(RisqueResume):
     description: str | None
     transitions_possibles: list[str]
     etats: list[str]
+    historique: list[EntreeHistorique]
 
 
 class PageRisques(BaseModel):

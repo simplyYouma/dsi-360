@@ -20,6 +20,7 @@ from dsi360.application.activites import (
 )
 from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.sla import statut_sla
+from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
@@ -187,10 +188,15 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
             headers={"Content-Disposition": f"attachment; filename={nom}"},
         )
 
+    async def detail_complet(r: RowMapping, session: AsyncSession) -> dict[str, Any]:
+        base = _detail(module, r, datetime.now(UTC))
+        base["historique"] = await audit.historique_statuts(session, module, r["reference"])
+        return base
+
     @routeur.get("/{ident}", response_model=ActiviteDetail)
     async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
         r = await charger_visible(session, ident, courant)
-        return _detail(module, r, datetime.now(UTC))
+        return await detail_complet(r, session)
 
     @routeur.post("/{ident}/transition", response_model=ActiviteDetail)
     async def transitionner(
@@ -208,6 +214,6 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
                 status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
             ) from exc
         r = await charger_visible(session, ident, courant)
-        return _detail(module, r, datetime.now(UTC))
+        return await detail_complet(r, session)
 
     return routeur

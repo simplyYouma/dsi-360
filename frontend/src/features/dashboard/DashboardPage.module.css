@@ -146,8 +146,8 @@
   font-size: var(--text-sm);
 }
 .point {
-  width: 9px;
-  height: 9px;
+  width: 4px;
+  height: 16px;
   border-radius: var(--radius-pill);
   flex: 0 0 auto;
 }

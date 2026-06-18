@@ -14,6 +14,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 _DERNIER = text("SELECT hash_courant FROM audit.journal ORDER BY id DESC LIMIT 1")
 
+_HISTORIQUE = text(
+    "SELECT nouvelle_valeur->>'statut' AS statut, horodatage, acteur_email "
+    "FROM audit.journal "
+    "WHERE module = :module AND cible_id = :reference "
+    "AND action IN ('CREATION', 'TRANSITION') AND nouvelle_valeur->>'statut' IS NOT NULL "
+    "ORDER BY id"
+)
+
+
+async def historique_statuts(
+    session: AsyncSession, module: str, reference: str
+) -> list[dict[str, Any]]:
+    """Parcours réel des statuts d'une activité, reconstitué depuis le journal d'audit."""
+    resultat = await session.execute(_HISTORIQUE, {"module": module, "reference": reference})
+    return [
+        {"statut": r["statut"], "horodatage": r["horodatage"], "acteur": r["acteur_email"]}
+        for r in resultat.mappings().all()
+    ]
+
 _INSERT = text(
     "INSERT INTO audit.journal "
     "(horodatage, acteur_id, acteur_email, module, action, cible_type, cible_id, "

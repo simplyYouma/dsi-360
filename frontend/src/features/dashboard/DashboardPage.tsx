@@ -68,6 +68,7 @@ function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.E
             </Pie>
             {total > 0 && (
               <Tooltip
+                allowEscapeViewBox={{ x: false, y: true }}
                 contentStyle={{
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
@@ -141,6 +142,7 @@ function TendanceSla({
             />
             <YAxis hide allowDecimals={false} />
             <Tooltip
+              allowEscapeViewBox={{ x: false, y: true }}
               contentStyle={{
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',

@@ -7,7 +7,15 @@ import { useTheme } from '@/design-system/ThemeProvider';
 import { ErreurApi } from '@/lib/api';
 import logoClair from '@/assets/brand/logo1.svg';
 import logoSombre from '@/assets/brand/logo1-blanc.svg';
+import fond from '@/assets/fond-login.png';
 import styles from './LoginPage.module.css';
+
+// Voile semi-transparent (couleur de fond du thème) superposé à l'image : rend bien en clair et sombre.
+const STYLE_FOND = {
+  backgroundImage: `linear-gradient(color-mix(in srgb, var(--bg) 80%, transparent), color-mix(in srgb, var(--bg) 88%, transparent)), url(${fond})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+};
 
 /** Écran de connexion (mode LOCAL ; l'OIDC Entra ID s'ajoutera ici). */
 export function LoginPage(): JSX.Element {
@@ -37,7 +45,7 @@ export function LoginPage(): JSX.Element {
   };
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} style={STYLE_FOND}>
       <button
         type="button"
         className={styles.theme}
