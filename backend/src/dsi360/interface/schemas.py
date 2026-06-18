@@ -140,3 +140,32 @@ class PageProjets(BaseModel):
 
 class AvancementDemande(BaseModel):
     avancement: int = Field(ge=0, le=100)
+
+
+# --- Tableau de bord ---
+
+
+class CartesBord(BaseModel):
+    incidents_ouverts: int
+    incidents_critiques: int
+    respect_sla: int
+    demandes_en_cours: int
+    projets_en_retard: int
+    risques_critiques: int
+
+
+class SlaBuckets(BaseModel):
+    a_lheure: int
+    approche: int
+    depasse: int
+
+
+class RepartitionItem(BaseModel):
+    module: str
+    valeur: int
+
+
+class TableauBord(BaseModel):
+    cartes: CartesBord
+    sla: SlaBuckets
+    repartition: list[RepartitionItem]
