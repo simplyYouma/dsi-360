@@ -12,6 +12,7 @@ import {
   Settings,
   UploadCloud,
   Users,
+  ListChecks,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -22,6 +23,8 @@ export interface EntreeNav {
   phase: 'P1' | 'P2' | 'P3';
   /** Réservé aux profils transverses (DSI / Administration) plutôt qu'à un accès module. */
   transverse?: boolean;
+  /** Toujours visible (toute personne authentifiée), sans contrôle d'accès module. */
+  toujours?: boolean;
 }
 
 export interface SectionNav {
@@ -31,6 +34,12 @@ export interface SectionNav {
 
 /** Navigation groupée en sections élégantes (les 9 modules du cahier + administration). */
 export const SECTIONS: SectionNav[] = [
+  {
+    titre: 'Mon espace',
+    entrees: [
+      { chemin: '/mes-tickets', libelle: 'Mes tickets', icone: ListChecks, phase: 'P1', toujours: true },
+    ],
+  },
   {
     titre: 'Pilotage',
     entrees: [

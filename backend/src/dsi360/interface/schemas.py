@@ -113,6 +113,19 @@ class AgentItem(BaseModel):
     profil: str
 
 
+class MonTicket(BaseModel):
+    module: str
+    id: str
+    reference: str
+    titre: str
+    statut: str
+    priorite: int | None
+    statut_sla: str
+    sla_resolution_le: datetime | None
+    demandeur: str | None
+    cree_le: datetime
+
+
 class CreationReponse(BaseModel):
     id: str
 

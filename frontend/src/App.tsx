@@ -18,6 +18,7 @@ import { AdministrationPage } from '@/features/administration/AdministrationPage
 import { AnalysesPage } from '@/features/analyses/AnalysesPage';
 import { ImportPage } from '@/features/ingestion/ImportPage';
 import { DemandeursPage } from '@/features/demandeurs/DemandeursPage';
+import { MesTicketsPage } from '@/features/tickets/MesTicketsPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
@@ -56,6 +57,7 @@ const PAGES: Record<string, JSX.Element> = {
   '/administration': <AdministrationPage />,
   '/import': <ImportPage />,
   '/demandeurs': <DemandeursPage />,
+  '/mes-tickets': <MesTicketsPage />,
 };
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */
@@ -103,7 +105,9 @@ function Racine(): JSX.Element {
               key={e.chemin}
               path={e.chemin}
               element={
-                e.transverse ? (
+                e.toujours ? (
+                  (PAGES[e.chemin] ?? <PagePlaceholder />)
+                ) : e.transverse ? (
                   <RequiertTransverse>{PAGES[e.chemin] ?? <PagePlaceholder />}</RequiertTransverse>
                 ) : (
                   <RequiertAcces cle={cleAcces(e.chemin)}>
