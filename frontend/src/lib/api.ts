@@ -93,6 +93,30 @@ export async function telecharger(chemin: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** Téléverse un fichier (multipart) avec jeton Bearer et réessai sur 401. */
+export async function televerser<T>(chemin: string, fichier: File, champ = 'fichier'): Promise<T> {
+  const corps = new FormData();
+  corps.append(champ, fichier);
+  const envoyer = async (): Promise<Response> => {
+    const headers = new Headers();
+    if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
+    return fetch(`${BASE}${chemin}`, { method: 'POST', headers, body: corps });
+  };
+  let res = await envoyer();
+  if (res.status === 401 && (await tenterRafraichir())) res = await envoyer();
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const c = (await res.json()) as { detail?: string };
+      if (c.detail !== undefined) message = c.detail;
+    } catch {
+      /* corps non JSON */
+    }
+    throw new ErreurApi(res.status, message);
+  }
+  return (await res.json()) as T;
+}
+
 export const api = {
   get: <T>(chemin: string): Promise<T> => requete<T>(chemin),
   post: <T>(chemin: string, corps?: unknown): Promise<T> =>
@@ -104,4 +128,5 @@ export const api = {
     requete<T>(chemin, { method: 'PUT', body: JSON.stringify(corps) }),
   patch: <T>(chemin: string, corps: unknown): Promise<T> =>
     requete<T>(chemin, { method: 'PATCH', body: JSON.stringify(corps) }),
+  del: <T>(chemin: string): Promise<T> => requete<T>(chemin, { method: 'DELETE' }),
 };

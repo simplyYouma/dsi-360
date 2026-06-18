@@ -10,6 +10,8 @@ import {
   Lock,
   Landmark,
   Settings,
+  UploadCloud,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -18,6 +20,8 @@ export interface EntreeNav {
   libelle: string;
   icone: LucideIcon;
   phase: 'P1' | 'P2' | 'P3';
+  /** Réservé aux profils transverses (DSI / Administration) plutôt qu'à un accès module. */
+  transverse?: boolean;
 }
 
 export interface SectionNav {
@@ -54,6 +58,13 @@ export const SECTIONS: SectionNav[] = [
   {
     titre: 'Gouvernance',
     entrees: [{ chemin: '/gouvernance', libelle: 'Gouvernance DSI', icone: Landmark, phase: 'P3' }],
+  },
+  {
+    titre: 'Données',
+    entrees: [
+      { chemin: '/import', libelle: 'Import quotidien', icone: UploadCloud, phase: 'P1', transverse: true },
+      { chemin: '/demandeurs', libelle: 'Demandeurs', icone: Users, phase: 'P1', transverse: true },
+    ],
   },
   {
     titre: 'Système',

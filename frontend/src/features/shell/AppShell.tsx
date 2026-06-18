@@ -74,7 +74,9 @@ export function AppShell(): JSX.Element | null {
 
         <nav className={styles.nav}>
           {SECTIONS.map((section) => {
-            const entrees = section.entrees.filter((e) => moi.acces.includes(cleAcces(e.chemin)));
+            const entrees = section.entrees.filter(
+              (e) => (e.transverse ? moi.transverse : moi.acces.includes(cleAcces(e.chemin))),
+            );
             if (entrees.length === 0) return null;
             return (
             <div key={section.titre} className={styles.section}>

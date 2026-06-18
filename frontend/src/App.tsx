@@ -16,6 +16,8 @@ import { RisquesPage } from '@/features/risques/RisquesPage';
 import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
 import { AdministrationPage } from '@/features/administration/AdministrationPage';
 import { AnalysesPage } from '@/features/analyses/AnalysesPage';
+import { ImportPage } from '@/features/ingestion/ImportPage';
+import { DemandeursPage } from '@/features/demandeurs/DemandeursPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
 /** Pages réelles déjà implémentées (les autres routes affichent un écran « à venir »). */
@@ -52,12 +54,21 @@ const PAGES: Record<string, JSX.Element> = {
     />
   ),
   '/administration': <AdministrationPage />,
+  '/import': <ImportPage />,
+  '/demandeurs': <DemandeursPage />,
 };
 
 /** Garde de route : n'affiche le contenu que si l'utilisateur a l'accès requis. */
 function RequiertAcces({ cle, children }: { cle: string; children: ReactNode }): JSX.Element {
   const { moi } = useAuth();
   if (moi !== null && !moi.acces.includes(cle)) return <NonAutorise />;
+  return <>{children}</>;
+}
+
+/** Garde réservée aux profils transverses (import, référentiel demandeurs). */
+function RequiertTransverse({ children }: { children: ReactNode }): JSX.Element {
+  const { moi } = useAuth();
+  if (moi !== null && !moi.transverse) return <NonAutorise />;
   return <>{children}</>;
 }
 
@@ -92,9 +103,13 @@ function Racine(): JSX.Element {
               key={e.chemin}
               path={e.chemin}
               element={
-                <RequiertAcces cle={cleAcces(e.chemin)}>
-                  {PAGES[e.chemin] ?? <PagePlaceholder />}
-                </RequiertAcces>
+                e.transverse ? (
+                  <RequiertTransverse>{PAGES[e.chemin] ?? <PagePlaceholder />}</RequiertTransverse>
+                ) : (
+                  <RequiertAcces cle={cleAcces(e.chemin)}>
+                    {PAGES[e.chemin] ?? <PagePlaceholder />}
+                  </RequiertAcces>
+                )
               }
             />
           ))}
