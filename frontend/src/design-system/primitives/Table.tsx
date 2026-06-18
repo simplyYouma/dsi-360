@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from '@/common/cx';
+import { Skeleton } from './Skeleton';
 import styles from './Table.module.css';
 
 export interface Colonne<T> {
@@ -121,11 +122,15 @@ export function Table<T>({
           </thead>
           <tbody>
             {chargement ? (
-              <tr>
-                <td colSpan={colonnes.length} className={styles.message}>
-                  Chargement…
-                </td>
-              </tr>
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={`squelette-${i}`}>
+                  {colonnes.map((c) => (
+                    <td key={c.cle}>
+                      <Skeleton largeur="68%" />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : lignesTriees.length === 0 ? (
               <tr>
                 <td colSpan={colonnes.length} className={styles.message}>

@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react';
 import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts';
-import { Card } from '@/design-system/primitives';
+import { Card, Skeleton } from '@/design-system/primitives';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
 
-interface Carte {
+type Cartes = TableauBord['cartes'];
+type Ton = 'ok' | 'warn' | 'danger' | undefined;
+
+interface MetaCarte {
   libelle: string;
-  valeur: string;
   icone: LucideIcon;
   couleur: string;
-  note: string;
-  tonNote?: 'ok' | 'warn' | 'danger' | undefined;
+  valeur: (c: Cartes) => string;
+  note: (c: Cartes) => string;
+  tonNote?: (c: Cartes) => Ton;
 }
 
 interface Segment {
@@ -20,6 +23,15 @@ interface Segment {
   valeur: number;
   couleur: string;
 }
+
+const META_CARTES: MetaCarte[] = [
+  { libelle: 'Incidents ouverts', icone: TriangleAlert, couleur: 'var(--cat-1)', valeur: (c) => String(c.incidents_ouverts), note: (c) => `${c.incidents_critiques} critique(s)`, tonNote: (c) => (c.incidents_critiques > 0 ? 'danger' : undefined) },
+  { libelle: 'Incidents critiques', icone: ShieldAlert, couleur: 'var(--cat-4)', valeur: (c) => String(c.incidents_critiques), note: () => 'Priorité P1', tonNote: () => 'danger' },
+  { libelle: 'Respect SLA', icone: Timer, couleur: 'var(--cat-2)', valeur: (c) => `${c.respect_sla} %`, note: (c) => (c.respect_sla >= 90 ? 'Objectif tenu' : "Sous l'objectif"), tonNote: (c) => (c.respect_sla >= 90 ? 'ok' : 'warn') },
+  { libelle: 'Demandes en cours', icone: Inbox, couleur: 'var(--cat-7)', valeur: (c) => String(c.demandes_en_cours), note: () => 'À traiter' },
+  { libelle: 'Projets en retard', icone: FolderKanban, couleur: 'var(--cat-3)', valeur: (c) => String(c.projets_en_retard), note: (c) => (c.projets_en_retard > 0 ? 'À surveiller' : 'Dans les temps'), tonNote: (c) => (c.projets_en_retard > 0 ? 'warn' : 'ok') },
+  { libelle: 'Risques critiques', icone: Flame, couleur: 'var(--cat-5)', valeur: (c) => String(c.risques_critiques), note: () => 'Revue périodique' },
+];
 
 const MODULE_META: Record<string, { nom: string; couleur: string }> = {
   incident: { nom: 'Incidents', couleur: '#4f6bed' },
@@ -29,18 +41,6 @@ const MODULE_META: Record<string, { nom: string; couleur: string }> = {
   audit: { nom: 'Audit', couleur: '#8a5cf6' },
   risque: { nom: 'Risques', couleur: '#2fa363' },
 };
-
-function construireCartes(t: TableauBord): Carte[] {
-  const c = t.cartes;
-  return [
-    { libelle: 'Incidents ouverts', valeur: String(c.incidents_ouverts), icone: TriangleAlert, couleur: 'var(--cat-1)', note: `${c.incidents_critiques} critique(s)`, tonNote: c.incidents_critiques > 0 ? 'danger' : undefined },
-    { libelle: 'Incidents critiques', valeur: String(c.incidents_critiques), icone: ShieldAlert, couleur: 'var(--cat-4)', note: 'Priorité P1', tonNote: 'danger' },
-    { libelle: 'Respect SLA', valeur: `${c.respect_sla} %`, icone: Timer, couleur: 'var(--cat-2)', note: c.respect_sla >= 90 ? 'Objectif tenu' : "Sous l'objectif", tonNote: c.respect_sla >= 90 ? 'ok' : 'warn' },
-    { libelle: 'Demandes en cours', valeur: String(c.demandes_en_cours), icone: Inbox, couleur: 'var(--cat-7)', note: 'À traiter' },
-    { libelle: 'Projets en retard', valeur: String(c.projets_en_retard), icone: FolderKanban, couleur: 'var(--cat-3)', note: c.projets_en_retard > 0 ? 'À surveiller' : 'Dans les temps', tonNote: c.projets_en_retard > 0 ? 'warn' : 'ok' },
-    { libelle: 'Risques critiques', valeur: String(c.risques_critiques), icone: Flame, couleur: 'var(--cat-5)', note: 'Revue périodique' },
-  ];
-}
 
 /** Donut épais à segments arrondis + total au centre + légende à mini-barres. */
 function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.Element {
@@ -184,7 +184,6 @@ export function DashboardPage(): JSX.Element {
     void dashboardApi.charger().then(setTableau);
   }, []);
 
-  const cartes = tableau ? construireCartes(tableau) : [];
   const repartition: Segment[] = tableau
     ? tableau.repartition.map((r) => ({
         nom: MODULE_META[r.module]?.nom ?? r.module,
@@ -208,30 +207,50 @@ export function DashboardPage(): JSX.Element {
       </header>
 
       <section className={styles.grille}>
-        {cartes.map(({ libelle, valeur, icone: Icone, couleur, note, tonNote }) => (
-          <Card key={libelle} className={styles.kpi}>
-            <div className={styles.kpiTete}>
-              <span className={styles.kpiIcone} style={{ color: couleur }}>
-                <Icone size={18} />
-              </span>
-              <span className={styles.kpiLibelle}>{libelle}</span>
-            </div>
-            <div className={styles.kpiValeur}>{tableau ? valeur : '—'}</div>
-            <div className={styles.kpiNote} data-ton={tonNote}>
-              {tableau ? note : ' '}
-            </div>
-          </Card>
-        ))}
+        {META_CARTES.map((m) => {
+          const Icone = m.icone;
+          return (
+            <Card key={m.libelle} className={styles.kpi}>
+              <div className={styles.kpiTete}>
+                <span className={styles.kpiIcone} style={{ color: m.couleur }}>
+                  <Icone size={18} />
+                </span>
+                <span className={styles.kpiLibelle}>{m.libelle}</span>
+              </div>
+              {tableau ? (
+                <>
+                  <div className={styles.kpiValeur}>{m.valeur(tableau.cartes)}</div>
+                  <div className={styles.kpiNote} data-ton={m.tonNote?.(tableau.cartes)}>
+                    {m.note(tableau.cartes)}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Skeleton largeur="64px" hauteur="34px" />
+                  <Skeleton largeur="96px" hauteur="12px" />
+                </>
+              )}
+            </Card>
+          );
+        })}
       </section>
 
       <section className={styles.charts}>
         <Card>
           <h2 className={styles.chartTitre}>Répartition des activités</h2>
-          <DonutAnneau data={repartition} unite="activités" />
+          {tableau ? (
+            <DonutAnneau data={repartition} unite="activités" />
+          ) : (
+            <Skeleton hauteur="196px" radius="var(--radius-md)" />
+          )}
         </Card>
         <Card>
           <h2 className={styles.chartTitre}>Respect des échéances SLA</h2>
-          <TendanceSla serie={tableau?.serie ?? []} courant={sla} />
+          {tableau ? (
+            <TendanceSla serie={tableau.serie} courant={sla} />
+          ) : (
+            <Skeleton hauteur="210px" radius="var(--radius-md)" />
+          )}
         </Card>
       </section>
     </div>
