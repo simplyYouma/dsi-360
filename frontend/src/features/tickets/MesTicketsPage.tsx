@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Inbox } from 'lucide-react';
 import { Table, StatusBadge, type Colonne } from '@/design-system/primitives';
-import { BadgeStatut, BadgePriorite, BadgeSla } from '@/common/statuts';
+import { BadgeStatut, BadgePriorite } from '@/common/statuts';
+import { SablierSla } from '@/common/SablierSla';
 import { FicheTransition } from '@/common/FicheTransition';
 import { LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
+import local from './MesTickets.module.css';
 import { mesTicketsApi, type MonTicket } from './mesTicketsApi';
 
 const MODULE_COULEUR: Record<string, string> = {
@@ -39,7 +41,11 @@ const COLONNES: Colonne<MonTicket>[] = [
     valeur: (t) => t.priorite ?? 9,
     rendu: (t) => (t.priorite ? <BadgePriorite priorite={t.priorite} /> : '—'),
   },
-  { cle: 'sla', entete: 'SLA', rendu: (t) => <BadgeSla etat={t.statut_sla} /> },
+  {
+    cle: 'sla',
+    entete: 'SLA',
+    rendu: (t) => <SablierSla echeance={t.sla_resolution_le} priorite={t.priorite} statut={t.statut_sla} />,
+  },
   { cle: 'demandeur', entete: 'Demandeur', rendu: (t) => t.demandeur ?? '—' },
   { cle: 'statut', entete: 'Statut', rendu: (t) => <BadgeStatut statut={t.statut} /> },
   { cle: 'cree_le', entete: 'Reçu le', valeur: (t) => t.cree_le, rendu: (t) => formaterDate(t.cree_le) },
@@ -62,18 +68,40 @@ export function MesTicketsPage(): JSX.Element {
     charger();
   }, [charger]);
 
+  const enRetard = items.filter((t) => t.statut_sla === 'depasse').length;
+  const approche = items.filter((t) => t.statut_sla === 'approche').length;
+  const p1 = items.filter((t) => t.priorite === 1).length;
+  const kpis = [
+    { libelle: 'À traiter', valeur: items.length, couleur: 'var(--text)' },
+    { libelle: 'SLA dépassé', valeur: enRetard, couleur: 'var(--status-danger)' },
+    { libelle: 'Échéance proche', valeur: approche, couleur: 'var(--status-warn)' },
+    { libelle: 'Critiques (P1)', valeur: p1, couleur: 'var(--cat-1)' },
+  ];
+
   return (
     <div className={incidents.page}>
       <header className={incidents.entete}>
         <div>
           <h1 className={incidents.titre}>Mes tickets</h1>
           <p className={incidents.sous}>
-            {chargement
-              ? 'Chargement de votre file…'
-              : `${items.length} ticket(s) qui vous sont assignés (hors clôturés), du plus prioritaire au moins urgent.`}
+            Votre file de travail — du plus prioritaire au plus urgent. Les SLA dépassés sont
+            surlignés.
           </p>
         </div>
       </header>
+
+      {!chargement && (
+        <section className={local.kpis}>
+          {kpis.map((k) => (
+            <div key={k.libelle} className={local.kpi}>
+              <span className={local.kpiValeur} style={{ color: k.couleur }}>
+                {k.valeur}
+              </span>
+              <span className={local.kpiLibelle}>{k.libelle}</span>
+            </div>
+          ))}
+        </section>
+      )}
 
       {!chargement && items.length === 0 ? (
         <div className={incidents.vide}>
@@ -91,6 +119,7 @@ export function MesTicketsPage(): JSX.Element {
             const base = ROUTE_MODULE[t.module];
             if (base !== undefined) setFiche({ base, id: t.id });
           }}
+          classeLigne={(t) => (t.statut_sla === 'depasse' ? 'ligne-sla-depasse' : undefined)}
         />
       )}
 

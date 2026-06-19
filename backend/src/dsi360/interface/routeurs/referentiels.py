@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.etats import ordre_etats
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import AgentItem, CategorieItem
+from dsi360.infrastructure.repositories import sla as repo_sla
+from dsi360.interface.schemas import AgentItem, CategorieItem, SlaRegleItem
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/referentiels", tags=["referentiels"])
@@ -53,3 +54,12 @@ async def etats(
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
 ) -> list[str]:
     return ordre_etats(module)
+
+
+@routeur.get("/sla", response_model=list[SlaRegleItem])
+async def sla(
+    session: Annotated[AsyncSession, Depends(session_scope)],
+    _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+) -> list[dict[str, Any]]:
+    """Cibles SLA par priorité (lecture) — pour le sablier des listes."""
+    return await repo_sla.lister(session)

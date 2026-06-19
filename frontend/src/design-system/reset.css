@@ -58,3 +58,11 @@ a {
   background: color-mix(in srgb, var(--text-muted) 55%, transparent);
   background-clip: padding-box;
 }
+
+/* Mise en évidence d'une ligne de tableau dont le SLA est dépassé (réutilisable). */
+tr.ligne-sla-depasse td {
+  background: color-mix(in srgb, var(--status-danger) 8%, transparent);
+}
+tr.ligne-sla-depasse td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-danger);
+}

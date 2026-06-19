@@ -51,6 +51,8 @@ interface TableProps<T> {
   onLigne?: (ligne: T) => void;
   pagination?: Pagination;
   selection?: SelectionTable;
+  /** Classe CSS additionnelle par ligne (ex. mise en évidence d'un SLA dépassé). */
+  classeLigne?: (ligne: T) => string | undefined;
 }
 
 function pagesAffichees(courante: number, nb: number): (number | '…')[] {
@@ -77,6 +79,7 @@ export function Table<T>({
   onLigne,
   pagination,
   selection,
+  classeLigne,
 }: TableProps<T>): JSX.Element {
   const [tri, setTri] = useState<{ cle: string; sens: 1 | -1 } | null>(null);
 
@@ -174,7 +177,11 @@ export function Table<T>({
                 return (
                 <tr
                   key={id}
-                  className={cx(onLigne && styles.cliquable, coche && styles.ligneCochee)}
+                  className={cx(
+                    onLigne && styles.cliquable,
+                    coche && styles.ligneCochee,
+                    classeLigne?.(ligne),
+                  )}
                   onClick={onLigne ? () => onLigne(ligne) : undefined}
                 >
                   {selection && (

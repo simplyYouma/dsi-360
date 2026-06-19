@@ -42,7 +42,7 @@ const COLONNES: Colonne<Incident>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (i) => <SablierSla echeance={i.sla_resolution_le} debut={i.cree_le} statut={i.statut_sla} />,
+    rendu: (i) => <SablierSla echeance={i.sla_resolution_le} priorite={i.priorite} statut={i.statut_sla} />,
   },
   { cle: 'demandeur', entete: 'Demandeur', rendu: (i) => i.demandeur ?? '—' },
   {
@@ -166,6 +166,7 @@ export function IncidentsPage(): JSX.Element {
         chargement={chargement}
         vide="Aucun incident pour le moment."
         onLigne={(i) => setFicheId(i.id)}
+        classeLigne={(i) => (i.statut_sla === 'depasse' ? 'ligne-sla-depasse' : undefined)}
         pagination={{
           page,
           total,
