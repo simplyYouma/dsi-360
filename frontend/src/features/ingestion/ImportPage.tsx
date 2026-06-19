@@ -38,7 +38,7 @@ export function ImportPage(): JSX.Element {
         { libelle: 'Tickets traités', valeur: rapport.total, couleur: '#4f6bed' },
         { libelle: 'Créés', valeur: rapport.crees, couleur: '#1f9d55' },
         { libelle: 'Mis à jour', valeur: rapport.mis_a_jour, couleur: '#c77700' },
-        { libelle: 'Demandeurs reconnus', valeur: rapport.demandeurs_crees, couleur: '#8a5cf6' },
+        { libelle: 'Inchangés', valeur: rapport.inchanges, couleur: '#8a93a6' },
       ]
     : [];
 
@@ -122,9 +122,11 @@ export function ImportPage(): JSX.Element {
               <CheckCircle2 size={18} className={styles.ok} />
               <span>
                 <strong>{rapport.incidents}</strong> incidents et{' '}
-                <strong>{rapport.demandes}</strong> demandes intégrés. Les gestionnaires du rapport
-                sont les agents DSI : <strong>{rapport.gestionnaires_crees}</strong> nouveau(x)
-                compte(s) créé(s) et rattaché(s) aux tickets.
+                <strong>{rapport.demandes}</strong> demandes traités —{' '}
+                <strong>{rapport.crees}</strong> nouveaux, <strong>{rapport.mis_a_jour}</strong>{' '}
+                modifiés, <strong>{rapport.inchanges}</strong> inchangés.{' '}
+                <strong>{rapport.demandeurs_crees}</strong> demandeur(s) et{' '}
+                <strong>{rapport.gestionnaires_crees}</strong> agent(s) DSI créé(s).
               </span>
             </div>
           </Card>

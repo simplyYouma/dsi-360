@@ -128,8 +128,16 @@ async def creer_donnees() -> None:
                 module, f"{prefixe}-{annee}-%",
             )
             cats = await _categories(conn, module)
-            for i, titre in enumerate(titres):
-                seq = (base or 0) + i + 1
+            seq = base or 0
+            for titre in titres:
+                # Idempotence : on ne recrée pas un libellé déjà présent pour ce module.
+                deja = await conn.fetchval(
+                    "SELECT 1 FROM core.activite WHERE module=$1 AND titre=$2 LIMIT 1",
+                    module, titre,
+                )
+                if deja:
+                    continue
+                seq += 1
                 reference = f"{prefixe}-{annee}-{seq:05d}"
                 statut = random.choice(STATUTS[module])
                 impact = random.randint(1, 5)

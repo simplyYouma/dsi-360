@@ -85,10 +85,18 @@ async def _demandeur_id(session: AsyncSession, cache: dict[str, str], nom: str |
     return str(ident)
 
 
-async def _categorie_id(session: AsyncSession, cache: dict[str, str], module: str, libelle: str | None) -> str | None:
+def libelle_propre(valeur: str) -> str:
+    """Réécriture lisible : espaces normalisés + initiale de chaque mot en majuscule."""
+    return " ".join(valeur.split()).title()
+
+
+async def _categorie_id(
+    session: AsyncSession, cache: dict[str, str], module: str, libelle: str | None
+) -> str | None:
     if libelle is None or libelle.strip() == "":
         return None
-    code = libelle.strip().upper()[:60]
+    # Reconnaissance insensible à la casse via le code (majuscules) ; libellé proprement réécrit.
+    code = " ".join(libelle.split()).upper()[:60]
     cle = f"{module}:{code}"
     if cle in cache:
         return cache[cle]
@@ -98,7 +106,7 @@ async def _categorie_id(session: AsyncSession, cache: dict[str, str], module: st
             "ON CONFLICT (module, code) DO UPDATE SET libelle = excluded.libelle "
             "RETURNING id::text"
         ),
-        {"m": module, "c": code, "l": libelle.strip()},
+        {"m": module, "c": code, "l": libelle_propre(libelle)},
     )
     cache[cle] = str(ident)
     return str(ident)
@@ -118,7 +126,17 @@ _UPSERT = text(
     " priorite = excluded.priorite, statut = excluded.statut, "
     " pris_en_charge_le = excluded.pris_en_charge_le, resolu_le = excluded.resolu_le, "
     " cloture_le = excluded.cloture_le, donnees = excluded.donnees "
-    "RETURNING (xmax = 0) AS cree"  # xmax = 0 => insertion (sinon mise à jour)
+    # On ne met à jour QUE si une donnée a réellement changé : sinon, ligne « inchangée ».
+    " WHERE (core.activite.titre, core.activite.statut, core.activite.priorite, "
+    "        core.activite.categorie_id, core.activite.demandeur_externe_id, "
+    "        core.activite.responsable_id, core.activite.pris_en_charge_le, "
+    "        core.activite.resolu_le, core.activite.cloture_le, core.activite.donnees) "
+    " IS DISTINCT FROM "
+    "       (excluded.titre, excluded.statut, excluded.priorite, excluded.categorie_id, "
+    "        excluded.demandeur_externe_id, excluded.responsable_id, excluded.pris_en_charge_le, "
+    "        excluded.resolu_le, excluded.cloture_le, excluded.donnees) "
+    # cree=True => insertion ; cree=False => mise à jour ; aucune ligne => inchangée.
+    "RETURNING (xmax = 0) AS cree"
 )
 
 
@@ -130,7 +148,7 @@ async def importer_tickets(
     cache_dem: dict[str, str] = {}
     cache_cat: dict[str, str] = {}
 
-    crees = maj = 0
+    crees = maj = inchanges = 0
     par_module = {"incident": 0, "demande": 0}
     demandeurs_avant = await session.scalar(text("SELECT count(*) FROM core.demandeur")) or 0
     agents_avant = await session.scalar(text("SELECT count(*) FROM core.utilisateur")) or 0
@@ -174,7 +192,9 @@ async def importer_tickets(
                 "source_id": t["source_id"],
             },
         )
-        if cree:
+        if cree is None:
+            inchanges += 1
+        elif cree:
             crees += 1
         else:
             maj += 1
@@ -196,6 +216,7 @@ async def importer_tickets(
         nouvelle={
             "crees": crees,
             "mis_a_jour": maj,
+            "inchanges": inchanges,
             "demandeurs_crees": demandeurs_crees,
             "gestionnaires_crees": gestionnaires_crees,
         },
@@ -208,6 +229,7 @@ async def importer_tickets(
         "demandes": par_module["demande"],
         "crees": crees,
         "mis_a_jour": maj,
+        "inchanges": inchanges,
         "demandeurs_crees": demandeurs_crees,
         "gestionnaires_crees": gestionnaires_crees,
     }

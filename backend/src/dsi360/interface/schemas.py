@@ -203,6 +203,7 @@ class RapportImport(BaseModel):
     demandes: int
     crees: int
     mis_a_jour: int
+    inchanges: int
     demandeurs_crees: int
     gestionnaires_crees: int
 

@@ -6,6 +6,7 @@ export interface RapportImport {
   demandes: number;
   crees: number;
   mis_a_jour: number;
+  inchanges: number;
   demandeurs_crees: number;
   gestionnaires_crees: number;
 }
