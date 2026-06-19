@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, Gauge, Timer, AlertTriangle, type LucideIcon } from 'lucide-react';
+import { Activity, Gauge, Timer, AlertTriangle, FileDown, type LucideIcon } from 'lucide-react';
 import {
   PieChart,
   Pie,
@@ -17,10 +17,11 @@ import {
   Scatter,
   ZAxis,
 } from 'recharts';
-import { Card } from '@/design-system/primitives';
+import { Card, Button } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { infobulle } from '@/common/infobulle';
+import { telecharger } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
 import {
@@ -397,16 +398,27 @@ export function AnalysesPage(): JSX.Element {
             Pilotage transverse : performance SLA, charge, priorités et exposition au risque.
           </p>
         </div>
-        <div className={styles.periodes}>
-          {PERIODES.map((p) => (
-            <button
-              key={p.libelle}
-              className={jours === p.jours ? styles.periodeOn : styles.periode}
-              onClick={() => setJours(p.jours)}
-            >
-              {p.libelle}
-            </button>
-          ))}
+        <div className={styles.actionsAnalyse}>
+          <div className={styles.periodes}>
+            {PERIODES.map((p) => (
+              <button
+                key={p.libelle}
+                className={jours === p.jours ? styles.periodeOn : styles.periode}
+                onClick={() => setJours(p.jours)}
+              >
+                {p.libelle}
+              </button>
+            ))}
+          </div>
+          <Button
+            variante="secondaire"
+            onClick={() =>
+              void telecharger(`/analyses/rapport.pdf${jours !== null ? `?jours=${jours}` : ''}`)
+            }
+          >
+            <FileDown size={16} />
+            Exporter PDF
+          </Button>
         </div>
       </header>
 

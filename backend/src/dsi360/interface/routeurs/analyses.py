@@ -5,19 +5,32 @@ retards), répartitions (module, priorité, direction, charge), matrice des risq
 (probabilité × impact) et tendance hebdomadaire création vs résolution.
 """
 
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.pdf import construire_rapport
 from dsi360.interface.schemas import AnalysesReponse, GestionnaireDetail, GestionnaireEval
 from dsi360.interface.securite import exiger_acces
 
 routeur = APIRouter(prefix="/analyses", tags=["analyses"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces("analyses"))]
+
+_MODULE_LABEL = {
+    "incident": "Incidents",
+    "demande": "Demandes",
+    "projet": "Projets",
+    "changement": "Changements",
+    "audit": "Audit",
+    "risque": "Risques",
+    "cybersecurite": "Cybersecurite",
+    "gouvernance": "Gouvernance",
+}
 
 _JOINTURE = "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id"
 _OUVERTES = f"{_JOINTURE} WHERE a.cloture_le IS NULL"
@@ -307,3 +320,102 @@ async def gestionnaire_detail(
             "activite": activite,
         }
     return {**_eval_dict({**ligne, "id": ident}), "activite": activite}
+
+
+@routeur.get("/rapport.pdf")
+async def rapport_pdf(
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+) -> Response:
+    cond_dir = ""
+    params: dict[str, Any] = {}
+    if not courant["transverse"]:
+        cond_dir = " AND d.code = :dir"
+        params["dir"] = courant["direction"]
+    periode = ""
+    if jours is not None:
+        periode = " AND a.cree_le >= now() - make_interval(days => :jours)"
+        params["jours"] = jours
+    cond = cond_dir + periode
+
+    ouvertes = await session.scalar(text(f"SELECT count(*) {_OUVERTES}{cond}"), params) or 0
+    en_retard = (
+        await session.scalar(
+            text(f"SELECT count(*) {_OUVERTES} AND a.sla_resolution_le < now(){cond}"), params
+        )
+        or 0
+    )
+    mttr = await session.scalar(
+        text(
+            "SELECT round(avg(extract(epoch FROM (a.resolu_le - a.cree_le)) / 86400)::numeric, 1) "
+            f"{_JOINTURE} WHERE a.resolu_le IS NOT NULL "
+            f"AND a.resolu_le >= now() - interval '90 days'{cond}"
+        ),
+        params,
+    )
+    sla_prio = await _lignes(
+        session,
+        f"SELECT a.priorite AS niveau, count(*) AS total, "
+        f"count(*) FILTER (WHERE {_TTR} <= {_CIBLE}) AS dans_delai "
+        f"{_RESOLUS}{cond} GROUP BY a.priorite ORDER BY a.priorite",
+        params,
+    )
+    sla_par_priorite = [
+        {
+            "priorite": f"P{p['niveau']}",
+            "dans_delai": p["dans_delai"],
+            "total": p["total"],
+            "taux": round(p["dans_delai"] * 100 / p["total"]) if p["total"] else 0,
+        }
+        for p in sla_prio
+    ]
+    reel_total = sum(p["total"] for p in sla_par_priorite)
+    reel_ok = sum(p["dans_delai"] for p in sla_par_priorite)
+    respect = round(reel_ok * 100 / reel_total) if reel_total else 100
+
+    par_module = await _lignes(
+        session,
+        f"SELECT a.module, count(*) AS valeur {_OUVERTES}{cond} "
+        "GROUP BY a.module ORDER BY valeur DESC",
+        params,
+    )
+    gest = (
+        await session.execute(
+            text(
+                f"SELECT s.id, (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
+                f"FROM ({_src_gest(_periode(jours))}) s "
+                "GROUP BY s.id, s.prenom, s.nom ORDER BY volume DESC LIMIT 10"
+            ),
+            {"jours": jours} if jours is not None else {},
+        )
+    ).mappings().all()
+
+    data = {
+        "periode": f"{jours} derniers jours" if jours is not None else "Toutes periodes",
+        "genere_le": datetime.now(UTC).strftime("%d/%m/%Y %H:%M"),
+        "kpis": {
+            "ouvertes": ouvertes,
+            "respect_sla": respect,
+            "mttr_jours": float(mttr) if mttr is not None else 0.0,
+            "en_retard": en_retard,
+        },
+        "sla_par_priorite": sla_par_priorite,
+        "par_module": [
+            {"module": _MODULE_LABEL.get(m["module"], m["module"]), "valeur": m["valeur"]}
+            for m in par_module
+        ],
+        "gestionnaires": [
+            {
+                **_eval_dict(g),
+                "taux": round(g["resolus"] * 100 / g["volume"]) if g["volume"] else 0,
+            }
+            for g in gest
+        ],
+    }
+    contenu = construire_rapport(data)
+    return Response(
+        content=contenu,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=rapport-analyse.pdf"},
+    )
