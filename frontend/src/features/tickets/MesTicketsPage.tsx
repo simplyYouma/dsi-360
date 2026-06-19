@@ -8,6 +8,7 @@ import { Kanban, type ColonneKanban } from '@/common/Kanban';
 import { FicheTransition } from '@/common/FicheTransition';
 import { LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
 import { cx } from '@/common/cx';
+import { api, ErreurApi } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
 import { mesTicketsApi, type MonTicket } from './mesTicketsApi';
@@ -66,15 +67,7 @@ export function MesTicketsPage(): JSX.Element {
   const [chargement, setChargement] = useState(true);
   const [fiche, setFiche] = useState<{ base: string; id: string } | null>(null);
   const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
-
-  const ouvrir = useCallback(
-    (id: string): void => {
-      const t = items.find((x) => x.id === id);
-      const base = t ? ROUTE_MODULE[t.module] : undefined;
-      if (base !== undefined && t) setFiche({ base, id: t.id });
-    },
-    [items],
-  );
+  const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback((): void => {
     setChargement(true);
@@ -83,6 +76,48 @@ export function MesTicketsPage(): JSX.Element {
       .then(setItems)
       .finally(() => setChargement(false));
   }, []);
+
+  const baseDe = useCallback(
+    (id: string): { base: string; ticket: MonTicket } | null => {
+      const t = items.find((x) => x.id === id);
+      const base = t ? ROUTE_MODULE[t.module] : undefined;
+      return t && base !== undefined ? { base, ticket: t } : null;
+    },
+    [items],
+  );
+
+  const ouvrir = useCallback(
+    (id: string): void => {
+      const ref = baseDe(id);
+      if (ref) setFiche({ base: ref.base, id: ref.ticket.id });
+    },
+    [baseDe],
+  );
+
+  // Glisser-déposer : transitions autorisées de la carte, puis exécution de la transition.
+  const ciblesValides = useCallback(
+    async (id: string): Promise<string[]> => {
+      const ref = baseDe(id);
+      if (!ref) return [];
+      const d = await api.get<{ transitions_possibles: string[] }>(`${ref.base}/${ref.ticket.id}`);
+      return d.transitions_possibles;
+    },
+    [baseDe],
+  );
+  const deplacer = useCallback(
+    (id: string, statut: string): void => {
+      const ref = baseDe(id);
+      if (!ref) return;
+      setErreur(null);
+      void api
+        .post(`${ref.base}/${ref.ticket.id}/transition`, { vers: statut })
+        .then(() => charger())
+        .catch((e) =>
+          setErreur(e instanceof ErreurApi ? e.message : 'Transition impossible.'),
+        );
+    },
+    [baseDe, charger],
+  );
 
   useEffect(() => {
     charger();
@@ -168,7 +203,15 @@ export function MesTicketsPage(): JSX.Element {
           <span>Aucun ticket ne vous est assigné pour le moment.</span>
         </div>
       ) : vue === 'kanban' ? (
-        <Kanban colonnes={colonnesKanban} onOuvrir={ouvrir} />
+        <>
+          {erreur !== null && <div className={incidents.erreur}>{erreur}</div>}
+          <Kanban
+            colonnes={colonnesKanban}
+            onOuvrir={ouvrir}
+            onDeplacer={deplacer}
+            ciblesValides={ciblesValides}
+          />
+        </>
       ) : (
         <Table
           colonnes={COLONNES}

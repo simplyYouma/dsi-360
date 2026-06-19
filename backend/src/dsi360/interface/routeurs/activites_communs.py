@@ -28,7 +28,6 @@ from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
     ActiviteCreation,
     ActiviteDetail,
-    ActiviteResume,
     AssignationDemande,
     AssignationLot,
     CreationReponse,
@@ -201,31 +200,6 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
             demandeur=corps.demandeur,
         )
         return {"id": ident}
-
-    @routeur.get("/kanban", response_model=list[ActiviteResume])
-    async def kanban(
-        courant: Courant,
-        session: Session,
-        responsable_id: Annotated[str | None, Query()] = None,
-        non_assigne: Annotated[bool, Query()] = False,
-        q: Annotated[str | None, Query(max_length=80)] = None,
-        etat: Annotated[str | None, Query()] = None,
-    ) -> list[dict[str, Any]]:
-        direction = None if courant["transverse"] else courant["direction"]
-        lignes, _ = await repo.lister(
-            session,
-            module,
-            direction=direction,
-            statut=None,
-            page=1,
-            taille=300,
-            responsable_id=responsable_id,
-            non_assigne=non_assigne,
-            q=q,
-            etat=etat,
-        )
-        maintenant = datetime.now(UTC)
-        return [_resume(r, maintenant) for r in lignes]
 
     @routeur.get("/export")
     async def exporter(

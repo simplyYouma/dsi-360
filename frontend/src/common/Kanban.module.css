@@ -60,6 +60,22 @@
   background: var(--bg-subtle);
   font-size: calc(0.875rem * var(--zoom));
 }
+/* Glisser-déposer : colonne qui accepte la carte / colonne hors transitions possibles. */
+.colonne {
+  transition:
+    box-shadow 0.14s ease,
+    opacity 0.14s ease;
+}
+.accepte {
+  box-shadow: inset 0 0 0 2px var(--secondary);
+  background: var(--secondary-subtle);
+}
+.inerte {
+  opacity: 0.45;
+}
+.tiree {
+  opacity: 0.4;
+}
 .colTete {
   display: flex;
   align-items: center;
