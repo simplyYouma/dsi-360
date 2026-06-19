@@ -131,6 +131,81 @@
   width: 0;
   display: none;
 }
+/* ---- Discussion interne (commentaires DSI) ---- */
+.discussion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+.commVide {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.commListe {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.commListe::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+.commItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+.commTete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.commAuteur {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.commDate {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.commTexte {
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.commForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.commInput {
+  flex: 1 1 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+}
+.commInput:focus {
+  outline: none;
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
+
 /* Dégradé bas : indique d'un coup d'œil qu'il reste de l'historique. */
 .histoFondu {
   position: absolute;

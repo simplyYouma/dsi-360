@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Send } from 'lucide-react';
 import { Button, Modale, Skeleton } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { api, ErreurApi } from '@/lib/api';
 import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
@@ -64,6 +65,9 @@ export function FicheTransition({
   const [agents, setAgents] = useState<Agent[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
+  const [texte, setTexte] = useState('');
+  const [envoiC, setEnvoiC] = useState(false);
   const histoRef = useRef<HTMLOListElement>(null);
 
   const charger = useCallback(async (): Promise<void> => {
@@ -82,6 +86,28 @@ export function FicheTransition({
     const liste = histoRef.current;
     if (liste !== null) liste.scrollTop = liste.scrollHeight;
   }, [detail]);
+
+  // Charge le fil de discussion à l'ouverture.
+  useEffect(() => {
+    if (id === null) {
+      setCommentaires([]);
+      setTexte('');
+      return;
+    }
+    void commentairesApi.lister(id).then(setCommentaires);
+  }, [id]);
+
+  const commenter = async (): Promise<void> => {
+    if (id === null || texte.trim() === '') return;
+    setEnvoiC(true);
+    try {
+      await commentairesApi.ajouter(id, texte.trim());
+      setTexte('');
+      setCommentaires(await commentairesApi.lister(id));
+    } finally {
+      setEnvoiC(false);
+    }
+  };
 
   useEffect(() => {
     if (assignable && agents.length === 0) void api.get<Agent[]>('/referentiels/agents').then(setAgents);
@@ -275,6 +301,45 @@ export function FicheTransition({
               </div>
             </div>
           )}
+
+          <div className={styles.discussion}>
+            <span className={styles.wfTitre}>Discussion interne (DSI)</span>
+            {commentaires.length === 0 ? (
+              <p className={styles.commVide}>Aucun échange pour le moment.</p>
+            ) : (
+              <ul className={styles.commListe}>
+                {commentaires.map((c) => (
+                  <li key={c.id} className={styles.commItem}>
+                    <div className={styles.commTete}>
+                      <span className={styles.commAuteur}>{c.auteur}</span>
+                      <span className={styles.commDate}>
+                        {new Date(c.cree_le).toLocaleString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <p className={styles.commTexte}>{c.texte}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className={styles.commForm}>
+              <textarea
+                className={styles.commInput}
+                value={texte}
+                onChange={(e) => setTexte(e.target.value)}
+                rows={2}
+                placeholder="Ajouter un commentaire pour l'équipe…"
+              />
+              <Button onClick={() => void commenter()} disabled={envoiC || texte.trim() === ''}>
+                <Send size={15} />
+                {envoiC ? 'Envoi…' : 'Commenter'}
+              </Button>
+            </div>
+          </div>
 
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
         </div>

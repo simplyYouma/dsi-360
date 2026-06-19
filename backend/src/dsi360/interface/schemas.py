@@ -180,6 +180,20 @@ class PreferencesNotif(BaseModel):
     whatsapp: bool = False
 
 
+# --- Commentaires (fil de discussion interne DSI) ---
+
+
+class CommentaireItem(BaseModel):
+    id: int
+    auteur: str
+    texte: str
+    cree_le: datetime
+
+
+class CommentaireCreation(BaseModel):
+    texte: str = Field(min_length=1, max_length=4000)
+
+
 # --- Ingestion / Ticketing ---
 
 

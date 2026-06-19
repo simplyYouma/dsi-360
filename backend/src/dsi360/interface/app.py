@@ -15,6 +15,7 @@ from dsi360.interface.routeurs import (
     audit_reco,
     auth,
     changements,
+    commentaires,
     cybersecurite,
     demandes,
     demandeurs,
@@ -65,6 +66,7 @@ def creer_app() -> FastAPI:
     v1.include_router(recherche.routeur)
     v1.include_router(ingestion.routeur)
     v1.include_router(demandeurs.routeur)
+    v1.include_router(commentaires.routeur)
     v1.include_router(mes_tickets.routeur)
     v1.include_router(incidents.routeur)
     v1.include_router(demandes.routeur)
