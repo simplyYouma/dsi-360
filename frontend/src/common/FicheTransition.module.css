@@ -122,7 +122,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-height: 132px; /* ~4 entrées ; au-delà on défile sans allonger la modale */
+  max-height: 96px; /* ~3 entrées ; au-delà on défile (scroller invisible) */
   overflow-y: auto;
   scrollbar-width: none; /* scroller invisible, contenu défilable */
   padding-bottom: var(--space-2);

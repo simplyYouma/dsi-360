@@ -17,6 +17,7 @@ export interface NouvelleDemande {
   impact: number;
   urgence: number;
   categorie_id: string | null;
+  demandeur: string | null;
 }
 
 export const demandesApi = {

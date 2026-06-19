@@ -271,7 +271,7 @@ export function FicheTransition({
                     </li>
                   ))}
                 </ol>
-                {detail.historique.length > 4 && <div className={styles.histoFondu} aria-hidden="true" />}
+                {detail.historique.length > 3 && <div className={styles.histoFondu} aria-hidden="true" />}
               </div>
             </div>
           )}

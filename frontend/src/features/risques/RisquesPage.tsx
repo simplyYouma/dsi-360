@@ -110,6 +110,7 @@ export function RisquesPage(): JSX.Element {
       <FicheTransition
         base="/risques"
         id={ficheId}
+        assignable
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />

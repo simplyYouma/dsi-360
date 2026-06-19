@@ -41,6 +41,7 @@ export interface NouveauProjet {
   budget: number | null;
   date_debut: string | null;
   date_fin: string | null;
+  responsable_id: string | null;
 }
 
 export const projetsApi = {

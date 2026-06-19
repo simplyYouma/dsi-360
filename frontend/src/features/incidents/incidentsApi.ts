@@ -35,6 +35,7 @@ export interface NouvelIncident {
   description: string;
   impact: number;
   urgence: number;
+  demandeur: string | null;
 }
 
 export interface FiltresListe {

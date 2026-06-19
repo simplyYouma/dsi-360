@@ -47,13 +47,15 @@ async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
     champs.setdefault("sla_prise_en_charge_le", None)
     champs.setdefault("sla_resolution_le", None)
     champs.setdefault("donnees", None)
+    champs.setdefault("demandeur_externe_id", None)
     requete = text(
         "INSERT INTO core.activite "
         "(reference, module, titre, description, direction_id, categorie_id, demandeur_id, "
-        " responsable_id, impact, urgence, priorite, statut, sla_prise_en_charge_le, "
-        " sla_resolution_le, donnees) "
+        " demandeur_externe_id, responsable_id, impact, urgence, priorite, statut, "
+        " sla_prise_en_charge_le, sla_resolution_le, donnees) "
         "VALUES (:reference, :module, :titre, :description, cast(:direction_id as uuid), "
-        " cast(:categorie_id as uuid), cast(:demandeur_id as uuid), cast(:responsable_id as uuid), "
+        " cast(:categorie_id as uuid), cast(:demandeur_id as uuid), "
+        " cast(:demandeur_externe_id as uuid), cast(:responsable_id as uuid), "
         " :impact, :urgence, :priorite, :statut, :sla_prise_en_charge_le, :sla_resolution_le, "
         " coalesce(cast(:donnees as jsonb), '{}'::jsonb)) "
         "RETURNING id::text"

@@ -192,6 +192,7 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
             direction_id=corps.direction_id,
             responsable_id=corps.responsable_id,
             acteur=courant,
+            demandeur=corps.demandeur,
         )
         return {"id": ident}
 

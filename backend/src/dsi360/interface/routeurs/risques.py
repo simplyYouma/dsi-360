@@ -4,7 +4,7 @@ import json
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import RowMapping
+from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
@@ -14,6 +14,7 @@ from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
+    AssignationDemande,
     CreationReponse,
     PageRisques,
     RisqueCreation,
@@ -53,6 +54,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "statut": r["statut"],
         "direction": r["direction"],
         "responsable": _responsable(r),
+        "responsable_id": r["resp_id"],
         "probabilite": int(d.get("probabilite", 0)),
         "impact": int(d.get("impact", 0)),
         "criticite": int(d.get("criticite", 0)),
@@ -140,4 +142,34 @@ async def transitionner(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
         ) from exc
+    return await _detail_complet(session, await _charger(session, ident, courant))
+
+
+@routeur.post("/{ident}/assignation", response_model=RisqueDetail)
+async def assigner(
+    ident: str, corps: AssignationDemande, courant: Courant, session: Session
+) -> dict[str, Any]:
+    avant = await _charger(session, ident, courant)
+    if corps.responsable_id is not None:
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+            {"id": corps.responsable_id},
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+    await repo.assigner(session, ident, corps.responsable_id)
+    await audit.consigner(
+        session,
+        action="ASSIGNATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type=MODULE,
+        cible_id=avant["reference"],
+        ancienne={"responsable_id": avant["resp_id"]},
+        nouvelle={"responsable_id": corps.responsable_id},
+    )
+    await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant))

@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import calculer_priorite
@@ -13,6 +14,20 @@ from dsi360.infrastructure.repositories import activite as repo
 
 _RESOLUS = {"Résolu", "Résolue"}
 _CLOTURES = {"Clôturé", "Clôturée"}
+
+
+async def _resoudre_demandeur(session: AsyncSession, nom: str | None) -> str | None:
+    """Reconnaît (ou crée) le demandeur par son nom — même référentiel que l'import."""
+    if nom is None or nom.strip() == "":
+        return None
+    ident = await session.scalar(
+        text(
+            "INSERT INTO core.demandeur (nom_complet) VALUES (:n) "
+            "ON CONFLICT (lower(nom_complet)) DO UPDATE SET maj_le = now() RETURNING id::text"
+        ),
+        {"n": nom.strip()},
+    )
+    return str(ident) if ident is not None else None
 
 
 class TransitionInterdite(Exception):
@@ -35,12 +50,14 @@ async def creer_activite(
     direction_id: str | None,
     responsable_id: str | None,
     acteur: dict[str, Any],
+    demandeur: str | None = None,
 ) -> str:
     debut = datetime.now(UTC)
     priorite = calculer_priorite(impact, urgence)
     ech = echeances(priorite, debut)
     reference = await repo.prochaine_reference(session, module, debut.year)
     statut = etat_initial(module)
+    demandeur_externe_id = await _resoudre_demandeur(session, demandeur)
 
     identifiant = await repo.creer(
         session,
@@ -52,6 +69,7 @@ async def creer_activite(
             "direction_id": direction_id,
             "categorie_id": categorie_id,
             "demandeur_id": acteur["id"],
+            "demandeur_externe_id": demandeur_externe_id,
             "responsable_id": responsable_id,
             "impact": impact,
             "urgence": urgence,

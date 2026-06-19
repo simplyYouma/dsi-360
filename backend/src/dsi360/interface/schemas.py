@@ -55,6 +55,7 @@ class ActiviteCreation(BaseModel):
     categorie_id: str | None = None
     direction_id: str | None = None
     responsable_id: str | None = None
+    demandeur: str | None = Field(default=None, max_length=160)
 
 
 class EntreeHistorique(BaseModel):
@@ -364,6 +365,7 @@ class RisqueResume(BaseModel):
     statut: str
     direction: str | None
     responsable: ResponsableBref | None
+    responsable_id: str | None
     probabilite: int
     impact: int
     criticite: int

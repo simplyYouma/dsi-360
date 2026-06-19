@@ -3,11 +3,18 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurDate } from '@/common/SelecteurDate';
+import { SelecteurListe } from '@/common/SelecteurListe';
 import { useFicheUrl } from '@/common/useFicheUrl';
-import { ErreurApi } from '@/lib/api';
+import { api, ErreurApi } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { ProjetFiche } from './ProjetFiche';
 import { projetsApi, type Projet } from './projetsApi';
+
+interface Agent {
+  id: string;
+  nom: string;
+  profil: string;
+}
 
 function formaterDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -75,6 +82,8 @@ export function ProjetsPage(): JSX.Element {
 
   const [titre, setTitre] = useState('');
   const [sponsor, setSponsor] = useState('');
+  const [chef, setChef] = useState<string | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [budget, setBudget] = useState('');
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
@@ -96,6 +105,9 @@ export function ProjetsPage(): JSX.Element {
   useEffect(() => {
     void charger(page);
   }, [charger, page]);
+  useEffect(() => {
+    void api.get<Agent[]>('/referentiels/agents').then(setAgents);
+  }, []);
 
   const creer = async (): Promise<void> => {
     setErreur(null);
@@ -108,10 +120,12 @@ export function ProjetsPage(): JSX.Element {
         budget: budget.trim() === '' ? null : Number(budget),
         date_debut: dateDebut.trim() === '' ? null : dateDebut.trim(),
         date_fin: dateFin.trim() === '' ? null : dateFin.trim(),
+        responsable_id: chef,
       });
       setModale(false);
       setTitre('');
       setSponsor('');
+      setChef(null);
       setBudget('');
       setDateDebut('');
       setDateFin('');
@@ -176,6 +190,17 @@ export function ProjetsPage(): JSX.Element {
           <span>Sponsor</span>
           <input value={sponsor} onChange={(e) => setSponsor(e.target.value)} placeholder="Direction / responsable sponsor" />
         </label>
+        <div className={styles.champ}>
+          <span>Chef de projet</span>
+          <SelecteurListe
+            options={agents.map((a) => ({ valeur: a.id, libelle: a.nom }))}
+            valeur={chef}
+            onChange={setChef}
+            placeholder="Désigner un chef de projet"
+            permettreVide
+            libelleVide="Non désigné"
+          />
+        </div>
         <div className={styles.niveaux}>
           <label className={styles.champ}>
             <span>Budget (FCFA)</span>

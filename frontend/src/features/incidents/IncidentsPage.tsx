@@ -75,6 +75,7 @@ export function IncidentsPage(): JSX.Element {
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const [titre, setTitre] = useState('');
+  const [demandeur, setDemandeur] = useState('');
   const [description, setDescription] = useState('');
   const [impact, setImpact] = useState(3);
   const [urgence, setUrgence] = useState(3);
@@ -103,9 +104,16 @@ export function IncidentsPage(): JSX.Element {
     setErreur(null);
     setEnvoi(true);
     try {
-      await incidentsApi.creer({ titre: titre.trim(), description: description.trim(), impact, urgence });
+      await incidentsApi.creer({
+        titre: titre.trim(),
+        description: description.trim(),
+        impact,
+        urgence,
+        demandeur: demandeur.trim() === '' ? null : demandeur.trim(),
+      });
       setModale(false);
       setTitre('');
+      setDemandeur('');
       setDescription('');
       setImpact(3);
       setUrgence(3);
@@ -219,6 +227,14 @@ export function IncidentsPage(): JSX.Element {
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
             placeholder="Décrivez l'incident en une phrase"
+          />
+        </label>
+        <label className={styles.champ}>
+          <span>Demandeur</span>
+          <input
+            value={demandeur}
+            onChange={(e) => setDemandeur(e.target.value)}
+            placeholder="Agent qui remonte l'incident (Prénom NOM)"
           />
         </label>
         <label className={styles.champ}>

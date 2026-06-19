@@ -61,7 +61,11 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none; /* filet de sécurité écran : défile sans barre visible */
+}
+.corps::-webkit-scrollbar {
+  width: 0;
+  display: none;
 }
 
 .pied {

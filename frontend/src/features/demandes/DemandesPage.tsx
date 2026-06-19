@@ -66,6 +66,7 @@ export function DemandesPage(): JSX.Element {
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const [titre, setTitre] = useState('');
+  const [demandeur, setDemandeur] = useState('');
   const [description, setDescription] = useState('');
   const [categorie, setCategorie] = useState<string | null>(null);
   const [impact, setImpact] = useState(3);
@@ -105,9 +106,11 @@ export function DemandesPage(): JSX.Element {
         impact,
         urgence,
         categorie_id: categorie,
+        demandeur: demandeur.trim() === '' ? null : demandeur.trim(),
       });
       setModale(false);
       setTitre('');
+      setDemandeur('');
       setDescription('');
       setCategorie(null);
       setImpact(3);
@@ -222,6 +225,14 @@ export function DemandesPage(): JSX.Element {
             value={titre}
             onChange={(e) => setTitre(e.target.value)}
             placeholder="Décrivez la demande en une phrase"
+          />
+        </label>
+        <label className={styles.champ}>
+          <span>Demandeur</span>
+          <input
+            value={demandeur}
+            onChange={(e) => setDemandeur(e.target.value)}
+            placeholder="Agent qui fait la demande (Prénom NOM)"
           />
         </label>
         <div className={styles.champ}>
