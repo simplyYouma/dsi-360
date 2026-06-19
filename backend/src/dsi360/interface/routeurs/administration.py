@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config.acces import MODULES
+from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import sla as repo_sla
@@ -98,8 +99,8 @@ async def creer_utilisateur(
         ),
         {
             "email": corps.email,
-            "nom": corps.nom,
-            "prenom": corps.prenom,
+            "nom": nom_propre(corps.nom),
+            "prenom": nom_propre(corps.prenom),
             "profil": corps.profil_code,
             "direction": corps.direction_code,
             "hash": hacher_mot_de_passe(corps.mot_de_passe),
@@ -137,8 +138,8 @@ async def modifier_utilisateur(
         ),
         {
             "id": ident,
-            "nom": corps.nom,
-            "prenom": corps.prenom,
+            "nom": nom_propre(corps.nom),
+            "prenom": nom_propre(corps.prenom),
             "actif": corps.actif,
             "profil": corps.profil_code,
             "direction": corps.direction_code,

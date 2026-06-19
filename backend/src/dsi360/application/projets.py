@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.etats import etat_initial
+from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import activite as repo
 
@@ -30,7 +31,7 @@ async def creer_projet(
     reference = await repo.prochaine_reference(session, MODULE, debut.year)
     statut = etat_initial(MODULE)
     donnees = {
-        "sponsor": sponsor,
+        "sponsor": nom_propre(sponsor),
         "budget": budget,
         "date_debut": date_debut,
         "date_fin": date_fin,
@@ -41,7 +42,7 @@ async def creer_projet(
         {
             "reference": reference,
             "module": MODULE,
-            "titre": titre,
+            "titre": phrase_propre(titre),
             "description": description,
             "direction_id": direction_id,
             "demandeur_id": acteur["id"],

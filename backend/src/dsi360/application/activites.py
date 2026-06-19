@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.domain.activite import calculer_priorite
 from dsi360.domain.etats import etat_initial, transition_autorisee
 from dsi360.domain.sla import echeances
+from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.infrastructure.repositories import sla as sla_repo
@@ -26,7 +27,7 @@ async def _resoudre_demandeur(session: AsyncSession, nom: str | None) -> str | N
             "INSERT INTO core.demandeur (nom_complet) VALUES (:n) "
             "ON CONFLICT (lower(nom_complet)) DO UPDATE SET maj_le = now() RETURNING id::text"
         ),
-        {"n": nom.strip()},
+        {"n": nom_propre(nom)},
     )
     return str(ident) if ident is not None else None
 
@@ -65,7 +66,7 @@ async def creer_activite(
         {
             "reference": reference,
             "module": module,
-            "titre": titre,
+            "titre": phrase_propre(titre),
             "description": description,
             "direction_id": direction_id,
             "categorie_id": categorie_id,

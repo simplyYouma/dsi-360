@@ -14,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import PREFIXE_REFERENCE
+from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.ingestion import analyser_classeur
 
@@ -54,7 +55,7 @@ async def _gestionnaire_id(session: AsyncSession, cache: dict[str, str], nom: st
     cle = _norme(nom)
     if cle in cache:
         return cache[cle]
-    parts = nom.split()
+    parts = (nom_propre(nom) or nom).split()
     prenom = parts[0]
     nom_famille = " ".join(parts[1:]) or parts[0]
     email = f"{cle.replace(' ', '.')}@afgbank.ml"
@@ -79,7 +80,7 @@ async def _demandeur_id(session: AsyncSession, cache: dict[str, str], nom: str |
             "ON CONFLICT (lower(nom_complet)) DO UPDATE SET maj_le = now() "
             "RETURNING id::text"
         ),
-        {"nom": nom.strip()},
+        {"nom": nom_propre(nom)},
     )
     cache[cle] = str(ident)
     return str(ident)
@@ -178,7 +179,7 @@ async def importer_tickets(
             {
                 "reference": f"{PREFIXE_REFERENCE[t['module']]}-{t['source_id']}",
                 "module": t["module"],
-                "titre": t["titre"],
+                "titre": phrase_propre(t["titre"]),
                 "categorie_id": await _categorie_id(session, cache_cat, t["module"], t["categorie"]),
                 "demandeur_externe_id": await _demandeur_id(session, cache_dem, t["demandeur"]),
                 "responsable_id": responsable_id,

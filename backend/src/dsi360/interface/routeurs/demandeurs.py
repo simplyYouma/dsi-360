@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import (
     DemandeurCreation,
@@ -81,7 +82,7 @@ async def creer(corps: DemandeurCreation, courant: Courant, session: Session) ->
             "VALUES (:nom, cast(:dir as uuid), :email) "
             "ON CONFLICT (lower(nom_complet)) DO NOTHING RETURNING id::text"
         ),
-        {"nom": corps.nom_complet.strip(), "dir": direction_id, "email": corps.email},
+        {"nom": nom_propre(corps.nom_complet), "dir": direction_id, "email": corps.email},
     )
     if ident is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Demandeur déjà existant.")
@@ -101,7 +102,7 @@ async def modifier(ident: str, corps: DemandeurMaj, courant: Courant, session: S
         ),
         {
             "id": ident,
-            "nom": corps.nom_complet.strip(),
+            "nom": nom_propre(corps.nom_complet),
             "dir": direction_id,
             "email": corps.email,
             "actif": corps.actif,
