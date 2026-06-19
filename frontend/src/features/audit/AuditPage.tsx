@@ -19,7 +19,7 @@ function formaterDate(iso: string): string {
 
 const COLONNES: Colonne<Recommandation>[] = [
   { cle: 'reference', entete: 'Référence', valeur: (r) => r.reference, largeur: '150px' },
-  { cle: 'titre', entete: 'Recommandation', rendu: (r) => <strong>{r.titre}</strong>, valeur: (r) => r.titre },
+  { cle: 'titre', entete: 'Recommandation', tronque: true, rendu: (r) => <strong title={r.titre}>{r.titre}</strong>, valeur: (r) => r.titre },
   {
     cle: 'categorie',
     entete: 'Source',

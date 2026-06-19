@@ -49,7 +49,7 @@ function Avancement({ valeur }: { valeur: number }): JSX.Element {
 
 const COLONNES: Colonne<Projet>[] = [
   { cle: 'reference', entete: 'Référence', valeur: (p) => p.reference, largeur: '150px' },
-  { cle: 'titre', entete: 'Projet', rendu: (p) => <strong>{p.titre}</strong>, valeur: (p) => p.titre },
+  { cle: 'titre', entete: 'Projet', tronque: true, rendu: (p) => <strong title={p.titre}>{p.titre}</strong>, valeur: (p) => p.titre },
   { cle: 'statut', entete: 'Statut', rendu: (p) => <StatusBadge>{p.statut}</StatusBadge> },
   {
     cle: 'chef',

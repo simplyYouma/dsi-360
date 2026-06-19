@@ -59,7 +59,7 @@ export function PageActiviteCategorie({
 
   const colonnes: Colonne<Incident>[] = [
     { cle: 'reference', entete: 'Référence', valeur: (a) => a.reference, largeur: '150px' },
-    { cle: 'titre', entete: labelObjet, rendu: (a) => <strong>{a.titre}</strong>, valeur: (a) => a.titre },
+    { cle: 'titre', entete: labelObjet, tronque: true, rendu: (a) => <strong title={a.titre}>{a.titre}</strong>, valeur: (a) => a.titre },
     {
       cle: 'categorie',
       entete: labelCategorie,

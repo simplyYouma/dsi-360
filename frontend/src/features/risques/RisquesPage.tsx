@@ -18,7 +18,7 @@ function formaterDate(iso: string): string {
 
 const COLONNES: Colonne<Risque>[] = [
   { cle: 'reference', entete: 'Référence', valeur: (r) => r.reference, largeur: '150px' },
-  { cle: 'titre', entete: 'Risque', rendu: (r) => <strong>{r.titre}</strong>, valeur: (r) => r.titre },
+  { cle: 'titre', entete: 'Risque', tronque: true, rendu: (r) => <strong title={r.titre}>{r.titre}</strong>, valeur: (r) => r.titre },
   { cle: 'probabilite', entete: 'Probabilité', aligne: 'centre', valeur: (r) => r.probabilite, rendu: (r) => r.probabilite },
   { cle: 'impact', entete: 'Impact', aligne: 'centre', valeur: (r) => r.impact, rendu: (r) => r.impact },
   { cle: 'criticite', entete: 'Criticité', valeur: (r) => r.criticite, rendu: (r) => <BadgeCriticite niveau={r.criticite} /> },

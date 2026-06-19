@@ -34,7 +34,7 @@ const COLONNES: Colonne<MonTicket>[] = [
     ),
   },
   { cle: 'reference', entete: 'Référence', valeur: (t) => t.reference, largeur: '140px' },
-  { cle: 'titre', entete: 'Objet', rendu: (t) => <strong>{t.titre}</strong>, valeur: (t) => t.titre },
+  { cle: 'titre', entete: 'Objet', tronque: true, rendu: (t) => <strong title={t.titre}>{t.titre}</strong>, valeur: (t) => t.titre },
   {
     cle: 'priorite',
     entete: 'Priorité',

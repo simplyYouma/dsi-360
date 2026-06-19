@@ -31,14 +31,18 @@ function chargerCibles(): Promise<Record<number, number>> {
   return _promesse;
 }
 
-function texteRestant(restantMs: number): string {
-  if (restantMs <= 0) return 'Dépassé';
-  const minutes = Math.floor(restantMs / 60000);
+function duree(ms: number): string {
+  const minutes = Math.floor(ms / 60000);
   const heures = Math.floor(minutes / 60);
   const jours = Math.floor(heures / 24);
   if (jours >= 1) return `${jours} j`;
   if (heures >= 1) return `${heures} h`;
   return `${Math.max(1, minutes)} min`;
+}
+
+/** Libellé explicite : « reste 4 j » ou « Dépassé · 2 j » (lève toute ambiguïté). */
+function libelleSla(restantMs: number): string {
+  return restantMs <= 0 ? `Dépassé · ${duree(-restantMs)}` : `reste ${duree(restantMs)}`;
 }
 
 /** Sablier dont le sable reflète le temps restant rapporté à la CIBLE SLA de la priorité.
@@ -70,7 +74,7 @@ export function SablierSla({ echeance, statut, priorite }: Props): JSX.Element {
   const sableBas = `${12 - demiBas},20 ${12 + demiBas},20 12,${hautBas}`;
 
   return (
-    <span className={styles.sablier} title={`SLA : ${texteRestant(restant)}`}>
+    <span className={styles.sablier} title={`SLA : ${libelleSla(restant)}`}>
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
         <g stroke={couleur} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 3 h12" />
@@ -82,7 +86,7 @@ export function SablierSla({ echeance, statut, priorite }: Props): JSX.Element {
         {ecoule > 0.02 && <polygon points={sableBas} fill={couleur} opacity={0.5} />}
       </svg>
       <span className={styles.reste} style={{ color: couleur }}>
-        {texteRestant(restant)}
+        {libelleSla(restant)}
       </span>
     </span>
   );

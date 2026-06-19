@@ -48,14 +48,19 @@ export function SelecteurListe({
     const fermer = (e: MouseEvent): void => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOuvert(false);
     };
-    const replacer = (): void => setOuvert(false);
+    // Ne ferme que sur un scroll EXTÉRIEUR (le défilement interne au menu reste possible).
+    const surScroll = (e: Event): void => {
+      if (ref.current && ref.current.contains(e.target as Node)) return;
+      setOuvert(false);
+    };
+    const surResize = (): void => setOuvert(false);
     document.addEventListener('mousedown', fermer);
-    window.addEventListener('scroll', replacer, true);
-    window.addEventListener('resize', replacer);
+    window.addEventListener('scroll', surScroll, true);
+    window.addEventListener('resize', surResize);
     return () => {
       document.removeEventListener('mousedown', fermer);
-      window.removeEventListener('scroll', replacer, true);
-      window.removeEventListener('resize', replacer);
+      window.removeEventListener('scroll', surScroll, true);
+      window.removeEventListener('resize', surResize);
     };
   }, [ouvert]);
 

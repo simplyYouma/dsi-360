@@ -19,6 +19,14 @@
   font-size: var(--text-sm);
 }
 
+/* Cellule tronquée : titres longs coupés avec « … » (détail au clic). */
+.tronque {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---- Sélection de lignes ---- */
 .selCol {
   width: 44px;

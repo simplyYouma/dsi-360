@@ -33,6 +33,8 @@ export interface Colonne<T> {
   valeur?: (ligne: T) => string | number;
   aligne?: 'droite' | 'centre';
   largeur?: string;
+  /** Tronque le contenu avec « … » (le détail reste visible au clic / en infobulle). */
+  tronque?: boolean;
 }
 
 export interface Pagination {
@@ -201,6 +203,7 @@ export function Table<T>({
                       className={cx(
                         c.aligne === 'droite' && styles.droite,
                         c.aligne === 'centre' && styles.centre,
+                        c.tronque && styles.tronque,
                       )}
                     >
                       {c.rendu ? c.rendu(ligne) : String((ligne as Record<string, unknown>)[c.cle] ?? '')}
