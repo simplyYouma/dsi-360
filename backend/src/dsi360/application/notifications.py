@@ -5,8 +5,11 @@ dépassée, et crée une notification (sans doublon, cf. index unique). Cf. docs
 """
 
 import asyncpg
+from sqlalchemy import text
 
 from dsi360.config import get_settings
+from dsi360.infrastructure import audit
+from dsi360.infrastructure.db import get_sessionmaker
 from dsi360.infrastructure.email import envoyer
 
 _SELECTION = """
@@ -54,3 +57,58 @@ async def scanner_echeances(fenetre_heures: int = 2) -> dict[str, int]:
     finally:
         await conn.close()
     return {"analysees": len(lignes), "crees": crees}
+
+
+_P1_EN_RETARD = text(
+    "SELECT a.id::text AS id, a.reference, a.titre, a.module, a.responsable_id::text AS resp "
+    "FROM core.activite a "
+    "WHERE a.priorite = 1 AND a.cloture_le IS NULL AND a.pris_en_charge_le IS NULL "
+    "AND a.sla_prise_en_charge_le IS NOT NULL AND a.sla_prise_en_charge_le < now()"
+)
+
+_ADMIN_DEFAUT = text(
+    "SELECT u.id::text FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+    "WHERE p.code = 'ADMIN' AND u.actif ORDER BY u.cree_le LIMIT 1"
+)
+
+_INSERT_ESCALADE = text(
+    "INSERT INTO core.notification (destinataire_id, activite_id, type, titre, message) "
+    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ESCALADE', :titre, :message) "
+    "ON CONFLICT DO NOTHING RETURNING id"
+)
+
+
+async def scanner_escalades() -> dict[str, int]:
+    """Escalade les tickets P1 non pris en charge dans les délais : alerte + journalisation.
+
+    Cible le gestionnaire assigné, sinon un administrateur. Une seule escalade par ticket.
+    """
+    crees = 0
+    async with get_sessionmaker()() as session:
+        admin_defaut = await session.scalar(_ADMIN_DEFAUT)
+        lignes = (await session.execute(_P1_EN_RETARD)).mappings().all()
+        for r in lignes:
+            destinataire = r["resp"] or admin_defaut
+            if destinataire is None:
+                continue
+            titre = f"Escalade P1 — {r['reference']}"
+            message = (
+                f"Le ticket P1 {r['reference']} « {r['titre']} » n'a pas été pris en charge "
+                "dans les délais."
+            )
+            nouvel_id = await session.scalar(
+                _INSERT_ESCALADE,
+                {"dest": destinataire, "aid": r["id"], "titre": titre, "message": message},
+            )
+            if nouvel_id is not None:
+                crees += 1
+                await audit.consigner(
+                    session,
+                    action="ESCALADE",
+                    module=r["module"],
+                    cible_type=r["module"],
+                    cible_id=r["reference"],
+                    nouvelle={"destinataire_id": destinataire, "motif": "P1 non pris en charge"},
+                )
+        await session.commit()
+    return {"vues": len(lignes), "crees": crees}
