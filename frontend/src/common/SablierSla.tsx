@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
 import styles from './SablierSla.module.css';
 
 interface Props {
   echeance: string | null; // sla_resolution_le (ISO)
+  debut: string; // cree_le (ISO)
   statut: 'a_lheure' | 'approche' | 'depasse';
-  priorite: number | null;
 }
 
 const COULEUR: Record<Props['statut'], string> = {
@@ -13,23 +12,6 @@ const COULEUR: Record<Props['statut'], string> = {
   approche: 'var(--status-warn)',
   depasse: 'var(--status-danger)',
 };
-
-// Cibles de résolution (minutes) par priorité, chargées une fois et mises en cache.
-let _ciblesCache: Record<number, number> | null = null;
-let _promesse: Promise<Record<number, number>> | null = null;
-
-function chargerCibles(): Promise<Record<number, number>> {
-  if (_ciblesCache) return Promise.resolve(_ciblesCache);
-  if (_promesse === null) {
-    _promesse = api
-      .get<{ priorite: number; resolution_minutes: number }[]>('/referentiels/sla')
-      .then((regles) => {
-        _ciblesCache = Object.fromEntries(regles.map((r) => [r.priorite, r.resolution_minutes]));
-        return _ciblesCache;
-      });
-  }
-  return _promesse;
-}
 
 function duree(ms: number): string {
   const minutes = Math.floor(ms / 60000);
@@ -40,34 +22,38 @@ function duree(ms: number): string {
   return `${Math.max(1, minutes)} min`;
 }
 
-/** Libellé explicite : « reste 4 j » ou « Dépassé · 2 j » (lève toute ambiguïté). */
+/** Libellé non ambigu : « reste 4 j » ou « Dépassé · 2 j ». */
 function libelleSla(restantMs: number): string {
   return restantMs <= 0 ? `Dépassé · ${duree(-restantMs)}` : `reste ${duree(restantMs)}`;
 }
 
-/** Sablier dont le sable reflète le temps restant rapporté à la CIBLE SLA de la priorité.
- *  Plein = une fenêtre SLA entière devant soi ; vide = échéance atteinte ; rouge = dépassé. */
-export function SablierSla({ echeance, statut, priorite }: Props): JSX.Element {
-  const [cibles, setCibles] = useState<Record<number, number> | null>(_ciblesCache);
+/** Sablier réaliste : le sable s'écoule du haut vers le bas au fil du temps écoulé entre la
+ *  création et l'échéance. Plein en haut à la création, vide (et rouge) à l'échéance dépassée. */
+export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
   const [, rafraichir] = useState(0);
 
+  // Le sable « tombe » visuellement au fil du temps (page ouverte).
   useEffect(() => {
-    if (cibles === null) void chargerCibles().then(setCibles);
     const id = window.setInterval(() => rafraichir((t) => t + 1), 30000);
     return () => window.clearInterval(id);
-  }, [cibles]);
+  }, []);
 
-  const cibleMin = priorite !== null ? cibles?.[priorite] : undefined;
-  if (echeance === null || cibleMin === undefined) return <span className={styles.na}>—</span>;
+  if (echeance === null) return <span className={styles.na}>—</span>;
 
-  const restant = new Date(echeance).getTime() - Date.now();
-  // Part de sable restante = temps restant / fenêtre SLA cible (bornée 0..1).
-  const reste = Math.max(0, Math.min(1, restant / (cibleMin * 60000)));
+  const fin = new Date(echeance).getTime();
+  const dep = new Date(debut).getTime();
+  const maintenant = Date.now();
+  const restant = fin - maintenant;
+  const total = Math.max(1, fin - dep);
+  // Part de sable encore en haut = temps restant / durée totale création -> échéance.
+  const reste = Math.max(0, Math.min(1, restant / total));
   const couleur = COULEUR[statut];
 
+  // Sable du haut : triangle dont l'apex est au goulot (12,12), base vers le haut.
   const hautHaut = 12 - reste * 8;
   const demiHaut = reste * 6.5;
   const sableHaut = `12,12 ${12 - demiHaut},${hautHaut} ${12 + demiHaut},${hautHaut}`;
+  // Tas de sable en bas : grandit à mesure que le temps s'écoule.
   const ecoule = 1 - reste;
   const hautBas = 20 - ecoule * 8;
   const demiBas = ecoule * 6.5;
@@ -84,6 +70,12 @@ export function SablierSla({ echeance, statut, priorite }: Props): JSX.Element {
         </g>
         {reste > 0.02 && <polygon points={sableHaut} fill={couleur} />}
         {ecoule > 0.02 && <polygon points={sableBas} fill={couleur} opacity={0.5} />}
+        {/* Filet de sable qui tombe au goulot, tant qu'il s'écoule encore. */}
+        {reste > 0.02 && ecoule > 0.02 && (
+          <line x1="12" y1="11" x2="12" y2="14" stroke={couleur} strokeWidth="1" strokeLinecap="round">
+            <animate attributeName="opacity" values="1;0.2;1" dur="1.1s" repeatCount="indefinite" />
+          </line>
+        )}
       </svg>
       <span className={styles.reste} style={{ color: couleur }}>
         {libelleSla(restant)}

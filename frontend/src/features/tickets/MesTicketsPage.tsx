@@ -44,7 +44,7 @@ const COLONNES: Colonne<MonTicket>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (t) => <SablierSla echeance={t.sla_resolution_le} priorite={t.priorite} statut={t.statut_sla} />,
+    rendu: (t) => <SablierSla echeance={t.sla_resolution_le} debut={t.cree_le} statut={t.statut_sla} />,
   },
   { cle: 'demandeur', entete: 'Demandeur', rendu: (t) => t.demandeur ?? '—' },
   { cle: 'statut', entete: 'Statut', rendu: (t) => <BadgeStatut statut={t.statut} /> },
