@@ -7,6 +7,7 @@ import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { DispatchBar } from '@/common/DispatchBar';
+import { SablierSla } from '@/common/SablierSla';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { incidentsApi, assignerLot, type Incident, type FiltresListe } from './incidentsApi';
@@ -18,12 +19,6 @@ const PRIORITE_COULEUR: Record<number, string> = {
   3: 'var(--cat-7)',
   4: 'var(--cat-1)',
   5: 'var(--text-muted)',
-};
-
-const SLA: Record<Incident['statut_sla'], { libelle: string; statut: 'ok' | 'warn' | 'danger' }> = {
-  a_lheure: { libelle: "À l'heure", statut: 'ok' },
-  approche: { libelle: 'Approche', statut: 'warn' },
-  depasse: { libelle: 'Dépassé', statut: 'danger' },
 };
 
 function formaterDate(iso: string): string {
@@ -47,7 +42,7 @@ const COLONNES: Colonne<Incident>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (i) => <StatusBadge statut={SLA[i.statut_sla].statut}>{SLA[i.statut_sla].libelle}</StatusBadge>,
+    rendu: (i) => <SablierSla echeance={i.sla_resolution_le} debut={i.cree_le} statut={i.statut_sla} />,
   },
   { cle: 'demandeur', entete: 'Demandeur', rendu: (i) => i.demandeur ?? '—' },
   {

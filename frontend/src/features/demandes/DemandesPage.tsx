@@ -7,18 +7,13 @@ import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { DispatchBar } from '@/common/DispatchBar';
+import { SablierSla } from '@/common/SablierSla';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { assignerLot, type FiltresListe } from '@/features/incidents/incidentsApi';
 import { demandesApi, type Categorie, type Demande } from './demandesApi';
-
-const SLA: Record<Demande['statut_sla'], { libelle: string; statut: 'ok' | 'warn' | 'danger' }> = {
-  a_lheure: { libelle: "À l'heure", statut: 'ok' },
-  approche: { libelle: 'Approche', statut: 'warn' },
-  depasse: { libelle: 'Dépassé', statut: 'danger' },
-};
 
 function formaterDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -37,7 +32,7 @@ const COLONNES: Colonne<Demande>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (d) => <StatusBadge statut={SLA[d.statut_sla].statut}>{SLA[d.statut_sla].libelle}</StatusBadge>,
+    rendu: (d) => <SablierSla echeance={d.sla_resolution_le} debut={d.cree_le} statut={d.statut_sla} />,
   },
   { cle: 'demandeur', entete: 'Demandeur', rendu: (d) => d.demandeur ?? '—' },
   {
