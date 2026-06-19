@@ -113,11 +113,33 @@
   padding-top: var(--space-2);
   border-top: 1px solid var(--border);
 }
+/* Zone d'historique bornée : scroller invisible, auto-positionné en bas, fondu de bas. */
+.histoZone {
+  position: relative;
+}
 .histoListe {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  max-height: 132px; /* ~4 entrées ; au-delà on défile sans allonger la modale */
+  overflow-y: auto;
+  scrollbar-width: none; /* scroller invisible, contenu défilable */
+  padding-bottom: var(--space-2);
+}
+.histoListe::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+/* Dégradé bas : indique d'un coup d'œil qu'il reste de l'historique. */
+.histoFondu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface));
 }
 .histoItem {
   display: flex;

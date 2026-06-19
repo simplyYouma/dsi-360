@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Modale, Skeleton } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -64,6 +64,7 @@ export function FicheTransition({
   const [agents, setAgents] = useState<Agent[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const histoRef = useRef<HTMLOListElement>(null);
 
   const charger = useCallback(async (): Promise<void> => {
     if (id === null) return;
@@ -75,6 +76,12 @@ export function FicheTransition({
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  // Positionne l'historique sur la dernière entrée (la plus récente, en bas).
+  useEffect(() => {
+    const liste = histoRef.current;
+    if (liste !== null) liste.scrollTop = liste.scrollHeight;
+  }, [detail]);
 
   useEffect(() => {
     if (assignable && agents.length === 0) void api.get<Agent[]>('/referentiels/agents').then(setAgents);
@@ -252,17 +259,20 @@ export function FicheTransition({
           {detail.historique.length > 0 && (
             <div className={styles.histo}>
               <span className={styles.wfTitre}>Historique</span>
-              <ol className={styles.histoListe}>
-                {detail.historique.map((h, i) => (
-                  <li key={i} className={styles.histoItem}>
-                    <span className={styles.histoDate}>{formaterDate(h.horodatage)}</span>
-                    <span className={styles.histoStatut} style={{ color: couleurStatut(h.statut) }}>
-                      {h.statut}
-                    </span>
-                    {h.acteur !== null && <span className={styles.histoActeur}>{h.acteur}</span>}
-                  </li>
-                ))}
-              </ol>
+              <div className={styles.histoZone}>
+                <ol className={styles.histoListe} ref={histoRef}>
+                  {detail.historique.map((h, i) => (
+                    <li key={i} className={styles.histoItem}>
+                      <span className={styles.histoDate}>{formaterDate(h.horodatage)}</span>
+                      <span className={styles.histoStatut} style={{ color: couleurStatut(h.statut) }}>
+                        {h.statut}
+                      </span>
+                      {h.acteur !== null && <span className={styles.histoActeur}>{h.acteur}</span>}
+                    </li>
+                  ))}
+                </ol>
+                {detail.historique.length > 4 && <div className={styles.histoFondu} aria-hidden="true" />}
+              </div>
             </div>
           )}
 
