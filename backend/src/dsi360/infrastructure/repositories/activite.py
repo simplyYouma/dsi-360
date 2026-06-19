@@ -8,6 +8,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import PREFIXE_REFERENCE
+from dsi360.domain.etats import STATUTS_TERMINAUX
 
 _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
@@ -81,6 +82,18 @@ async def maj_donnees(session: AsyncSession, identifiant: str, fragment: dict[st
     await session.commit()
 
 
+def _clause_etat(etat: str | None, params: dict[str, Any]) -> str:
+    """Filtre 'en_cours' (hors statuts terminaux) ou 'termines' (statuts terminaux)."""
+    if etat not in ("en_cours", "termines"):
+        return ""
+    termes = sorted(STATUTS_TERMINAUX)
+    placeholders = ", ".join(f":term{i}" for i in range(len(termes)))
+    for i, t in enumerate(termes):
+        params[f"term{i}"] = t
+    operateur = "NOT IN" if etat == "en_cours" else "IN"
+    return f" AND a.statut {operateur} ({placeholders})"
+
+
 async def lister(
     session: AsyncSession,
     module: str,
@@ -91,6 +104,8 @@ async def lister(
     taille: int,
     responsable_id: str | None = None,
     non_assigne: bool = False,
+    q: str | None = None,
+    etat: str | None = None,
 ) -> tuple[list[RowMapping], int]:
     params: dict[str, Any] = {"module": module}
     filtres = ""
@@ -105,6 +120,10 @@ async def lister(
         params["resp"] = responsable_id
     if non_assigne:
         filtres += " AND a.responsable_id IS NULL"
+    if q is not None and q.strip() != "":
+        filtres += " AND (a.reference ILIKE :q OR a.titre ILIKE :q)"
+        params["q"] = f"%{q.strip()}%"
+    filtres += _clause_etat(etat, params)
 
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{filtres}"), params) or 0
     params_page = {**params, "limite": taille, "decalage": (page - 1) * taille}

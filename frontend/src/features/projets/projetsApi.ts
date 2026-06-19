@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { chaineFiltres, type FiltresListe } from '@/features/incidents/incidentsApi';
 
 export interface Chef {
   prenom: string;
@@ -45,7 +46,8 @@ export interface NouveauProjet {
 }
 
 export const projetsApi = {
-  lister: (page: number): Promise<PageProjets> => api.get(`/projets?page=${page}`),
+  lister: (page: number, f?: FiltresListe): Promise<PageProjets> =>
+    api.get(`/projets?${chaineFiltres(page, f)}`),
   creer: (corps: NouveauProjet): Promise<{ id: string }> => api.post('/projets', corps),
   detail: (id: string): Promise<ProjetDetail> => api.get(`/projets/${id}`),
   transition: (id: string, vers: string): Promise<ProjetDetail> =>

@@ -65,7 +65,7 @@ export function ChangementsPage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
-  const [filtres, setFiltres] = useState<FiltresListe>({});
+  const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');

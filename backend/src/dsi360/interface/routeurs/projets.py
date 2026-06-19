@@ -91,10 +91,23 @@ async def lister(
     session: Session,
     page: Annotated[int, Query(ge=1)] = 1,
     statut: Annotated[str | None, Query()] = None,
+    responsable_id: Annotated[str | None, Query()] = None,
+    non_assigne: Annotated[bool, Query()] = False,
+    q: Annotated[str | None, Query(max_length=80)] = None,
+    etat: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     direction = None if courant["transverse"] else courant["direction"]
     lignes, total = await repo.lister(
-        session, MODULE, direction=direction, statut=statut, page=page, taille=_TAILLE
+        session,
+        MODULE,
+        direction=direction,
+        statut=statut,
+        page=page,
+        taille=_TAILLE,
+        responsable_id=responsable_id,
+        non_assigne=non_assigne,
+        q=q,
+        etat=etat,
     )
     return {
         "elements": [_resume(r) for r in lignes],

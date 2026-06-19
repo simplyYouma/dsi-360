@@ -4,8 +4,10 @@ import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-syste
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { FiltreTickets } from '@/common/FiltreTickets';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { api, ErreurApi } from '@/lib/api';
+import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { ProjetFiche } from './ProjetFiche';
 import { projetsApi, type Projet } from './projetsApi';
@@ -79,6 +81,7 @@ export function ProjetsPage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
+  const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
 
   const [titre, setTitre] = useState('');
   const [sponsor, setSponsor] = useState('');
@@ -91,16 +94,19 @@ export function ProjetsPage(): JSX.Element {
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = useCallback(async (p: number): Promise<void> => {
-    setChargement(true);
-    try {
-      const data = await projetsApi.lister(p);
-      setProjets(data.elements);
-      setTotal(data.total);
-    } finally {
-      setChargement(false);
-    }
-  }, []);
+  const charger = useCallback(
+    async (p: number): Promise<void> => {
+      setChargement(true);
+      try {
+        const data = await projetsApi.lister(p, filtres);
+        setProjets(data.elements);
+        setTotal(data.total);
+      } finally {
+        setChargement(false);
+      }
+    },
+    [filtres],
+  );
 
   useEffect(() => {
     void charger(page);
@@ -154,6 +160,15 @@ export function ProjetsPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <FiltreTickets
+        module="projet"
+        valeur={filtres}
+        onChange={(f) => {
+          setPage(1);
+          setFiltres(f);
+        }}
+      />
 
       <Table
         colonnes={COLONNES}

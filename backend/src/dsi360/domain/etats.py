@@ -100,6 +100,31 @@ def ordre_etats(module: str) -> list[str]:
     return list(etats.keys())
 
 
+# Statuts considérés « plus en cours » (réglé / rejeté / clôturé / annulé…), tous modules.
+# Indépendant des transitions (un Clôturé reste « terminé » même si réouvrable).
+STATUTS_TERMINAUX: frozenset[str] = frozenset(
+    {
+        "Résolu",
+        "Résolue",
+        "Clôturé",
+        "Clôturée",
+        "Annulé",
+        "Rejeté",
+        "Rejetée",
+        "Réalisé",
+        "Implémenté",
+    }
+)
+
+
+def etats_terminaux(module: str) -> list[str]:
+    """États sans suite possible (clôturé, rejeté, annulé…) : l'activité n'est plus en cours."""
+    etats = TRANSITIONS.get(module)
+    if etats is None:
+        raise ValueError(f"Module inconnu : {module}")
+    return [etat for etat, suites in etats.items() if not suites]
+
+
 def transitions_possibles(module: str, etat: str) -> list[str]:
     etats = TRANSITIONS.get(module)
     if etats is None:

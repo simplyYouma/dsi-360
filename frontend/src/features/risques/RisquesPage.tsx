@@ -5,8 +5,10 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeCriticite, BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
+import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { risquesApi, type Risque } from './risquesApi';
 
@@ -37,6 +39,7 @@ export function RisquesPage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
+  const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -47,16 +50,19 @@ export function RisquesPage(): JSX.Element {
 
   const criticite = Math.ceil((probabilite + impact) / 2);
 
-  const charger = useCallback(async (p: number): Promise<void> => {
-    setChargement(true);
-    try {
-      const data = await risquesApi.lister(p);
-      setItems(data.elements);
-      setTotal(data.total);
-    } finally {
-      setChargement(false);
-    }
-  }, []);
+  const charger = useCallback(
+    async (p: number): Promise<void> => {
+      setChargement(true);
+      try {
+        const data = await risquesApi.lister(p, filtres);
+        setItems(data.elements);
+        setTotal(data.total);
+      } finally {
+        setChargement(false);
+      }
+    },
+    [filtres],
+  );
 
   useEffect(() => {
     void charger(page);
@@ -96,6 +102,15 @@ export function RisquesPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <FiltreTickets
+        module="risque"
+        valeur={filtres}
+        onChange={(f) => {
+          setPage(1);
+          setFiltres(f);
+        }}
+      />
 
       <Table
         colonnes={COLONNES}

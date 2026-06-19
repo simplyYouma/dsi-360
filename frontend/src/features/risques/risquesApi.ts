@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { chaineFiltres, type FiltresListe } from '@/features/incidents/incidentsApi';
 
 export interface Risque {
   id: string;
@@ -21,7 +22,7 @@ export interface NouveauRisque {
 }
 
 export const risquesApi = {
-  lister: (page: number): Promise<{ elements: Risque[]; total: number }> =>
-    api.get(`/risques?page=${page}`),
+  lister: (page: number, f?: FiltresListe): Promise<{ elements: Risque[]; total: number }> =>
+    api.get(`/risques?${chaineFiltres(page, f)}`),
   creer: (corps: NouveauRisque): Promise<{ id: string }> => api.post('/risques', corps),
 };
