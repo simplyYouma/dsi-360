@@ -14,6 +14,10 @@
 .modale {
   position: relative;
   width: 100%;
+  max-height: calc(100dvh - 2 * var(--space-5));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--surface);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
@@ -42,19 +46,26 @@
 }
 
 .titre {
+  flex: 0 0 auto;
   font-size: var(--text-2xl);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
   margin-bottom: var(--space-5);
 }
 
+/* Le corps défile à l'intérieur (en-tête et pied figés) si le contenu dépasse l'écran. */
 .corps {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .pied {
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   gap: var(--space-3);
