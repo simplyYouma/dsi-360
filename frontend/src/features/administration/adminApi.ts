@@ -52,8 +52,16 @@ export interface MajUtilisateur {
   actif: boolean;
 }
 
+export interface SlaRegle {
+  priorite: number;
+  prise_en_charge_minutes: number;
+  resolution_minutes: number;
+}
+
 export const adminApi = {
   profils: (): Promise<Profil[]> => api.get('/admin/profils'),
+  sla: (): Promise<SlaRegle[]> => api.get('/admin/sla'),
+  definirSla: (regles: SlaRegle[]): Promise<void> => api.put('/admin/sla', { regles }),
   directions: (): Promise<Direction[]> => api.get('/admin/directions'),
   utilisateurs: (page: number): Promise<{ elements: Utilisateur[]; total: number }> =>
     api.get(`/admin/utilisateurs?page=${page}`),

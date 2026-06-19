@@ -11,6 +11,7 @@ from dsi360.domain.etats import etat_initial, transition_autorisee
 from dsi360.domain.sla import echeances
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import sla as sla_repo
 
 _RESOLUS = {"Résolu", "Résolue"}
 _CLOTURES = {"Clôturé", "Clôturée"}
@@ -54,7 +55,7 @@ async def creer_activite(
 ) -> str:
     debut = datetime.now(UTC)
     priorite = calculer_priorite(impact, urgence)
-    ech = echeances(priorite, debut)
+    ech = echeances(priorite, debut, await sla_repo.charger_matrice(session))
     reference = await repo.prochaine_reference(session, module, debut.year)
     statut = etat_initial(module)
     demandeur_externe_id = await _resoudre_demandeur(session, demandeur)

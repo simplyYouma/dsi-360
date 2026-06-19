@@ -3,6 +3,7 @@ import { Plus, Pencil, KeyRound, Dices } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { BadgePriorite } from '@/common/statuts';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
 
@@ -23,6 +24,7 @@ import {
   type EntreeJournal,
   type Matrice,
   type Profil,
+  type SlaRegle,
   type Utilisateur,
 } from './adminApi';
 
@@ -429,10 +431,93 @@ function OngletJournal(): JSX.Element {
   );
 }
 
+// ---------------------------------------------------------------- SLA
+
+function OngletSla(): JSX.Element {
+  const [regles, setRegles] = useState<SlaRegle[]>([]);
+  const [enregistre, setEnregistre] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+
+  useEffect(() => {
+    void adminApi.sla().then(setRegles);
+  }, []);
+
+  const majHeures = (priorite: number, champ: keyof SlaRegle, heures: string): void => {
+    const minutes = Math.max(1, Math.round(Number(heures) * 60));
+    setRegles((rs) => rs.map((r) => (r.priorite === priorite ? { ...r, [champ]: minutes } : r)));
+  };
+
+  const enregistrer = async (): Promise<void> => {
+    setEnvoi(true);
+    try {
+      await adminApi.definirSla(regles);
+      setEnregistre(true);
+      window.setTimeout(() => setEnregistre(false), 1500);
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
+      <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
+        Cibles de prise en charge et de résolution par priorité (en heures). Elles pilotent les
+        échéances des nouveaux tickets et le calcul du respect SLA.
+      </p>
+      <table className={a.matrice}>
+        <thead>
+          <tr>
+            <th>Priorité</th>
+            <th>Prise en charge (h)</th>
+            <th>Résolution (h)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {regles.map((r) => (
+            <tr key={r.priorite}>
+              <td>
+                <BadgePriorite priorite={r.priorite} />
+              </td>
+              <td>
+                <input
+                  className={a.slaInput}
+                  type="number"
+                  min="0.25"
+                  step="0.25"
+                  value={r.prise_en_charge_minutes / 60}
+                  onChange={(e) => majHeures(r.priorite, 'prise_en_charge_minutes', e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  className={a.slaInput}
+                  type="number"
+                  min="0.25"
+                  step="0.25"
+                  value={r.resolution_minutes / 60}
+                  onChange={(e) => majHeures(r.priorite, 'resolution_minutes', e.target.value)}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
+        <Button onClick={() => void enregistrer()} disabled={envoi}>
+          {envoi ? 'Enregistrement…' : 'Enregistrer les règles'}
+        </Button>
+        {enregistre && (
+          <span style={{ color: 'var(--status-ok)', fontSize: 'var(--text-sm)' }}>Enregistré</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AdministrationPage(): JSX.Element {
-  const [onglet, setOnglet] = useState<'utilisateurs' | 'acces' | 'journal'>('utilisateurs');
+  const [onglet, setOnglet] = useState<'utilisateurs' | 'acces' | 'journal' | 'sla'>('utilisateurs');
   const [signalCreation, setSignalCreation] = useState(0);
 
   return (
@@ -461,6 +546,9 @@ export function AdministrationPage(): JSX.Element {
           >
             Journal d’audit
           </button>
+          <button className={onglet === 'sla' ? a.tabActif : a.tab} onClick={() => setOnglet('sla')}>
+            SLA
+          </button>
         </div>
         {onglet === 'utilisateurs' && (
           <div className={a.barreAction}>
@@ -475,6 +563,7 @@ export function AdministrationPage(): JSX.Element {
       {onglet === 'utilisateurs' && <OngletUtilisateurs signalCreation={signalCreation} />}
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}
+      {onglet === 'sla' && <OngletSla />}
     </div>
   );
 }

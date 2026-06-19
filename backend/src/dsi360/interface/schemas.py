@@ -300,6 +300,16 @@ class MajAcces(BaseModel):
     acces: list[str]
 
 
+class SlaRegleItem(BaseModel):
+    priorite: int = Field(ge=1, le=5)
+    prise_en_charge_minutes: int = Field(gt=0)
+    resolution_minutes: int = Field(gt=0)
+
+
+class MajSlaRegles(BaseModel):
+    regles: list[SlaRegleItem] = Field(min_length=1, max_length=5)
+
+
 class EntreeJournal(BaseModel):
     horodatage: datetime
     acteur: str | None

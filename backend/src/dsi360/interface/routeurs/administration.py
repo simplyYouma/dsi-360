@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.config.acces import MODULES
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 from dsi360.interface.schemas import (
@@ -17,11 +18,13 @@ from dsi360.interface.schemas import (
     CreationUtilisateur,
     DirectionItem,
     MajAcces,
+    MajSlaRegles,
     MajUtilisateur,
     MatriceAcces,
     PageJournal,
     PageUtilisateurs,
     ProfilItem,
+    SlaRegleItem,
 )
 from dsi360.interface.securite import exiger_acces
 
@@ -243,3 +246,27 @@ async def lister_journal(
         "page": page,
         "taille": _TAILLE,
     }
+
+
+# --- Règles SLA paramétrables (par priorité) ---
+
+
+@routeur.get("/sla", response_model=list[SlaRegleItem])
+async def lister_sla(courant: Courant, session: Session) -> list[dict[str, Any]]:
+    return await repo_sla.lister(session)
+
+
+@routeur.put("/sla", status_code=status.HTTP_204_NO_CONTENT)
+async def definir_sla(corps: MajSlaRegles, courant: Courant, session: Session) -> None:
+    for r in corps.regles:
+        await repo_sla.definir(session, r.priorite, r.prise_en_charge_minutes, r.resolution_minutes)
+    await audit.consigner(
+        session,
+        action="MAJ_SLA",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="sla_regle",
+        nouvelle={"regles": [r.model_dump() for r in corps.regles]},
+    )
+    await session.commit()

@@ -31,11 +31,10 @@ SELECT
     AND nullif(a.donnees->>'ttr_minutes','')::numeric > 0) AS sla_reel_total,
   count(*) FILTER (WHERE a.source='IMPORT_SD'
     AND nullif(a.donnees->>'ttr_minutes','')::numeric > 0
-    AND nullif(a.donnees->>'ttr_minutes','')::numeric <=
-      (CASE a.priorite WHEN 1 THEN 240 WHEN 2 THEN 480 WHEN 3 THEN 1440
-        WHEN 4 THEN 4320 ELSE 7200 END)) AS sla_reel_ok
+    AND nullif(a.donnees->>'ttr_minutes','')::numeric <= sr.resolution_minutes) AS sla_reel_ok
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
+LEFT JOIN core.sla_regle sr ON sr.priorite = a.priorite
 WHERE 1=1
 """
 

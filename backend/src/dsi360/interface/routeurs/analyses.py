@@ -22,14 +22,14 @@ Courant = Annotated[dict[str, Any], Depends(exiger_acces("analyses"))]
 _JOINTURE = "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id"
 _OUVERTES = f"{_JOINTURE} WHERE a.cloture_le IS NULL"
 
-# Cible de résolution (minutes) par priorité — ITIL, paramétrable à terme.
-_CIBLE = (
-    "(CASE a.priorite WHEN 1 THEN 240 WHEN 2 THEN 480 WHEN 3 THEN 1440 "
-    "WHEN 4 THEN 4320 ELSE 7200 END)"
-)
+# Cible de résolution = règle SLA paramétrable (core.sla_regle), jointe sur la priorité.
+_CIBLE = "sr.resolution_minutes"
 _TTR = "nullif(a.donnees->>'ttr_minutes', '')::numeric"
 # Population SLA réelle : tickets importés effectivement résolus (durée mesurée > 0).
-_RESOLUS = f"{_JOINTURE} WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL AND {_TTR} > 0"
+_RESOLUS = (
+    f"{_JOINTURE} JOIN core.sla_regle sr ON sr.priorite = a.priorite "
+    f"WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL AND {_TTR} > 0"
+)
 
 
 async def _lignes(
