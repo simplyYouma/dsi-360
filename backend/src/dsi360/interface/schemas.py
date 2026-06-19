@@ -138,6 +138,41 @@ class MonTicket(BaseModel):
     nb_commentaires: int = 0
 
 
+class CompteLibelle(BaseModel):
+    libelle: str
+    valeur: int
+
+
+class JourResolus(BaseModel):
+    jour: str
+    resolus: int
+
+
+class AgentBref(BaseModel):
+    nom: str
+    profil: str
+    direction: str | None
+
+
+class MesStats(BaseModel):
+    """Tableau de bord personnel de l'agent connecté."""
+
+    agent: AgentBref
+    ouverts: int
+    a_lheure: int
+    approche: int
+    en_retard: int
+    resolus_7j: int
+    resolus_30j: int
+    respect_sla: int  # pourcentage
+    mttr_jours: float | None  # délai moyen de résolution (90 j)
+    plus_ancien_jours: int | None
+    par_priorite: list[CompteLibelle]
+    par_module: list[CompteLibelle]
+    par_statut: list[CompteLibelle]
+    tendance: list[JourResolus]
+
+
 class CreationReponse(BaseModel):
     id: str
 

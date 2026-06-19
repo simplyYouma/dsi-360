@@ -9,9 +9,10 @@ import { FicheTransition } from '@/common/FicheTransition';
 import { LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
 import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
+import { TableauBordAgent } from './TableauBordAgent';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
-import { mesTicketsApi, type MonTicket } from './mesTicketsApi';
+import { mesTicketsApi, type MonTicket, type MesStats } from './mesTicketsApi';
 
 const MODULE_COULEUR: Record<string, string> = {
   incident: 'var(--cat-1)',
@@ -64,6 +65,7 @@ const COLONNES: Colonne<MonTicket>[] = [
 
 export function MesTicketsPage(): JSX.Element {
   const [items, setItems] = useState<MonTicket[]>([]);
+  const [stats, setStats] = useState<MesStats | null>(null);
   const [chargement, setChargement] = useState(true);
   const [fiche, setFiche] = useState<{ base: string; id: string } | null>(null);
   const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
@@ -75,6 +77,7 @@ export function MesTicketsPage(): JSX.Element {
       .lister()
       .then(setItems)
       .finally(() => setChargement(false));
+    void mesTicketsApi.stats().then(setStats);
   }, []);
 
   const baseDe = useCallback(
@@ -123,9 +126,6 @@ export function MesTicketsPage(): JSX.Element {
     charger();
   }, [charger]);
 
-  const enRetard = items.filter((t) => t.statut_sla === 'depasse').length;
-  const approche = items.filter((t) => t.statut_sla === 'approche').length;
-  const p1 = items.filter((t) => t.priorite === 1).length;
   // Kanban : une colonne par statut présent (ordre d'apparition : déjà trié priorité/SLA).
   const statutsPresents = [...new Set(items.map((t) => t.statut))];
   const colonnesKanban: ColonneKanban[] = statutsPresents.map((statut) => ({
@@ -146,13 +146,6 @@ export function MesTicketsPage(): JSX.Element {
         nbCommentaires: t.nb_commentaires,
       })),
   }));
-
-  const kpis = [
-    { libelle: 'À traiter', valeur: items.length, couleur: 'var(--text)' },
-    { libelle: 'SLA dépassé', valeur: enRetard, couleur: 'var(--status-danger)' },
-    { libelle: 'Échéance proche', valeur: approche, couleur: 'var(--status-warn)' },
-    { libelle: 'Critiques (P1)', valeur: p1, couleur: 'var(--cat-1)' },
-  ];
 
   return (
     <div className={incidents.page}>
@@ -184,18 +177,9 @@ export function MesTicketsPage(): JSX.Element {
         )}
       </header>
 
-      {!chargement && (
-        <section className={local.kpis}>
-          {kpis.map((k) => (
-            <div key={k.libelle} className={local.kpi}>
-              <span className={local.kpiValeur} style={{ color: k.couleur }}>
-                {k.valeur}
-              </span>
-              <span className={local.kpiLibelle}>{k.libelle}</span>
-            </div>
-          ))}
-        </section>
-      )}
+      {stats !== null && <TableauBordAgent stats={stats} />}
+
+      {items.length > 0 && <h2 className={local.carteTitre}>File de travail</h2>}
 
       {!chargement && items.length === 0 ? (
         <div className={incidents.vide}>
