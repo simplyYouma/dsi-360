@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, List, LayoutGrid } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
+import { KanbanTickets } from '@/common/KanbanTickets';
 import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
 import { BadgeStatut } from '@/common/statuts';
+import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
 import { incidentsApi, assignerLot, type Incident, type FiltresListe } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
@@ -68,6 +70,7 @@ export function IncidentsPage(): JSX.Element {
   useFicheUrl(setFicheId);
   const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
   const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
 
   const [titre, setTitre] = useState('');
   const [demandeur, setDemandeur] = useState('');
@@ -129,6 +132,22 @@ export function IncidentsPage(): JSX.Element {
           <p className={styles.sous}>Gestion des incidents du système d'information.</p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <div className={styles.vues}>
+            <button
+              className={cx(styles.vue, vue === 'liste' && styles.vueOn)}
+              onClick={() => setVue('liste')}
+              title="Vue liste"
+            >
+              <List size={16} />
+            </button>
+            <button
+              className={cx(styles.vue, vue === 'kanban' && styles.vueOn)}
+              onClick={() => setVue('kanban')}
+              title="Vue Kanban"
+            >
+              <LayoutGrid size={16} />
+            </button>
+          </div>
           <BoutonsExport base="/incidents" />
           <Button onClick={() => setModale(true)}>
             <Plus size={16} />
@@ -147,6 +166,10 @@ export function IncidentsPage(): JSX.Element {
         }}
       />
 
+      {vue === 'kanban' ? (
+        <KanbanTickets module="incident" base="/incidents" filtres={filtres} onOuvrir={setFicheId} />
+      ) : (
+        <>
       {selection.size > 0 && (
         <DispatchBar
           count={selection.size}
@@ -193,6 +216,8 @@ export function IncidentsPage(): JSX.Element {
             }),
         }}
       />
+        </>
+      )}
 
       <FicheTransition
         base="/incidents"

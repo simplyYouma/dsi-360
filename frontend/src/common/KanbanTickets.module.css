@@ -1,0 +1,102 @@
+.kanban {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+  align-items: flex-start;
+  scrollbar-width: thin;
+}
+.colonne {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 19rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}
+.colTete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-top: 3px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.colTitre {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.colNb {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.colCorps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.carte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition:
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+.carte:hover {
+  border-color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+}
+.carteTete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.carteRef {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.carteTitre {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.carteBas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.carteGest {
+  display: inline-flex;
+  align-items: center;
+}
+.colVide {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding: var(--space-2);
+  text-align: center;
+}
+.info {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-4);
+}

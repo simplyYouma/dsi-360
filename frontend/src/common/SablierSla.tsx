@@ -3,7 +3,7 @@ import styles from './SablierSla.module.css';
 
 interface Props {
   echeance: string | null; // sla_resolution_le (ISO)
-  debut: string; // cree_le (ISO)
+  debut: string; // cree_le (ISO) — base de l'écoulement
   statut: 'a_lheure' | 'approche' | 'depasse';
 }
 
@@ -42,10 +42,10 @@ export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
 
   const fin = new Date(echeance).getTime();
   const dep = new Date(debut).getTime();
-  const maintenant = Date.now();
-  const restant = fin - maintenant;
+  const restant = fin - Date.now();
   const total = Math.max(1, fin - dep);
-  // Part de sable encore en haut = temps restant / durée totale création -> échéance.
+  // Niveau de sable continu = part du temps restante (création -> échéance) : paliers variés.
+  // La couleur (vert/orange/rouge) donne l'urgence, le texte le délai précis.
   const reste = Math.max(0, Math.min(1, restant / total));
   const couleur = COULEUR[statut];
 
