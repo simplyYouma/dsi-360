@@ -9,6 +9,7 @@ import { FiltreTickets } from '@/common/FiltreTickets';
 import { KanbanTickets } from '@/common/KanbanTickets';
 import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
+import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { BadgeStatut } from '@/common/statuts';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
@@ -58,6 +59,13 @@ const COLONNES: Colonne<Incident>[] = [
       ),
   },
   { cle: 'cree_le', entete: 'Créé le', valeur: (i) => i.cree_le, rendu: (i) => formaterDate(i.cree_le) },
+  {
+    cle: 'discussion',
+    entete: '',
+    aligne: 'centre',
+    largeur: '46px',
+    rendu: (i) => <IndicateurDiscussion nombre={i.nb_commentaires} />,
+  },
 ];
 
 export function IncidentsPage(): JSX.Element {

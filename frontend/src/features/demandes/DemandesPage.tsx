@@ -8,6 +8,7 @@ import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
+import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import { cx } from '@/common/cx';
@@ -46,6 +47,13 @@ const COLONNES: Colonne<Demande>[] = [
       ),
   },
   { cle: 'cree_le', entete: 'Créée le', valeur: (d) => d.cree_le, rendu: (d) => formaterDate(d.cree_le) },
+  {
+    cle: 'discussion',
+    entete: '',
+    aligne: 'centre',
+    largeur: '46px',
+    rendu: (d) => <IndicateurDiscussion nombre={d.nb_commentaires} />,
+  },
 ];
 
 export function DemandesPage(): JSX.Element {

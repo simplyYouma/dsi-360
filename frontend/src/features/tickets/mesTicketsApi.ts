@@ -11,6 +11,7 @@ export interface MonTicket {
   sla_resolution_le: string | null;
   demandeur: string | null;
   cree_le: string;
+  nb_commentaires: number;
 }
 
 export const mesTicketsApi = {

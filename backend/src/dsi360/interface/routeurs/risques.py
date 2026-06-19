@@ -55,6 +55,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "direction": r["direction"],
         "responsable": _responsable(r),
         "responsable_id": r["resp_id"],
+        "nb_commentaires": r["nb_commentaires"],
         "probabilite": int(d.get("probabilite", 0)),
         "impact": int(d.get("impact", 0)),
         "criticite": int(d.get("criticite", 0)),

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Inbox } from 'lucide-react';
+import { Inbox, List, LayoutGrid } from 'lucide-react';
 import { Table, StatusBadge, type Colonne } from '@/design-system/primitives';
-import { BadgeStatut, BadgePriorite } from '@/common/statuts';
+import { BadgeStatut, BadgePriorite, couleurStatut } from '@/common/statuts';
 import { SablierSla } from '@/common/SablierSla';
+import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
+import { Kanban, type ColonneKanban } from '@/common/Kanban';
 import { FicheTransition } from '@/common/FicheTransition';
 import { LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
+import { cx } from '@/common/cx';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
 import { mesTicketsApi, type MonTicket } from './mesTicketsApi';
@@ -49,12 +52,29 @@ const COLONNES: Colonne<MonTicket>[] = [
   { cle: 'demandeur', entete: 'Demandeur', rendu: (t) => t.demandeur ?? '—' },
   { cle: 'statut', entete: 'Statut', rendu: (t) => <BadgeStatut statut={t.statut} /> },
   { cle: 'cree_le', entete: 'Reçu le', valeur: (t) => t.cree_le, rendu: (t) => formaterDate(t.cree_le) },
+  {
+    cle: 'discussion',
+    entete: '',
+    aligne: 'centre',
+    largeur: '46px',
+    rendu: (t) => <IndicateurDiscussion nombre={t.nb_commentaires} />,
+  },
 ];
 
 export function MesTicketsPage(): JSX.Element {
   const [items, setItems] = useState<MonTicket[]>([]);
   const [chargement, setChargement] = useState(true);
   const [fiche, setFiche] = useState<{ base: string; id: string } | null>(null);
+  const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
+
+  const ouvrir = useCallback(
+    (id: string): void => {
+      const t = items.find((x) => x.id === id);
+      const base = t ? ROUTE_MODULE[t.module] : undefined;
+      if (base !== undefined && t) setFiche({ base, id: t.id });
+    },
+    [items],
+  );
 
   const charger = useCallback((): void => {
     setChargement(true);
@@ -71,6 +91,27 @@ export function MesTicketsPage(): JSX.Element {
   const enRetard = items.filter((t) => t.statut_sla === 'depasse').length;
   const approche = items.filter((t) => t.statut_sla === 'approche').length;
   const p1 = items.filter((t) => t.priorite === 1).length;
+  // Kanban : une colonne par statut présent (ordre d'apparition : déjà trié priorité/SLA).
+  const statutsPresents = [...new Set(items.map((t) => t.statut))];
+  const colonnesKanban: ColonneKanban[] = statutsPresents.map((statut) => ({
+    cle: statut,
+    titre: statut,
+    couleur: couleurStatut(statut),
+    cartes: items
+      .filter((t) => t.statut === statut)
+      .map((t) => ({
+        id: t.id,
+        reference: t.reference,
+        titre: t.titre,
+        priorite: t.priorite,
+        echeance: t.sla_resolution_le,
+        debut: t.cree_le,
+        statutSla: t.statut_sla,
+        meta: t.demandeur,
+        nbCommentaires: t.nb_commentaires,
+      })),
+  }));
+
   const kpis = [
     { libelle: 'À traiter', valeur: items.length, couleur: 'var(--text)' },
     { libelle: 'SLA dépassé', valeur: enRetard, couleur: 'var(--status-danger)' },
@@ -88,6 +129,24 @@ export function MesTicketsPage(): JSX.Element {
             surlignés.
           </p>
         </div>
+        {items.length > 0 && (
+          <div className={incidents.vues}>
+            <button
+              className={cx(incidents.vue, vue === 'liste' && incidents.vueOn)}
+              onClick={() => setVue('liste')}
+              title="Vue liste"
+            >
+              <List size={16} />
+            </button>
+            <button
+              className={cx(incidents.vue, vue === 'kanban' && incidents.vueOn)}
+              onClick={() => setVue('kanban')}
+              title="Vue Kanban"
+            >
+              <LayoutGrid size={16} />
+            </button>
+          </div>
+        )}
       </header>
 
       {!chargement && (
@@ -108,6 +167,8 @@ export function MesTicketsPage(): JSX.Element {
           <Inbox size={28} />
           <span>Aucun ticket ne vous est assigné pour le moment.</span>
         </div>
+      ) : vue === 'kanban' ? (
+        <Kanban colonnes={colonnesKanban} onOuvrir={ouvrir} />
       ) : (
         <Table
           colonnes={COLONNES}
@@ -115,10 +176,7 @@ export function MesTicketsPage(): JSX.Element {
           cleLigne={(t) => `${t.module}-${t.id}`}
           chargement={chargement}
           vide="Aucun ticket assigné."
-          onLigne={(t) => {
-            const base = ROUTE_MODULE[t.module];
-            if (base !== undefined) setFiche({ base, id: t.id });
-          }}
+          onLigne={(t) => ouvrir(t.id)}
           classeLigne={(t) => (t.statut_sla === 'depasse' ? 'ligne-sla-depasse' : undefined)}
         />
       )}

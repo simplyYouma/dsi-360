@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { AvatarPersonnage } from './AvatarPersonnage';
-import { SablierSla } from './SablierSla';
-import { BadgePriorite, couleurStatut } from './statuts';
+import { Kanban, type ColonneKanban } from './Kanban';
+import { couleurStatut } from './statuts';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
-import styles from './KanbanTickets.module.css';
+import styles from './Kanban.module.css';
 
 interface Props {
   module: string;
@@ -13,7 +12,7 @@ interface Props {
   onOuvrir: (id: string) => void;
 }
 
-/** Vue Kanban : une colonne par statut du cycle de vie, cartes cliquables. */
+/** Kanban d'un module (incidents/demandes…) : charge les tickets et les range par statut. */
 export function KanbanTickets({ module, base, filtres, onOuvrir }: Props): JSX.Element {
   const [etats, setEtats] = useState<string[]>([]);
   const [items, setItems] = useState<Incident[]>([]);
@@ -32,42 +31,24 @@ export function KanbanTickets({ module, base, filtres, onOuvrir }: Props): JSX.E
 
   if (chargement) return <p className={styles.info}>Chargement…</p>;
 
-  return (
-    <div className={styles.kanban}>
-      {etats.map((statut) => {
-        const cartes = items.filter((i) => i.statut === statut);
-        const couleur = couleurStatut(statut);
-        return (
-          <div key={statut} className={styles.colonne}>
-            <div className={styles.colTete} style={{ borderTopColor: couleur }}>
-              <span className={styles.colTitre}>{statut}</span>
-              <span className={styles.colNb}>{cartes.length}</span>
-            </div>
-            <div className={styles.colCorps}>
-              {cartes.map((c) => (
-                <button key={c.id} type="button" className={styles.carte} onClick={() => onOuvrir(c.id)}>
-                  <div className={styles.carteTete}>
-                    <span className={styles.carteRef}>{c.reference}</span>
-                    <BadgePriorite priorite={c.priorite} />
-                  </div>
-                  <span className={styles.carteTitre} title={c.titre}>
-                    {c.titre}
-                  </span>
-                  <div className={styles.carteBas}>
-                    <SablierSla echeance={c.sla_resolution_le} debut={c.cree_le} statut={c.statut_sla} />
-                    {c.gestionnaire !== null && (
-                      <span className={styles.carteGest} title={c.gestionnaire}>
-                        <AvatarPersonnage seed={c.gestionnaire} taille={20} />
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
-              {cartes.length === 0 && <span className={styles.colVide}>—</span>}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  const colonnes: ColonneKanban[] = etats.map((statut) => ({
+    cle: statut,
+    titre: statut,
+    couleur: couleurStatut(statut),
+    cartes: items
+      .filter((i) => i.statut === statut)
+      .map((i) => ({
+        id: i.id,
+        reference: i.reference,
+        titre: i.titre,
+        priorite: i.priorite,
+        echeance: i.sla_resolution_le,
+        debut: i.cree_le,
+        statutSla: i.statut_sla,
+        meta: i.gestionnaire,
+        nbCommentaires: i.nb_commentaires,
+      })),
+  }));
+
+  return <Kanban colonnes={colonnes} onOuvrir={onOuvrir} />;
 }

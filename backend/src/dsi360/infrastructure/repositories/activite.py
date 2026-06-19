@@ -15,7 +15,8 @@ _LISTE_CHAMPS = """
     a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, a.donnees,
     c.libelle AS categorie, d.code AS direction,
     r.id::text AS resp_id, r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email,
-    dem.nom_complet AS demandeur_nom
+    dem.nom_complet AS demandeur_nom,
+    (SELECT count(*) FROM core.commentaire cm WHERE cm.activite_id = a.id) AS nb_commentaires
 """
 
 _BASE = """

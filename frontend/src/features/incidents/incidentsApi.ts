@@ -21,6 +21,7 @@ export interface Incident {
   demandeur: string | null;
   gestionnaire: string | null;
   responsable_id: string | null;
+  nb_commentaires: number;
 }
 
 export interface PageIncidents {

@@ -79,6 +79,7 @@ class ActiviteResume(BaseModel):
     demandeur: str | None
     gestionnaire: str | None
     responsable_id: str | None
+    nb_commentaires: int = 0
 
 
 class ActiviteDetail(ActiviteResume):
@@ -134,6 +135,7 @@ class MonTicket(BaseModel):
     sla_resolution_le: datetime | None
     demandeur: str | None
     cree_le: datetime
+    nb_commentaires: int = 0
 
 
 class CreationReponse(BaseModel):
@@ -391,6 +393,7 @@ class RisqueResume(BaseModel):
     direction: str | None
     responsable: ResponsableBref | None
     responsable_id: str | None
+    nb_commentaires: int = 0
     probabilite: int
     impact: int
     criticite: int

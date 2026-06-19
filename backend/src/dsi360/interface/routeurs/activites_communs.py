@@ -85,6 +85,7 @@ def _resume(r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "demandeur": r["demandeur_nom"],
         "gestionnaire": _gestionnaire(r),
         "responsable_id": r["resp_id"],
+        "nb_commentaires": r["nb_commentaires"],
     }
 
 

@@ -23,7 +23,8 @@ _FENETRE = timedelta(hours=2)
 
 _REQUETE = text(
     "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
-    "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur "
+    "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur, "
+    "(SELECT count(*) FROM core.commentaire cm WHERE cm.activite_id = a.id) AS nb_commentaires "
     "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
     "WHERE a.responsable_id = cast(:id as uuid) AND a.cloture_le IS NULL "
     "AND a.module IN ('incident','demande','changement','audit','cybersecurite','gouvernance') "
