@@ -6,6 +6,7 @@ d'accès RBAC, le module domaine et l'URL.
 """
 
 import json
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -19,20 +20,29 @@ from dsi360.application.activites import (
     creer_activite,
     transition,
 )
+from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.sla import statut_sla
+from dsi360.domain.texte import phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.schemas import (
     ActiviteCreation,
     ActiviteDetail,
+    ActiviteMaj,
     AssignationDemande,
     AssignationLot,
+    CategorieDemande,
+    ContributeurDemande,
     CreationReponse,
     PageActivites,
     ResultatAssignationLot,
+    Tache,
+    TacheCreation,
+    TacheMaj,
     TransitionDemande,
 )
 from dsi360.interface.securite import exiger_acces
@@ -92,6 +102,7 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
     return {
         **_resume(r, maintenant),
         "description": r["description"],
+        "categorie_id": str(r["categorie_id"]) if r["categorie_id"] is not None else None,
         "impact": r["impact"],
         "urgence": r["urgence"],
         "sla_prise_en_charge_le": r["sla_prise_en_charge_le"],
@@ -99,6 +110,7 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "cloture_le": r["cloture_le"],
         "transitions_possibles": transitions_possibles(module, r["statut"]),
         "etats": ordre_etats(module),
+        "avancement": int(_donnees(r).get("avancement", 0)),
     }
 
 
@@ -140,7 +152,24 @@ def _ligne_export(r: RowMapping) -> list[Any]:
 Session = Annotated[AsyncSession, Depends(session_scope)]
 
 
-def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
+def creer_routeur(
+    module: str,
+    acces: str,
+    prefixe: str,
+    tag: str,
+    *,
+    import_uniquement: bool = False,
+    avec_taches: bool = False,
+    editable: bool = False,
+) -> APIRouter:
+    """Routeur générique d'un module d'activités.
+
+    import_uniquement=True (incidents, demandes) : pas de création manuelle — les tickets
+    proviennent exclusivement de l'import du rapport SD. On n'expose alors pas le POST de création.
+
+    avec_taches=True (changement…) : expose la gestion des tâches (l'avancement et une partie du
+    cycle de vie s'en déduisent, cf. application/taches.py).
+    """
     routeur = APIRouter(prefix=prefixe, tags=[tag])
     Courant = Annotated[dict[str, Any], Depends(exiger_acces(acces))]  # noqa: N806
 
@@ -184,22 +213,26 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
             "taille": _TAILLE,
         }
 
-    @routeur.post("", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)
-    async def creer(corps: ActiviteCreation, courant: Courant, session: Session) -> dict[str, str]:
-        ident = await creer_activite(
-            session,
-            module,
-            titre=corps.titre,
-            description=corps.description,
-            impact=corps.impact,
-            urgence=corps.urgence,
-            categorie_id=corps.categorie_id,
-            direction_id=corps.direction_id,
-            responsable_id=corps.responsable_id,
-            acteur=courant,
-            demandeur=corps.demandeur,
-        )
-        return {"id": ident}
+    if not import_uniquement:
+
+        @routeur.post("", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)
+        async def creer(
+            corps: ActiviteCreation, courant: Courant, session: Session
+        ) -> dict[str, str]:
+            ident = await creer_activite(
+                session,
+                module,
+                titre=corps.titre,
+                description=corps.description,
+                impact=corps.impact,
+                urgence=corps.urgence,
+                categorie_id=corps.categorie_id,
+                direction_id=corps.direction_id,
+                responsable_id=corps.responsable_id,
+                acteur=courant,
+                demandeur=corps.demandeur,
+            )
+            return {"id": ident}
 
     @routeur.get("/export")
     async def exporter(
@@ -228,6 +261,9 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
     async def detail_complet(r: RowMapping, session: AsyncSession) -> dict[str, Any]:
         base = _detail(module, r, datetime.now(UTC))
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
+        base["contributeurs"] = [
+            dict(c) for c in await repo.lister_contributeurs(session, r["id"])
+        ]
         return base
 
     # Déclaré avant /{ident} pour éviter que "assignation-lot" soit pris pour un identifiant.
@@ -349,4 +385,248 @@ def creer_routeur(module: str, acces: str, prefixe: str, tag: str) -> APIRouter:
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)
 
+    @routeur.post("/{ident}/categorie", response_model=ActiviteDetail)
+    async def changer_categorie(
+        ident: str, corps: CategorieDemande, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        avant = await charger_visible(session, ident, courant)
+        if corps.categorie_id is not None:
+            ok = await session.scalar(
+                text("SELECT 1 FROM core.categorie WHERE id::text = :c AND module = :m"),
+                {"c": corps.categorie_id, "m": module},
+            )
+            if ok is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Catégorie inconnue pour ce module.",
+                )
+        await session.execute(
+            text(
+                "UPDATE core.activite SET categorie_id = cast(:c as uuid) "
+                "WHERE id = cast(:id as uuid)"
+            ),
+            {"c": corps.categorie_id, "id": ident},
+        )
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            nouvelle={"categorie_id": corps.categorie_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
+    async def ajouter_contributeur(
+        ident: str, corps: ContributeurDemande, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        avant = await charger_visible(session, ident, courant)
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+            {"id": corps.utilisateur_id},
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+        await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
+        # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
+        if corps.utilisateur_id != courant["id"]:
+            await session.execute(
+                text(
+                    "INSERT INTO core.notification "
+                    "(destinataire_id, activite_id, type, titre, message) "
+                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', :titre, :msg)"
+                ),
+                {
+                    "dest": corps.utilisateur_id,
+                    "aid": avant["id"],
+                    "titre": f"Contributeur : {avant['reference']}",
+                    "msg": avant["titre"],
+                },
+            )
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            nouvelle={"contributeur_ajoute": corps.utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
+    async def retirer_contributeur(
+        ident: str, utilisateur_id: str, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        avant = await charger_visible(session, ident, courant)
+        await repo.retirer_contributeur(session, ident, utilisateur_id)
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            ancienne={"contributeur_retire": utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    if editable:
+
+        @routeur.patch("/{ident}", response_model=ActiviteDetail)
+        async def modifier(
+            ident: str, corps: ActiviteMaj, courant: Courant, session: Session
+        ) -> dict[str, Any]:
+            avant = await charger_visible(session, ident, courant)
+            champs = corps.model_dump(exclude_unset=True)
+            fragments = []
+            if champs.get("titre") is not None:
+                champs["titre"] = phrase_propre(champs["titre"])
+                fragments.append("titre = :titre")
+            if "description" in champs:
+                fragments.append("description = :description")
+            if fragments:
+                await session.execute(
+                    text(
+                        f"UPDATE core.activite SET {', '.join(fragments)} "
+                        "WHERE id = cast(:id as uuid)"
+                    ),
+                    {"id": ident, **{k: champs[k] for k in champs}},
+                )
+                await audit.consigner(
+                    session,
+                    action="MODIFICATION",
+                    acteur_id=courant["id"],
+                    acteur_email=courant["email"],
+                    module=module,
+                    cible_type=module,
+                    cible_id=avant["reference"],
+                    nouvelle={k: champs[k] for k in champs},
+                )
+                await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session)
+
+    if avec_taches:
+        _enregistrer_taches(routeur, module, charger_visible, Courant, detail_complet)
+
     return routeur
+
+
+def _tache_resume(r: RowMapping) -> dict[str, Any]:
+    assigne = None
+    if r["assigne_email"] is not None:
+        assigne = {
+            "prenom": r["assigne_prenom"],
+            "nom": r["assigne_nom"],
+            "email": r["assigne_email"],
+        }
+    return {
+        "id": r["id"],
+        "titre": r["titre"],
+        "description": r["description"],
+        "statut": r["statut"],
+        "assigne": assigne,
+        "assigne_id": r["assigne_id"],
+        "echeance": r["echeance"],
+        "ordre": r["ordre"],
+    }
+
+
+def _enregistrer_taches(
+    routeur: APIRouter,
+    module: str,
+    charger_visible: Callable[[AsyncSession, str, dict[str, Any]], Awaitable[RowMapping]],
+    Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
+    detail_complet: Callable[[RowMapping, AsyncSession], Awaitable[dict[str, Any]]],
+) -> None:
+    """Endpoints de tâches d'un module d'activités (avancement + cycle de vie dérivés)."""
+
+    async def _charger_tache(
+        session: AsyncSession, ident: str, tache_id: str, courant: dict[str, Any]
+    ) -> RowMapping:
+        await charger_visible(session, ident, courant)
+        t = await tache_repo.par_id(session, tache_id)
+        if t is None or t["activite_id"] != ident:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable.")
+        return t
+
+    async def _verifier_agent(session: AsyncSession, agent_id: str | None) -> None:
+        if agent_id is None:
+            return
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"), {"id": agent_id}
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+
+    @routeur.get("/{ident}/taches", response_model=list[Tache])
+    async def lister_taches(
+        ident: str, courant: Courant, session: Session
+    ) -> list[dict[str, Any]]:
+        await charger_visible(session, ident, courant)
+        return [_tache_resume(t) for t in await tache_repo.lister(session, ident)]
+
+    @routeur.post(
+        "/{ident}/taches", response_model=ActiviteDetail, status_code=status.HTTP_201_CREATED
+    )
+    async def creer_tache_activite(
+        ident: str, corps: TacheCreation, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        await charger_visible(session, ident, courant)
+        await _verifier_agent(session, corps.assigne_id)
+        await creer_tache(
+            session,
+            ident,
+            module,
+            {
+                "titre": phrase_propre(corps.titre),
+                "description": corps.description,
+                "assigne_id": corps.assigne_id,
+                "echeance": corps.echeance,
+                "ordre": corps.ordre,
+            },
+            courant,
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.patch("/{ident}/taches/{tache_id}", response_model=ActiviteDetail)
+    async def maj_tache_activite(
+        ident: str, tache_id: str, corps: TacheMaj, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        tache = await _charger_tache(session, ident, tache_id, courant)
+        champs = corps.model_dump(exclude_unset=True)
+        await _verifier_agent(session, champs.get("assigne_id"))
+        if champs.get("titre") is not None:
+            champs["titre"] = phrase_propre(champs["titre"])
+        await maj_tache(session, dict(tache), module, champs, courant)
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.delete("/{ident}/taches/{tache_id}", response_model=ActiviteDetail)
+    async def supprimer_tache_activite(
+        ident: str, tache_id: str, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        tache = await _charger_tache(session, ident, tache_id, courant)
+        await supprimer_tache(session, dict(tache), module, courant)
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)

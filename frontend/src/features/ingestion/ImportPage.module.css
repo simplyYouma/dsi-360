@@ -2,7 +2,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
+  /* Occupe la hauteur restante jusqu'en bas, quel que soit l'écran (avant tout import). */
+  min-height: calc(100dvh - 18rem);
   padding: var(--space-8) var(--space-4);
   border: 1.5px dashed var(--border);
   border-radius: var(--radius-lg);

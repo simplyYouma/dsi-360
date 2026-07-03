@@ -11,7 +11,6 @@ import {
   Landmark,
   Settings,
   UploadCloud,
-  Users,
   ListChecks,
   type LucideIcon,
 } from 'lucide-react';
@@ -69,15 +68,11 @@ export const SECTIONS: SectionNav[] = [
     entrees: [{ chemin: '/gouvernance', libelle: 'Gouvernance DSI', icone: Landmark, phase: 'P3' }],
   },
   {
-    titre: 'Données',
+    titre: 'Système',
     entrees: [
       { chemin: '/import', libelle: 'Import quotidien', icone: UploadCloud, phase: 'P1', transverse: true },
-      { chemin: '/demandeurs', libelle: 'Demandeurs', icone: Users, phase: 'P1', transverse: true },
+      { chemin: '/administration', libelle: 'Administration', icone: Settings, phase: 'P1' },
     ],
-  },
-  {
-    titre: 'Système',
-    entrees: [{ chemin: '/administration', libelle: 'Administration', icone: Settings, phase: 'P1' }],
   },
 ];
 

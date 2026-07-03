@@ -93,6 +93,19 @@ export async function telecharger(chemin: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** Récupère un fichier protégé sous forme de Blob (pour un aperçu in-app). Bearer + réessai 401. */
+export async function recupererBlob(chemin: string): Promise<Blob> {
+  const headers = new Headers();
+  if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
+  let res = await fetch(`${BASE}${chemin}`, { headers });
+  if (res.status === 401 && (await tenterRafraichir())) {
+    if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
+    res = await fetch(`${BASE}${chemin}`, { headers });
+  }
+  if (!res.ok) throw new ErreurApi(res.status, res.statusText);
+  return res.blob();
+}
+
 /** Téléverse un fichier (multipart) avec jeton Bearer et réessai sur 401. */
 export async function televerser<T>(chemin: string, fichier: File, champ = 'fichier'): Promise<T> {
   const corps = new FormData();

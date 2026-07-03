@@ -5,10 +5,13 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { SelecteurCategorie } from '@/common/SelecteurCategorie';
+import { SelecteurGestionnaire } from '@/common/SelecteurGestionnaire';
+import { ApercuEcheance } from '@/common/ApercuEcheance';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { api, ErreurApi } from '@/lib/api';
-import { cx } from '@/common/cx';
+import { useAuth } from '@/lib/auth';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
@@ -52,10 +55,14 @@ export function PageActiviteCategorie({
   const [objet, setObjet] = useState('');
   const [description, setDescription] = useState('');
   const [categorie, setCategorie] = useState<string | null>(null);
+  const [gestionnaire, setGestionnaire] = useState<string | null>(null);
   const [impact, setImpact] = useState(3);
   const [urgence, setUrgence] = useState(3);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+
+  const { moi } = useAuth();
+  const gerable = moi?.acces.includes('administration') ?? false;
 
   const colonnes: Colonne<Incident>[] = [
     { cle: 'reference', entete: 'Référence', valeur: (a) => a.reference, largeur: '150px' },
@@ -95,9 +102,12 @@ export function PageActiviteCategorie({
     void charger(page);
   }, [charger, page]);
 
-  useEffect(() => {
+  const chargerCategories = useCallback((): void => {
     void api.get<Categorie[]>(`/referentiels/categories?module=${module}`).then(setCategories);
   }, [module]);
+  useEffect(() => {
+    chargerCategories();
+  }, [chargerCategories]);
 
   const creer = async (): Promise<void> => {
     setErreur(null);
@@ -109,11 +119,13 @@ export function PageActiviteCategorie({
         impact,
         urgence,
         categorie_id: categorie,
+        responsable_id: gestionnaire,
       });
       setModale(false);
       setObjet('');
       setDescription('');
       setCategorie(null);
+      setGestionnaire(null);
       setImpact(3);
       setUrgence(3);
       if (page === 1) await charger(1);
@@ -160,7 +172,15 @@ export function PageActiviteCategorie({
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
 
-      <FicheTransition base={base} id={ficheId} assignable onFermer={() => setFicheId(null)} onChange={() => void charger(page)} />
+      <FicheTransition
+        base={base}
+        id={ficheId}
+        assignable
+        labelCategorie={labelCategorie}
+        moduleCategorie={module}
+        onFermer={() => setFicheId(null)}
+        onChange={() => void charger(page)}
+      />
 
       <Modale
         ouverte={modale}
@@ -181,21 +201,20 @@ export function PageActiviteCategorie({
           <span>{labelObjet}</span>
           <input value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Intitulé" />
         </label>
-        <div className={styles.champ}>
-          <span>{labelCategorie}</span>
-          <div className={styles.chips}>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={cx(c.id === categorie ? styles.chipActif : styles.chip)}
-                onClick={() => setCategorie(c.id)}
-              >
-                {c.libelle}
-              </button>
-            ))}
+        {(categories.length > 0 || gerable) && (
+          <div className={styles.champ}>
+            <span>{labelCategorie}</span>
+            <SelecteurCategorie
+              categories={categories}
+              valeur={categorie}
+              onChange={setCategorie}
+              module={module}
+              gerable={gerable}
+              onModifie={chargerCategories}
+            />
           </div>
-        </div>
+        )}
+        <SelecteurGestionnaire valeur={gestionnaire} onChange={setGestionnaire} />
         <label className={styles.champ}>
           <span>Description</span>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Détails…" />
@@ -210,6 +229,7 @@ export function PageActiviteCategorie({
             <CurseurNiveau valeur={urgence} onChange={setUrgence} />
           </div>
         </div>
+        <ApercuEcheance impact={impact} urgence={urgence} />
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
     </div>

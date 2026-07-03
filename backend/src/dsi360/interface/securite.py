@@ -8,7 +8,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.application.auth import profil_complet
+from dsi360.application.auth import compte_actif, profil_complet
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import utilisateur as repo
 from dsi360.infrastructure.securite import decoder_jeton
@@ -35,7 +35,7 @@ async def utilisateur_courant(
     if charge.get("type") != "acces":
         raise _NON_AUTH
     u = await repo.par_id(session, str(charge.get("sub")))
-    if u is None or not u["actif"]:
+    if u is None or not compte_actif(u):
         raise _NON_AUTH
     return await profil_complet(session, u)
 

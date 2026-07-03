@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { Button, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
-import { FicheTransition } from '@/common/FicheTransition';
-import { useFicheUrl } from '@/common/useFicheUrl';
-import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeStatut } from '@/common/statuts';
-import { ErreurApi } from '@/lib/api';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
-import { changementsApi, type Categorie, type Changement } from './changementsApi';
+import { changementsApi, type Changement } from './changementsApi';
 
 const PRIORITE_COULEUR: Record<number, string> = {
   1: 'var(--status-danger)',
@@ -49,31 +46,13 @@ const COLONNES: Colonne<Changement>[] = [
   { cle: 'cree_le', entete: 'Créé le', valeur: (c) => c.cree_le, rendu: (c) => formaterDate(c.cree_le) },
 ];
 
-// Couleur sémantique du type de changement (gravité / risque).
-const TYPE_COULEUR: Record<string, string> = {
-  STANDARD: 'var(--status-ok)',
-  NORMAL: 'var(--cat-1)',
-  URGENT: 'var(--status-danger)',
-};
-
 export function ChangementsPage(): JSX.Element {
+  const navigate = useNavigate();
   const [changements, setChangements] = useState<Changement[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [categories, setCategories] = useState<Categorie[]>([]);
   const [chargement, setChargement] = useState(true);
-  const [modale, setModale] = useState(false);
-  const [ficheId, setFicheId] = useState<string | null>(null);
-  useFicheUrl(setFicheId);
   const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
-
-  const [titre, setTitre] = useState('');
-  const [description, setDescription] = useState('');
-  const [categorie, setCategorie] = useState<string | null>(null);
-  const [impact, setImpact] = useState(3);
-  const [urgence, setUrgence] = useState(3);
-  const [envoi, setEnvoi] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(
     async (p: number): Promise<void> => {
@@ -93,36 +72,6 @@ export function ChangementsPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
-  useEffect(() => {
-    void changementsApi.categories().then(setCategories);
-  }, []);
-
-  const creer = async (): Promise<void> => {
-    setErreur(null);
-    setEnvoi(true);
-    try {
-      await changementsApi.creer({
-        titre: titre.trim(),
-        description: description.trim(),
-        impact,
-        urgence,
-        categorie_id: categorie,
-      });
-      setModale(false);
-      setTitre('');
-      setDescription('');
-      setCategorie(null);
-      setImpact(3);
-      setUrgence(3);
-      if (page === 1) await charger(1);
-      else setPage(1);
-    } catch (err) {
-      setErreur(err instanceof ErreurApi ? err.message : 'Création impossible.');
-    } finally {
-      setEnvoi(false);
-    }
-  };
-
   return (
     <div className={styles.page}>
       <header className={styles.entete}>
@@ -132,7 +81,7 @@ export function ChangementsPage(): JSX.Element {
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
           <BoutonsExport base="/changements" />
-          <Button onClick={() => setModale(true)}>
+          <Button onClick={() => navigate('/changements/nouveau')}>
             <Plus size={16} />
             Nouveau changement
           </Button>
@@ -154,82 +103,9 @@ export function ChangementsPage(): JSX.Element {
         cleLigne={(c) => c.id}
         chargement={chargement}
         vide="Aucun changement pour le moment."
-        onLigne={(c) => setFicheId(c.id)}
+        onLigne={(c) => navigate(`/changements/${c.id}`)}
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
-
-      <FicheTransition
-        base="/changements"
-        id={ficheId}
-        assignable
-        onFermer={() => setFicheId(null)}
-        onChange={() => void charger(page)}
-      />
-
-      <Modale
-        ouverte={modale}
-        onFermer={() => setModale(false)}
-        titre="Nouveau changement (RFC)"
-        pied={
-          <>
-            <Button variante="secondaire" onClick={() => setModale(false)}>
-              Annuler
-            </Button>
-            <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3}>
-              {envoi ? 'Création…' : 'Créer'}
-            </Button>
-          </>
-        }
-      >
-        <label className={styles.champ}>
-          <span>Objet du changement</span>
-          <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. Mise à jour du pare-feu" />
-        </label>
-        <div className={styles.champ}>
-          <span>Type</span>
-          <div className={styles.chips}>
-            {categories.map((c) => {
-              const coul = TYPE_COULEUR[c.code] ?? 'var(--accent)';
-              const actif = c.id === categorie;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={styles.chip}
-                  style={
-                    actif
-                      ? { background: coul, color: '#fff', borderColor: coul }
-                      : { color: coul, borderColor: `color-mix(in srgb, ${coul} 35%, var(--border))` }
-                  }
-                  onClick={() => setCategorie(c.id)}
-                >
-                  {c.libelle}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <label className={styles.champ}>
-          <span>Description / plan</span>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder="Analyse d'impact, plan de déploiement, retour arrière…"
-          />
-        </label>
-        <div className={styles.niveaux}>
-          <div className={styles.champ}>
-            <span>Impact</span>
-            <CurseurNiveau valeur={impact} onChange={setImpact} />
-          </div>
-          <div className={styles.champ}>
-            <span>Urgence</span>
-            <CurseurNiveau valeur={urgence} onChange={setUrgence} />
-          </div>
-        </div>
-        {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
-      </Modale>
     </div>
   );
 }

@@ -1,0 +1,33 @@
+.affichage {
+  display: inline-block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: text;
+  color: inherit;
+  font: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.affichage:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+}
+.placeholder {
+  color: var(--text-muted);
+}
+.input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border-focus, var(--secondary));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+.input:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 18%, transparent);
+}

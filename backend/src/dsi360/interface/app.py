@@ -4,10 +4,14 @@ Les routeurs des modules (incidents, demandes, projets, dashboard…) seront mon
 au fur et à mesure des lots (cf. docs/07-ROADMAP.md). Architecture en couches : cf. docs/01.
 """
 
+from pathlib import Path
+
 from fastapi import APIRouter, FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from dsi360.config import get_settings
+from dsi360.config import Settings, get_settings
 from dsi360.infrastructure.db import get_engine
 from dsi360.interface.routeurs import (
     administration,
@@ -30,6 +34,28 @@ from dsi360.interface.routeurs import (
     risques,
     tableau_de_bord,
 )
+
+
+def _monter_frontend(app: FastAPI, settings: Settings) -> None:
+    """Sert la SPA (build Vite) directement depuis l'API — prod native sans reverse-proxy statique.
+
+    Les routes /api/*, /healthz, /readyz sont enregistrées avant : elles gardent la priorité.
+    Le catch-all renvoie le fichier demandé s'il existe, sinon index.html (routage SPA côté client).
+    """
+    defaut = Path(__file__).resolve().parents[4] / "frontend" / "dist"
+    dist = Path(settings.frontend_dist) if settings.frontend_dist else defaut
+    if not dist.is_dir():
+        return
+    assets = dist / "assets"
+    if assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets), name="assets")
+
+    @app.get("/{chemin:path}", include_in_schema=False)
+    async def spa(chemin: str) -> FileResponse:
+        cible = dist / chemin
+        if chemin and cible.is_file():
+            return FileResponse(cible)
+        return FileResponse(dist / "index.html")
 
 
 def creer_app() -> FastAPI:
@@ -77,6 +103,8 @@ def creer_app() -> FastAPI:
     v1.include_router(gouvernance.routeur)
     v1.include_router(projets.routeur)
     app.include_router(v1)
+    if settings.servir_frontend:
+        _monter_frontend(app, settings)
     return app
 
 

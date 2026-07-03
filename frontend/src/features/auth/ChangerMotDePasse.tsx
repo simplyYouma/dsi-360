@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Dices } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/design-system/ThemeProvider';
 import { api, ErreurApi } from '@/lib/api';
+import { genererMotDePasse } from '@/common/motDePasse';
 import logoClair from '@/assets/brand/logo1.svg';
 import logoSombre from '@/assets/brand/logo1-blanc.svg';
 import styles from './LoginPage.module.css';
@@ -21,6 +22,13 @@ export function ChangerMotDePasse(): JSX.Element {
   const [visible, setVisible] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+
+  const suggerer = (): void => {
+    const propose = genererMotDePasse();
+    setNouveau(propose);
+    setConfirme(propose);
+    setVisible(true); // on l'affiche pour qu'il puisse être noté/copié
+  };
 
   const soumettre = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
@@ -79,13 +87,24 @@ export function ChangerMotDePasse(): JSX.Element {
 
         <label className={styles.champ}>
           <span className={styles.label}>Nouveau mot de passe</span>
-          <input
-            type={visible ? 'text' : 'password'}
-            value={nouveau}
-            onChange={(e) => setNouveau(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
+          <div className={styles.motDePasse}>
+            <input
+              type={visible ? 'text' : 'password'}
+              value={nouveau}
+              onChange={(e) => setNouveau(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className={styles.oeil}
+              onClick={suggerer}
+              aria-label="Générer un mot de passe aléatoire"
+              title="Générer un mot de passe aléatoire"
+            >
+              <Dices size={18} />
+            </button>
+          </div>
         </label>
 
         <label className={styles.champ}>

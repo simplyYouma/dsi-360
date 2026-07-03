@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Check, Search } from 'lucide-react';
 import { cx } from './cx';
 import styles from './SelecteurListe.module.css';
 
@@ -19,10 +19,18 @@ interface Props {
 
 /** Liste déroulante maison (popover) — aucun composant natif navigateur. */
 interface Position {
-  top: number;
   left: number;
   width: number;
+  maxHeight: number;
+  /** Ancrage : ouverture vers le bas (top) ou vers le haut (bottom). */
+  top?: number;
+  bottom?: number;
 }
+
+const MARGE = 4;
+const ESPACE_MINI = 200;
+// Au-delà de ce nombre d'options, on affiche un champ de recherche (filtre au clavier).
+const SEUIL_RECHERCHE = 7;
 
 export function SelecteurListe({
   options,
@@ -34,13 +42,40 @@ export function SelecteurListe({
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
+  const [filtre, setFiltre] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const declencheur = useRef<HTMLButtonElement>(null);
 
+  const recherche = options.length > SEUIL_RECHERCHE;
+  const optionsFiltrees = useMemo(() => {
+    const q = filtre.trim().toLowerCase();
+    if (q === '') return options;
+    return options.filter((o) => o.libelle.toLowerCase().includes(q));
+  }, [options, filtre]);
+
   // Popover en position fixe : il échappe au défilement/clipping (modale) et passe au-dessus.
+  // Bascule vers le haut quand l'espace sous le champ est insuffisant (champ en bas de modale).
   const calculer = (): void => {
     const r = declencheur.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    if (!r) return;
+    const dessous = window.innerHeight - r.bottom;
+    const dessus = r.top;
+    const versHaut = dessous < ESPACE_MINI && dessus > dessous;
+    if (versHaut) {
+      setPos({
+        left: r.left,
+        width: r.width,
+        bottom: window.innerHeight - r.top + MARGE,
+        maxHeight: Math.max(160, dessus - 2 * MARGE),
+      });
+    } else {
+      setPos({
+        left: r.left,
+        width: r.width,
+        top: r.bottom + MARGE,
+        maxHeight: Math.max(160, dessous - 2 * MARGE),
+      });
+    }
   };
 
   useEffect(() => {
@@ -65,13 +100,17 @@ export function SelecteurListe({
   }, [ouvert]);
 
   const basculer = (): void => {
-    if (!ouvert) calculer();
+    if (!ouvert) {
+      setFiltre('');
+      calculer();
+    }
     setOuvert((o) => !o);
   };
 
   const courant = options.find((o) => o.valeur === valeur);
   const choisir = (v: string | null): void => {
     onChange(v);
+    setFiltre('');
     setOuvert(false);
   };
 
@@ -85,31 +124,62 @@ export function SelecteurListe({
       </button>
 
       {ouvert && pos !== null && (
-        <ul
-          className={styles.liste}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
+        <div
+          className={styles.popover}
+          style={{
+            position: 'fixed',
+            top: pos.top,
+            bottom: pos.bottom,
+            left: pos.left,
+            width: pos.width,
+            maxHeight: pos.maxHeight,
+          }}
         >
-          {permettreVide && (
-            <li>
-              <button type="button" className={styles.option} onClick={() => choisir(null)}>
-                <span>{libelleVide}</span>
-                {valeur === null && <Check size={15} />}
-              </button>
-            </li>
+          {recherche && (
+            <div className={styles.rechercheZone}>
+              <Search size={15} className={styles.rechercheIcone} />
+              <input
+                autoFocus
+                className={styles.recherche}
+                value={filtre}
+                placeholder="Rechercher…"
+                onChange={(e) => setFiltre(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const premier = optionsFiltrees[0];
+                    if (premier) choisir(premier.valeur);
+                  } else if (e.key === 'Escape') {
+                    setOuvert(false);
+                  }
+                }}
+              />
+            </div>
           )}
-          {options.map((o) => (
-            <li key={o.valeur}>
-              <button
-                type="button"
-                className={cx(styles.option, o.valeur === valeur && styles.optionActive)}
-                onClick={() => choisir(o.valeur)}
-              >
-                <span>{o.libelle}</span>
-                {o.valeur === valeur && <Check size={15} />}
-              </button>
-            </li>
-          ))}
-        </ul>
+          <ul className={styles.liste}>
+            {permettreVide && filtre.trim() === '' && (
+              <li>
+                <button type="button" className={styles.option} onClick={() => choisir(null)}>
+                  <span>{libelleVide}</span>
+                  {valeur === null && <Check size={15} />}
+                </button>
+              </li>
+            )}
+            {optionsFiltrees.map((o) => (
+              <li key={o.valeur}>
+                <button
+                  type="button"
+                  className={cx(styles.option, o.valeur === valeur && styles.optionActive)}
+                  onClick={() => choisir(o.valeur)}
+                >
+                  <span>{o.libelle}</span>
+                  {o.valeur === valeur && <Check size={15} />}
+                </button>
+              </li>
+            ))}
+            {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
+          </ul>
+        </div>
       )}
     </div>
   );

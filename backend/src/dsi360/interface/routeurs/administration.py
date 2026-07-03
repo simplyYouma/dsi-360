@@ -1,5 +1,6 @@
 """Administration (§9) : utilisateurs, matrice d'accès, journal d'audit."""
 
+import re
 import secrets
 from typing import Annotated, Any
 
@@ -7,14 +8,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.config import get_settings
 from dsi360.config.acces import MODULES
 from dsi360.domain.texte import nom_propre
-from dsi360.infrastructure import audit
+from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 from dsi360.interface.schemas import (
+    CategorieItem,
+    CreationCategorie,
     CreationReponse,
     CreationUtilisateur,
     DirectionItem,
@@ -51,11 +55,121 @@ async def directions(courant: Courant, session: Session) -> list[dict[str, Any]]
     return [dict(x) for x in r.mappings().all()]
 
 
+# --- Catégories (paramétrage) ---
+
+# Modules dont les catégories sont un vocabulaire fixe (non éditable). Le « type » de changement
+# (Standard/Normal/Urgent) pilote le circuit CAB/ECAB et le calcul de priorité : il ne s'ajoute ni
+# ne se supprime.
+_MODULES_CATEGORIE_VERROUILLES: frozenset[str] = frozenset({"changement"})
+
+
+def _code_categorie(libelle: str) -> str:
+    """Code technique stable dérivé du libellé (MAJUSCULES, alphanumérique, séparé par '_')."""
+    code = re.sub(r"[^A-Z0-9]+", "_", libelle.upper()).strip("_")
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Libellé de catégorie invalide.",
+        )
+    return code
+
+
+@routeur.post("/categories", response_model=CategorieItem, status_code=status.HTTP_201_CREATED)
+async def creer_categorie(
+    corps: CreationCategorie, courant: Courant, session: Session
+) -> dict[str, str]:
+    if corps.module not in MODULES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Module inconnu."
+        )
+    if corps.module in _MODULES_CATEGORIE_VERROUILLES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Les types de ce module sont fixes et ne peuvent pas être ajoutés.",
+        )
+    libelle = corps.libelle.strip()
+    code = _code_categorie(libelle)
+    if await session.scalar(
+        text("SELECT 1 FROM core.categorie WHERE module = :m AND code = :c"),
+        {"m": corps.module, "c": code},
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Cette catégorie existe déjà."
+        )
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.categorie (module, code, libelle) VALUES (:m, :c, :l) "
+                "RETURNING id::text AS id, code, libelle"
+            ),
+            {"m": corps.module, "c": code, "l": libelle},
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="categorie",
+        cible_id=f"{corps.module}/{libelle}",
+        nouvelle={"module": corps.module, "code": code, "libelle": libelle},
+    )
+    return dict(ligne)
+
+
+@routeur.delete("/categories/{ident}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_categorie(ident: str, courant: Courant, session: Session) -> None:
+    cat = (
+        await session.execute(
+            text("SELECT module, libelle FROM core.categorie WHERE id = cast(:id as uuid)"),
+            {"id": ident},
+        )
+    ).mappings().first()
+    if cat is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catégorie introuvable.")
+    if cat["module"] in _MODULES_CATEGORIE_VERROUILLES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Les types de ce module sont fixes et ne peuvent pas être supprimés.",
+        )
+    utilisee = await session.scalar(
+        text("SELECT count(*) FROM core.activite WHERE categorie_id = cast(:id as uuid)"),
+        {"id": ident},
+    )
+    if utilisee:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Catégorie utilisée par des activités — impossible de la supprimer.",
+        )
+    ligne = (
+        await session.execute(
+            text(
+                "DELETE FROM core.categorie WHERE id = cast(:id as uuid) "
+                "RETURNING module, libelle"
+            ),
+            {"id": ident},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catégorie introuvable.")
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="categorie",
+        cible_id=f"{ligne['module']}/{ligne['libelle']}",
+        ancienne={"module": ligne["module"], "libelle": ligne["libelle"]},
+    )
+
+
 # --- Utilisateurs ---
 
 _CHAMPS_U = (
     "u.id::text AS id, u.email, u.nom, u.prenom, p.code AS profil, p.libelle AS profil_libelle, "
-    "d.code AS direction, u.actif, u.doit_changer_mdp"
+    "d.code AS direction, u.actif, u.expire_le, u.doit_changer_mdp"
 )
 _BASE_U = (
     "FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
@@ -80,10 +194,24 @@ async def lister_utilisateurs(
     }
 
 
+def _valider_domaine_email(email: str) -> None:
+    """Impose un domaine e-mail professionnel autorisé (paramétrable). Rejette sinon."""
+    domaines = get_settings().domaines_email
+    if not domaines:
+        return
+    _, _, domaine = email.partition("@")
+    if domaine.lower() not in domaines:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"E-mail non autorisé : domaine attendu {', '.join(domaines)}.",
+        )
+
+
 @routeur.post("/utilisateurs", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)
 async def creer_utilisateur(
     corps: CreationUtilisateur, courant: Courant, session: Session
 ) -> dict[str, str]:
+    _valider_domaine_email(corps.email)
     if await session.scalar(
         text("SELECT 1 FROM core.utilisateur WHERE lower(email) = lower(:e)"), {"e": corps.email}
     ):
@@ -92,9 +220,10 @@ async def creer_utilisateur(
         text(
             "INSERT INTO core.utilisateur"
             "(email, nom, prenom, profil_id, direction_id, source_auth, mot_de_passe_hash, "
-            " doit_changer_mdp) VALUES (:email, :nom, :prenom, "
+            " doit_changer_mdp, expire_le) VALUES (:email, :nom, :prenom, "
             " (SELECT id FROM core.profil WHERE code = :profil), "
-            " (SELECT id FROM core.direction WHERE code = :direction), 'LOCAL', :hash, true) "
+            " (SELECT id FROM core.direction WHERE code = :direction), 'LOCAL', :hash, true, "
+            " :expire_le) "
             "RETURNING id::text"
         ),
         {
@@ -104,6 +233,7 @@ async def creer_utilisateur(
             "profil": corps.profil_code,
             "direction": corps.direction_code,
             "hash": hacher_mot_de_passe(corps.mot_de_passe),
+            "expire_le": corps.expire_le,
         },
     )
     await audit.consigner(
@@ -115,6 +245,10 @@ async def creer_utilisateur(
         cible_type="utilisateur",
         cible_id=corps.email,
     )
+    sujet, texte, html = email_modeles.bienvenue(
+        corps.prenom, corps.email, corps.mot_de_passe, f"{get_settings().url_app}/"
+    )
+    email.envoyer(corps.email, sujet, texte, html)
     return {"id": str(ident)}
 
 
@@ -122,16 +256,26 @@ async def creer_utilisateur(
 async def modifier_utilisateur(
     ident: str, corps: MajUtilisateur, courant: Courant, session: Session
 ) -> None:
-    existe = await session.scalar(
-        text("SELECT 1 FROM core.utilisateur WHERE id::text = :id"), {"id": ident}
-    )
-    if existe is None:
+    avant = (
+        await session.execute(
+            text("SELECT actif, email, prenom FROM core.utilisateur WHERE id::text = :id"),
+            {"id": ident},
+        )
+    ).mappings().first()
+    if avant is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable."
+        )
+    # Garde : un administrateur ne peut ni se bloquer ni se donner une expiration (anti-lockout).
+    if ident == str(courant["id"]) and (not corps.actif or corps.expire_le is not None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vous ne pouvez pas bloquer ou faire expirer votre propre compte.",
         )
     await session.execute(
         text(
             "UPDATE core.utilisateur SET nom = :nom, prenom = :prenom, actif = :actif, "
+            "expire_le = :expire_le, "
             "profil_id = (SELECT id FROM core.profil WHERE code = :profil), "
             "direction_id = (SELECT id FROM core.direction WHERE code = :direction) "
             "WHERE id::text = :id"
@@ -141,6 +285,7 @@ async def modifier_utilisateur(
             "nom": nom_propre(corps.nom),
             "prenom": nom_propre(corps.prenom),
             "actif": corps.actif,
+            "expire_le": corps.expire_le,
             "profil": corps.profil_code,
             "direction": corps.direction_code,
         },
@@ -154,6 +299,10 @@ async def modifier_utilisateur(
         cible_type="utilisateur",
         cible_id=ident,
     )
+    # Notifie l'utilisateur si son accès vient d'être bloqué.
+    if avant["actif"] and not corps.actif:
+        sujet, texte, html = email_modeles.compte_bloque(avant["prenom"])
+        email.envoyer(avant["email"], sujet, texte, html)
 
 
 @routeur.post("/utilisateurs/{ident}/reinitialiser-mdp")

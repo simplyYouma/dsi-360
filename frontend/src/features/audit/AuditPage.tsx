@@ -5,10 +5,13 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { SelecteurCategorie } from '@/common/SelecteurCategorie';
+import { SelecteurGestionnaire } from '@/common/SelecteurGestionnaire';
+import { ApercuEcheance } from '@/common/ApercuEcheance';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
-import { cx } from '@/common/cx';
+import { useAuth } from '@/lib/auth';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { auditApi, type Categorie, type Recommandation } from './auditApi';
@@ -49,6 +52,7 @@ export function AuditPage(): JSX.Element {
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
   const [categorie, setCategorie] = useState<string | null>(null);
+  const [gestionnaire, setGestionnaire] = useState<string | null>(null);
   const [impact, setImpact] = useState(3);
   const [urgence, setUrgence] = useState(3);
   const [envoi, setEnvoi] = useState(false);
@@ -72,9 +76,15 @@ export function AuditPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
-  useEffect(() => {
+  const { moi } = useAuth();
+  const gerable = moi?.acces.includes('administration') ?? false;
+
+  const chargerCategories = useCallback((): void => {
     void auditApi.categories().then(setCategories);
   }, []);
+  useEffect(() => {
+    chargerCategories();
+  }, [chargerCategories]);
 
   const creer = async (): Promise<void> => {
     setErreur(null);
@@ -86,11 +96,13 @@ export function AuditPage(): JSX.Element {
         impact,
         urgence,
         categorie_id: categorie,
+        responsable_id: gestionnaire,
       });
       setModale(false);
       setTitre('');
       setDescription('');
       setCategorie(null);
+      setGestionnaire(null);
       setImpact(3);
       setUrgence(3);
       if (page === 1) await charger(1);
@@ -141,6 +153,8 @@ export function AuditPage(): JSX.Element {
         base="/audit"
         id={ficheId}
         assignable
+        labelCategorie="Source"
+        moduleCategorie="audit"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />
@@ -164,21 +178,20 @@ export function AuditPage(): JSX.Element {
           <span>Recommandation</span>
           <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Intitulé de la recommandation" />
         </label>
-        <div className={styles.champ}>
-          <span>Source</span>
-          <div className={styles.chips}>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={cx(c.id === categorie ? styles.chipActif : styles.chip)}
-                onClick={() => setCategorie(c.id)}
-              >
-                {c.libelle}
-              </button>
-            ))}
+        {categories.length > 0 && (
+          <div className={styles.champ}>
+            <span>Source</span>
+            <SelecteurCategorie
+              categories={categories}
+              valeur={categorie}
+              onChange={setCategorie}
+              module="audit"
+              gerable={gerable}
+              onModifie={chargerCategories}
+            />
           </div>
-        </div>
+        )}
+        <SelecteurGestionnaire valeur={gestionnaire} onChange={setGestionnaire} />
         <label className={styles.champ}>
           <span>Plan d'action</span>
           <textarea
@@ -198,6 +211,7 @@ export function AuditPage(): JSX.Element {
             <CurseurNiveau valeur={urgence} onChange={setUrgence} />
           </div>
         </div>
+        <ApercuEcheance impact={impact} urgence={urgence} />
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
     </div>

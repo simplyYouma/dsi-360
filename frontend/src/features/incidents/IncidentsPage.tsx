@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
-import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
-import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
 import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { BadgeStatut } from '@/common/statuts';
-import { ErreurApi } from '@/lib/api';
 import { incidentsApi, assignerLot, type Incident, type FiltresListe } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
 
@@ -45,7 +42,6 @@ const COLONNES: Colonne<Incident>[] = [
     entete: 'SLA',
     rendu: (i) => <SablierSla echeance={i.sla_resolution_le} debut={i.cree_le} statut={i.statut_sla} />,
   },
-  { cle: 'demandeur', entete: 'Demandeur', rendu: (i) => i.demandeur ?? '—' },
   {
     cle: 'gestionnaire',
     entete: 'Gestionnaire',
@@ -71,19 +67,10 @@ export function IncidentsPage(): JSX.Element {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [chargement, setChargement] = useState(true);
-  const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
   const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
   const [selection, setSelection] = useState<Set<string>>(new Set());
-
-  const [titre, setTitre] = useState('');
-  const [demandeur, setDemandeur] = useState('');
-  const [description, setDescription] = useState('');
-  const [impact, setImpact] = useState(3);
-  const [urgence, setUrgence] = useState(3);
-  const [envoi, setEnvoi] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(
     async (p: number): Promise<void> => {
@@ -103,32 +90,6 @@ export function IncidentsPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
-  const creer = async (): Promise<void> => {
-    setErreur(null);
-    setEnvoi(true);
-    try {
-      await incidentsApi.creer({
-        titre: titre.trim(),
-        description: description.trim(),
-        impact,
-        urgence,
-        demandeur: demandeur.trim() === '' ? null : demandeur.trim(),
-      });
-      setModale(false);
-      setTitre('');
-      setDemandeur('');
-      setDescription('');
-      setImpact(3);
-      setUrgence(3);
-      if (page === 1) await charger(1);
-      else setPage(1);
-    } catch (err) {
-      setErreur(err instanceof ErreurApi ? err.message : 'Création impossible.');
-    } finally {
-      setEnvoi(false);
-    }
-  };
-
   return (
     <div className={styles.page}>
       <header className={styles.entete}>
@@ -136,13 +97,7 @@ export function IncidentsPage(): JSX.Element {
           <h1 className={styles.titre}>Incidents</h1>
           <p className={styles.sous}>Gestion des incidents du système d'information.</p>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-          <BoutonsExport base="/incidents" />
-          <Button onClick={() => setModale(true)}>
-            <Plus size={16} />
-            Nouvel incident
-          </Button>
-        </div>
+        <BoutonsExport base="/incidents" />
       </header>
 
       <FiltreTickets
@@ -206,62 +161,10 @@ export function IncidentsPage(): JSX.Element {
         base="/incidents"
         id={ficheId}
         assignable
+        moduleCategorie="incident"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />
-
-      <Modale
-        ouverte={modale}
-        onFermer={() => setModale(false)}
-        titre="Nouvel incident"
-        pied={
-          <>
-            <Button variante="secondaire" onClick={() => setModale(false)}>
-              Annuler
-            </Button>
-            <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3}>
-              {envoi ? 'Création…' : 'Créer'}
-            </Button>
-          </>
-        }
-      >
-        <label className={styles.champ}>
-          <span>Titre</span>
-          <input
-            value={titre}
-            onChange={(e) => setTitre(e.target.value)}
-            placeholder="Décrivez l'incident en une phrase"
-          />
-        </label>
-        <label className={styles.champ}>
-          <span>Demandeur</span>
-          <input
-            value={demandeur}
-            onChange={(e) => setDemandeur(e.target.value)}
-            placeholder="Agent qui remonte l'incident (Prénom NOM)"
-          />
-        </label>
-        <label className={styles.champ}>
-          <span>Description</span>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder="Contexte, impact observé, étapes…"
-          />
-        </label>
-        <div className={styles.niveaux}>
-          <div className={styles.champ}>
-            <span>Impact</span>
-            <CurseurNiveau valeur={impact} onChange={setImpact} />
-          </div>
-          <div className={styles.champ}>
-            <span>Urgence</span>
-            <CurseurNiveau valeur={urgence} onChange={setUrgence} />
-          </div>
-        </div>
-        {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
-      </Modale>
     </div>
   );
 }

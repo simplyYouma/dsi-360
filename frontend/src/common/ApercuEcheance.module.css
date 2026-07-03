@@ -1,0 +1,38 @@
+.apercu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+.tete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.icone {
+  color: var(--text-muted);
+  flex: none;
+}
+.label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-right: auto;
+}
+.cibles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.cibles strong {
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.date {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Activity, Gauge, Timer, AlertTriangle, FileDown, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Activity, Gauge, Timer, AlertTriangle, type LucideIcon } from 'lucide-react';
 import {
   PieChart,
   Pie,
@@ -17,11 +17,11 @@ import {
   Scatter,
   ZAxis,
 } from 'recharts';
-import { Card, Button } from '@/design-system/primitives';
+import { Card } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { infobulle } from '@/common/infobulle';
-import { telecharger } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
 import {
@@ -345,6 +345,7 @@ export function AnalysesPage(): JSX.Element {
   const [onglet, setOnglet] = useState<CleOnglet>('apercu');
   const [gestSel, setGestSel] = useState<string | null>(null);
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
+  const contenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void analysesApi.charger(jours).then(setA);
@@ -410,18 +411,11 @@ export function AnalysesPage(): JSX.Element {
               </button>
             ))}
           </div>
-          <Button
-            variante="secondaire"
-            onClick={() =>
-              void telecharger(`/analyses/rapport.pdf${jours !== null ? `?jours=${jours}` : ''}`)
-            }
-          >
-            <FileDown size={16} />
-            Exporter PDF
-          </Button>
+          <BoutonExportPdf cible={contenuRef} titre="Analyses DSI" nomFichier="dsi360-analyses.pdf" />
         </div>
       </header>
 
+      <div ref={contenuRef} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <section className={styles.kpiRow}>
         {KPIS.map((k) => {
           const Icone = k.icone;
@@ -703,6 +697,7 @@ export function AnalysesPage(): JSX.Element {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

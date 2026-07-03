@@ -3,5 +3,10 @@
 from dsi360.interface.routeurs.activites_communs import creer_routeur
 
 routeur = creer_routeur(
-    module="changement", acces="changements", prefixe="/changements", tag="changements"
+    module="changement",
+    acces="changements",
+    prefixe="/changements",
+    tag="changements",
+    avec_taches=True,
+    editable=True,
 )

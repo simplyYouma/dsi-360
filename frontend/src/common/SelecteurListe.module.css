@@ -32,18 +32,54 @@
   transform: rotate(180deg);
 }
 
-.liste {
-  /* position/coords fournies en inline (fixed) ; passe au-dessus de la modale (z 1000). */
+/* Conteneur du popover (position/coords en inline, fixed) : passe au-dessus de la modale. */
+.popover {
   z-index: 1200;
-  list-style: none;
-  max-height: 240px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+/* Champ de recherche (filtre clavier) — collé en haut du popover. */
+.rechercheZone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.rechercheIcone {
+  color: var(--text-muted);
+  flex: none;
+}
+.recherche {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-family: inherit;
+}
+.recherche:focus {
+  outline: none;
+}
+.liste {
+  list-style: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: var(--space-1);
+}
+.aucun {
+  padding: var(--space-3);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 .option {
   display: flex;

@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from dsi360.domain.activite import calculer_criticite, calculer_priorite
 from dsi360.domain.etats import (
     etat_initial,
+    etats_terminaux,
     ordre_etats,
     transition_autorisee,
     transitions_possibles,
@@ -64,25 +65,38 @@ class TestEtats:
         assert ordre[0] == "Nouveau"
         assert "Clôturé" in ordre
 
+    def test_etats_terminaux(self) -> None:
+        # États sans suite possible : « Mes tickets » s'en sert pour sortir les cartes mortes.
+        assert etats_terminaux("incident") == ["Annulé"]
+        assert etats_terminaux("demande") == ["Rejetée"]
+        assert "Rejeté" in etats_terminaux("changement")
+        assert etats_terminaux("gouvernance") == ["Réalisé"]
+        # « Résolu » n'est PAS terminal (il reste à clôturer) : encore en file active.
+        assert "Résolu" not in etats_terminaux("incident")
+
+    def test_etats_terminaux_module_inconnu(self) -> None:
+        with pytest.raises(ValueError):
+            etats_terminaux("inexistant")
+
 
 class TestSla:
     def test_echeances_p1(self) -> None:
-        debut = datetime(2026, 6, 17, 8, 0, tzinfo=timezone.utc)
+        debut = datetime(2026, 6, 17, 8, 0, tzinfo=UTC)
         ech = echeances(priorite=1, debut=debut)
         assert ech.prise_en_charge_le == debut + timedelta(minutes=15)
         assert ech.resolution_le == debut + timedelta(hours=4)
 
     def test_statut_depasse(self) -> None:
-        ech = datetime(2026, 6, 17, 8, 0, tzinfo=timezone.utc)
-        maintenant = datetime(2026, 6, 17, 9, 0, tzinfo=timezone.utc)
+        ech = datetime(2026, 6, 17, 8, 0, tzinfo=UTC)
+        maintenant = datetime(2026, 6, 17, 9, 0, tzinfo=UTC)
         assert statut_sla(ech, maintenant, timedelta(minutes=30)) == "depasse"
 
     def test_statut_approche(self) -> None:
-        ech = datetime(2026, 6, 17, 9, 0, tzinfo=timezone.utc)
-        maintenant = datetime(2026, 6, 17, 8, 45, tzinfo=timezone.utc)
+        ech = datetime(2026, 6, 17, 9, 0, tzinfo=UTC)
+        maintenant = datetime(2026, 6, 17, 8, 45, tzinfo=UTC)
         assert statut_sla(ech, maintenant, timedelta(minutes=30)) == "approche"
 
     def test_statut_a_lheure(self) -> None:
-        ech = datetime(2026, 6, 17, 12, 0, tzinfo=timezone.utc)
-        maintenant = datetime(2026, 6, 17, 8, 0, tzinfo=timezone.utc)
+        ech = datetime(2026, 6, 17, 12, 0, tzinfo=UTC)
+        maintenant = datetime(2026, 6, 17, 8, 0, tzinfo=UTC)
         assert statut_sla(ech, maintenant, timedelta(minutes=30)) == "a_lheure"

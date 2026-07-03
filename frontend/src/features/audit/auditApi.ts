@@ -11,6 +11,7 @@ export interface NouvelleRecommandation {
   impact: number;
   urgence: number;
   categorie_id: string | null;
+  responsable_id?: string | null;
 }
 
 export const auditApi = {

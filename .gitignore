@@ -3,6 +3,7 @@ node_modules/
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 
 # Build
 dist/
@@ -12,6 +13,8 @@ build/
 infra/env/.env
 *.env
 !*.env.example
+# Script de provisionnement DB natif : contient le mot de passe applicatif
+infra/local/provisionner-db.sql
 
 # Données / uploads locaux
 /data/

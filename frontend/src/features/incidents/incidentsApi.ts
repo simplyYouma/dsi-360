@@ -37,6 +37,13 @@ export interface NouvelIncident {
   impact: number;
   urgence: number;
   demandeur: string | null;
+  categorie_id?: string | null;
+  responsable_id?: string | null;
+}
+
+export interface CategorieRef {
+  id: string;
+  libelle: string;
 }
 
 export interface FiltresListe {
@@ -72,4 +79,6 @@ export const incidentsApi = {
   lister: (page: number, f?: FiltresListe): Promise<PageIncidents> =>
     api.get(`/incidents?${chaineFiltres(page, f)}`),
   creer: (corps: NouvelIncident): Promise<{ id: string }> => api.post('/incidents', corps),
+  categories: (): Promise<CategorieRef[]> =>
+    api.get('/referentiels/categories?module=incident'),
 };

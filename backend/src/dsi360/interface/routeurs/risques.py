@@ -15,6 +15,7 @@ from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.interface.schemas import (
     AssignationDemande,
+    CategorieDemande,
     CreationReponse,
     PageRisques,
     RisqueCreation,
@@ -67,6 +68,8 @@ def _detail(r: RowMapping) -> dict[str, Any]:
     return {
         **_resume(r),
         "description": r["description"],
+        "categorie": r["categorie"],
+        "categorie_id": str(r["categorie_id"]) if r["categorie_id"] is not None else None,
         "transitions_possibles": transitions_possibles(MODULE, r["statut"]),
         "etats": ordre_etats(MODULE),
     }
@@ -125,6 +128,7 @@ async def creer(corps: RisqueCreation, courant: Courant, session: Session) -> di
         description=corps.description,
         direction_id=corps.direction_id,
         responsable_id=corps.responsable_id,
+        categorie_id=corps.categorie_id,
         probabilite=corps.probabilite,
         impact=corps.impact,
         acteur=courant,
@@ -184,6 +188,42 @@ async def assigner(
         cible_id=avant["reference"],
         ancienne={"responsable_id": avant["resp_id"]},
         nouvelle={"responsable_id": corps.responsable_id},
+    )
+    await session.commit()
+    return await _detail_complet(session, await _charger(session, ident, courant))
+
+
+@routeur.post("/{ident}/categorie", response_model=RisqueDetail)
+async def changer_categorie(
+    ident: str, corps: CategorieDemande, courant: Courant, session: Session
+) -> dict[str, Any]:
+    avant = await _charger(session, ident, courant)
+    if corps.categorie_id is not None:
+        ok = await session.scalar(
+            text("SELECT 1 FROM core.categorie WHERE id::text = :c AND module = :m"),
+            {"c": corps.categorie_id, "m": MODULE},
+        )
+        if ok is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Catégorie inconnue pour ce module.",
+            )
+    await session.execute(
+        text(
+            "UPDATE core.activite SET categorie_id = cast(:c as uuid) "
+            "WHERE id = cast(:id as uuid)"
+        ),
+        {"c": corps.categorie_id, "id": ident},
+    )
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type=MODULE,
+        cible_id=avant["reference"],
+        nouvelle={"categorie_id": corps.categorie_id},
     )
     await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant))

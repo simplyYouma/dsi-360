@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from './cx';
 import styles from './SelecteurDate.module.css';
@@ -34,8 +34,10 @@ function formatFr(s: string): string {
 /** Sélecteur de date maison (calendrier en popover) — aucun composant natif navigateur. */
 export function SelecteurDate({ valeur, onChange, placeholder = 'Choisir une date' }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
+  const [pos, setPos] = useState<CSSProperties | null>(null);
   const [curseur, setCurseur] = useState<Date>(() => depuisIso(valeur) ?? new Date());
   const ref = useRef<HTMLDivElement>(null);
+  const declencheur = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const surClic = (e: MouseEvent): void => {
@@ -44,6 +46,20 @@ export function SelecteurDate({ valeur, onChange, placeholder = 'Choisir une dat
     document.addEventListener('mousedown', surClic);
     return () => document.removeEventListener('mousedown', surClic);
   }, []);
+
+  // Popover en position fixe (calcul au clic) : bascule vers le haut si peu de place en bas.
+  const basculer = (): void => {
+    const r = declencheur.current?.getBoundingClientRect();
+    if (r) {
+      const dessous = window.innerHeight - r.bottom;
+      setPos(
+        dessous < 340 && r.top > dessous
+          ? { position: 'fixed', bottom: window.innerHeight - r.top + 4, left: r.left }
+          : { position: 'fixed', top: r.bottom + 4, left: r.left },
+      );
+    }
+    setOuvert((o) => !o);
+  };
 
   const annee = curseur.getFullYear();
   const mois = curseur.getMonth();
@@ -63,15 +79,15 @@ export function SelecteurDate({ valeur, onChange, placeholder = 'Choisir une dat
 
   return (
     <div className={styles.conteneur} ref={ref}>
-      <button type="button" className={styles.champ} onClick={() => setOuvert((o) => !o)}>
+      <button ref={declencheur} type="button" className={styles.champ} onClick={basculer}>
         <Calendar size={16} />
         <span className={valeur ? styles.valeur : styles.placeholder}>
           {valeur ? formatFr(valeur) : placeholder}
         </span>
       </button>
 
-      {ouvert && (
-        <div className={styles.popover}>
+      {ouvert && pos !== null && (
+        <div className={styles.popover} style={pos}>
           <div className={styles.tete}>
             <button type="button" className={styles.nav} onClick={() => setCurseur(new Date(annee, mois - 1, 1))} aria-label="Mois précédent">
               <ChevronLeft size={16} />

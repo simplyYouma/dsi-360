@@ -68,12 +68,12 @@ sécurité réutilisés). La stack du cahier (Laravel/MySQL/Blade/AdminLTE) n'es
 |---|---|
 | Backend | **Python 3.12 + FastAPI + Pydantic v2**, SQLAlchemy async (DDD léger) |
 | Base de données | **PostgreSQL 16** |
-| File / tâches | **Celery + Redis** (échéances & dépassements SLA, notifications, synthèses programmées) |
+| File / tâches | **Différé** (échéances & dépassements SLA, notifications) — sans Celery/Redis ; réintroduit via APScheduler in-process ou tâche planifiée (cf. [ADR-0002](docs/adr/0002-execution-native-sans-docker.md)) |
 | Frontend | **React 18 + TypeScript strict + Vite** + **design system maison** (tokens, zéro composant natif) |
 | Graphiques | bibliothèque maîtrisée (ex. Recharts) — pas de template |
 | Authentification | **AD / LDAP / Microsoft 365 (OIDC Entra ID)** + JWT court + RBAC (7 profils) |
 | Exports | Excel (openpyxl), PDF (WeasyPrint/ReportLab), CSV |
-| Infra | **Docker Compose + Nginx + TLS** |
+| Infra | **Exécution native, sans Docker** ([ADR-0002](docs/adr/0002-execution-native-sans-docker.md)) : PostgreSQL natif + venv/uvicorn + Vite (dev) / FastAPI-StaticFiles (prod) ; TLS par reverse-proxy (IIS/Nginx) en prod |
 
 ## 6. Principes non négociables
 

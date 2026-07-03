@@ -8,10 +8,11 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.domain.etats import etats_terminaux
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import MesStats, MonTicket
@@ -22,20 +23,49 @@ Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(utilisateur_courant)]
 _FENETRE = timedelta(hours=2)
 
-_REQUETE = text(
-    "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
-    "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur, "
-    "(SELECT count(*) FROM core.commentaire cm WHERE cm.activite_id = a.id) AS nb_commentaires "
-    "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
-    "WHERE a.responsable_id = cast(:id as uuid) AND a.cloture_le IS NULL "
-    "AND a.module IN ('incident','demande','changement','audit','cybersecurite','gouvernance') "
-    "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST LIMIT 200"
-)
+_MODULES = "('incident','demande','changement','audit','cybersecurite','gouvernance')"
+_MODULES_LISTE = ("incident", "demande", "changement", "audit", "cybersecurite", "gouvernance")
+# « Terminé sans suite » : états sans transition possible (rejeté/annulé/réalisé/clôturé selon le
+# module). Complète la clôture (cloture_le) pour sortir aussi les cartes mortes de la file active.
+_TERMINAUX = sorted({etat for m in _MODULES_LISTE for etat in etats_terminaux(m)})
+
+# Condition de segment de la file (liste blanche — jamais d'entrée utilisateur dans le SQL).
+_SEGMENTS: dict[str, str] = {
+    "actifs": "a.cloture_le IS NULL AND a.statut NOT IN :term",
+    "resolus": "a.cloture_le IS NULL AND a.resolu_le IS NOT NULL AND a.statut NOT IN :term",
+    "termines": "(a.cloture_le IS NOT NULL OR a.statut IN :term)",
+    "tout": "TRUE",
+}
+
+
+def _requete_liste(segment: str) -> Any:
+    cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"])
+    sql = (
+        "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
+        "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur, "
+        "(SELECT count(*) FROM core.commentaire cm WHERE cm.activite_id = a.id) AS nb_commentaires "
+        "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
+        f"WHERE a.responsable_id = cast(:id as uuid) AND a.module IN {_MODULES} AND {cond} "
+        "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST LIMIT 200"
+    )
+    requete = text(sql)
+    if ":term" in cond:
+        requete = requete.bindparams(bindparam("term", expanding=True))
+    return requete
 
 
 @routeur.get("", response_model=list[MonTicket])
-async def mes_tickets(courant: Courant, session: Session) -> list[dict[str, Any]]:
-    lignes = (await session.execute(_REQUETE, {"id": courant["id"]})).mappings().all()
+async def mes_tickets(
+    courant: Courant,
+    session: Session,
+    segment: Annotated[str, Query()] = "actifs",
+) -> list[dict[str, Any]]:
+    if segment not in _SEGMENTS:
+        segment = "actifs"
+    params: dict[str, Any] = {"id": courant["id"]}
+    if segment != "tout":
+        params["term"] = _TERMINAUX
+    lignes = (await session.execute(_requete_liste(segment), params)).mappings().all()
     maintenant = datetime.now(UTC)
     resultat: list[dict[str, Any]] = []
     for r in lignes:
@@ -45,11 +75,11 @@ async def mes_tickets(courant: Courant, session: Session) -> list[dict[str, Any]
     return resultat
 
 
-_MODULES = "('incident','demande','changement','audit','cybersecurite','gouvernance')"
 _OUVERTS = text(
     "SELECT module, priorite, statut, sla_resolution_le, cree_le FROM core.activite "
-    f"WHERE responsable_id = cast(:id as uuid) AND cloture_le IS NULL AND module IN {_MODULES}"
-)
+    f"WHERE responsable_id = cast(:id as uuid) AND cloture_le IS NULL AND module IN {_MODULES} "
+    "AND statut NOT IN :term"
+).bindparams(bindparam("term", expanding=True))
 _RESOLUS = text(
     "SELECT cree_le, resolu_le, sla_resolution_le FROM core.activite "
     f"WHERE responsable_id = cast(:id as uuid) AND resolu_le IS NOT NULL AND module IN {_MODULES} "
@@ -66,7 +96,9 @@ def _comptes(valeurs: list[Any]) -> list[dict[str, Any]]:
 @routeur.get("/stats", response_model=MesStats)
 async def mes_stats(courant: Courant, session: Session) -> dict[str, Any]:
     maintenant = datetime.now(UTC)
-    ouverts = (await session.execute(_OUVERTS, {"id": courant["id"]})).mappings().all()
+    ouverts = (
+        await session.execute(_OUVERTS, {"id": courant["id"], "term": _TERMINAUX})
+    ).mappings().all()
     resolus = (
         await session.execute(
             _RESOLUS, {"id": courant["id"], "depuis": maintenant - timedelta(days=90)}

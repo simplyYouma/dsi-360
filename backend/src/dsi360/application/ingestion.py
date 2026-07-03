@@ -121,20 +121,24 @@ _UPSERT = text(
     " cast(:demandeur_externe_id as uuid), cast(:responsable_id as uuid), "
     " :priorite, :statut, :cree_le, :pris_en_charge_le, :resolu_le, :cloture_le, "
     " cast(:donnees as jsonb), 'IMPORT_SD', :source_id) "
+    # Ré-importation : on met à jour le cycle de vie (statut, priorité, échéances…) mais on NE
+    # TOUCHE PAS à l'état saisi dans l'app — responsable_id (gestionnaire assigné) est préservé,
+    # tout comme les commentaires et les contributeurs (tables séparées). Le gestionnaire du
+    # rapport source reste consultable dans donnees.gestionnaire.
     "ON CONFLICT (module, source_id) WHERE source_id IS NOT NULL DO UPDATE SET "
     " titre = excluded.titre, categorie_id = excluded.categorie_id, "
-    " demandeur_externe_id = excluded.demandeur_externe_id, responsable_id = excluded.responsable_id, "
+    " demandeur_externe_id = excluded.demandeur_externe_id, "
     " priorite = excluded.priorite, statut = excluded.statut, "
     " pris_en_charge_le = excluded.pris_en_charge_le, resolu_le = excluded.resolu_le, "
     " cloture_le = excluded.cloture_le, donnees = excluded.donnees "
     # On ne met à jour QUE si une donnée a réellement changé : sinon, ligne « inchangée ».
     " WHERE (core.activite.titre, core.activite.statut, core.activite.priorite, "
     "        core.activite.categorie_id, core.activite.demandeur_externe_id, "
-    "        core.activite.responsable_id, core.activite.pris_en_charge_le, "
+    "        core.activite.pris_en_charge_le, "
     "        core.activite.resolu_le, core.activite.cloture_le, core.activite.donnees) "
     " IS DISTINCT FROM "
     "       (excluded.titre, excluded.statut, excluded.priorite, excluded.categorie_id, "
-    "        excluded.demandeur_externe_id, excluded.responsable_id, excluded.pris_en_charge_le, "
+    "        excluded.demandeur_externe_id, excluded.pris_en_charge_le, "
     "        excluded.resolu_le, excluded.cloture_le, excluded.donnees) "
     # cree=True => insertion ; cree=False => mise à jour ; aucune ligne => inchangée.
     "RETURNING (xmax = 0) AS cree"

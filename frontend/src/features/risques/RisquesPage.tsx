@@ -5,10 +5,13 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { SelecteurCategorie } from '@/common/SelecteurCategorie';
+import { SelecteurGestionnaire } from '@/common/SelecteurGestionnaire';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeCriticite, BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
-import type { FiltresListe } from '@/features/incidents/incidentsApi';
+import { useAuth } from '@/lib/auth';
+import type { FiltresListe, CategorieRef } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { risquesApi, type Risque } from './risquesApi';
 
@@ -43,12 +46,25 @@ export function RisquesPage(): JSX.Element {
 
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
+  const [categories, setCategories] = useState<CategorieRef[]>([]);
+  const [categorie, setCategorie] = useState<string | null>(null);
+  const [gestionnaire, setGestionnaire] = useState<string | null>(null);
   const [probabilite, setProbabilite] = useState(3);
   const [impact, setImpact] = useState(3);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const criticite = Math.ceil((probabilite + impact) / 2);
+
+  const { moi } = useAuth();
+  const gerable = moi?.acces.includes('administration') ?? false;
+
+  const chargerCategories = useCallback((): void => {
+    void risquesApi.categories().then(setCategories);
+  }, []);
+  useEffect(() => {
+    chargerCategories();
+  }, [chargerCategories]);
 
   const charger = useCallback(
     async (p: number): Promise<void> => {
@@ -72,10 +88,19 @@ export function RisquesPage(): JSX.Element {
     setErreur(null);
     setEnvoi(true);
     try {
-      await risquesApi.creer({ titre: titre.trim(), description: description.trim(), probabilite, impact });
+      await risquesApi.creer({
+        titre: titre.trim(),
+        description: description.trim(),
+        probabilite,
+        impact,
+        categorie_id: categorie,
+        responsable_id: gestionnaire,
+      });
       setModale(false);
       setTitre('');
       setDescription('');
+      setCategorie(null);
+      setGestionnaire(null);
       setProbabilite(3);
       setImpact(3);
       if (page === 1) await charger(1);
@@ -126,6 +151,7 @@ export function RisquesPage(): JSX.Element {
         base="/risques"
         id={ficheId}
         assignable
+        moduleCategorie="risque"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
       />
@@ -158,6 +184,20 @@ export function RisquesPage(): JSX.Element {
             placeholder="Scénario, causes, conséquences…"
           />
         </label>
+        {categories.length > 0 && (
+          <div className={styles.champ}>
+            <span>Catégorie</span>
+            <SelecteurCategorie
+              categories={categories}
+              valeur={categorie}
+              onChange={setCategorie}
+              module="risque"
+              gerable={gerable}
+              onModifie={chargerCategories}
+            />
+          </div>
+        )}
+        <SelecteurGestionnaire valeur={gestionnaire} onChange={setGestionnaire} />
         <div className={styles.niveaux}>
           <div className={styles.champ}>
             <span>Probabilité</span>

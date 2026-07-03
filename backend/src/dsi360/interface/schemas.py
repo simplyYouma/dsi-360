@@ -1,6 +1,7 @@
 """Schémas Pydantic d'entrée/sortie de l'API (couche interface)."""
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,15 @@ class Rafraichissement(BaseModel):
 
 class ChangementMotDePasse(BaseModel):
     ancien: str = Field(min_length=1)
+    nouveau: str = Field(min_length=8)
+
+
+class MotDePasseOublie(BaseModel):
+    email: str = Field(min_length=3, max_length=160)
+
+
+class Reinitialisation(BaseModel):
+    jeton: str = Field(min_length=10)
     nouveau: str = Field(min_length=8)
 
 
@@ -42,6 +52,15 @@ class MoiReponse(BaseModel):
 
 
 class ResponsableBref(BaseModel):
+    prenom: str
+    nom: str
+    email: str
+
+
+class Contributeur(BaseModel):
+    """Acteur secondaire : commente et suit l'activité, sans en être responsable."""
+
+    id: str
     prenom: str
     nom: str
     email: str
@@ -84,6 +103,7 @@ class ActiviteResume(BaseModel):
 
 class ActiviteDetail(ActiviteResume):
     description: str | None
+    categorie_id: str | None = None
     impact: int | None
     urgence: int | None
     sla_prise_en_charge_le: datetime | None
@@ -92,6 +112,9 @@ class ActiviteDetail(ActiviteResume):
     transitions_possibles: list[str]
     etats: list[str]
     historique: list[EntreeHistorique]
+    contributeurs: list[Contributeur] = []
+    # Avancement dérivé des tâches (modules avec tâches : changement…). 0 sinon.
+    avancement: int = 0
 
 
 class PageActivites(BaseModel):
@@ -107,6 +130,21 @@ class TransitionDemande(BaseModel):
 
 class AssignationDemande(BaseModel):
     responsable_id: str | None = None
+
+
+class CategorieDemande(BaseModel):
+    categorie_id: str | None = None
+
+
+class ActiviteMaj(BaseModel):
+    """Édition en place d'une activité (titre / description) depuis sa fiche."""
+
+    titre: str | None = Field(default=None, min_length=3, max_length=200)
+    description: str | None = None
+
+
+class ContributeurDemande(BaseModel):
+    utilisateur_id: str = Field(min_length=1)
 
 
 class AssignationLot(BaseModel):
@@ -181,6 +219,20 @@ class CategorieItem(BaseModel):
     id: str
     code: str
     libelle: str
+
+
+class CreationCategorie(BaseModel):
+    module: str = Field(min_length=1, max_length=40)
+    libelle: str = Field(min_length=1, max_length=80)
+
+
+class DocumentItem(BaseModel):
+    id: str
+    nom: str
+    type_mime: str
+    taille: int
+    depose_par: str | None
+    depose_le: datetime
 
 
 # --- Notifications ---
@@ -295,6 +347,7 @@ class UtilisateurResume(BaseModel):
     profil_libelle: str
     direction: str | None
     actif: bool
+    expire_le: datetime | None = None
     doit_changer_mdp: bool
 
 
@@ -312,6 +365,7 @@ class CreationUtilisateur(BaseModel):
     profil_code: str
     direction_code: str | None = None
     mot_de_passe: str = Field(min_length=8)
+    expire_le: datetime | None = None
 
 
 class MajUtilisateur(BaseModel):
@@ -320,6 +374,7 @@ class MajUtilisateur(BaseModel):
     profil_code: str
     direction_code: str | None = None
     actif: bool
+    expire_le: datetime | None = None
 
 
 class RoleAcces(BaseModel):
@@ -377,6 +432,18 @@ class ProjetCreation(BaseModel):
     date_fin: str | None = None
 
 
+class ProjetMaj(BaseModel):
+    """Édition en place du cadrage d'un projet (tous champs optionnels)."""
+
+    titre: str | None = Field(default=None, min_length=3, max_length=200)
+    description: str | None = None
+    sponsor: str | None = None
+    budget: float | None = None
+    date_debut: str | None = None
+    date_fin: str | None = None
+    responsable_id: str | None = None
+
+
 class ProjetResume(BaseModel):
     id: str
     reference: str
@@ -384,6 +451,7 @@ class ProjetResume(BaseModel):
     statut: str
     direction: str | None
     chef: ResponsableBref | None
+    responsable_id: str | None = None
     avancement: int
     budget: float | None
     date_fin: str | None
@@ -408,6 +476,39 @@ class AvancementDemande(BaseModel):
     avancement: int = Field(ge=0, le=100)
 
 
+# --- Tâches (d'un projet, d'un changement…) ---
+
+StatutTache = Literal["À faire", "En cours", "Terminée"]
+
+
+class Tache(BaseModel):
+    id: str
+    titre: str
+    description: str | None
+    statut: StatutTache
+    assigne: ResponsableBref | None
+    assigne_id: str | None
+    echeance: date | None
+    ordre: int
+
+
+class TacheCreation(BaseModel):
+    titre: str = Field(min_length=2, max_length=200)
+    description: str | None = None
+    assigne_id: str | None = None
+    echeance: date | None = None
+    ordre: int = 0
+
+
+class TacheMaj(BaseModel):
+    titre: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = None
+    statut: StatutTache | None = None
+    assigne_id: str | None = None
+    echeance: date | None = None
+    ordre: int | None = None
+
+
 # --- Risques IT ---
 
 
@@ -416,6 +517,7 @@ class RisqueCreation(BaseModel):
     description: str | None = None
     direction_id: str | None = None
     responsable_id: str | None = None
+    categorie_id: str | None = None
     probabilite: int = Field(ge=1, le=5)
     impact: int = Field(ge=1, le=5)
 
@@ -437,6 +539,7 @@ class RisqueResume(BaseModel):
 
 class RisqueDetail(RisqueResume):
     description: str | None
+    categorie_id: str | None = None
     transitions_possibles: list[str]
     etats: list[str]
     historique: list[EntreeHistorique]

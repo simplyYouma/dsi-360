@@ -2,4 +2,10 @@
 
 from dsi360.interface.routeurs.activites_communs import creer_routeur
 
-routeur = creer_routeur(module="incident", acces="incidents", prefixe="/incidents", tag="incidents")
+routeur = creer_routeur(
+    module="incident",
+    acces="incidents",
+    prefixe="/incidents",
+    tag="incidents",
+    import_uniquement=True,
+)

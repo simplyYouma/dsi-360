@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Send } from 'lucide-react';
-import { Button, Modale, Skeleton } from '@/design-system/primitives';
+import { ArrowRight, Send, X } from 'lucide-react';
+import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { api, ErreurApi } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
 import styles from './FicheTransition.module.css';
@@ -26,6 +28,7 @@ interface Detail {
   priorite?: number;
   criticite?: number;
   categorie?: string | null;
+  categorie_id?: string | null;
   statut_sla?: 'a_lheure' | 'approche' | 'depasse';
   sla_resolution_le?: string | null;
   cree_le?: string;
@@ -33,6 +36,14 @@ interface Detail {
   demandeur?: string | null;
   gestionnaire?: string | null;
   responsable_id?: string | null;
+  contributeurs?: Contributeur[];
+}
+
+interface Contributeur {
+  id: string;
+  prenom: string;
+  nom: string;
+  email: string;
 }
 
 interface FicheTransitionProps {
@@ -42,6 +53,10 @@ interface FicheTransitionProps {
   onChange: () => void;
   /** Active l'assignation du gestionnaire DSI (modules ticketing : factory d'activités). */
   assignable?: boolean;
+  /** Libellé du champ catégorie selon le module (ex. « Type » pour les changements). */
+  labelCategorie?: string;
+  /** Module (code) : si fourni, la catégorie devient éditable depuis la fiche. */
+  moduleCategorie?: string;
 }
 
 function formaterDate(iso: string | null): string {
@@ -60,6 +75,8 @@ export function FicheTransition({
   onFermer,
   onChange,
   assignable = false,
+  labelCategorie = 'Catégorie',
+  moduleCategorie,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -69,6 +86,42 @@ export function FicheTransition({
   const [texte, setTexte] = useState('');
   const [envoiC, setEnvoiC] = useState(false);
   const histoRef = useRef<HTMLOListElement>(null);
+  const { notifier } = useToast();
+  const { moi } = useAuth();
+  const [categories, setCategories] = useState<OptionCategorie[]>([]);
+  const gerableCat =
+    (moi?.acces.includes('administration') ?? false) && moduleCategorie !== 'changement';
+
+  const chargerCategories = useCallback((): void => {
+    if (moduleCategorie === undefined) return;
+    void api
+      .get<OptionCategorie[]>(`/referentiels/categories?module=${moduleCategorie}`)
+      .then(setCategories);
+  }, [moduleCategorie]);
+
+  useEffect(() => {
+    if (moduleCategorie === undefined || id === null) {
+      setCategories([]);
+      return;
+    }
+    chargerCategories();
+  }, [moduleCategorie, id, chargerCategories]);
+
+  const changerCategorie = async (categorie_id: string | null): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      const d = await api.post<Detail>(`${base}/${id}/categorie`, { categorie_id });
+      setDetail(d);
+      onChange();
+      notifier('Catégorie mise à jour', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Modification impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
 
   const charger = useCallback(async (): Promise<void> => {
     if (id === null) return;
@@ -120,8 +173,39 @@ export function FicheTransition({
     try {
       setDetail(await api.post<Detail>(`${base}/${id}/assignation`, { responsable_id: responsableId }));
       onChange();
+      notifier(responsableId === null ? 'Gestionnaire retiré' : 'Gestionnaire mis à jour', 'succes');
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Assignation impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const ajouterContributeur = async (utilisateurId: string | null): Promise<void> => {
+    if (id === null || utilisateurId === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(
+        await api.post<Detail>(`${base}/${id}/contributeurs`, { utilisateur_id: utilisateurId }),
+      );
+      notifier('Contributeur ajouté', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Ajout impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const retirerContributeur = async (utilisateurId: string): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(await api.del<Detail>(`${base}/${id}/contributeurs/${utilisateurId}`));
+      notifier('Contributeur retiré', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Retrait impossible.');
     } finally {
       setEnvoi(false);
     }
@@ -132,8 +216,10 @@ export function FicheTransition({
     setEnvoi(true);
     setErreur(null);
     try {
-      setDetail(await api.post<Detail>(`${base}/${id}/transition`, { vers }));
+      const d = await api.post<Detail>(`${base}/${id}/transition`, { vers });
+      setDetail(d);
       onChange();
+      notifier(`${d.reference} · ${vers}`, 'succes');
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Transition impossible.');
     } finally {
@@ -186,12 +272,26 @@ export function FicheTransition({
                 </dd>
               </div>
             )}
-            {detail.categorie !== undefined && (
+            {moduleCategorie !== undefined ? (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>{labelCategorie}</dt>
+                <dd>
+                  <SelecteurCategorie
+                    categories={categories}
+                    valeur={detail.categorie_id ?? null}
+                    onChange={(v) => void changerCategorie(v)}
+                    module={moduleCategorie}
+                    gerable={gerableCat}
+                    onModifie={chargerCategories}
+                  />
+                </dd>
+              </div>
+            ) : detail.categorie !== undefined ? (
               <div className={styles.metaItem}>
-                <dt>Catégorie</dt>
+                <dt>{labelCategorie}</dt>
                 <dd className={styles.valeur}>{detail.categorie ?? '—'}</dd>
               </div>
-            )}
+            ) : null}
             {detail.demandeur ? (
               <div className={styles.metaItem}>
                 <dt>Demandeur</dt>
@@ -219,6 +319,46 @@ export function FicheTransition({
                   {detail.responsable
                     ? `${detail.responsable.prenom} ${detail.responsable.nom}`
                     : '—'}
+                </dd>
+              </div>
+            ) : null}
+            {assignable ? (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Contributeurs</dt>
+                <dd>
+                  {(detail.contributeurs ?? []).length > 0 && (
+                    <ul className={styles.contribListe}>
+                      {(detail.contributeurs ?? []).map((c) => (
+                        <li key={c.id} className={styles.contribItem}>
+                          <span>
+                            {c.prenom} {c.nom}
+                          </span>
+                          <button
+                            type="button"
+                            className={styles.contribRetirer}
+                            disabled={envoi}
+                            onClick={() => void retirerContributeur(c.id)}
+                            aria-label={`Retirer ${c.prenom} ${c.nom}`}
+                          >
+                            <X size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <SelecteurListe
+                    options={agents
+                      .filter(
+                        (a) =>
+                          a.id !== (detail.responsable_id ?? '') &&
+                          !(detail.contributeurs ?? []).some((c) => c.id === a.id),
+                      )
+                      .map((a) => ({ valeur: a.id, libelle: a.nom }))}
+                    valeur={null}
+                    onChange={(v) => void ajouterContributeur(v)}
+                    permettreVide={false}
+                    placeholder="Ajouter un contributeur…"
+                  />
                 </dd>
               </div>
             ) : null}

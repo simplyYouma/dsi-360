@@ -1,21 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, KeyRound, Dices } from 'lucide-react';
-import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { Plus, Pencil, KeyRound, Dices, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
+import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { SelecteurDate } from '@/common/SelecteurDate';
 import { BadgePriorite } from '@/common/statuts';
+import { categoriesApi } from '@/common/categoriesApi';
 import { cx } from '@/common/cx';
-import { ErreurApi } from '@/lib/api';
-
-/** Mot de passe temporaire fort (sans caractères ambigus). */
-function genererMotDePasse(): string {
-  const jeu = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%&*';
-  const tirage = new Uint32Array(14);
-  crypto.getRandomValues(tirage);
-  let mdp = '';
-  for (const n of tirage) mdp += jeu.charAt(n % jeu.length);
-  return mdp;
-}
+import { api, ErreurApi } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { genererMotDePasse } from '@/common/motDePasse';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import a from './AdministrationPage.module.css';
 import {
@@ -62,6 +56,8 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [directions, setDirections] = useState<Direction[]>([]);
   const [modale, setModale] = useState<null | { id: string | null }>(null);
   const [tempMdp, setTempMdp] = useState<string | null>(null);
+  const { notifier } = useToast();
+  const { moi } = useAuth();
 
   const [email, setEmail] = useState('');
   const [nom, setNom] = useState('');
@@ -70,6 +66,8 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [direction, setDirection] = useState<string | null>(null);
   const [motDePasse, setMotDePasse] = useState('');
   const [actif, setActif] = useState(true);
+  const [temporaire, setTemporaire] = useState(false);
+  const [expiration, setExpiration] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -98,8 +96,10 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setPrenom('');
     setProfil('');
     setDirection(null);
-    setMotDePasse('');
+    setMotDePasse(genererMotDePasse()); // un mot de passe provisoire unique par utilisateur
     setActif(true);
+    setTemporaire(false);
+    setExpiration(null);
     setErreur(null);
     setModale({ id: null });
   };
@@ -107,7 +107,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   // Déclenché par le bouton "Nouvel utilisateur" remonté dans la barre d'onglets.
   useEffect(() => {
     if (signalCreation > 0) ouvrirCreation();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [signalCreation]);
   const ouvrirEdition = (u: Utilisateur): void => {
     setEmail(u.email);
@@ -116,6 +116,8 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setProfil(u.profil);
     setDirection(u.direction);
     setActif(u.actif);
+    setTemporaire(u.expire_le !== null);
+    setExpiration(u.expire_le ? u.expire_le.slice(0, 10) : null);
     setErreur(null);
     setModale({ id: u.id });
   };
@@ -132,6 +134,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           profil_code: profil,
           direction_code: direction,
           mot_de_passe: motDePasse,
+          expire_le: temporaire ? expiration : null,
         });
       } else if (modale) {
         await adminApi.modifierUtilisateur(modale.id, {
@@ -140,6 +143,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           profil_code: profil,
           direction_code: direction,
           actif,
+          expire_le: temporaire ? expiration : null,
         });
       }
       setModale(null);
@@ -157,6 +161,42 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     await charger(page);
   };
 
+  // Blocage / déblocage immédiat (appliqué côté serveur à chaque requête, sans contournement).
+  const basculerActif = async (u: Utilisateur): Promise<void> => {
+    try {
+      await adminApi.modifierUtilisateur(u.id, {
+        nom: u.nom,
+        prenom: u.prenom,
+        profil_code: u.profil,
+        direction_code: u.direction,
+        actif: !u.actif,
+        expire_le: u.expire_le,
+      });
+      await charger(page);
+      notifier(u.actif ? 'Accès bloqué' : 'Accès rétabli', 'succes');
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Action impossible.', 'erreur');
+    }
+  };
+
+  const statutUtilisateur = (u: Utilisateur): JSX.Element => {
+    if (!u.actif) return <StatusBadge statut="danger">Bloqué</StatusBadge>;
+    if (u.expire_le !== null && new Date(u.expire_le) <= new Date())
+      return <StatusBadge statut="danger">Expiré</StatusBadge>;
+    if (u.expire_le !== null)
+      return (
+        <StatusBadge statut="warn">
+          Jusqu’au{' '}
+          {new Date(u.expire_le).toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })}
+        </StatusBadge>
+      );
+    return <StatusBadge statut="ok">Actif</StatusBadge>;
+  };
+
   const colonnes: Colonne<Utilisateur>[] = [
     {
       cle: 'avatar',
@@ -171,9 +211,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     {
       cle: 'actif',
       entete: 'Statut',
-      rendu: (u) => (
-        <StatusBadge statut={u.actif ? 'ok' : 'danger'}>{u.actif ? 'Actif' : 'Inactif'}</StatusBadge>
-      ),
+      rendu: (u) => statutUtilisateur(u),
     },
     {
       cle: 'actions',
@@ -184,12 +222,30 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
             <Pencil size={16} />
           </button>
           <button
-            className={cx(a.iconBtn, a.danger)}
+            className={a.iconBtn}
             title="Réinitialiser le mot de passe"
             onClick={() => void reinitialiser(u)}
           >
             <KeyRound size={16} />
           </button>
+          {u.id !== moi?.id &&
+            (u.actif ? (
+              <button
+                className={cx(a.iconBtn, a.danger)}
+                title="Bloquer l’accès"
+                onClick={() => void basculerActif(u)}
+              >
+                <Ban size={16} />
+              </button>
+            ) : (
+              <button
+                className={a.iconBtn}
+                title="Rétablir l’accès"
+                onClick={() => void basculerActif(u)}
+              >
+                <ShieldCheck size={16} />
+              </button>
+            ))}
         </span>
       ),
     },
@@ -258,6 +314,31 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
               placeholder="Choisir une direction"
             />
           </div>
+        </div>
+        <div className={styles.champ}>
+          <button
+            type="button"
+            className={a.caseLigne}
+            onClick={() => {
+              const v = !temporaire;
+              setTemporaire(v);
+              if (!v) setExpiration(null);
+            }}
+          >
+            <span className={cx(a.case, temporaire && a.caseOn)}>
+              {temporaire && <Check size={13} />}
+            </span>
+            Compte temporaire (l’accès expire à une date)
+          </button>
+          {temporaire && (
+            <div style={{ marginTop: 'var(--space-2)' }}>
+              <SelecteurDate
+                valeur={expiration}
+                onChange={setExpiration}
+                placeholder="Choisir la date d’expiration"
+              />
+            </div>
+          )}
         </div>
         {modale?.id === null ? (
           <label className={styles.champ}>
@@ -349,8 +430,8 @@ function OngletAcces(): JSX.Element {
   if (matrice === null) return <p style={{ color: 'var(--text-muted)' }}>Chargement…</p>;
 
   return (
-    <div className={a.zone}>
-      <table className={a.matrice}>
+    <div className={cx(a.zone, a.zoneRemplir)}>
+      <table className={cx(a.matrice, a.matriceRemplir)}>
         <thead>
           <tr>
             <th>Profil</th>
@@ -433,6 +514,17 @@ function OngletJournal(): JSX.Element {
 
 // ---------------------------------------------------------------- SLA
 
+/** Convertit des minutes en durée lisible (15 min, 4 h, 2 j) pour lever l'ambiguïté des décimales. */
+function formaterDureeSla(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60 * 24) {
+    const h = minutes / 60;
+    return `${Number.isInteger(h) ? h : h.toFixed(2)} h`;
+  }
+  const j = minutes / (60 * 24);
+  return `${Number.isInteger(j) ? j : j.toFixed(1)} j`;
+}
+
 function OngletSla(): JSX.Element {
   const [regles, setRegles] = useState<SlaRegle[]>([]);
   const [enregistre, setEnregistre] = useState(false);
@@ -461,10 +553,11 @@ function OngletSla(): JSX.Element {
   return (
     <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
       <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-        Cibles de prise en charge et de résolution par priorité (en heures). Elles pilotent les
-        échéances des nouveaux tickets et le calcul du respect SLA.
+        Délais par priorité, <strong>en heures</strong> : <strong>prise en charge</strong>{' '}
+        (démarrage) et <strong>résolution</strong> (clôture). Décimales = fractions d'heure
+        (0,25&nbsp;h = 15&nbsp;min).
       </p>
-      <table className={a.matrice}>
+      <table className={cx(a.matrice, a.matriceSla)}>
         <thead>
           <tr>
             <th>Priorité</th>
@@ -479,24 +572,32 @@ function OngletSla(): JSX.Element {
                 <BadgePriorite priorite={r.priorite} />
               </td>
               <td>
-                <input
-                  className={a.slaInput}
-                  type="number"
-                  min="0.25"
-                  step="0.25"
-                  value={r.prise_en_charge_minutes / 60}
-                  onChange={(e) => majHeures(r.priorite, 'prise_en_charge_minutes', e.target.value)}
-                />
+                <div className={a.slaCellule}>
+                  <input
+                    className={a.slaInput}
+                    type="number"
+                    min="0.25"
+                    step="0.25"
+                    value={r.prise_en_charge_minutes / 60}
+                    onChange={(e) =>
+                      majHeures(r.priorite, 'prise_en_charge_minutes', e.target.value)
+                    }
+                  />
+                  <span className={a.slaEquiv}>= {formaterDureeSla(r.prise_en_charge_minutes)}</span>
+                </div>
               </td>
               <td>
-                <input
-                  className={a.slaInput}
-                  type="number"
-                  min="0.25"
-                  step="0.25"
-                  value={r.resolution_minutes / 60}
-                  onChange={(e) => majHeures(r.priorite, 'resolution_minutes', e.target.value)}
-                />
+                <div className={a.slaCellule}>
+                  <input
+                    className={a.slaInput}
+                    type="number"
+                    min="0.25"
+                    step="0.25"
+                    value={r.resolution_minutes / 60}
+                    onChange={(e) => majHeures(r.priorite, 'resolution_minutes', e.target.value)}
+                  />
+                  <span className={a.slaEquiv}>= {formaterDureeSla(r.resolution_minutes)}</span>
+                </div>
               </td>
             </tr>
           ))}
@@ -514,10 +615,149 @@ function OngletSla(): JSX.Element {
   );
 }
 
+// ---------------------------------------------------------------- Catégories
+
+interface CategorieAdmin {
+  id: string;
+  code: string;
+  libelle: string;
+}
+
+// Changement exclu : ses types (Standard/Normal/Urgent) sont un vocabulaire ITIL fixe.
+const MODULES_CATEGORIE: { code: string; libelle: string }[] = [
+  { code: 'incident', libelle: 'Incidents' },
+  { code: 'demande', libelle: 'Demandes' },
+  { code: 'audit', libelle: 'Audit & recommandations' },
+  { code: 'risque', libelle: 'Risques' },
+  { code: 'cybersecurite', libelle: 'Cybersécurité' },
+  { code: 'gouvernance', libelle: 'Gouvernance' },
+];
+
+function OngletCategories(): JSX.Element {
+  const { notifier } = useToast();
+  const [module, setModule] = useState('incident');
+  const [categories, setCategories] = useState<CategorieAdmin[]>([]);
+  const [nouveau, setNouveau] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+
+  const charger = useCallback((): void => {
+    void api
+      .get<CategorieAdmin[]>(`/referentiels/categories?module=${module}`)
+      .then(setCategories);
+  }, [module]);
+  useEffect(() => {
+    charger();
+  }, [charger]);
+
+  const ajouter = async (): Promise<void> => {
+    const libelle = nouveau.trim();
+    if (libelle === '') return;
+    setEnvoi(true);
+    try {
+      await categoriesApi.creer(module, libelle);
+      setNouveau('');
+      charger();
+      notifier('Catégorie ajoutée', 'succes');
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Ajout impossible.', 'erreur');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const supprimer = async (id: string): Promise<void> => {
+    setEnvoi(true);
+    try {
+      await categoriesApi.supprimer(id);
+      charger();
+      notifier('Catégorie supprimée', 'succes');
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Suppression impossible.', 'erreur');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
+      <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
+        Catégories par module (paramétrage). Ajout/suppression aussi disponible en ligne dans les
+        formulaires. Une catégorie déjà utilisée par des activités ne peut pas être supprimée.
+      </p>
+      <div style={{ maxWidth: 280, marginBottom: 'var(--space-4)' }}>
+        <SelecteurListe
+          options={MODULES_CATEGORIE.map((m) => ({ valeur: m.code, libelle: m.libelle }))}
+          valeur={module}
+          onChange={(v) => setModule(v ?? 'incident')}
+        />
+      </div>
+      <table className={a.matrice}>
+        <thead>
+          <tr>
+            <th>Libellé</th>
+            <th>Code</th>
+            <th style={{ width: 60, textAlign: 'right' }} />
+          </tr>
+        </thead>
+        <tbody>
+          {categories.map((c) => (
+            <tr key={c.id}>
+              <td>{c.libelle}</td>
+              <td style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                {c.code}
+              </td>
+              <td style={{ textAlign: 'right' }}>
+                <button
+                  type="button"
+                  className={a.supprCat}
+                  disabled={envoi}
+                  title="Supprimer"
+                  aria-label={`Supprimer ${c.libelle}`}
+                  onClick={() => void supprimer(c.id)}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </td>
+            </tr>
+          ))}
+          {categories.length === 0 && (
+            <tr>
+              <td colSpan={3} style={{ color: 'var(--text-muted)' }}>
+                Aucune catégorie pour ce module.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-4)', maxWidth: 420 }}>
+        <input
+          className={a.slaInput}
+          style={{ flex: 1, textAlign: 'left' }}
+          value={nouveau}
+          placeholder="Nouvelle catégorie"
+          onChange={(e) => setNouveau(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void ajouter();
+            }
+          }}
+        />
+        <Button onClick={() => void ajouter()} disabled={envoi || nouveau.trim() === ''}>
+          <Plus size={16} />
+          Ajouter
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AdministrationPage(): JSX.Element {
-  const [onglet, setOnglet] = useState<'utilisateurs' | 'acces' | 'journal' | 'sla'>('utilisateurs');
+  const [onglet, setOnglet] = useState<
+    'utilisateurs' | 'acces' | 'journal' | 'sla' | 'categories'
+  >('utilisateurs');
   const [signalCreation, setSignalCreation] = useState(0);
 
   return (
@@ -525,7 +765,7 @@ export function AdministrationPage(): JSX.Element {
       <header className={styles.entete}>
         <div>
           <h1 className={styles.titre}>Administration</h1>
-          <p className={styles.sous}>Utilisateurs, accès par profil et journal d’audit.</p>
+          <p className={styles.sous}>Utilisateurs, accès, catégories, SLA et journal d’audit.</p>
         </div>
       </header>
 
@@ -541,13 +781,19 @@ export function AdministrationPage(): JSX.Element {
             Accès
           </button>
           <button
+            className={onglet === 'categories' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('categories')}
+          >
+            Catégories
+          </button>
+          <button className={onglet === 'sla' ? a.tabActif : a.tab} onClick={() => setOnglet('sla')}>
+            SLA
+          </button>
+          <button
             className={onglet === 'journal' ? a.tabActif : a.tab}
             onClick={() => setOnglet('journal')}
           >
             Journal d’audit
-          </button>
-          <button className={onglet === 'sla' ? a.tabActif : a.tab} onClick={() => setOnglet('sla')}>
-            SLA
           </button>
         </div>
         {onglet === 'utilisateurs' && (
@@ -564,6 +810,7 @@ export function AdministrationPage(): JSX.Element {
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}
       {onglet === 'sla' && <OngletSla />}
+      {onglet === 'categories' && <OngletCategories />}
     </div>
   );
 }

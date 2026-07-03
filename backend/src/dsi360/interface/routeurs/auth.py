@@ -1,12 +1,18 @@
 """Endpoints d'authentification : login, refresh, logout, /moi."""
 
+import hashlib
+import secrets
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.application.auth import authentifier
+from dsi360.application.auth import authentifier, compte_actif
+from dsi360.config import get_settings
+from dsi360.infrastructure import email, email_modeles
 from dsi360.infrastructure.audit import consigner
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import utilisateur as repo
@@ -21,7 +27,9 @@ from dsi360.interface.schemas import (
     Connexion,
     Jetons,
     MoiReponse,
+    MotDePasseOublie,
     Rafraichissement,
+    Reinitialisation,
 )
 from dsi360.interface.securite import UtilisateurCourant
 
@@ -68,7 +76,7 @@ async def refresh(corps: Rafraichissement, session: Session) -> Jetons:
     if charge.get("type") != "refresh":
         raise _REFRESH_INVALIDE
     u = await repo.par_id(session, str(charge.get("sub")))
-    if u is None or not u["actif"]:
+    if u is None or not compte_actif(u):
         raise _REFRESH_INVALIDE
     return _jetons_pour(str(u["id"]))
 
@@ -108,3 +116,69 @@ async def changer_mot_de_passe(
         module="authentification",
         adresse_ip=requete.client.host if requete.client else None,
     )
+    sujet, texte, html = email_modeles.mot_de_passe_change(courant["prenom"])
+    email.envoyer(courant["email"], sujet, texte, html)
+
+
+def _empreinte(jeton: str) -> str:
+    return hashlib.sha256(jeton.encode()).hexdigest()
+
+
+@routeur.post("/auth/mot-de-passe-oublie", status_code=status.HTTP_204_NO_CONTENT)
+async def mot_de_passe_oublie(corps: MotDePasseOublie, session: Session) -> None:
+    """Envoie un lien de réinitialisation. Réponse identique que le compte existe ou non
+    (aucune énumération de comptes possible)."""
+    u = await repo.par_email(session, corps.email)
+    if u is not None and u["actif"] and u["source_auth"] == "LOCAL":
+        jeton = secrets.token_urlsafe(32)
+        minutes = get_settings().reset_validite_minutes
+        await session.execute(
+            text(
+                "INSERT INTO core.reinitialisation_mdp (utilisateur_id, jeton_hash, expire_le) "
+                "VALUES (cast(:uid as uuid), :h, :exp)"
+            ),
+            {
+                "uid": u["id"],
+                "h": _empreinte(jeton),
+                "exp": datetime.now(UTC) + timedelta(minutes=minutes),
+            },
+        )
+        await session.commit()
+        url = f"{get_settings().url_app}/reinitialiser?jeton={jeton}"
+        sujet, texte, html = email_modeles.reinitialisation(u["prenom"], url, minutes)
+        email.envoyer(u["email"], sujet, texte, html)
+
+
+@routeur.post("/auth/reinitialiser", status_code=status.HTTP_204_NO_CONTENT)
+async def reinitialiser(corps: Reinitialisation, session: Session) -> None:
+    """Consomme un jeton valide (non utilisé, non expiré) et fixe le nouveau mot de passe."""
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT r.id, r.utilisateur_id::text AS uid, u.email, u.prenom "
+                "FROM core.reinitialisation_mdp r "
+                "JOIN core.utilisateur u ON u.id = r.utilisateur_id "
+                "WHERE r.jeton_hash = :h AND r.utilise = false AND r.expire_le > now()"
+            ),
+            {"h": _empreinte(corps.jeton)},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Lien invalide ou expiré."
+        )
+    await repo.definir_mot_de_passe(session, ligne["uid"], hacher_mot_de_passe(corps.nouveau))
+    await session.execute(
+        text("UPDATE core.reinitialisation_mdp SET utilise = true WHERE id = :id"),
+        {"id": ligne["id"]},
+    )
+    await consigner(
+        session,
+        action="RESET_MDP",
+        acteur_id=ligne["uid"],
+        acteur_email=ligne["email"],
+        module="authentification",
+    )
+    await session.commit()
+    sujet, texte, html = email_modeles.mot_de_passe_change(ligne["prenom"])
+    email.envoyer(ligne["email"], sujet, texte, html)

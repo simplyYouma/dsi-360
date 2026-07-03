@@ -5,3 +5,4 @@ export { Card } from './Card';
 export { StatusBadge } from './StatusBadge';
 export { Table, type Colonne } from './Table';
 export { Skeleton } from './Skeleton';
+export { ToastProvider, useToast, type TonToast } from './Toast';

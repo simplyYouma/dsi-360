@@ -1,3 +1,109 @@
+/* ---- Onglets Tickets / Analyse ---- */
+.onglets {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+}
+.onglet {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.onglet:hover {
+  color: var(--text);
+}
+.ongletOn {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Bande profil compacte (onglet Tickets) ---- */
+.bandeau {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, var(--surface), color-mix(in srgb, var(--secondary) 5%, var(--surface)));
+}
+.bandeauProfil {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.bandeauNom {
+  font-size: var(--text-md, 1rem);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.bandeauStats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.statPastille {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.statPastille[data-attenue='oui'] {
+  opacity: 0.5;
+}
+.statIcone {
+  display: inline-flex;
+}
+.miniAnneau {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.statValeur {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.statLibelle {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+@media (max-width: 620px) {
+  .bandeauStats {
+    margin-left: 0;
+  }
+  .statLibelle {
+    display: none;
+  }
+}
+
+/* ---- Sous-barre de la file (titre + bascule liste/kanban) ---- */
+.barreFile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
 /* ---- En-tête profil agent ---- */
 .profil {
   display: flex;

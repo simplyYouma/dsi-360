@@ -4,7 +4,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _CHAMPS = """
-    u.id::text AS id, u.email, u.nom, u.prenom, u.mot_de_passe_hash, u.actif,
+    u.id::text AS id, u.email, u.nom, u.prenom, u.mot_de_passe_hash, u.actif, u.expire_le,
     u.doit_changer_mdp, u.source_auth, p.code AS profil, p.libelle AS profil_libelle,
     p.transverse, d.code AS direction
 """

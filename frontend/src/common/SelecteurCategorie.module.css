@@ -1,0 +1,135 @@
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.chipWrap {
+  position: relative;
+  display: inline-flex;
+}
+.chip,
+.chipActif {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.chip:hover {
+  border-color: var(--text-muted);
+}
+.chipActif {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+/* Réserve la place du bouton de suppression. */
+.chipGerable {
+  padding-right: var(--space-6);
+}
+
+/* Bouton « × » de suppression (apparaît au survol de la pastille). */
+.suppr {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.chipWrap:hover .suppr,
+.suppr:focus-visible {
+  opacity: 1;
+}
+.suppr:hover:not(:disabled) {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+.suppr:disabled {
+  cursor: default;
+}
+
+/* Bouton « + Ajouter » et formulaire inline. */
+.ajoutBtn {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.ajoutBtn:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+.ajoutForm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.ajoutInput {
+  height: 34px;
+  width: 170px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--secondary);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-family: inherit;
+}
+.ajoutInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
+.ajoutOk,
+.ajoutAnnuler {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.ajoutOk {
+  color: var(--status-ok);
+}
+.ajoutOk:hover:not(:disabled) {
+  background: var(--status-ok-bg);
+}
+.ajoutOk:disabled {
+  opacity: 0.4;
+}
+.ajoutAnnuler {
+  color: var(--text-muted);
+}
+.ajoutAnnuler:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}

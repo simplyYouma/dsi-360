@@ -13,7 +13,7 @@ from dsi360.domain.etats import STATUTS_TERMINAUX
 _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
     a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, a.donnees,
-    c.libelle AS categorie, d.code AS direction,
+    c.libelle AS categorie, a.categorie_id::text AS categorie_id, d.code AS direction,
     r.id::text AS resp_id, r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email,
     dem.nom_complet AS demandeur_nom,
     (SELECT count(*) FROM core.commentaire cm WHERE cm.activite_id = a.id) AS nb_commentaires
@@ -161,6 +161,46 @@ async def assigner(session: AsyncSession, identifiant: str, responsable_id: str 
             "UPDATE core.activite SET responsable_id = cast(:resp as uuid) WHERE id::text = :id"
         ),
         {"id": identifiant, "resp": responsable_id},
+    )
+
+
+async def lister_contributeurs(session: AsyncSession, identifiant: str) -> list[RowMapping]:
+    """Contributeurs (acteurs secondaires) d'une activité, avec leur identité."""
+    lignes = await session.execute(
+        text(
+            "SELECT u.id::text AS id, u.prenom, u.nom, u.email "
+            "FROM core.activite_acteur aa "
+            "JOIN core.utilisateur u ON u.id = aa.utilisateur_id "
+            "WHERE aa.activite_id = cast(:id as uuid) AND aa.role = 'CONTRIBUTEUR' "
+            "ORDER BY u.prenom, u.nom"
+        ),
+        {"id": identifiant},
+    )
+    return list(lignes.mappings().all())
+
+
+async def ajouter_contributeur(
+    session: AsyncSession, identifiant: str, utilisateur_id: str
+) -> None:
+    await session.execute(
+        text(
+            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+            "VALUES (cast(:aid as uuid), cast(:uid as uuid), 'CONTRIBUTEUR') "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"aid": identifiant, "uid": utilisateur_id},
+    )
+
+
+async def retirer_contributeur(
+    session: AsyncSession, identifiant: str, utilisateur_id: str
+) -> None:
+    await session.execute(
+        text(
+            "DELETE FROM core.activite_acteur WHERE activite_id = cast(:aid as uuid) "
+            "AND utilisateur_id = cast(:uid as uuid) AND role = 'CONTRIBUTEUR'"
+        ),
+        {"aid": identifiant, "uid": utilisateur_id},
     )
 
 

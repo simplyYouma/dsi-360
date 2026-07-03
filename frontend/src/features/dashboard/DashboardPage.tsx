@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts';
 import { Card, Skeleton } from '@/design-system/primitives';
+import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { infobulle } from '@/common/infobulle';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
@@ -166,6 +167,7 @@ function TendanceSla({
 
 export function DashboardPage(): JSX.Element {
   const [tableau, setTableau] = useState<TableauBord | null>(null);
+  const contenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void dashboardApi.charger().then(setTableau);
@@ -188,11 +190,28 @@ export function DashboardPage(): JSX.Element {
 
   return (
     <div className={styles.page}>
-      <header className={styles.entete}>
-        <h1 className={styles.titre}>Tableau de bord</h1>
-        <p className={styles.sous}>Vue d'ensemble des activités de la DSI — AFG Bank Mali.</p>
+      <header
+        className={styles.entete}
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1 className={styles.titre}>Tableau de bord</h1>
+          <p className={styles.sous}>Vue d'ensemble des activités de la DSI — AFG Bank Mali.</p>
+        </div>
+        <BoutonExportPdf
+          cible={contenuRef}
+          titre="Tableau de bord exécutif"
+          nomFichier="dsi360-tableau-de-bord.pdf"
+        />
       </header>
 
+      <div ref={contenuRef} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       <section className={styles.grille}>
         {META_CARTES.map((m) => {
           const Icone = m.icone;
@@ -240,6 +259,7 @@ export function DashboardPage(): JSX.Element {
           )}
         </Card>
       </section>
+      </div>
     </div>
   );
 }

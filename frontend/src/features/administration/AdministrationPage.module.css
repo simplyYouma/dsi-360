@@ -30,13 +30,68 @@
 }
 
 .zone {
-  /* Remplit la hauteur restante de la page ; défilement interne (en-tête + 1re colonne figés). */
-  max-height: calc(100dvh - 15rem);
-  overflow: auto;
+  /* Remplit l'espace restant jusqu'en bas (quel que soit l'écran), sans plafonner la hauteur :
+     un contenu plus grand fait défiler la page. Scroll horizontal pour les grandes matrices. */
+  min-height: calc(100dvh - 15rem);
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
   scrollbar-width: thin;
+}
+/* Matrice d'accès : le tableau remplit la hauteur de la carte, les lignes se répartissent. */
+.zoneRemplir {
+  display: flex;
+  flex-direction: column;
+}
+.matriceRemplir {
+  flex: 1;
+}
+/* Table SLA : compacte et alignée à gauche (les champs restent alignés quel que soit « = X »). */
+.matriceSla {
+  width: auto;
+}
+.matriceSla th:not(:first-child),
+.matriceSla td:not(:first-child) {
+  text-align: left;
+}
+/* Case à cocher maison (ex. compte temporaire). */
+.caseLigne {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text);
+  text-align: left;
+}
+.case {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.caseOn {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.slaCellule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.slaEquiv {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .matrice {
   width: 100%;
@@ -183,6 +238,27 @@
   outline: none;
   border-color: var(--secondary);
   box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
+
+/* Suppression d'une catégorie (onglet Catégories). */
+.supprCat {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.supprCat:hover:not(:disabled) {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+.supprCat:disabled {
+  opacity: 0.4;
 }
 
 .temp {

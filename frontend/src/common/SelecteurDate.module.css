@@ -27,10 +27,8 @@
 }
 
 .popover {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  left: 0;
-  z-index: 50;
+  /* position/coords en inline (fixed) : échappe au rognage d'une modale, passe au-dessus. */
+  z-index: 1200;
   width: 268px;
   padding: var(--space-3);
   background: var(--surface);

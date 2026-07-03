@@ -1,9 +1,10 @@
-"""Cas d'usage des projets : création (champs propres en `donnees`) et avancement."""
+"""Cas d'usage des projets : création, édition du cadrage (colonnes + `donnees`)."""
 
 import json
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.etats import etat_initial
@@ -64,17 +65,46 @@ async def creer_projet(
     return identifiant
 
 
-async def maj_avancement(
-    session: AsyncSession, identifiant: str, avancement: int, acteur: dict[str, Any]
+# Champs stockés en colonnes (core.activite) vs dans le JSON `donnees`.
+_COLONNES_MAJ = {"titre", "description", "responsable_id"}
+_DONNEES_MAJ = {"sponsor", "budget", "date_debut", "date_fin"}
+
+
+async def maj_projet(
+    session: AsyncSession, identifiant: str, champs: dict[str, Any], acteur: dict[str, Any]
 ) -> None:
-    await repo.maj_donnees(session, identifiant, {"avancement": avancement})
+    """Modifie le cadrage d'un projet (édition en place depuis la fiche)."""
+    colonnes = {c: v for c, v in champs.items() if c in _COLONNES_MAJ}
+    if "titre" in colonnes and colonnes["titre"] is not None:
+        colonnes["titre"] = phrase_propre(colonnes["titre"])
+    if colonnes:
+        fragments = []
+        for c in colonnes:
+            fragments.append(
+                f"{c} = cast(:{c} as uuid)" if c == "responsable_id" else f"{c} = :{c}"
+            )
+        await session.execute(
+            text(f"UPDATE core.activite SET {', '.join(fragments)} WHERE id::text = :id"),
+            {"id": identifiant, **colonnes},
+        )
+    fragment_json = {c: v for c, v in champs.items() if c in _DONNEES_MAJ}
+    if "sponsor" in fragment_json:
+        fragment_json["sponsor"] = nom_propre(fragment_json["sponsor"])
+    if fragment_json:
+        await session.execute(
+            text(
+                "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+                "WHERE id::text = :id"
+            ),
+            {"id": identifiant, "f": json.dumps(fragment_json)},
+        )
     await audit.consigner(
         session,
-        action="AVANCEMENT",
+        action="MODIFICATION",
         acteur_id=acteur["id"],
         acteur_email=acteur["email"],
         module=MODULE,
         cible_type=MODULE,
         cible_id=identifiant,
-        nouvelle={"avancement": avancement},
+        nouvelle={c: champs[c] for c in champs},
     )

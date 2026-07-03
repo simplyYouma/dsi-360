@@ -18,6 +18,7 @@ export interface NouvelleDemande {
   urgence: number;
   categorie_id: string | null;
   demandeur: string | null;
+  responsable_id?: string | null;
 }
 
 export const demandesApi = {

@@ -9,6 +9,7 @@ export interface Utilisateur {
   profil_libelle: string;
   direction: string | null;
   actif: boolean;
+  expire_le: string | null;
   doit_changer_mdp: boolean;
 }
 export interface Profil {
@@ -43,6 +44,7 @@ export interface CreationUtilisateur {
   profil_code: string;
   direction_code: string | null;
   mot_de_passe: string;
+  expire_le: string | null;
 }
 export interface MajUtilisateur {
   nom: string;
@@ -50,6 +52,7 @@ export interface MajUtilisateur {
   profil_code: string;
   direction_code: string | null;
   actif: boolean;
+  expire_le: string | null;
 }
 
 export interface SlaRegle {

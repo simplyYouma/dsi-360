@@ -186,3 +186,33 @@
   color: var(--on-accent);
   border-color: var(--accent);
 }
+
+/* --- Pages formulaire (création projet) & bouton retour --- */
+.retour {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+.retour:hover {
+  color: var(--text);
+}
+.formulairePage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 720px;
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.formulaireActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

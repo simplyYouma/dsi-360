@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ToastProvider } from '@/design-system/primitives';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LoginPage } from '@/features/auth/LoginPage';
+import { ReinitialiserPage } from '@/features/auth/ReinitialiserPage';
 import { ChangerMotDePasse } from '@/features/auth/ChangerMotDePasse';
 import { AppShell } from '@/features/shell/AppShell';
 import { PagePlaceholder } from '@/features/shell/PagePlaceholder';
@@ -10,14 +12,15 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { IncidentsPage } from '@/features/incidents/IncidentsPage';
 import { DemandesPage } from '@/features/demandes/DemandesPage';
 import { ProjetsPage } from '@/features/projets/ProjetsPage';
+import { ProjetPage } from '@/features/projets/ProjetPage';
 import { ChangementsPage } from '@/features/changements/ChangementsPage';
+import { ChangementPage } from '@/features/changements/ChangementPage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
 import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
 import { AdministrationPage } from '@/features/administration/AdministrationPage';
 import { AnalysesPage } from '@/features/analyses/AnalysesPage';
 import { ImportPage } from '@/features/ingestion/ImportPage';
-import { DemandeursPage } from '@/features/demandeurs/DemandeursPage';
 import { MesTicketsPage } from '@/features/tickets/MesTicketsPage';
 import { NAVIGATION, cleAcces } from '@/features/shell/navigation';
 
@@ -56,7 +59,6 @@ const PAGES: Record<string, JSX.Element> = {
   ),
   '/administration': <AdministrationPage />,
   '/import': <ImportPage />,
-  '/demandeurs': <DemandeursPage />,
   '/mes-tickets': <MesTicketsPage />,
 };
 
@@ -67,7 +69,7 @@ function RequiertAcces({ cle, children }: { cle: string; children: ReactNode }):
   return <>{children}</>;
 }
 
-/** Garde réservée aux profils transverses (import, référentiel demandeurs). */
+/** Garde réservée aux profils transverses (ex. import quotidien). */
 function RequiertTransverse({ children }: { children: ReactNode }): JSX.Element {
   const { moi } = useAuth();
   if (moi !== null && !moi.transverse) return <NonAutorise />;
@@ -77,6 +79,9 @@ function RequiertTransverse({ children }: { children: ReactNode }): JSX.Element 
 /** Aiguillage selon l'état d'authentification (garde de routes). */
 function Racine(): JSX.Element {
   const { statut, moi } = useAuth();
+
+  // Réinitialisation via lien e-mail : accessible sans être connecté, quel que soit l'état d'auth.
+  if (window.location.pathname === '/reinitialiser') return <ReinitialiserPage />;
 
   if (statut === 'chargement') {
     return (
@@ -100,6 +105,39 @@ function Racine(): JSX.Element {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<DashboardPage />} />
+          {/* Projets : pages dédiées (création + détail) hors NAVIGATION, sous le même accès. */}
+          <Route
+            path="/projets/nouveau"
+            element={
+              <RequiertAcces cle="projets">
+                <ProjetPage />
+              </RequiertAcces>
+            }
+          />
+          <Route
+            path="/projets/:id"
+            element={
+              <RequiertAcces cle="projets">
+                <ProjetPage />
+              </RequiertAcces>
+            }
+          />
+          <Route
+            path="/changements/nouveau"
+            element={
+              <RequiertAcces cle="changements">
+                <ChangementPage />
+              </RequiertAcces>
+            }
+          />
+          <Route
+            path="/changements/:id"
+            element={
+              <RequiertAcces cle="changements">
+                <ChangementPage />
+              </RequiertAcces>
+            }
+          />
           {NAVIGATION.filter((e) => e.chemin !== '/').map((e) => (
             <Route
               key={e.chemin}
@@ -126,8 +164,10 @@ function Racine(): JSX.Element {
 
 export function App(): JSX.Element {
   return (
-    <AuthProvider>
-      <Racine />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <Racine />
+      </AuthProvider>
+    </ToastProvider>
   );
 }

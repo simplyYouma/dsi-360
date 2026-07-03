@@ -1,5 +1,5 @@
-import { useState, type CSSProperties, type DragEvent } from 'react';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback, useState, type CSSProperties, type DragEvent } from 'react';
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SablierSla } from './SablierSla';
 import { AvatarPersonnage } from './AvatarPersonnage';
 import { IndicateurDiscussion } from './IndicateurDiscussion';
@@ -17,6 +17,8 @@ export interface CarteKanban {
   statutSla: 'a_lheure' | 'approche' | 'depasse';
   meta: string | null; // demandeur ou gestionnaire (avatar)
   nbCommentaires: number;
+  /** Étiquette optionnelle (ex. domaine/module) affichée sur la carte. */
+  etiquette?: { texte: string; couleur: string };
 }
 export interface ColonneKanban {
   cle: string;
@@ -32,19 +34,74 @@ interface Props {
   onDeplacer?: (id: string, statutCible: string) => void;
   /** Statuts cibles autorisés pour une carte donnée (transitions possibles). */
   ciblesValides?: (id: string) => Promise<string[]>;
+  /** Espace de stockage pour mémoriser les colonnes repliées (un par tableau). */
+  cleStockage?: string;
 }
 
 const ZOOMS = [0.85, 1, 1.15, 1.3, 1.5];
 
-/** Tableau Kanban présentationnel : colonnes par statut, cartes cliquables, zoom et
- *  glisser-déposer (les colonnes non autorisées sont estompées pendant le drag). */
-export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides }: Props): JSX.Element {
+const SLA_COULEUR: Record<CarteKanban['statutSla'], string> = {
+  a_lheure: 'var(--status-ok)',
+  approche: 'var(--status-warn)',
+  depasse: 'var(--status-danger)',
+};
+
+function lireReplie(cle: string): Set<string> {
+  try {
+    const brut = localStorage.getItem(`kanban-replie:${cle}`);
+    return new Set(brut ? (JSON.parse(brut) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Fine barre de répartition SLA des cartes d'une colonne (à l'heure / proche / dépassé). */
+function BarreSlaColonne({ cartes }: { cartes: CarteKanban[] }): JSX.Element | null {
+  if (cartes.length === 0) return null;
+  const compte = { a_lheure: 0, approche: 0, depasse: 0 };
+  cartes.forEach((c) => (compte[c.statutSla] += 1));
+  const segments = (Object.keys(compte) as CarteKanban['statutSla'][])
+    .map((k) => ({ k, v: compte[k] }))
+    .filter((s) => s.v > 0);
+  return (
+    <div
+      className={styles.slaBarre}
+      title={`À l'heure ${compte.a_lheure} · échéance proche ${compte.approche} · dépassé ${compte.depasse}`}
+    >
+      {segments.map((s) => (
+        <span key={s.k} style={{ flexGrow: s.v, background: SLA_COULEUR[s.k] }} />
+      ))}
+    </div>
+  );
+}
+
+/** Tableau Kanban présentationnel : colonnes par statut, cartes cliquables, zoom,
+ *  glisser-déposer, colonnes repliables et en-têtes collants. */
+export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides, cleStockage = 'defaut' }: Props): JSX.Element {
   const [niveau, setNiveau] = useState(1);
   const zoom = ZOOMS[niveau] ?? 1;
   const [drag, setDrag] = useState<string | null>(null); // id de la carte tirée
   const [cibles, setCibles] = useState<Set<string>>(new Set()); // statuts acceptant le drop
+  const [replie, setReplie] = useState<Set<string>>(() => lireReplie(cleStockage));
 
   const dnd = onDeplacer !== undefined;
+
+  const basculerRepli = useCallback(
+    (cle: string): void => {
+      setReplie((prev) => {
+        const suivant = new Set(prev);
+        if (suivant.has(cle)) suivant.delete(cle);
+        else suivant.add(cle);
+        try {
+          localStorage.setItem(`kanban-replie:${cleStockage}`, JSON.stringify([...suivant]));
+        } catch {
+          /* stockage indisponible : on garde l'état en mémoire seulement. */
+        }
+        return suivant;
+      });
+    },
+    [cleStockage],
+  );
 
   const debuter = (e: DragEvent, id: string): void => {
     if (!dnd) return;
@@ -86,6 +143,22 @@ export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides }: Props)
 
       <div className={styles.kanban} style={{ '--zoom': zoom } as CSSProperties}>
         {colonnes.map((col) => {
+          if (replie.has(col.cle)) {
+            return (
+              <button
+                key={col.cle}
+                type="button"
+                className={cx(styles.colonne, styles.colonneReplie)}
+                onClick={() => basculerRepli(col.cle)}
+                title="Déplier la colonne"
+              >
+                <ChevronRight size={15} className={styles.replieChevron} />
+                <span className={styles.pastille} style={{ background: col.couleur }} />
+                <span className={styles.colTitreV}>{col.titre}</span>
+                <span className={styles.colNb}>{col.cartes.length}</span>
+              </button>
+            );
+          }
           const accepte = drag !== null && cibles.has(col.cle);
           const inerte = drag !== null && !cibles.has(col.cle);
           return (
@@ -98,9 +171,20 @@ export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides }: Props)
               onDrop={() => deposer(col.cle)}
             >
               <header className={styles.colTete}>
-                <span className={styles.pastille} style={{ background: col.couleur }} />
-                <span className={styles.colTitre}>{col.titre}</span>
-                <span className={styles.colNb}>{col.cartes.length}</span>
+                <div className={styles.colTeteHaut}>
+                  <span className={styles.pastille} style={{ background: col.couleur }} />
+                  <span className={styles.colTitre}>{col.titre}</span>
+                  <span className={styles.colNb}>{col.cartes.length}</span>
+                  <button
+                    type="button"
+                    className={styles.replierBtn}
+                    onClick={() => basculerRepli(col.cle)}
+                    title="Replier la colonne"
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                </div>
+                <BarreSlaColonne cartes={col.cartes} />
               </header>
               <div className={styles.colCorps}>
                 {col.cartes.map((c) => (
@@ -113,7 +197,6 @@ export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides }: Props)
                     onDragEnd={finir}
                     onClick={() => onOuvrir(c.id)}
                   >
-                    <span className={styles.accent} style={{ background: col.couleur }} />
                     <div className={styles.carteTete}>
                       <span className={styles.carteRef}>{c.reference}</span>
                       {c.priorite !== null && <BadgePriorite priorite={c.priorite} />}
@@ -121,6 +204,12 @@ export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides }: Props)
                     <span className={styles.carteTitre} title={c.titre}>
                       {c.titre}
                     </span>
+                    {c.etiquette && (
+                      <span className={styles.carteEtiquette}>
+                        <span className={styles.etiquettePoint} style={{ background: c.etiquette.couleur }} />
+                        {c.etiquette.texte}
+                      </span>
+                    )}
                     <div className={styles.carteBas}>
                       <SablierSla echeance={c.echeance} debut={c.debut} statut={c.statutSla} />
                       <span className={styles.carteMeta}>

@@ -1,24 +1,35 @@
 """Module Projets : liste, création, détail, transition, avancement. RBAC + cloisonnement."""
 
+import io
 import json
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import RowMapping
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
+from PIL import Image, UnidentifiedImageError
+from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
-from dsi360.application.projets import creer_projet, maj_avancement
+from dsi360.application.projets import creer_projet, maj_projet
+from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
+from dsi360.config import get_settings
 from dsi360.domain.etats import transitions_possibles
+from dsi360.domain.texte import phrase_propre
+from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.schemas import (
-    AvancementDemande,
     CreationReponse,
+    DocumentItem,
     PageProjets,
     ProjetCreation,
     ProjetDetail,
+    ProjetMaj,
+    Tache,
+    TacheCreation,
+    TacheMaj,
     TransitionDemande,
 )
 from dsi360.interface.securite import exiger_acces
@@ -54,6 +65,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "statut": r["statut"],
         "direction": r["direction"],
         "chef": _chef(r),
+        "responsable_id": r["resp_id"],
         "avancement": int(d.get("avancement", 0)),
         "budget": d.get("budget"),
         "date_fin": d.get("date_fin"),
@@ -134,6 +146,27 @@ async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> di
     return {"id": ident}
 
 
+@routeur.patch("/{ident}", response_model=ProjetDetail)
+async def modifier(
+    ident: str, corps: ProjetMaj, courant: Courant, session: Session
+) -> dict[str, Any]:
+    await _charger(session, ident, courant)
+    champs = corps.model_dump(exclude_unset=True)
+    if champs.get("responsable_id") is not None:
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+            {"id": champs["responsable_id"]},
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+    if champs:
+        await maj_projet(session, ident, champs, courant)
+        await session.commit()
+    return _detail(await _charger(session, ident, courant))
+
+
 _ENTETES = ["Référence", "Projet", "Statut", "Chef de projet", "Avancement", "Échéance", "Créé le"]
 
 
@@ -196,10 +229,330 @@ async def transitionner(
     return _detail(await _charger(session, ident, courant))
 
 
-@routeur.patch("/{ident}/avancement", response_model=ProjetDetail)
-async def avancement(
-    ident: str, corps: AvancementDemande, courant: Courant, session: Session
+# --- Tâches (l'avancement et le passage « En cours » se déduisent d'elles) ---
+
+
+def _tache_resume(r: RowMapping) -> dict[str, Any]:
+    assigne = None
+    if r["assigne_email"] is not None:
+        assigne = {
+            "prenom": r["assigne_prenom"],
+            "nom": r["assigne_nom"],
+            "email": r["assigne_email"],
+        }
+    return {
+        "id": r["id"],
+        "titre": r["titre"],
+        "description": r["description"],
+        "statut": r["statut"],
+        "assigne": assigne,
+        "assigne_id": r["assigne_id"],
+        "echeance": r["echeance"],
+        "ordre": r["ordre"],
+    }
+
+
+async def _charger_tache(
+    session: AsyncSession, ident: str, tache_id: str, courant: dict[str, Any]
+) -> RowMapping:
+    await _charger(session, ident, courant)  # vérifie l'accès au projet
+    t = await tache_repo.par_id(session, tache_id)
+    if t is None or t["activite_id"] != ident:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable.")
+    return t
+
+
+@routeur.get("/{ident}/taches", response_model=list[Tache])
+async def lister_taches(
+    ident: str, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    await _charger(session, ident, courant)
+    return [_tache_resume(t) for t in await tache_repo.lister(session, ident)]
+
+
+@routeur.post("/{ident}/taches", response_model=ProjetDetail, status_code=status.HTTP_201_CREATED)
+async def creer_tache_projet(
+    ident: str, corps: TacheCreation, courant: Courant, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
-    await maj_avancement(session, ident, corps.avancement, courant)
+    if corps.assigne_id is not None:
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+            {"id": corps.assigne_id},
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+    await creer_tache(
+        session,
+        ident,
+        MODULE,
+        {
+            "titre": phrase_propre(corps.titre),
+            "description": corps.description,
+            "assigne_id": corps.assigne_id,
+            "echeance": corps.echeance,
+            "ordre": corps.ordre,
+        },
+        courant,
+    )
+    await session.commit()
     return _detail(await _charger(session, ident, courant))
+
+
+@routeur.patch("/{ident}/taches/{tache_id}", response_model=ProjetDetail)
+async def maj_tache_projet(
+    ident: str, tache_id: str, corps: TacheMaj, courant: Courant, session: Session
+) -> dict[str, Any]:
+    tache = await _charger_tache(session, ident, tache_id, courant)
+    champs = corps.model_dump(exclude_unset=True)
+    if champs.get("assigne_id") is not None:
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+            {"id": champs["assigne_id"]},
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+    if "titre" in champs and champs["titre"] is not None:
+        champs["titre"] = phrase_propre(champs["titre"])
+    await maj_tache(session, dict(tache), MODULE, champs, courant)
+    await session.commit()
+    return _detail(await _charger(session, ident, courant))
+
+
+@routeur.delete("/{ident}/taches/{tache_id}", response_model=ProjetDetail)
+async def supprimer_tache_projet(
+    ident: str, tache_id: str, courant: Courant, session: Session
+) -> dict[str, Any]:
+    tache = await _charger_tache(session, ident, tache_id, courant)
+    await supprimer_tache(session, dict(tache), MODULE, courant)
+    await session.commit()
+    return _detail(await _charger(session, ident, courant))
+
+
+# --- Documents (pièces jointes) ---
+
+# Types autorisés (contrôle par extension). Pas d'exécutable : les fichiers sont stockés en bytea.
+_EXT_DOC_AUTORISEES: frozenset[str] = frozenset(
+    {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".png", ".jpg", ".jpeg", ".gif",
+     ".txt", ".csv", ".zip"}
+)
+_DOC_COLS = "id::text AS id, nom, type_mime, taille, depose_par, depose_le"
+
+
+async def _lire_fichier_valide(fichier: UploadFile) -> tuple[str, bytes]:
+    """Valide extension + taille et renvoie (nom nettoyé, contenu). Lève HTTPException sinon."""
+    nom = (fichier.filename or "document").strip()
+    ext = f".{nom.rsplit('.', 1)[-1].lower()}" if "." in nom else ""
+    if ext not in _EXT_DOC_AUTORISEES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Type de fichier non autorisé."
+        )
+    contenu = await fichier.read()
+    maxi = get_settings().max_upload_mb * 1024 * 1024
+    if len(contenu) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Fichier vide."
+        )
+    if len(contenu) > maxi:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Fichier trop volumineux (max {get_settings().max_upload_mb} Mo).",
+        )
+    return nom, contenu
+
+
+async def _inserer_document(
+    session: AsyncSession,
+    *,
+    activite_id: str,
+    tache_id: str | None,
+    fichier: UploadFile,
+    nom: str,
+    contenu: bytes,
+    courant: dict[str, Any],
+) -> dict[str, Any]:
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.document "
+                "(activite_id, tache_id, nom, type_mime, taille, contenu, depose_par) "
+                "VALUES (cast(:a as uuid), cast(:t as uuid), :nom, :mime, :taille, :contenu, :par) "
+                f"RETURNING {_DOC_COLS}"
+            ),
+            {
+                "a": activite_id,
+                "t": tache_id,
+                "nom": nom,
+                "mime": fichier.content_type or "application/octet-stream",
+                "taille": len(contenu),
+                "contenu": contenu,
+                "par": courant["email"],
+            },
+        )
+    ).mappings().one()
+    return dict(ligne)
+
+
+@routeur.get("/{ident}/documents", response_model=list[DocumentItem])
+async def lister_documents(
+    ident: str, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    await _charger(session, ident, courant)
+    lignes = await session.execute(
+        text(
+            f"SELECT {_DOC_COLS} FROM core.document "
+            "WHERE activite_id = cast(:a as uuid) AND tache_id IS NULL ORDER BY depose_le DESC"
+        ),
+        {"a": ident},
+    )
+    return [dict(x) for x in lignes.mappings().all()]
+
+
+@routeur.post(
+    "/{ident}/documents", response_model=DocumentItem, status_code=status.HTTP_201_CREATED
+)
+async def deposer_document(
+    ident: str, fichier: UploadFile, courant: Courant, session: Session
+) -> dict[str, Any]:
+    projet = await _charger(session, ident, courant)
+    nom, contenu = await _lire_fichier_valide(fichier)
+    ligne = await _inserer_document(
+        session, activite_id=ident, tache_id=None, fichier=fichier, nom=nom,
+        contenu=contenu, courant=courant,
+    )
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="document",
+        cible_id=f"{projet['reference']}/{nom}",
+    )
+    return dict(ligne)
+
+
+_VIGNETTE_PX = 240
+
+
+def _vignette(contenu: bytes, type_mime: str) -> tuple[bytes, str]:
+    """Redimensionne une image en miniature (côté serveur). Retombe sur l'original si illisible."""
+    try:
+        img = Image.open(io.BytesIO(contenu))
+        img.thumbnail((_VIGNETTE_PX, _VIGNETTE_PX))
+        tampon = io.BytesIO()
+        if img.mode in ("RGBA", "P", "LA"):
+            img.save(tampon, format="PNG")
+            return tampon.getvalue(), "image/png"
+        img.convert("RGB").save(tampon, format="JPEG", quality=80)
+        return tampon.getvalue(), "image/jpeg"
+    except (UnidentifiedImageError, OSError):
+        return contenu, type_mime
+
+
+@routeur.get("/{ident}/documents/{doc_id}")
+async def telecharger_document(
+    ident: str,
+    doc_id: str,
+    courant: Courant,
+    session: Session,
+    taille: Annotated[str | None, Query()] = None,
+) -> Response:
+    await _charger(session, ident, courant)
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT nom, type_mime, contenu FROM core.document "
+                "WHERE id = cast(:d as uuid) AND activite_id = cast(:a as uuid)"
+            ),
+            {"d": doc_id, "a": ident},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable.")
+    contenu = bytes(ligne["contenu"])
+    type_mime = ligne["type_mime"]
+    if taille == "vignette" and type_mime.startswith("image/"):
+        contenu, type_mime = _vignette(contenu, type_mime)
+        return Response(content=contenu, media_type=type_mime)
+    return Response(
+        content=contenu,
+        media_type=type_mime,
+        headers={"Content-Disposition": f'attachment; filename="{ligne["nom"]}"'},
+    )
+
+
+@routeur.delete("/{ident}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_document(
+    ident: str, doc_id: str, courant: Courant, session: Session
+) -> None:
+    projet = await _charger(session, ident, courant)
+    ligne = (
+        await session.execute(
+            text(
+                "DELETE FROM core.document "
+                "WHERE id = cast(:d as uuid) AND activite_id = cast(:a as uuid) RETURNING nom"
+            ),
+            {"d": doc_id, "a": ident},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable.")
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="document",
+        cible_id=f"{projet['reference']}/{ligne['nom']}",
+    )
+
+
+# --- Documents rattachés à une tâche (téléchargement/suppression via les routes /documents) ---
+
+
+@routeur.get("/{ident}/taches/{tache_id}/documents", response_model=list[DocumentItem])
+async def lister_documents_tache(
+    ident: str, tache_id: str, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    await _charger_tache(session, ident, tache_id, courant)
+    lignes = await session.execute(
+        text(
+            f"SELECT {_DOC_COLS} FROM core.document "
+            "WHERE tache_id = cast(:t as uuid) ORDER BY depose_le DESC"
+        ),
+        {"t": tache_id},
+    )
+    return [dict(x) for x in lignes.mappings().all()]
+
+
+@routeur.post(
+    "/{ident}/taches/{tache_id}/documents",
+    response_model=DocumentItem,
+    status_code=status.HTTP_201_CREATED,
+)
+async def deposer_document_tache(
+    ident: str, tache_id: str, fichier: UploadFile, courant: Courant, session: Session
+) -> dict[str, Any]:
+    projet = await _charger(session, ident, courant)
+    tache = await _charger_tache(session, ident, tache_id, courant)
+    nom, contenu = await _lire_fichier_valide(fichier)
+    ligne = await _inserer_document(
+        session, activite_id=ident, tache_id=tache_id, fichier=fichier, nom=nom,
+        contenu=contenu, courant=courant,
+    )
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="document",
+        cible_id=f"{projet['reference']}/{tache['titre']}/{nom}",
+    )
+    return dict(ligne)

@@ -39,7 +39,10 @@ export interface MesStats {
   tendance: JourResolus[];
 }
 
+export type SegmentTicket = 'actifs' | 'resolus' | 'termines' | 'tout';
+
 export const mesTicketsApi = {
-  lister: (): Promise<MonTicket[]> => api.get('/mes-tickets'),
+  lister: (segment: SegmentTicket = 'actifs'): Promise<MonTicket[]> =>
+    api.get(`/mes-tickets?segment=${segment}`),
   stats: (): Promise<MesStats> => api.get('/mes-tickets/stats'),
 };
