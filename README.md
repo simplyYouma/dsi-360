@@ -25,8 +25,10 @@ python -m venv backend\.venv
 backend\.venv\Scripts\python.exe -m pip install -e ".\backend[dev]"
 # 4) migrations + seed
 infra\local\migrer.ps1
-# 5) démarrer API + frontend
-infra\local\demarrer-dev.ps1
+# 5) démarrer API + frontend en une seule commande
+cd frontend
+npm install   # première fois
+npm run dev   # lance l'API (uvicorn) ET le frontend (Vite) dans le même terminal
 ```
 
 - Application (dev) : http://localhost:5290 (Vite, HMR) — proxifie `/api` vers l'API

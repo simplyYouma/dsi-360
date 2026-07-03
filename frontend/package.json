@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node dev.mjs",
+    "web": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint src",

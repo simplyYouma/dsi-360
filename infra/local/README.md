@@ -39,14 +39,17 @@ Décision tracée : [ADR-0002](../../docs/adr/0002-execution-native-sans-docker.
 
 ## Lancer en développement
 
-Deux terminaux (ou `infra\local\demarrer-dev.ps1` pour les deux d'un coup) :
+**Une seule commande** (démarre l'API + le frontend dans le même terminal, Ctrl+C arrête les deux) :
 
 ```powershell
-infra\local\api.ps1        # API FastAPI  → http://127.0.0.1:8011
-infra\local\front-dev.ps1  # Vite (HMR)   → http://localhost:5290
+cd frontend
+npm run dev
 ```
 
-Ouvrir **http://localhost:5290** (le front proxifie `/api` vers l'API).
+Ouvrir **http://localhost:5290** (le front proxifie `/api` vers l'API sur 8011).
+
+> `npm run dev` exécute `frontend/dev.mjs`, qui lance uvicorn (avec `infra/local/.env`) et Vite.
+> Besoin de ne lancer qu'une brique ? `npm run web` (front seul) ou `infra\local\api.ps1` (API seule).
 
 ## Production (poste/serveur)
 
