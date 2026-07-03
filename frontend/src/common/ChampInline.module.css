@@ -2,7 +2,7 @@
   display: inline-block;
   width: 100%;
   text-align: left;
-  padding: 4px 6px;
+  padding: 6px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: text;
@@ -12,22 +12,38 @@
 }
 .affichage:hover {
   background: var(--bg-subtle);
-  border-color: var(--border);
 }
 .placeholder {
   color: var(--text-muted);
 }
+
 .input {
   width: 100%;
-  padding: 4px 6px;
-  border: 1px solid var(--border-focus, var(--secondary));
+  padding: 6px 8px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: inherit;
   font: inherit;
   outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .input:focus {
   border-color: var(--secondary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 18%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 16%, transparent);
+}
+
+/* Variante titre : sans encadré, discrète ; léger fond au survol/focus. */
+.titre {
+  border-color: transparent;
+  background: transparent;
+  padding: 4px 6px;
+}
+.titre:hover {
+  background: var(--bg-subtle);
+}
+.titre:focus {
+  border-color: transparent;
+  background: var(--bg-subtle);
+  box-shadow: none;
 }

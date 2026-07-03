@@ -281,6 +281,7 @@ export function ProjetPage(): JSX.Element {
             valeur={v.titre}
             onValider={(val) => (creation ? setTitre(val) : void patch({ titre: val }))}
             toujoursEdition={creation}
+            titre
             placeholder="Intitulé du projet"
             classeTexte={styles.titre}
             aria-label="Intitulé du projet"
@@ -299,8 +300,8 @@ export function ProjetPage(): JSX.Element {
         <div className={styles.colonne}>
           <section className={styles.carte}>
             <span className={styles.carteTitre}>Cadrage</span>
-            <dl className={fiche.meta}>
-              <div className={cx(fiche.metaItem, fiche.metaLarge)}>
+            <dl className={styles.meta}>
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Chef de projet</dt>
                 <dd>
                   <SelecteurListe
@@ -313,7 +314,7 @@ export function ProjetPage(): JSX.Element {
                   />
                 </dd>
               </div>
-              <div className={fiche.metaItem}>
+              <div className={styles.metaItem}>
                 <dt>Sponsor</dt>
                 <dd>
                   <ChampInline
@@ -325,7 +326,7 @@ export function ProjetPage(): JSX.Element {
                   />
                 </dd>
               </div>
-              <div className={fiche.metaItem}>
+              <div className={styles.metaItem}>
                 <dt>Budget (FCFA)</dt>
                 <dd>
                   <ChampInline
@@ -340,7 +341,7 @@ export function ProjetPage(): JSX.Element {
                   />
                 </dd>
               </div>
-              <div className={fiche.metaItem}>
+              <div className={styles.metaItem}>
                 <dt>Début</dt>
                 <dd>
                   <SelecteurDate
@@ -352,7 +353,7 @@ export function ProjetPage(): JSX.Element {
                   />
                 </dd>
               </div>
-              <div className={fiche.metaItem}>
+              <div className={styles.metaItem}>
                 <dt>Échéance</dt>
                 <dd>
                   <SelecteurDate

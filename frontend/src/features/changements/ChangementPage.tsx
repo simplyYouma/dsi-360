@@ -190,6 +190,7 @@ export function ChangementPage(): JSX.Element {
             valeur={v.titre}
             onValider={(val) => (creation ? setTitre(val) : void agir(() => changementsApi.modifier(id!, { titre: val })))}
             toujoursEdition={creation}
+            titre
             placeholder="Objet du changement"
             classeTexte={styles.titre}
             aria-label="Objet du changement"
@@ -208,8 +209,8 @@ export function ChangementPage(): JSX.Element {
         <div className={styles.colonne}>
           <section className={styles.carte}>
             <span className={styles.carteTitre}>Cadrage</span>
-            <dl className={fiche.meta}>
-              <div className={cx(fiche.metaItem, fiche.metaLarge)}>
+            <dl className={styles.meta}>
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Type</dt>
                 <dd>
                   <SelecteurCategorie
@@ -224,27 +225,27 @@ export function ChangementPage(): JSX.Element {
               </div>
               {!creation && detail && (
                 <>
-                  <div className={fiche.metaItem}>
+                  <div className={styles.metaItem}>
                     <dt>Priorité</dt>
                     <dd>
                       <BadgePriorite priorite={detail.priorite} />
                     </dd>
                   </div>
                   {detail.statut_sla !== undefined && (
-                    <div className={fiche.metaItem}>
+                    <div className={styles.metaItem}>
                       <dt>Échéance SLA</dt>
                       <dd>
                         <BadgeSla etat={detail.statut_sla} />
                       </dd>
                     </div>
                   )}
-                  <div className={fiche.metaItem}>
+                  <div className={styles.metaItem}>
                     <dt>Échéance</dt>
-                    <dd className={fiche.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
+                    <dd className={styles.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
                   </div>
                 </>
               )}
-              <div className={cx(fiche.metaItem, fiche.metaLarge)}>
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Gestionnaire</dt>
                 <dd>
                   <SelecteurListe
@@ -260,7 +261,7 @@ export function ChangementPage(): JSX.Element {
                 </dd>
               </div>
               {!creation && detail && (
-                <div className={cx(fiche.metaItem, fiche.metaLarge)}>
+                <div className={cx(styles.metaItem, styles.metaLarge)}>
                   <dt>Contributeurs</dt>
                   <dd>
                     {detail.contributeurs.length > 0 && (

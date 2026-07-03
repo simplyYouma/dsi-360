@@ -72,6 +72,29 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+.meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3) var(--space-4);
+}
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metaLarge {
+  grid-column: 1 / -1;
+}
+.metaItem dt {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+}
+.valeur {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
 .avTete {
   display: flex;
   justify-content: space-between;

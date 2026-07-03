@@ -10,8 +10,10 @@ interface Props {
   inputMode?: 'numeric';
   /** Mode création : champ toujours en édition (pas de clic requis). */
   toujoursEdition?: boolean;
-  /** Classe appliquée au texte affiché (ex. style d'un titre). */
+  /** Classe appliquée au texte (affiché ET en saisie), ex. style d'un titre. */
   classeTexte?: string | undefined;
+  /** Variante « titre » : saisie discrète, sans encadré. */
+  titre?: boolean;
   'aria-label'?: string | undefined;
 }
 
@@ -24,6 +26,7 @@ export function ChampInline({
   inputMode,
   toujoursEdition = false,
   classeTexte,
+  titre = false,
   'aria-label': ariaLabel,
 }: Props): JSX.Element {
   const [edite, setEdite] = useState(false);
@@ -59,9 +62,11 @@ export function ChampInline({
     if (e.key === 'Enter' && !multiligne) e.currentTarget.blur();
   };
 
+  const classeInput = cx(styles.input, titre && styles.titre, classeTexte);
+
   return multiligne ? (
     <textarea
-      className={styles.input}
+      className={classeInput}
       rows={3}
       value={brouillon}
       placeholder={placeholder}
@@ -73,7 +78,7 @@ export function ChampInline({
     />
   ) : (
     <input
-      className={styles.input}
+      className={classeInput}
       value={brouillon}
       placeholder={placeholder}
       inputMode={inputMode}
