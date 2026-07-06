@@ -8,5 +8,6 @@ routeur = creer_routeur(
     prefixe="/changements",
     tag="changements",
     avec_taches=True,
+    avec_documents=True,
     editable=True,
 )

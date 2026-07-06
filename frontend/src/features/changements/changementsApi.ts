@@ -1,7 +1,8 @@
-import { api } from '@/lib/api';
+import { api, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
+import type { DocumentItem } from '@/features/projets/projetsApi';
 
 // Un changement partage la forme d'activité (priorité, catégorie = type Standard/Normal/Urgent).
 export type Changement = Incident;
@@ -72,4 +73,20 @@ export const changementsApi = {
     api.patch(`${B}/${id}/taches/${tacheId}`, corps),
   supprimerTache: (id: string, tacheId: string): Promise<ChangementDetail> =>
     api.del(`${B}/${id}/taches/${tacheId}`),
+  // Pièces jointes (niveau changement + par tâche) — mêmes routes que les projets.
+  documents: (id: string): Promise<DocumentItem[]> => api.get(`${B}/${id}/documents`),
+  deposerDocument: (id: string, fichier: File): Promise<DocumentItem> =>
+    televerser(`${B}/${id}/documents`, fichier),
+  documentsTache: (id: string, tacheId: string): Promise<DocumentItem[]> =>
+    api.get(`${B}/${id}/taches/${tacheId}/documents`),
+  deposerDocumentTache: (id: string, tacheId: string, fichier: File): Promise<DocumentItem> =>
+    televerser(`${B}/${id}/taches/${tacheId}/documents`, fichier),
+  telechargerDocument: (id: string, docId: string): Promise<void> =>
+    telecharger(`${B}/${id}/documents/${docId}`),
+  apercuDocument: (id: string, docId: string): Promise<Blob> =>
+    recupererBlob(`${B}/${id}/documents/${docId}`),
+  renommerDocument: (id: string, docId: string, nom: string): Promise<DocumentItem> =>
+    api.patch(`${B}/${id}/documents/${docId}`, { nom }),
+  supprimerDocument: (id: string, docId: string): Promise<void> =>
+    api.del(`${B}/${id}/documents/${docId}`),
 };

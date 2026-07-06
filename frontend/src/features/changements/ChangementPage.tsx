@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Send, X } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { ListeTaches } from '@/common/ListeTaches';
+import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from '@/common/statuts';
@@ -326,6 +327,17 @@ export function ChangementPage(): JSX.Element {
                 onAjouter={ajouterTache}
                 onMaj={majTache}
                 onSupprimer={supprimerTache}
+                renduEnfant={(t) => (
+                  <PiecesJointes
+                    compact
+                    charger={() => changementsApi.documentsTache(id!, t.id)}
+                    deposer={(f) => changementsApi.deposerDocumentTache(id!, t.id, f)}
+                    telecharger={(docId) => changementsApi.telechargerDocument(id!, docId)}
+                    apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
+                    renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
+                    supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
+                  />
+                )}
               />
             )}
           </section>
@@ -416,6 +428,18 @@ export function ChangementPage(): JSX.Element {
                   « En implémentation » et « Implémenté » découlent des tâches ; CAB/ECAB et clôture
                   restent manuels.
                 </p>
+              </section>
+
+              <section className={styles.carte}>
+                <span className={styles.carteTitre}>Documents du changement</span>
+                <PiecesJointes
+                  charger={() => changementsApi.documents(id!)}
+                  deposer={(f) => changementsApi.deposerDocument(id!, f)}
+                  telecharger={(docId) => changementsApi.telechargerDocument(id!, docId)}
+                  apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
+                  renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
+                  supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
+                />
               </section>
             </>
           ) : (

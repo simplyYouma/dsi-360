@@ -29,6 +29,7 @@ from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.infrastructure.repositories import tache as tache_repo
+from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.schemas import (
     ActiviteCreation,
     ActiviteDetail,
@@ -160,6 +161,7 @@ def creer_routeur(
     *,
     import_uniquement: bool = False,
     avec_taches: bool = False,
+    avec_documents: bool = False,
     editable: bool = False,
 ) -> APIRouter:
     """Routeur générique d'un module d'activités.
@@ -522,6 +524,8 @@ def creer_routeur(
 
     if avec_taches:
         _enregistrer_taches(routeur, module, charger_visible, Courant, detail_complet)
+    if avec_documents:
+        enregistrer_documents(routeur, module=module, charger=charger_visible, Courant=Courant)
 
     return routeur
 
