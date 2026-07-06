@@ -5,6 +5,7 @@ import { SelecteurDate } from '@/common/SelecteurDate';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { cx } from '@/common/cx';
 import {
+  COULEUR_STATUT_TACHE,
   STATUTS_TACHE,
   type MajTache,
   type NouvelleTache,
@@ -78,6 +79,7 @@ export function ListeTaches({
                 valeur={t.statut}
                 onChange={(v) => v !== null && void onMaj(t.id, { statut: v as StatutTache })}
                 placeholder="Statut"
+                couleurs={COULEUR_STATUT_TACHE}
               />
             </div>
             <div className={styles.tacheChamp}>

@@ -100,3 +100,27 @@
   color: var(--secondary-hover);
   font-weight: var(--weight-medium);
 }
+
+/* Badge sémantique de la valeur sélectionnée (ex. statut de tâche). */
+.badge {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.optionLibelle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pastille {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

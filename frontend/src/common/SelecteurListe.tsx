@@ -15,6 +15,8 @@ interface Props {
   placeholder?: string;
   permettreVide?: boolean;
   libelleVide?: string;
+  /** Couleur sémantique par valeur : pastille dans la liste + badge teinté sur la sélection. */
+  couleurs?: Record<string, string>;
 }
 
 /** Liste déroulante maison (popover) — aucun composant natif navigateur. */
@@ -39,6 +41,7 @@ export function SelecteurListe({
   placeholder = 'Sélectionner…',
   permettreVide = false,
   libelleVide = 'Aucune',
+  couleurs,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
@@ -117,9 +120,21 @@ export function SelecteurListe({
   return (
     <div className={styles.conteneur} ref={ref}>
       <button ref={declencheur} type="button" className={styles.champ} onClick={basculer}>
-        <span className={courant ? styles.valeur : styles.placeholder}>
-          {courant ? courant.libelle : placeholder}
-        </span>
+        {courant && couleurs?.[courant.valeur] ? (
+          <span
+            className={styles.badge}
+            style={{
+              color: couleurs[courant.valeur],
+              background: `color-mix(in srgb, ${couleurs[courant.valeur]} 14%, transparent)`,
+            }}
+          >
+            {courant.libelle}
+          </span>
+        ) : (
+          <span className={courant ? styles.valeur : styles.placeholder}>
+            {courant ? courant.libelle : placeholder}
+          </span>
+        )}
         <ChevronDown size={16} className={cx(styles.fleche, ouvert && styles.flecheOuverte)} />
       </button>
 
@@ -172,7 +187,16 @@ export function SelecteurListe({
                   className={cx(styles.option, o.valeur === valeur && styles.optionActive)}
                   onClick={() => choisir(o.valeur)}
                 >
-                  <span>{o.libelle}</span>
+                  <span className={styles.optionLibelle}>
+                    {couleurs?.[o.valeur] && (
+                      <span
+                        className={styles.pastille}
+                        style={{ background: couleurs[o.valeur] }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    {o.libelle}
+                  </span>
                   {o.valeur === valeur && <Check size={15} />}
                 </button>
               </li>
