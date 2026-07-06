@@ -118,6 +118,12 @@ class ActiviteDetail(ActiviteResume):
     avancement: int = 0
     # Niveau de support ITIL (1 = N1 Service Desk, 2 = N2, 3 = N3). Défaut N1.
     niveau_support: int = 1
+    # Champs RFC (changement, ITIL SI-12.04) — stockés dans donnees, None si non renseignés.
+    analyse_impact: str | None = None
+    analyse_risque: str | None = None
+    plan_deploiement: str | None = None
+    plan_retour_arriere: str | None = None
+    bilan_post_implementation: str | None = None
 
 
 class PageActivites(BaseModel):
@@ -140,10 +146,19 @@ class CategorieDemande(BaseModel):
 
 
 class ActiviteMaj(BaseModel):
-    """Édition en place d'une activité (titre / description) depuis sa fiche."""
+    """Édition en place d'une activité : titre/description + champs RFC (changement).
+
+    Les champs RFC (analyse d'impact/risque, plans, bilan) sont stockés dans `donnees` (ITIL
+    SI-12.04). Tous optionnels : seuls les champs fournis sont modifiés.
+    """
 
     titre: str | None = Field(default=None, min_length=3, max_length=200)
     description: str | None = None
+    analyse_impact: str | None = None
+    analyse_risque: str | None = None
+    plan_deploiement: str | None = None
+    plan_retour_arriere: str | None = None
+    bilan_post_implementation: str | None = None
 
 
 class ContributeurDemande(BaseModel):

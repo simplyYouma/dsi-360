@@ -114,7 +114,18 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "etats": ordre_etats(module),
         "avancement": int(_donnees(r).get("avancement", 0)),
         "niveau_support": int(_donnees(r).get("niveau_support", 1)),
+        **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
     }
+
+
+# Champs RFC (changement, ITIL SI-12.04) stockés dans la colonne JSON `donnees`.
+_CHAMPS_RFC = (
+    "analyse_impact",
+    "analyse_risque",
+    "plan_deploiement",
+    "plan_retour_arriere",
+    "bilan_post_implementation",
+)
 
 
 def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
@@ -615,11 +626,14 @@ def creer_routeur(
         ) -> dict[str, Any]:
             avant = await charger_visible(session, ident, courant)
             champs = corps.model_dump(exclude_unset=True)
+            # Colonnes directes (titre, description).
             fragments = []
+            params: dict[str, Any] = {"id": ident}
             if champs.get("titre") is not None:
-                champs["titre"] = phrase_propre(champs["titre"])
+                params["titre"] = phrase_propre(champs["titre"])
                 fragments.append("titre = :titre")
             if "description" in champs:
+                params["description"] = champs["description"]
                 fragments.append("description = :description")
             if fragments:
                 await session.execute(
@@ -627,8 +641,19 @@ def creer_routeur(
                         f"UPDATE core.activite SET {', '.join(fragments)} "
                         "WHERE id = cast(:id as uuid)"
                     ),
-                    {"id": ident, **{k: champs[k] for k in champs}},
+                    params,
                 )
+            # Champs RFC -> fusionnés dans la colonne JSON `donnees`.
+            fragment_json = {c: champs[c] for c in _CHAMPS_RFC if c in champs}
+            if fragment_json:
+                await session.execute(
+                    text(
+                        "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+                        "WHERE id = cast(:id as uuid)"
+                    ),
+                    {"id": ident, "f": json.dumps(fragment_json)},
+                )
+            if fragments or fragment_json:
                 await audit.consigner(
                     session,
                     action="MODIFICATION",

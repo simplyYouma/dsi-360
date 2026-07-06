@@ -36,7 +36,23 @@ export interface ChangementDetail {
   contributeurs: Contributeur[];
   valideurs: Contributeur[];
   avancement: number;
+  // Champs RFC (ITIL SI-12.04) — null si non renseignés.
+  analyse_impact: string | null;
+  analyse_risque: string | null;
+  plan_deploiement: string | null;
+  plan_retour_arriere: string | null;
+  bilan_post_implementation: string | null;
 }
+
+export type ChangementMaj = Partial<{
+  titre: string;
+  description: string | null;
+  analyse_impact: string | null;
+  analyse_risque: string | null;
+  plan_deploiement: string | null;
+  plan_retour_arriere: string | null;
+  bilan_post_implementation: string | null;
+}>;
 
 export interface NouveauChangement {
   titre: string;
@@ -55,7 +71,7 @@ export const changementsApi = {
   creer: (corps: NouveauChangement): Promise<{ id: string }> => api.post(B, corps),
   categories: (): Promise<Categorie[]> => api.get('/referentiels/categories?module=changement'),
   detail: (id: string): Promise<ChangementDetail> => api.get(`${B}/${id}`),
-  modifier: (id: string, corps: { titre?: string; description?: string | null }): Promise<ChangementDetail> =>
+  modifier: (id: string, corps: ChangementMaj): Promise<ChangementDetail> =>
     api.patch(`${B}/${id}`, corps),
   changerType: (id: string, categorie_id: string | null): Promise<ChangementDetail> =>
     api.post(`${B}/${id}/categorie`, { categorie_id }),

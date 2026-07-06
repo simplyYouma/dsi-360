@@ -337,6 +337,34 @@ export function ChangementPage(): JSX.Element {
             )}
           </section>
 
+          {!creation && detail && (
+            <section className={styles.carte}>
+              <span className={styles.carteTitre}>Analyse & plans (RFC)</span>
+              {(
+                [
+                  ['analyse_impact', "Analyse d'impact"],
+                  ['analyse_risque', 'Analyse de risque'],
+                  ['plan_deploiement', 'Plan de déploiement'],
+                  ['plan_retour_arriere', 'Plan de retour arrière'],
+                  ['bilan_post_implementation', 'Bilan post-implémentation'],
+                ] as const
+              ).map(([champ, libelle]) => (
+                <div key={champ} className={styles.champBloc}>
+                  <span className={styles.note}>{libelle}</span>
+                  <ChampInline
+                    valeur={detail[champ] ?? ''}
+                    onValider={(val) =>
+                      void agir(() => changementsApi.modifier(id!, { [champ]: val }))
+                    }
+                    multiligne
+                    placeholder="—"
+                    aria-label={libelle}
+                  />
+                </div>
+              ))}
+            </section>
+          )}
+
           {!creation && (
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Discussion interne (DSI)</span>
