@@ -6,4 +6,6 @@ La « source » (Audit Groupe, Interne, BCEAO, Contrôle Permanent…) est port�
 
 from dsi360.interface.routeurs.activites_communs import creer_routeur
 
-routeur = creer_routeur(module="audit", acces="audit", prefixe="/audit", tag="audit")
+routeur = creer_routeur(
+    module="audit", acces="audit", prefixe="/audit", tag="audit", avec_documents=True
+)

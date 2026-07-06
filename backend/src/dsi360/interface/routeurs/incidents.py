@@ -8,4 +8,5 @@ routeur = creer_routeur(
     prefixe="/incidents",
     tag="incidents",
     import_uniquement=True,
+    avec_documents=True,
 )

@@ -161,6 +161,7 @@ export function IncidentsPage(): JSX.Element {
         base="/incidents"
         id={ficheId}
         assignable
+        avecDocuments
         moduleCategorie="incident"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}

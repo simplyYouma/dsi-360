@@ -153,6 +153,7 @@ export function AuditPage(): JSX.Element {
         base="/audit"
         id={ficheId}
         assignable
+        avecDocuments
         labelCategorie="Source"
         moduleCategorie="audit"
         onFermer={() => setFicheId(null)}

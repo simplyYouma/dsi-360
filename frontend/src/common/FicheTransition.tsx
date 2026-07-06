@@ -3,9 +3,10 @@ import { ArrowRight, Send } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
+import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
-import { api, ErreurApi } from '@/lib/api';
+import { api, ErreurApi, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
@@ -52,6 +53,8 @@ interface FicheTransitionProps {
   labelCategorie?: string;
   /** Module (code) : si fourni, la catégorie devient éditable depuis la fiche. */
   moduleCategorie?: string;
+  /** Active la gestion des pièces jointes (module avec `avec_documents`). */
+  avecDocuments?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -72,6 +75,7 @@ export function FicheTransition({
   assignable = false,
   labelCategorie = 'Catégorie',
   moduleCategorie,
+  avecDocuments = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -436,6 +440,20 @@ export function FicheTransition({
               })}
             </div>
           </div>
+
+          {avecDocuments && id !== null && (
+            <div className={styles.histo}>
+              <span className={styles.wfTitre}>Pièces jointes</span>
+              <PiecesJointes
+                charger={() => api.get(`${base}/${id}/documents`)}
+                deposer={(f) => televerser(`${base}/${id}/documents`, f)}
+                telecharger={(docId) => telecharger(`${base}/${id}/documents/${docId}`)}
+                apercu={(docId) => recupererBlob(`${base}/${id}/documents/${docId}`)}
+                renommer={(docId, nom) => api.patch(`${base}/${id}/documents/${docId}`, { nom })}
+                supprimer={(docId) => api.del(`${base}/${id}/documents/${docId}`)}
+              />
+            </div>
+          )}
 
           {detail.historique.length > 0 && (
             <div className={styles.histo}>
