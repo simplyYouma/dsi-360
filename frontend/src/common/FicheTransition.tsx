@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUp, Check, Send, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { SelecteurDate } from '@/common/SelecteurDate';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
@@ -41,6 +42,8 @@ interface Detail {
   contributeurs?: Acteur[];
   valideurs?: Acteur[];
   niveau_support?: number;
+  periodicite?: string | null;
+  prochaine_revue?: string | null;
 }
 
 interface FicheTransitionProps {
@@ -58,6 +61,8 @@ interface FicheTransitionProps {
   avecDocuments?: boolean;
   /** Active l'escalade fonctionnelle N1→N2→N3 (module avec `avec_escalade`). */
   avecEscalade?: boolean;
+  /** Active la revue périodique (périodicité + prochaine revue). */
+  avecRevue?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -80,6 +85,7 @@ export function FicheTransition({
   moduleCategorie,
   avecDocuments = false,
   avecEscalade = false,
+  avecRevue = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -209,6 +215,23 @@ export function FicheTransition({
       notifier('Contributeur retiré', 'succes');
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Retrait impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const planifierRevue = async (
+    champ: 'periodicite' | 'prochaine_revue',
+    valeur: string | null,
+  ): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(await api.post<Detail>(`${base}/${id}/revue`, { [champ]: valeur }));
+      notifier('Revue mise à jour', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Mise à jour impossible.');
     } finally {
       setEnvoi(false);
     }
@@ -440,6 +463,29 @@ export function FicheTransition({
                     <ArrowUp size={15} />
                     Escalader
                   </Button>
+                </dd>
+              </div>
+            )}
+            {avecRevue && (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Revue périodique</dt>
+                <dd className={styles.revue}>
+                  <SelecteurListe
+                    options={['Mensuelle', 'Trimestrielle', 'Semestrielle', 'Annuelle'].map((p) => ({
+                      valeur: p,
+                      libelle: p,
+                    }))}
+                    valeur={detail.periodicite ?? null}
+                    onChange={(v) => void planifierRevue('periodicite', v)}
+                    permettreVide
+                    libelleVide="Non définie"
+                    placeholder="Périodicité…"
+                  />
+                  <SelecteurDate
+                    valeur={detail.prochaine_revue ?? null}
+                    onChange={(v) => void planifierRevue('prochaine_revue', v)}
+                    placeholder="Prochaine revue"
+                  />
                 </dd>
               </div>
             )}

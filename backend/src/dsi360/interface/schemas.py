@@ -72,6 +72,16 @@ class DecisionDemande(BaseModel):
     decision: Literal["APPROUVE", "REJETE"]
 
 
+Periodicite = Literal["Mensuelle", "Trimestrielle", "Semestrielle", "Annuelle"]
+
+
+class RevueDemande(BaseModel):
+    """Planification d'une revue périodique (accès, risques, comités…)."""
+
+    periodicite: Periodicite | None = None
+    prochaine_revue: date | None = None
+
+
 class ActiviteCreation(BaseModel):
     titre: str = Field(min_length=3, max_length=200)
     description: str | None = None
@@ -130,6 +140,9 @@ class ActiviteDetail(ActiviteResume):
     plan_deploiement: str | None = None
     plan_retour_arriere: str | None = None
     bilan_post_implementation: str | None = None
+    # Revue périodique (risques, cybersécurité, gouvernance) — stockés dans donnees.
+    periodicite: str | None = None
+    prochaine_revue: date | None = None
 
 
 class PageActivites(BaseModel):
@@ -593,6 +606,8 @@ class RisqueDetail(RisqueResume):
     transitions_possibles: list[str]
     etats: list[str]
     historique: list[EntreeHistorique]
+    periodicite: str | None = None
+    prochaine_revue: date | None = None
 
 
 class PageRisques(BaseModel):

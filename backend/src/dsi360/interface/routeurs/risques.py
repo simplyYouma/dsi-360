@@ -18,6 +18,7 @@ from dsi360.interface.schemas import (
     CategorieDemande,
     CreationReponse,
     PageRisques,
+    RevueDemande,
     RisqueCreation,
     RisqueDetail,
     TransitionDemande,
@@ -65,6 +66,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
 
 
 def _detail(r: RowMapping) -> dict[str, Any]:
+    d = _donnees(r)
     return {
         **_resume(r),
         "description": r["description"],
@@ -72,6 +74,8 @@ def _detail(r: RowMapping) -> dict[str, Any]:
         "categorie_id": str(r["categorie_id"]) if r["categorie_id"] is not None else None,
         "transitions_possibles": transitions_possibles(MODULE, r["statut"]),
         "etats": ordre_etats(MODULE),
+        "periodicite": d.get("periodicite"),
+        "prochaine_revue": d.get("prochaine_revue"),
     }
 
 
@@ -226,4 +230,33 @@ async def changer_categorie(
         nouvelle={"categorie_id": corps.categorie_id},
     )
     await session.commit()
+    return await _detail_complet(session, await _charger(session, ident, courant))
+
+
+@routeur.post("/{ident}/revue", response_model=RisqueDetail)
+async def planifier_revue(
+    ident: str, corps: RevueDemande, courant: Courant, session: Session
+) -> dict[str, Any]:
+    """Planifie la revue périodique du risque (périodicité + prochaine revue)."""
+    avant = await _charger(session, ident, courant)
+    fragment = corps.model_dump(exclude_unset=True, mode="json")
+    if fragment:
+        await session.execute(
+            text(
+                "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+                "WHERE id = cast(:id as uuid)"
+            ),
+            {"id": ident, "f": json.dumps(fragment)},
+        )
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=MODULE,
+            cible_type=MODULE,
+            cible_id=avant["reference"],
+            nouvelle=fragment,
+        )
+        await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant))

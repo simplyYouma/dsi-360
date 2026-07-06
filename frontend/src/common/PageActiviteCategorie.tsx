@@ -176,6 +176,8 @@ export function PageActiviteCategorie({
         base={base}
         id={ficheId}
         assignable
+        avecDocuments
+        avecRevue
         labelCategorie={labelCategorie}
         moduleCategorie={module}
         onFermer={() => setFicheId(null)}

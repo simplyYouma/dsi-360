@@ -43,6 +43,7 @@ from dsi360.interface.schemas import (
     DecisionDemande,
     PageActivites,
     ResultatAssignationLot,
+    RevueDemande,
     Tache,
     TacheCreation,
     TacheMaj,
@@ -116,6 +117,8 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "avancement": int(_donnees(r).get("avancement", 0)),
         "niveau_support": int(_donnees(r).get("niveau_support", 1)),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
+        "periodicite": _donnees(r).get("periodicite"),
+        "prochaine_revue": _donnees(r).get("prochaine_revue"),
     }
 
 
@@ -177,6 +180,7 @@ def creer_routeur(
     avec_taches: bool = False,
     avec_documents: bool = False,
     avec_escalade: bool = False,
+    avec_revue: bool = False,
     editable: bool = False,
 ) -> APIRouter:
     """Routeur générique d'un module d'activités.
@@ -610,6 +614,36 @@ def creer_routeur(
         await session.commit()
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)
+
+    if avec_revue:
+
+        @routeur.post("/{ident}/revue", response_model=ActiviteDetail)
+        async def planifier_revue(
+            ident: str, corps: RevueDemande, courant: Courant, session: Session
+        ) -> dict[str, Any]:
+            avant = await charger_visible(session, ident, courant)
+            fragment = corps.model_dump(exclude_unset=True, mode="json")
+            if fragment:
+                await session.execute(
+                    text(
+                        "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+                        "WHERE id = cast(:id as uuid)"
+                    ),
+                    {"id": ident, "f": json.dumps(fragment)},
+                )
+                await audit.consigner(
+                    session,
+                    action="MODIFICATION",
+                    acteur_id=courant["id"],
+                    acteur_email=courant["email"],
+                    module=module,
+                    cible_type=module,
+                    cible_id=avant["reference"],
+                    nouvelle=fragment,
+                )
+                await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session)
 
     if avec_escalade:
 

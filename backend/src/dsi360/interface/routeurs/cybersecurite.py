@@ -6,5 +6,10 @@ Cycle : Ouvert -> En traitement -> Corrigé -> Clôturé (+ Accepté / Réouvert
 from dsi360.interface.routeurs.activites_communs import creer_routeur
 
 routeur = creer_routeur(
-    module="cybersecurite", acces="cybersecurite", prefixe="/cybersecurite", tag="cybersecurite"
+    module="cybersecurite",
+    acces="cybersecurite",
+    prefixe="/cybersecurite",
+    tag="cybersecurite",
+    avec_documents=True,
+    avec_revue=True,
 )
