@@ -113,6 +113,7 @@ class ActiviteDetail(ActiviteResume):
     etats: list[str]
     historique: list[EntreeHistorique]
     contributeurs: list[Contributeur] = []
+    valideurs: list[Contributeur] = []
     # Avancement dérivé des tâches (modules avec tâches : changement…). 0 sinon.
     avancement: int = 0
 

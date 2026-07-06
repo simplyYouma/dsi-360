@@ -266,6 +266,7 @@ def creer_routeur(
         base["contributeurs"] = [
             dict(c) for c in await repo.lister_contributeurs(session, r["id"])
         ]
+        base["valideurs"] = [dict(c) for c in await repo.lister_valideurs(session, r["id"])]
         return base
 
     # Déclaré avant /{ident} pour éviter que "assignation-lot" soit pris pour un identifiant.
@@ -481,6 +482,69 @@ def creer_routeur(
             cible_type=module,
             cible_id=avant["reference"],
             ancienne={"contributeur_retire": utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.post("/{ident}/valideurs", response_model=ActiviteDetail)
+    async def ajouter_valideur(
+        ident: str, corps: ContributeurDemande, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        avant = await charger_visible(session, ident, courant)
+        existe = await session.scalar(
+            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
+            {"id": corps.utilisateur_id},
+        )
+        if existe is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
+            )
+        await repo.ajouter_valideur(session, ident, corps.utilisateur_id)
+        # Notifie le valideur désigné (sauf s'il se désigne lui-même).
+        if corps.utilisateur_id != courant["id"]:
+            await session.execute(
+                text(
+                    "INSERT INTO core.notification "
+                    "(destinataire_id, activite_id, type, titre, message) "
+                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'VALIDATION', :titre, :msg)"
+                ),
+                {
+                    "dest": corps.utilisateur_id,
+                    "aid": avant["id"],
+                    "titre": f"Validation demandée : {avant['reference']}",
+                    "msg": avant["titre"],
+                },
+            )
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            nouvelle={"valideur_ajoute": corps.utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.delete("/{ident}/valideurs/{utilisateur_id}", response_model=ActiviteDetail)
+    async def retirer_valideur(
+        ident: str, utilisateur_id: str, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        avant = await charger_visible(session, ident, courant)
+        await repo.retirer_valideur(session, ident, utilisateur_id)
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            ancienne={"valideur_retire": utilisateur_id},
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)

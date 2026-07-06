@@ -34,6 +34,7 @@ export interface ChangementDetail {
   etats: string[];
   historique: { statut: string; horodatage: string; acteur: string | null }[];
   contributeurs: Contributeur[];
+  valideurs: Contributeur[];
   avancement: number;
 }
 
@@ -66,6 +67,10 @@ export const changementsApi = {
     api.post(`${B}/${id}/contributeurs`, { utilisateur_id }),
   retirerContributeur: (id: string, uid: string): Promise<ChangementDetail> =>
     api.del(`${B}/${id}/contributeurs/${uid}`),
+  ajouterValideur: (id: string, utilisateur_id: string): Promise<ChangementDetail> =>
+    api.post(`${B}/${id}/valideurs`, { utilisateur_id }),
+  retirerValideur: (id: string, uid: string): Promise<ChangementDetail> =>
+    api.del(`${B}/${id}/valideurs/${uid}`),
   taches: (id: string): Promise<Tache[]> => api.get(`${B}/${id}/taches`),
   creerTache: (id: string, corps: NouvelleTache): Promise<ChangementDetail> =>
     api.post(`${B}/${id}/taches`, corps),

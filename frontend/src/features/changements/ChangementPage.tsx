@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Send, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Send } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
+import { GestionActeurs } from '@/common/GestionActeurs';
 import { ListeTaches } from '@/common/ListeTaches';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
@@ -262,42 +263,36 @@ export function ChangementPage(): JSX.Element {
                 </dd>
               </div>
               {!creation && detail && (
-                <div className={cx(styles.metaItem, styles.metaLarge)}>
-                  <dt>Contributeurs</dt>
-                  <dd>
-                    {detail.contributeurs.length > 0 && (
-                      <ul className={styles.contribListe}>
-                        {detail.contributeurs.map((c) => (
-                          <li key={c.id} className={styles.contribItem}>
-                            <span>
-                              {c.prenom} {c.nom}
-                            </span>
-                            <button
-                              type="button"
-                              className={styles.contribRetirer}
-                              disabled={envoi}
-                              onClick={() => void agir(() => changementsApi.retirerContributeur(id!, c.id))}
-                              aria-label={`Retirer ${c.prenom} ${c.nom}`}
-                            >
-                              <X size={13} />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <SelecteurListe
-                      options={optionsAgents.filter(
-                        (a) =>
-                          a.valeur !== (detail.responsable_id ?? '') &&
-                          !detail.contributeurs.some((c) => c.id === a.valeur),
-                      )}
-                      valeur={null}
-                      onChange={(val) => val !== null && void agir(() => changementsApi.ajouterContributeur(id!, val))}
-                      permettreVide={false}
-                      placeholder="Ajouter un contributeur…"
-                    />
-                  </dd>
-                </div>
+                <>
+                  <div className={cx(styles.metaItem, styles.metaLarge)}>
+                    <dt>Contributeurs</dt>
+                    <dd>
+                      <GestionActeurs
+                        acteurs={detail.contributeurs}
+                        agents={agents}
+                        exclureIds={[detail.responsable_id ?? '']}
+                        onAjouter={(val) => void agir(() => changementsApi.ajouterContributeur(id!, val))}
+                        onRetirer={(val) => void agir(() => changementsApi.retirerContributeur(id!, val))}
+                        placeholder="Ajouter un contributeur…"
+                        disabled={envoi}
+                      />
+                    </dd>
+                  </div>
+                  <div className={cx(styles.metaItem, styles.metaLarge)}>
+                    <dt>Valideurs</dt>
+                    <dd>
+                      <GestionActeurs
+                        acteurs={detail.valideurs}
+                        agents={agents}
+                        exclureIds={[detail.responsable_id ?? '']}
+                        onAjouter={(val) => void agir(() => changementsApi.ajouterValideur(id!, val))}
+                        onRetirer={(val) => void agir(() => changementsApi.retirerValideur(id!, val))}
+                        placeholder="Ajouter un valideur…"
+                        disabled={envoi}
+                      />
+                    </dd>
+                  </div>
+                </>
               )}
             </dl>
             <div className={styles.champBloc}>

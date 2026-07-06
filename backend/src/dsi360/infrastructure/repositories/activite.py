@@ -164,44 +164,74 @@ async def assigner(session: AsyncSession, identifiant: str, responsable_id: str 
     )
 
 
-async def lister_contributeurs(session: AsyncSession, identifiant: str) -> list[RowMapping]:
-    """Contributeurs (acteurs secondaires) d'une activité, avec leur identité."""
+# Acteurs secondaires d'une activité (core.activite_acteur). Rôles : CONTRIBUTEUR (commente/suit)
+# et VALIDEUR (approuve). Même câblage, paramétré par le rôle.
+async def lister_acteurs(session: AsyncSession, identifiant: str, role: str) -> list[RowMapping]:
     lignes = await session.execute(
         text(
             "SELECT u.id::text AS id, u.prenom, u.nom, u.email "
             "FROM core.activite_acteur aa "
             "JOIN core.utilisateur u ON u.id = aa.utilisateur_id "
-            "WHERE aa.activite_id = cast(:id as uuid) AND aa.role = 'CONTRIBUTEUR' "
+            "WHERE aa.activite_id = cast(:id as uuid) AND aa.role = :role "
             "ORDER BY u.prenom, u.nom"
         ),
-        {"id": identifiant},
+        {"id": identifiant, "role": role},
     )
     return list(lignes.mappings().all())
+
+
+async def ajouter_acteur(
+    session: AsyncSession, identifiant: str, utilisateur_id: str, role: str
+) -> None:
+    await session.execute(
+        text(
+            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+            "VALUES (cast(:aid as uuid), cast(:uid as uuid), :role) ON CONFLICT DO NOTHING"
+        ),
+        {"aid": identifiant, "uid": utilisateur_id, "role": role},
+    )
+
+
+async def retirer_acteur(
+    session: AsyncSession, identifiant: str, utilisateur_id: str, role: str
+) -> None:
+    await session.execute(
+        text(
+            "DELETE FROM core.activite_acteur WHERE activite_id = cast(:aid as uuid) "
+            "AND utilisateur_id = cast(:uid as uuid) AND role = :role"
+        ),
+        {"aid": identifiant, "uid": utilisateur_id, "role": role},
+    )
+
+
+async def lister_contributeurs(session: AsyncSession, identifiant: str) -> list[RowMapping]:
+    return await lister_acteurs(session, identifiant, "CONTRIBUTEUR")
 
 
 async def ajouter_contributeur(
     session: AsyncSession, identifiant: str, utilisateur_id: str
 ) -> None:
-    await session.execute(
-        text(
-            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
-            "VALUES (cast(:aid as uuid), cast(:uid as uuid), 'CONTRIBUTEUR') "
-            "ON CONFLICT DO NOTHING"
-        ),
-        {"aid": identifiant, "uid": utilisateur_id},
-    )
+    await ajouter_acteur(session, identifiant, utilisateur_id, "CONTRIBUTEUR")
 
 
 async def retirer_contributeur(
     session: AsyncSession, identifiant: str, utilisateur_id: str
 ) -> None:
-    await session.execute(
-        text(
-            "DELETE FROM core.activite_acteur WHERE activite_id = cast(:aid as uuid) "
-            "AND utilisateur_id = cast(:uid as uuid) AND role = 'CONTRIBUTEUR'"
-        ),
-        {"aid": identifiant, "uid": utilisateur_id},
-    )
+    await retirer_acteur(session, identifiant, utilisateur_id, "CONTRIBUTEUR")
+
+
+async def lister_valideurs(session: AsyncSession, identifiant: str) -> list[RowMapping]:
+    return await lister_acteurs(session, identifiant, "VALIDEUR")
+
+
+async def ajouter_valideur(session: AsyncSession, identifiant: str, utilisateur_id: str) -> None:
+    await ajouter_acteur(session, identifiant, utilisateur_id, "VALIDEUR")
+
+
+async def retirer_valideur(
+    session: AsyncSession, identifiant: str, utilisateur_id: str
+) -> None:
+    await retirer_acteur(session, identifiant, utilisateur_id, "VALIDEUR")
 
 
 async def changer_statut(

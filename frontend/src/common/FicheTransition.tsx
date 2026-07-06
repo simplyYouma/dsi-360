@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Send, X } from 'lucide-react';
+import { ArrowRight, Send } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { api, ErreurApi } from '@/lib/api';
@@ -36,14 +37,8 @@ interface Detail {
   demandeur?: string | null;
   gestionnaire?: string | null;
   responsable_id?: string | null;
-  contributeurs?: Contributeur[];
-}
-
-interface Contributeur {
-  id: string;
-  prenom: string;
-  nom: string;
-  email: string;
+  contributeurs?: Acteur[];
+  valideurs?: Acteur[];
 }
 
 interface FicheTransitionProps {
@@ -211,6 +206,34 @@ export function FicheTransition({
     }
   };
 
+  const ajouterValideur = async (utilisateurId: string): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(await api.post<Detail>(`${base}/${id}/valideurs`, { utilisateur_id: utilisateurId }));
+      notifier('Valideur ajouté', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Ajout impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const retirerValideur = async (utilisateurId: string): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(await api.del<Detail>(`${base}/${id}/valideurs/${utilisateurId}`));
+      notifier('Valideur retiré', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Retrait impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const transitionner = async (vers: string): Promise<void> => {
     if (id === null) return;
     setEnvoi(true);
@@ -323,44 +346,36 @@ export function FicheTransition({
               </div>
             ) : null}
             {assignable ? (
-              <div className={cx(styles.metaItem, styles.metaLarge)}>
-                <dt>Contributeurs</dt>
-                <dd>
-                  {(detail.contributeurs ?? []).length > 0 && (
-                    <ul className={styles.contribListe}>
-                      {(detail.contributeurs ?? []).map((c) => (
-                        <li key={c.id} className={styles.contribItem}>
-                          <span>
-                            {c.prenom} {c.nom}
-                          </span>
-                          <button
-                            type="button"
-                            className={styles.contribRetirer}
-                            disabled={envoi}
-                            onClick={() => void retirerContributeur(c.id)}
-                            aria-label={`Retirer ${c.prenom} ${c.nom}`}
-                          >
-                            <X size={13} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <SelecteurListe
-                    options={agents
-                      .filter(
-                        (a) =>
-                          a.id !== (detail.responsable_id ?? '') &&
-                          !(detail.contributeurs ?? []).some((c) => c.id === a.id),
-                      )
-                      .map((a) => ({ valeur: a.id, libelle: a.nom }))}
-                    valeur={null}
-                    onChange={(v) => void ajouterContributeur(v)}
-                    permettreVide={false}
-                    placeholder="Ajouter un contributeur…"
-                  />
-                </dd>
-              </div>
+              <>
+                <div className={cx(styles.metaItem, styles.metaLarge)}>
+                  <dt>Contributeurs</dt>
+                  <dd>
+                    <GestionActeurs
+                      acteurs={detail.contributeurs ?? []}
+                      agents={agents}
+                      exclureIds={[detail.responsable_id ?? '']}
+                      onAjouter={(v) => void ajouterContributeur(v)}
+                      onRetirer={(v) => void retirerContributeur(v)}
+                      placeholder="Ajouter un contributeur…"
+                      disabled={envoi}
+                    />
+                  </dd>
+                </div>
+                <div className={cx(styles.metaItem, styles.metaLarge)}>
+                  <dt>Valideurs</dt>
+                  <dd>
+                    <GestionActeurs
+                      acteurs={detail.valideurs ?? []}
+                      agents={agents}
+                      exclureIds={[detail.responsable_id ?? '']}
+                      onAjouter={(v) => void ajouterValideur(v)}
+                      onRetirer={(v) => void retirerValideur(v)}
+                      placeholder="Ajouter un valideur…"
+                      disabled={envoi}
+                    />
+                  </dd>
+                </div>
+              </>
             ) : null}
             {detail.sla_resolution_le !== undefined && (
               <div className={styles.metaItem}>
