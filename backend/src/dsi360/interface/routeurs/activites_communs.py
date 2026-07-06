@@ -31,6 +31,7 @@ from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import groupe_support as groupe_repo
 from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.schemas import (
@@ -669,16 +670,38 @@ def creer_routeur(
                 ),
                 {"id": ident, "f": json.dumps({"niveau_support": niveau})},
             )
-            # Notifie le gestionnaire de l'escalade fonctionnelle.
-            if avant["resp_id"] is not None and str(avant["resp_id"]) != courant["id"]:
+            resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
+            # Réaffecte au membre le moins chargé du groupe de support du niveau cible (si présent).
+            nouveau_resp = await groupe_repo.membre_le_moins_charge(session, niveau)
+            reaffecte = nouveau_resp is not None and nouveau_resp != resp_avant
+            if reaffecte:
+                await repo.assigner(session, ident, nouveau_resp)
                 await notifier(
                     session,
-                    destinataire_id=str(avant["resp_id"]),
+                    destinataire_id=nouveau_resp,
+                    activite_id=str(avant["id"]),
+                    type_="ASSIGNATION",
+                    titre=f"Escalade N{niveau} — {avant['reference']}",
+                    message=f"{avant['reference']} vous est confié en support niveau {niveau}.",
+                )
+            # Informe l'ancien gestionnaire de l'escalade (s'il existe et n'est pas l'auteur).
+            ancien_a_prevenir = (
+                resp_avant is not None
+                and resp_avant != courant["id"]
+                and resp_avant != nouveau_resp
+            )
+            if ancien_a_prevenir:
+                suite = " et réaffecté" if reaffecte else ""
+                await notifier(
+                    session,
+                    destinataire_id=resp_avant,
                     activite_id=str(avant["id"]),
                     # Type dédié : 'ESCALADE' est réservé (index unique) à l'escalade SLA auto.
                     type_="ESCALADE_SUPPORT",
                     titre=f"Escalade N{niveau} — {avant['reference']}",
-                    message=f"{avant['reference']} a été escaladé au support niveau {niveau}.",
+                    message=(
+                        f"{avant['reference']} a été escaladé au support niveau {niveau}{suite}."
+                    ),
                 )
             await audit.consigner(
                 session,
@@ -688,7 +711,10 @@ def creer_routeur(
                 module=module,
                 cible_type=module,
                 cible_id=avant["reference"],
-                nouvelle={"niveau_support": niveau},
+                nouvelle={
+                    "niveau_support": niveau,
+                    "reaffecte_a": nouveau_resp if reaffecte else None,
+                },
             )
             await session.commit()
             r = await charger_visible(session, ident, courant)

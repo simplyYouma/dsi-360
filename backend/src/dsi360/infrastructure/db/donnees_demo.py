@@ -266,6 +266,24 @@ async def _jalons(
         )
 
 
+async def _groupes_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
+    """Rattache des agents de démo aux 3 niveaux de support (pour illustrer la réaffectation)."""
+    # niveau -> indices dans UTILISATEURS (N1 = technicien + chef de service, N2 = DSI + chef de
+    # projet, N3 = DSI transverse).
+    repartition = {1: [1, 2], 2: [0, 3], 3: [5]}
+    for niveau, indices in repartition.items():
+        gid = await conn.fetchval("SELECT id FROM core.groupe_support WHERE niveau=$1", niveau)
+        if gid is None:
+            continue
+        for i in indices:
+            if i < len(utilisateurs):
+                await conn.execute(
+                    "INSERT INTO core.groupe_support_membre (groupe_id, utilisateur_id) "
+                    "VALUES ($1,$2) ON CONFLICT DO NOTHING",
+                    gid, utilisateurs[i],
+                )
+
+
 async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de démo
     if get_settings().environnement != "dev":
         print("REFUS : les données de démonstration ne sont créées qu'en environnement 'dev'.")
@@ -278,6 +296,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
     try:
         await _reset(conn)
         utilisateurs = await _assurer_utilisateurs(conn)
+        await _groupes_support(conn, utilisateurs)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
 
         for module, titres in TITRES.items():

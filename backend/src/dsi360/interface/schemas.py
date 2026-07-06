@@ -89,6 +89,28 @@ class EvaluationDemande(BaseModel):
     urgence: int | None = Field(default=None, ge=1, le=5)
 
 
+class MembreSupport(BaseModel):
+    id: str
+    prenom: str
+    nom: str
+    email: str
+
+
+class GroupeSupportItem(BaseModel):
+    """Un niveau de support (N1/N2/N3) et ses membres (administration)."""
+
+    niveau: int
+    nom: str
+    membres: list[MembreSupport] = []
+
+
+class MajGroupeSupport(BaseModel):
+    """Redéfinit les membres d'un niveau de support."""
+
+    niveau: int = Field(ge=1, le=3)
+    utilisateur_ids: list[str] = []
+
+
 class ActiviteCreation(BaseModel):
     titre: str = Field(min_length=3, max_length=200)
     description: str | None = None

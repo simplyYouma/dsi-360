@@ -14,6 +14,7 @@ from dsi360.domain.sla import MODULES_SLA
 from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.repositories import groupe_support as repo_groupe
 from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.infrastructure.securite import hacher_mot_de_passe
@@ -23,7 +24,9 @@ from dsi360.interface.schemas import (
     CreationReponse,
     CreationUtilisateur,
     DirectionItem,
+    GroupeSupportItem,
     MajAcces,
+    MajGroupeSupport,
     MajSlaRegles,
     MajUtilisateur,
     MatriceAcces,
@@ -371,6 +374,37 @@ async def definir_acces(corps: MajAcces, courant: Courant, session: Session) -> 
         module="administration",
         cible_type="acces_role",
         cible_id=corps.profil,
+    )
+    await session.commit()
+
+
+# --- Groupes de support (N1/N2/N3) ---
+
+
+@routeur.get("/groupes-support", response_model=list[GroupeSupportItem])
+async def lister_groupes_support(courant: Courant, session: Session) -> list[dict[str, Any]]:
+    """Les niveaux de support et leurs membres (l'escalade réaffecte au niveau cible)."""
+    return await repo_groupe.lister(session)
+
+
+@routeur.put("/groupes-support", status_code=status.HTTP_204_NO_CONTENT)
+async def definir_groupe_support(
+    corps: MajGroupeSupport, courant: Courant, session: Session
+) -> None:
+    ok = await repo_groupe.definir_membres(session, corps.niveau, corps.utilisateur_ids)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Niveau de support inconnu."
+        )
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="groupe_support",
+        cible_id=f"N{corps.niveau}",
+        nouvelle={"niveau": corps.niveau, "membres": corps.utilisateur_ids},
     )
     await session.commit()
 
