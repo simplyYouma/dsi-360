@@ -38,7 +38,7 @@ _CIBLE = "sr.resolution_minutes"
 _TTR = "nullif(a.donnees->>'ttr_minutes', '')::numeric"
 # Population SLA réelle : tickets importés effectivement résolus (durée mesurée > 0).
 _RESOLUS = (
-    f"{_JOINTURE} JOIN core.sla_regle sr ON sr.priorite = a.priorite "
+    f"{_JOINTURE} JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module "
     f"WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL AND {_TTR} > 0"
 )
 

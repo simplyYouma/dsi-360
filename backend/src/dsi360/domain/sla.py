@@ -14,6 +14,7 @@ class CiblesSla(NamedTuple):
 
 
 # SLA par défaut par priorité P1..P5 (prise en charge, résolution), en minutes. Paramétrable.
+# Sert de repli quand un module n'a pas (encore) de règles propres en base.
 SLA_DEFAUT: dict[int, CiblesSla] = {
     1: CiblesSla(15, 4 * 60),
     2: CiblesSla(30, 8 * 60),
@@ -21,6 +22,10 @@ SLA_DEFAUT: dict[int, CiblesSla] = {
     4: CiblesSla(24 * 60, 5 * 24 * 60),
     5: CiblesSla(2 * 24 * 60, 10 * 24 * 60),
 }
+
+# Modules dont les cibles SLA (P1..P5) sont paramétrables par module dans l'administration.
+# Les autres (projet, risque, audit, gouvernance) suivent une logique d'échéance propre.
+MODULES_SLA: tuple[str, ...] = ("incident", "demande", "changement", "probleme", "cybersecurite")
 
 
 class Echeances(NamedTuple):

@@ -13,6 +13,8 @@ interface RegleSla {
 interface Props {
   impact: number;
   urgence: number;
+  /** Module concerné : les cibles SLA sont propres à chaque module. */
+  module: string;
 }
 
 /** Priorité dérivée d'impact × urgence (miroir exact du backend : moyenne arrondie au supérieur). */
@@ -43,15 +45,15 @@ function formaterEcheance(minutes: number): string {
 /** Aperçu en temps réel de la priorité et des échéances SLA (prise en charge / résolution) déduites
  *  d'impact × urgence, d'après la matrice SLA paramétrée. Purement indicatif : le calcul fait foi
  *  côté serveur à la création. */
-export function ApercuEcheance({ impact, urgence }: Props): JSX.Element {
+export function ApercuEcheance({ impact, urgence, module }: Props): JSX.Element {
   const [matrice, setMatrice] = useState<Record<number, RegleSla>>({});
 
   useEffect(() => {
     void api
-      .get<RegleSla[]>('/referentiels/sla')
+      .get<RegleSla[]>(`/referentiels/sla?module=${module}`)
       .then((regles) => setMatrice(Object.fromEntries(regles.map((r) => [r.priorite, r]))))
       .catch(() => setMatrice({}));
-  }, []);
+  }, [module]);
 
   const priorite = calculerPriorite(impact, urgence);
   const regle = matrice[priorite];

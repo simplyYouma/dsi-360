@@ -63,8 +63,10 @@ export interface SlaRegle {
 
 export const adminApi = {
   profils: (): Promise<Profil[]> => api.get('/admin/profils'),
-  sla: (): Promise<SlaRegle[]> => api.get('/admin/sla'),
-  definirSla: (regles: SlaRegle[]): Promise<void> => api.put('/admin/sla', { regles }),
+  modulesSla: (): Promise<string[]> => api.get('/admin/sla/modules'),
+  sla: (module: string): Promise<SlaRegle[]> => api.get(`/admin/sla?module=${module}`),
+  definirSla: (module: string, regles: SlaRegle[]): Promise<void> =>
+    api.put('/admin/sla', { module, regles }),
   directions: (): Promise<Direction[]> => api.get('/admin/directions'),
   utilisateurs: (page: number): Promise<{ elements: Utilisateur[]; total: number }> =>
     api.get(`/admin/utilisateurs?page=${page}`),

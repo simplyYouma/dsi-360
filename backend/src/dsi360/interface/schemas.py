@@ -404,6 +404,7 @@ class SlaRegleItem(BaseModel):
 
 
 class MajSlaRegles(BaseModel):
+    module: str = Field(min_length=1, max_length=40)
     regles: list[SlaRegleItem] = Field(min_length=1, max_length=5)
 
 

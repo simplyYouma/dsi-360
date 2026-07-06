@@ -34,7 +34,7 @@ SELECT
     AND nullif(a.donnees->>'ttr_minutes','')::numeric <= sr.resolution_minutes) AS sla_reel_ok
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-LEFT JOIN core.sla_regle sr ON sr.priorite = a.priorite
+LEFT JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module
 WHERE 1=1
 """
 

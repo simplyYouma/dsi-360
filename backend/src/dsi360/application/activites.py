@@ -56,7 +56,7 @@ async def creer_activite(
 ) -> str:
     debut = datetime.now(UTC)
     priorite = calculer_priorite(impact, urgence)
-    ech = echeances(priorite, debut, await sla_repo.charger_matrice(session))
+    ech = echeances(priorite, debut, await sla_repo.charger_matrice(session, module))
     reference = await repo.prochaine_reference(session, module, debut.year)
     statut = etat_initial(module)
     demandeur_externe_id = await _resoudre_demandeur(session, demandeur)

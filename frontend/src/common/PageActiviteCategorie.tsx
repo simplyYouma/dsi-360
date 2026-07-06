@@ -229,7 +229,7 @@ export function PageActiviteCategorie({
             <CurseurNiveau valeur={urgence} onChange={setUrgence} />
           </div>
         </div>
-        <ApercuEcheance impact={impact} urgence={urgence} />
+        <ApercuEcheance impact={impact} urgence={urgence} module={module} />
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
     </div>

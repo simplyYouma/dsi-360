@@ -60,6 +60,7 @@ async def etats(
 async def sla(
     session: Annotated[AsyncSession, Depends(session_scope)],
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+    module: Annotated[str, Query()],
 ) -> list[dict[str, Any]]:
-    """Cibles SLA par priorité (lecture) — pour le sablier des listes."""
-    return await repo_sla.lister(session)
+    """Cibles SLA effectives d'un module (règles propres, sinon valeurs par défaut) — aperçu."""
+    return await repo_sla.lister(session, module)

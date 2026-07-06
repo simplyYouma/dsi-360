@@ -525,14 +525,31 @@ function formaterDureeSla(minutes: number): string {
   return `${Number.isInteger(j) ? j : j.toFixed(1)} j`;
 }
 
+const LIBELLES_MODULE_SLA: Record<string, string> = {
+  incident: 'Incidents',
+  demande: 'Demandes',
+  changement: 'Changements',
+  probleme: 'Problèmes',
+  cybersecurite: 'Cybersécurité',
+};
+
 function OngletSla(): JSX.Element {
+  const [modules, setModules] = useState<string[]>([]);
+  const [moduleSel, setModuleSel] = useState<string>('');
   const [regles, setRegles] = useState<SlaRegle[]>([]);
   const [enregistre, setEnregistre] = useState(false);
   const [envoi, setEnvoi] = useState(false);
 
   useEffect(() => {
-    void adminApi.sla().then(setRegles);
+    void adminApi.modulesSla().then((m) => {
+      setModules(m);
+      setModuleSel((sel) => sel || m[0] || '');
+    });
   }, []);
+
+  useEffect(() => {
+    if (moduleSel !== '') void adminApi.sla(moduleSel).then(setRegles);
+  }, [moduleSel]);
 
   const majHeures = (priorite: number, champ: keyof SlaRegle, heures: string): void => {
     const minutes = Math.max(1, Math.round(Number(heures) * 60));
@@ -542,7 +559,7 @@ function OngletSla(): JSX.Element {
   const enregistrer = async (): Promise<void> => {
     setEnvoi(true);
     try {
-      await adminApi.definirSla(regles);
+      await adminApi.definirSla(moduleSel, regles);
       setEnregistre(true);
       window.setTimeout(() => setEnregistre(false), 1500);
     } finally {
@@ -552,10 +569,22 @@ function OngletSla(): JSX.Element {
 
   return (
     <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
+        {modules.map((m) => (
+          <button
+            key={m}
+            type="button"
+            className={m === moduleSel ? a.tabActif : a.tab}
+            onClick={() => setModuleSel(m)}
+          >
+            {LIBELLES_MODULE_SLA[m] ?? m}
+          </button>
+        ))}
+      </div>
       <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-        Délais par priorité, <strong>en heures</strong> : <strong>prise en charge</strong>{' '}
-        (démarrage) et <strong>résolution</strong> (clôture). Décimales = fractions d'heure
-        (0,25&nbsp;h = 15&nbsp;min).
+        Cibles propres à <strong>{LIBELLES_MODULE_SLA[moduleSel] ?? moduleSel}</strong>, par priorité,{' '}
+        <strong>en heures</strong> : <strong>prise en charge</strong> (démarrage) et{' '}
+        <strong>résolution</strong> (clôture). Un incident P1 peut différer d'une demande P1.
       </p>
       <table className={cx(a.matrice, a.matriceSla)}>
         <thead>

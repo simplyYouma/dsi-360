@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config import get_settings
 from dsi360.config.acces import MODULES
+from dsi360.domain.sla import MODULES_SLA
 from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
@@ -398,18 +399,38 @@ async def lister_journal(
     }
 
 
-# --- Règles SLA paramétrables (par priorité) ---
+# --- Règles SLA paramétrables (par module + priorité) ---
+
+
+def _valider_module_sla(module: str) -> None:
+    if module not in MODULES_SLA:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Module SLA inconnu. Attendu : {', '.join(MODULES_SLA)}.",
+        )
+
+
+@routeur.get("/sla/modules", response_model=list[str])
+async def lister_modules_sla(courant: Courant) -> list[str]:
+    """Modules dont les cibles SLA sont paramétrables (un incident P1 ≠ une demande P1)."""
+    return list(MODULES_SLA)
 
 
 @routeur.get("/sla", response_model=list[SlaRegleItem])
-async def lister_sla(courant: Courant, session: Session) -> list[dict[str, Any]]:
-    return await repo_sla.lister(session)
+async def lister_sla(
+    courant: Courant, session: Session, module: Annotated[str, Query()]
+) -> list[dict[str, Any]]:
+    _valider_module_sla(module)
+    return await repo_sla.lister(session, module)
 
 
 @routeur.put("/sla", status_code=status.HTTP_204_NO_CONTENT)
 async def definir_sla(corps: MajSlaRegles, courant: Courant, session: Session) -> None:
+    _valider_module_sla(corps.module)
     for r in corps.regles:
-        await repo_sla.definir(session, r.priorite, r.prise_en_charge_minutes, r.resolution_minutes)
+        await repo_sla.definir(
+            session, corps.module, r.priorite, r.prise_en_charge_minutes, r.resolution_minutes
+        )
     await audit.consigner(
         session,
         action="MAJ_SLA",
@@ -417,6 +438,7 @@ async def definir_sla(corps: MajSlaRegles, courant: Courant, session: Session) -
         acteur_email=courant["email"],
         module="administration",
         cible_type="sla_regle",
-        nouvelle={"regles": [r.model_dump() for r in corps.regles]},
+        cible_id=corps.module,
+        nouvelle={"module": corps.module, "regles": [r.model_dump() for r in corps.regles]},
     )
     await session.commit()

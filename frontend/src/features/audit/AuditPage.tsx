@@ -211,7 +211,7 @@ export function AuditPage(): JSX.Element {
             <CurseurNiveau valeur={urgence} onChange={setUrgence} />
           </div>
         </div>
-        <ApercuEcheance impact={impact} urgence={urgence} />
+        <ApercuEcheance impact={impact} urgence={urgence} module="audit" />
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
     </div>
