@@ -272,3 +272,22 @@
   opacity: 0.5;
   cursor: default;
 }
+
+.escalade {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.niveau {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+}

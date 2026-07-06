@@ -113,6 +113,7 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "transitions_possibles": transitions_possibles(module, r["statut"]),
         "etats": ordre_etats(module),
         "avancement": int(_donnees(r).get("avancement", 0)),
+        "niveau_support": int(_donnees(r).get("niveau_support", 1)),
     }
 
 
@@ -163,6 +164,7 @@ def creer_routeur(
     import_uniquement: bool = False,
     avec_taches: bool = False,
     avec_documents: bool = False,
+    avec_escalade: bool = False,
     editable: bool = False,
 ) -> APIRouter:
     """Routeur générique d'un module d'activités.
@@ -560,6 +562,50 @@ def creer_routeur(
         await session.commit()
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)
+
+    if avec_escalade:
+
+        @routeur.post("/{ident}/escalader", response_model=ActiviteDetail)
+        async def escalader(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
+            avant = await charger_visible(session, ident, courant)
+            niveau = int(_donnees(avant).get("niveau_support", 1))
+            if niveau >= 3:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Déjà au niveau de support maximal (N3).",
+                )
+            niveau += 1
+            await session.execute(
+                text(
+                    "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+                    "WHERE id = cast(:id as uuid)"
+                ),
+                {"id": ident, "f": json.dumps({"niveau_support": niveau})},
+            )
+            # Notifie le gestionnaire de l'escalade fonctionnelle.
+            if avant["resp_id"] is not None and str(avant["resp_id"]) != courant["id"]:
+                await notifier(
+                    session,
+                    destinataire_id=str(avant["resp_id"]),
+                    activite_id=str(avant["id"]),
+                    # Type dédié : 'ESCALADE' est réservé (index unique) à l'escalade SLA auto.
+                    type_="ESCALADE_SUPPORT",
+                    titre=f"Escalade N{niveau} — {avant['reference']}",
+                    message=f"{avant['reference']} a été escaladé au support niveau {niveau}.",
+                )
+            await audit.consigner(
+                session,
+                action="ESCALADE",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                nouvelle={"niveau_support": niveau},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session)
 
     if editable:
 

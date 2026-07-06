@@ -8,4 +8,5 @@ routeur = creer_routeur(
     prefixe="/demandes",
     tag="demandes",
     import_uniquement=True,
+    avec_escalade=True,
 )

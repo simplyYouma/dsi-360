@@ -116,6 +116,8 @@ class ActiviteDetail(ActiviteResume):
     valideurs: list[Contributeur] = []
     # Avancement dérivé des tâches (modules avec tâches : changement…). 0 sinon.
     avancement: int = 0
+    # Niveau de support ITIL (1 = N1 Service Desk, 2 = N2, 3 = N3). Défaut N1.
+    niveau_support: int = 1
 
 
 class PageActivites(BaseModel):

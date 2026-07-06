@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Send } from 'lucide-react';
+import { ArrowRight, ArrowUp, Send } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
@@ -40,6 +40,7 @@ interface Detail {
   responsable_id?: string | null;
   contributeurs?: Acteur[];
   valideurs?: Acteur[];
+  niveau_support?: number;
 }
 
 interface FicheTransitionProps {
@@ -55,6 +56,8 @@ interface FicheTransitionProps {
   moduleCategorie?: string;
   /** Active la gestion des pièces jointes (module avec `avec_documents`). */
   avecDocuments?: boolean;
+  /** Active l'escalade fonctionnelle N1→N2→N3 (module avec `avec_escalade`). */
+  avecEscalade?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -76,6 +79,7 @@ export function FicheTransition({
   labelCategorie = 'Catégorie',
   moduleCategorie,
   avecDocuments = false,
+  avecEscalade = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -205,6 +209,22 @@ export function FicheTransition({
       notifier('Contributeur retiré', 'succes');
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Retrait impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const escalader = async (): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      const d = await api.post<Detail>(`${base}/${id}/escalader`);
+      setDetail(d);
+      onChange();
+      notifier(`Escaladé au support N${d.niveau_support ?? ''}`, 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Escalade impossible.');
     } finally {
       setEnvoi(false);
     }
@@ -381,6 +401,22 @@ export function FicheTransition({
                 </div>
               </>
             ) : null}
+            {avecEscalade && (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Support (ITIL)</dt>
+                <dd className={styles.escalade}>
+                  <span className={styles.niveau}>N{detail.niveau_support ?? 1}</span>
+                  <Button
+                    variante="secondaire"
+                    onClick={() => void escalader()}
+                    disabled={envoi || (detail.niveau_support ?? 1) >= 3}
+                  >
+                    <ArrowUp size={15} />
+                    Escalader
+                  </Button>
+                </dd>
+              </div>
+            )}
             {detail.sla_resolution_le !== undefined && (
               <div className={styles.metaItem}>
                 <dt>Échéance</dt>
