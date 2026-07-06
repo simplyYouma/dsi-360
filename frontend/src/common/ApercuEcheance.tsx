@@ -17,9 +17,17 @@ interface Props {
   module: string;
 }
 
-/** Priorité dérivée d'impact × urgence (miroir exact du backend : moyenne arrondie au supérieur). */
+// Matrice de priorité ITIL (SI-12.01) — miroir exact du backend (domain/activite.py).
+const MATRICE_PRIORITE: Record<string, number> = {
+  '3,3': 1, '3,2': 2, '3,1': 3,
+  '2,3': 2, '2,2': 3, '2,1': 4,
+  '1,3': 3, '1,2': 4, '1,1': 5,
+};
+const bande = (n: number): number => (n >= 4 ? 3 : n === 3 ? 2 : 1);
+
+/** Priorité P1..P5 selon la matrice ITIL impact × urgence (miroir du backend). */
 function calculerPriorite(impact: number, urgence: number): number {
-  return 6 - Math.ceil((impact + urgence) / 2);
+  return MATRICE_PRIORITE[`${bande(impact)},${bande(urgence)}`] ?? 3;
 }
 
 function formaterDuree(minutes: number): string {
