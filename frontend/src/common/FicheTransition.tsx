@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUp, Check, Send, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
+import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
@@ -30,6 +31,8 @@ interface Detail {
   // Champs optionnels selon le module (activité, risque…).
   priorite?: number;
   criticite?: number;
+  impact?: number;
+  urgence?: number;
   categorie?: string | null;
   categorie_id?: string | null;
   statut_sla?: 'a_lheure' | 'approche' | 'depasse';
@@ -252,6 +255,22 @@ export function FicheTransition({
     }
   };
 
+  const reevaluer = async (champ: 'impact' | 'urgence', valeur: number): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      const d = await api.post<Detail>(`${base}/${id}/evaluation`, { [champ]: valeur });
+      setDetail(d);
+      onChange();
+      notifier('Priorité et échéances réévaluées', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Réévaluation impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const escalader = async (): Promise<void> => {
     if (id === null) return;
     setEnvoi(true);
@@ -450,6 +469,21 @@ export function FicheTransition({
                 </div>
               </>
             ) : null}
+            {assignable && detail.impact !== undefined && detail.priorite !== undefined && (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Évaluation</dt>
+                <dd style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Impact
+                    <CurseurNiveau valeur={detail.impact ?? 3} onChange={(v) => void reevaluer('impact', v)} />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Urgence
+                    <CurseurNiveau valeur={detail.urgence ?? 3} onChange={(v) => void reevaluer('urgence', v)} />
+                  </label>
+                </dd>
+              </div>
+            )}
             {avecEscalade && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Support (ITIL)</dt>

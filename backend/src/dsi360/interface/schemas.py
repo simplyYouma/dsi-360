@@ -82,6 +82,13 @@ class RevueDemande(BaseModel):
     prochaine_revue: date | None = None
 
 
+class EvaluationDemande(BaseModel):
+    """Ré-évaluation de l'impact et/ou de l'urgence (recalcule priorité + échéances SLA)."""
+
+    impact: int | None = Field(default=None, ge=1, le=5)
+    urgence: int | None = Field(default=None, ge=1, le=5)
+
+
 class ActiviteCreation(BaseModel):
     titre: str = Field(min_length=3, max_length=200)
     description: str | None = None

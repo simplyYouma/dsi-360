@@ -154,6 +154,29 @@ async def lister_tout(
     return list(lignes.mappings().all())
 
 
+async def maj_evaluation(
+    session: AsyncSession,
+    identifiant: str,
+    *,
+    impact: int,
+    urgence: int,
+    priorite: int,
+    sla_prise_en_charge_le: datetime | None,
+    sla_resolution_le: datetime | None,
+) -> None:
+    """Réévalue impact/urgence/priorité et repositionne les échéances SLA."""
+    await session.execute(
+        text(
+            "UPDATE core.activite SET impact = :i, urgence = :u, priorite = :p, "
+            "sla_prise_en_charge_le = :pc, sla_resolution_le = :res WHERE id::text = :id"
+        ),
+        {
+            "id": identifiant, "i": impact, "u": urgence, "p": priorite,
+            "pc": sla_prise_en_charge_le, "res": sla_resolution_le,
+        },
+    )
+
+
 async def assigner(session: AsyncSession, identifiant: str, responsable_id: str | None) -> None:
     """Affecte (ou retire) le gestionnaire DSI d'une activité."""
     await session.execute(

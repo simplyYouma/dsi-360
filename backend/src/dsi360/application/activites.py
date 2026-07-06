@@ -106,6 +106,52 @@ async def creer_activite(
     return identifiant
 
 
+async def reevaluer(
+    session: AsyncSession,
+    module: str,
+    identifiant: str,
+    *,
+    impact: int | None,
+    urgence: int | None,
+    acteur: dict[str, Any],
+) -> None:
+    """Réévalue impact/urgence → recalcule priorité et échéances SLA (mesurées depuis la création).
+
+    Corrige le pilotage SLA quand l'évaluation initiale était erronée. Journalise ancienne/nouvelle
+    valeur (priorité comprise). Lève ``ActiviteIntrouvable`` si l'activité n'existe pas.
+    """
+    courant = await repo.par_id(session, module, identifiant)
+    if courant is None:
+        raise ActiviteIntrouvable
+    nouvel_impact = impact if impact is not None else courant["impact"]
+    nouvelle_urgence = urgence if urgence is not None else courant["urgence"]
+    if nouvel_impact is None or nouvelle_urgence is None:
+        raise ValueError("Impact et urgence sont requis pour évaluer la priorité.")
+    priorite = calculer_priorite(nouvel_impact, nouvelle_urgence)
+    ech = echeances(priorite, courant["cree_le"], await sla_repo.charger_matrice(session, module))
+    await repo.maj_evaluation(
+        session,
+        identifiant,
+        impact=nouvel_impact,
+        urgence=nouvelle_urgence,
+        priorite=priorite,
+        sla_prise_en_charge_le=ech.prise_en_charge_le,
+        sla_resolution_le=ech.resolution_le,
+    )
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=acteur["id"],
+        acteur_email=acteur["email"],
+        module=module,
+        cible_type=module,
+        cible_id=courant["reference"],
+        ancienne={"impact": courant["impact"], "urgence": courant["urgence"],
+                  "priorite": courant["priorite"]},
+        nouvelle={"impact": nouvel_impact, "urgence": nouvelle_urgence, "priorite": priorite},
+    )
+
+
 async def appliquer_decisions(
     session: AsyncSession, module: str, identifiant: str, acteur: dict[str, Any]
 ) -> str | None:

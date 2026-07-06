@@ -19,6 +19,7 @@ from dsi360.application.activites import (
     TransitionInterdite,
     appliquer_decisions,
     creer_activite,
+    reevaluer,
     transition,
 )
 from dsi360.application.notifications import notifier
@@ -42,6 +43,7 @@ from dsi360.interface.schemas import (
     ContributeurDemande,
     CreationReponse,
     DecisionDemande,
+    EvaluationDemande,
     PageActivites,
     ResultatAssignationLot,
     RevueDemande,
@@ -691,6 +693,24 @@ def creer_routeur(
             await session.commit()
             r = await charger_visible(session, ident, courant)
             return await detail_complet(r, session)
+
+    @routeur.post("/{ident}/evaluation", response_model=ActiviteDetail)
+    async def evaluer(
+        ident: str, corps: EvaluationDemande, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        """Réévalue impact/urgence : recalcule la priorité et repositionne les échéances SLA."""
+        await charger_visible(session, ident, courant)  # garde de périmètre
+        try:
+            await reevaluer(
+                session, module, ident, impact=corps.impact, urgence=corps.urgence, acteur=courant
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
 
     if editable:
 
