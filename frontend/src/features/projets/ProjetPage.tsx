@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Download, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, Eye, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
+import { ApercuDocument } from '@/common/ApercuDocument';
 import { ChampInline } from '@/common/ChampInline';
 import { ListeTaches } from '@/common/ListeTaches';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -26,23 +27,30 @@ function formaterTaille(octets: number): string {
   return `${(octets / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-/** Liste de pièces jointes (projet ou tâche) avec dépôt, téléchargement et suppression. */
+/** Liste de pièces jointes (projet ou tâche) : dépôt, aperçu au clic, renommage, suppression. */
 function Documents({
   charger,
   deposer,
   telecharger,
+  apercu,
+  renommer,
   supprimer,
   compact,
 }: {
   charger: () => Promise<DocumentItem[]>;
   deposer: (f: File) => Promise<unknown>;
   telecharger: (docId: string) => Promise<void>;
+  apercu: (docId: string) => Promise<Blob>;
+  renommer: (docId: string, nom: string) => Promise<unknown>;
   supprimer: (docId: string) => Promise<void>;
   compact?: boolean;
 }): JSX.Element {
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [surviole, setSurviole] = useState(false);
+  const [vue, setVue] = useState<{ url: string; type: string; nom: string; docId: string } | null>(
+    null,
+  );
   const input = useRef<HTMLInputElement>(null);
   const { notifier } = useToast();
 
@@ -73,6 +81,31 @@ function Documents({
       recharger();
     } catch (e) {
       notifier(e instanceof ErreurApi ? e.message : 'Suppression impossible.', 'erreur');
+    }
+  };
+
+  const visualiser = async (d: DocumentItem): Promise<void> => {
+    try {
+      const blob = await apercu(d.id);
+      setVue({ url: URL.createObjectURL(blob), type: d.type_mime, nom: d.nom, docId: d.id });
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Aperçu impossible.', 'erreur');
+    }
+  };
+  const fermerVue = (): void => {
+    setVue((prec) => {
+      if (prec) URL.revokeObjectURL(prec.url);
+      return null;
+    });
+  };
+
+  const nommer = async (docId: string, nom: string): Promise<void> => {
+    if (nom.trim() === '') return;
+    try {
+      await renommer(docId, nom.trim());
+      recharger();
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Renommage impossible.', 'erreur');
     }
   };
 
@@ -116,19 +149,43 @@ function Documents({
       </div>
       {docs.map((d) => (
         <div key={d.id} className={styles.docLigne}>
-          <Paperclip size={13} />
-          <span className={styles.docNom} title={d.nom}>
-            {d.nom}
-          </span>
+          <button
+            type="button"
+            className={styles.docApercu}
+            title={`Aperçu de ${d.nom}`}
+            aria-label={`Aperçu de ${d.nom}`}
+            onClick={() => void visualiser(d)}
+          >
+            <Paperclip size={13} />
+          </button>
+          <div className={styles.docNom}>
+            <ChampInline
+              valeur={d.nom}
+              onValider={(nom) => void nommer(d.id, nom)}
+              aria-label={`Renommer ${d.nom}`}
+            />
+          </div>
           <span className={styles.note}>{formaterTaille(d.taille)}</span>
-          <button type="button" className={styles.docAction} aria-label="Télécharger" onClick={() => void telecharger(d.id)}>
+          <button type="button" className={styles.docAction} aria-label="Aperçu" title="Aperçu" onClick={() => void visualiser(d)}>
+            <Eye size={14} />
+          </button>
+          <button type="button" className={styles.docAction} aria-label="Télécharger" title="Télécharger" onClick={() => void telecharger(d.id)}>
             <Download size={14} />
           </button>
-          <button type="button" className={styles.docAction} aria-label="Supprimer" onClick={() => void retirer(d.id)}>
+          <button type="button" className={styles.docAction} aria-label="Supprimer" title="Supprimer" onClick={() => void retirer(d.id)}>
             <Trash2 size={14} />
           </button>
         </div>
       ))}
+      {vue !== null && (
+        <ApercuDocument
+          url={vue.url}
+          type={vue.type}
+          nom={vue.nom}
+          onFermer={fermerVue}
+          onTelecharger={() => void telecharger(vue.docId)}
+        />
+      )}
     </div>
   );
 }
@@ -400,6 +457,8 @@ export function ProjetPage(): JSX.Element {
                       charger={() => projetsApi.documentsTache(id, t.id)}
                       deposer={(f) => projetsApi.deposerDocumentTache(id, t.id, f)}
                       telecharger={(docId) => projetsApi.telechargerDocument(id, docId)}
+                      apercu={(docId) => projetsApi.apercuDocument(id, docId)}
+                      renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
                       supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
                     />
                   )}
@@ -459,6 +518,8 @@ export function ProjetPage(): JSX.Element {
                     charger={() => projetsApi.documents(id)}
                     deposer={(f) => projetsApi.deposerDocument(id, f)}
                     telecharger={(docId) => projetsApi.telechargerDocument(id, docId)}
+                    apercu={(docId) => projetsApi.apercuDocument(id, docId)}
+                    renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
                     supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
                   />
                 )}

@@ -235,6 +235,10 @@ class DocumentItem(BaseModel):
     depose_le: datetime
 
 
+class DocumentRenommage(BaseModel):
+    nom: str = Field(min_length=1, max_length=200)
+
+
 # --- Notifications ---
 
 

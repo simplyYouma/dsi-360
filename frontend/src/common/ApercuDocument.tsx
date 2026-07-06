@@ -22,8 +22,17 @@ export function ApercuDocument({ url, type, nom, onFermer, onTelecharger }: Prop
   const [echelle, setEchelle] = useState(1);
   const [rotation, setRotation] = useState(0);
 
-  const estImage = type.startsWith('image/');
-  const estPdf = type === 'application/pdf';
+  // On s'appuie sur le type MIME ET sur l'extension (certains fichiers arrivent en
+  // « application/octet-stream » — l'extension permet quand même l'aperçu).
+  const ext = nom.includes('.') ? nom.split('.').pop()!.toLowerCase() : '';
+  const estImage = type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+  const estPdf = type === 'application/pdf' || ext === 'pdf';
+  // Le navigateur sait afficher texte brut, CSV, JSON… directement dans un cadre.
+  const estTexte =
+    type.startsWith('text/') ||
+    ['application/json', 'application/xml', 'application/csv'].includes(type) ||
+    ['txt', 'csv', 'json', 'xml', 'log', 'md'].includes(ext);
+  const estCadre = estPdf || estTexte;
 
   // Réinitialise zoom/rotation à chaque nouveau document.
   useEffect(() => {
@@ -115,7 +124,7 @@ export function ApercuDocument({ url, type, nom, onFermer, onTelecharger }: Prop
               className={styles.image}
               style={{ transform: `rotate(${rotation}deg) scale(${echelle})` }}
             />
-          ) : estPdf ? (
+          ) : estCadre ? (
             <iframe src={url} title={nom} className={styles.cadre} />
           ) : (
             <div className={styles.nonApercu}>

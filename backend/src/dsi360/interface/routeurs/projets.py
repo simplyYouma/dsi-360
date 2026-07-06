@@ -23,6 +23,7 @@ from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.schemas import (
     CreationReponse,
     DocumentItem,
+    DocumentRenommage,
     PageProjets,
     ProjetCreation,
     ProjetDetail,
@@ -484,6 +485,49 @@ async def telecharger_document(
         media_type=type_mime,
         headers={"Content-Disposition": f'attachment; filename="{ligne["nom"]}"'},
     )
+
+
+@routeur.patch("/{ident}/documents/{doc_id}", response_model=DocumentItem)
+async def renommer_document(
+    ident: str, doc_id: str, corps: DocumentRenommage, courant: Courant, session: Session
+) -> dict[str, Any]:
+    projet = await _charger(session, ident, courant)
+    nom = corps.nom.strip()
+    # On conserve l'extension d'origine si l'utilisateur ne la remet pas (fichier ouvrable).
+    ancien = await session.scalar(
+        text(
+            "SELECT nom FROM core.document "
+            "WHERE id = cast(:d as uuid) AND activite_id = cast(:a as uuid)"
+        ),
+        {"d": doc_id, "a": ident},
+    )
+    if ancien is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable.")
+    if "." in ancien:
+        ext = ancien.rsplit(".", 1)[-1]
+        if not nom.lower().endswith(f".{ext.lower()}"):
+            nom = f"{nom}.{ext}"
+    ligne = (
+        await session.execute(
+            text(
+                "UPDATE core.document SET nom = :nom "
+                "WHERE id = cast(:d as uuid) AND activite_id = cast(:a as uuid) "
+                f"RETURNING {_DOC_COLS}"
+            ),
+            {"nom": nom, "d": doc_id, "a": ident},
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="document",
+        cible_id=f"{projet['reference']}/{nom}",
+    )
+    await session.commit()
+    return dict(ligne)
 
 
 @routeur.delete("/{ident}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)

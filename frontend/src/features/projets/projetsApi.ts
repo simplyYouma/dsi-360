@@ -90,6 +90,8 @@ export const projetsApi = {
     recupererBlob(`/projets/${id}/documents/${docId}`),
   vignetteDocument: (id: string, docId: string): Promise<Blob> =>
     recupererBlob(`/projets/${id}/documents/${docId}?taille=vignette`),
+  renommerDocument: (id: string, docId: string, nom: string): Promise<DocumentItem> =>
+    api.patch(`/projets/${id}/documents/${docId}`, { nom }),
   supprimerDocument: (id: string, docId: string): Promise<void> =>
     api.del(`/projets/${id}/documents/${docId}`),
 };
