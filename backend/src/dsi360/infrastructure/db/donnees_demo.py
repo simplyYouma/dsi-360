@@ -105,6 +105,28 @@ COMMENTAIRES = [
 ]
 DOC_TXT = b"Note de demonstration DSI 360.\nContenu simule pour les tests (apercu, renommage).\n"
 
+# Jalons de projet (dates clés) — cf. module Projets.
+JALONS_TITRES = [
+    "Cadrage validé", "Lancement officiel", "Fin de la recette", "Go-live",
+    "Bilan de clôture",
+]
+# Champs RFC (SI-12.04) pour les changements.
+RFC_TEXTES = {
+    "analyse_impact": "Impact sur le core banking et les agences ; interruption planifiée hors "
+    "heures ouvrées ; utilisateurs concernés : back-office et guichets.",
+    "analyse_risque": "Risque de régression maîtrisé ; environnement de pré-production validé ; "
+    "fenêtre de repli identifiée.",
+    "plan_deploiement": "1) Sauvegarde complète. 2) Bascule progressive. 3) Contrôles post-bascule. "
+    "4) Communication aux métiers.",
+    "plan_retour_arriere": "Restauration de la sauvegarde N-1 et bascule sur le lien secondaire ; "
+    "délai de retour arrière estimé à 30 minutes.",
+    "bilan_post_implementation": "Déploiement conforme au plan ; aucun incident majeur ; "
+    "surveillance renforcée 48 h.",
+}
+# Revue périodique (cybersécurité, gouvernance, risques).
+PERIODICITES = ["Mensuelle", "Trimestrielle", "Semestrielle", "Annuelle"]
+MODULES_REVUE = {"cybersecurite", "gouvernance", "risque"}
+
 
 def _dsn() -> str:
     return get_settings().database_url.replace("+asyncpg", "")
@@ -203,7 +225,8 @@ async def _commentaires(
 
 
 async def _acteurs(
-    conn: asyncpg.Connection, activite_id: str, utilisateurs: list[str], responsable_id: str
+    conn: asyncpg.Connection, activite_id: str, utilisateurs: list[str], responsable_id: str,
+    statut: str,
 ) -> None:
     autres = [u for u in utilisateurs if u != responsable_id]
     random.shuffle(autres)
@@ -214,10 +237,32 @@ async def _acteurs(
             activite_id, uid,
         )
     if len(autres) > 2:
+        # Le valideur a déjà tranché sur les activités terminées ; sinon parfois en attente.
+        decision: str | None = None
+        if statut in TERMINAUX:
+            decision = "APPROUVE"
+        elif random.random() < 0.4:
+            decision = random.choice(["APPROUVE", "REJETE"])
         await conn.execute(
-            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
-            "VALUES ($1,$2,'VALIDEUR') ON CONFLICT DO NOTHING",
-            activite_id, autres[2],
+            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role, decision) "
+            "VALUES ($1,$2,'VALIDEUR',$3) ON CONFLICT DO NOTHING",
+            activite_id, autres[2], decision,
+        )
+
+
+async def _jalons(
+    conn: asyncpg.Connection, activite_id: str, debut: datetime, statut: str
+) -> None:
+    """2–4 jalons par projet ; atteints selon l'avancement / statut."""
+    nb = random.randint(2, 4)
+    tous_atteints = statut in TERMINAUX
+    for i in range(nb):
+        atteint = tous_atteints or (i < nb - 1 and random.random() < 0.6)
+        echeance = (debut + timedelta(days=30 * (i + 1))).date()
+        await conn.execute(
+            "INSERT INTO core.jalon (activite_id, titre, echeance, atteint, ordre) "
+            "VALUES ($1,$2,$3,$4,$5)",
+            activite_id, JALONS_TITRES[i % len(JALONS_TITRES)], echeance, atteint, i,
         )
 
 
@@ -275,7 +320,15 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                          "En implémentation", "Implémenté", "Clôturé"]
                     )
                     priorite = calculer_priorite(impact, urgence)
-                    donnees = {"avancement": 0}
+                    donnees = {"avancement": 0, "type_changement": random.choice(
+                        ["Standard", "Normal", "Urgent"])}
+                    # Champs RFC (SI-12.04) : renseignés dès l'évaluation ; bilan après implémentation.
+                    if statut not in ("Brouillon", "Soumis"):
+                        donnees.update({c: RFC_TEXTES[c] for c in (
+                            "analyse_impact", "analyse_risque", "plan_deploiement",
+                            "plan_retour_arriere")})
+                    if statut in ("Implémenté", "Clôturé"):
+                        donnees["bilan_post_implementation"] = RFC_TEXTES["bilan_post_implementation"]
                 else:
                     statut = random.choice(STATUTS[module])
                     priorite = calculer_priorite(impact, urgence)
@@ -291,6 +344,16 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     if statut in TERMINAUX:
                         resolu = cree_le + timedelta(minutes=ttr)
                         cloture = resolu if statut.startswith("Clôtur") else None
+                    # Escalade fonctionnelle N1→N2/N3 sur une partie des incidents (SI-12.01).
+                    if module == "incident" and random.random() < 0.3:
+                        donnees["niveau_support"] = random.choice([2, 2, 3])
+
+                # Revue périodique (cybersécurité, gouvernance, risques) sur un échantillon.
+                if module in MODULES_REVUE and random.random() < 0.6:
+                    donnees["periodicite"] = random.choice(PERIODICITES)
+                    donnees["prochaine_revue"] = (
+                        maintenant + timedelta(days=random.randint(15, 120))
+                    ).date().isoformat()
 
                 # Échéances SLA depuis la matrice du module (activités « fiche »).
                 if priorite is not None and module not in MODULES_IMPORTES:
@@ -331,11 +394,15 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     )
                     await _pieces_jointes(conn, activite_id, EMAILS_DEMO[0], random.randint(0, 2))
 
+                # Jalons (dates clés) sur les projets.
+                if module == "projet":
+                    await _jalons(conn, activite_id, cree_le, statut)
+
                 # Commentaires + contributeurs/valideurs sur un échantillon.
                 if random.random() < 0.6:
                     await _commentaires(conn, activite_id, utilisateurs, cree_le, random.randint(1, 3))
                 if random.random() < 0.5:
-                    await _acteurs(conn, activite_id, utilisateurs, responsable)
+                    await _acteurs(conn, activite_id, utilisateurs, responsable, statut)
 
         # Quelques notifications pour peupler la cloche.
         activites_recentes = await conn.fetch(
