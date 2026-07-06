@@ -1,5 +1,6 @@
 // Démarre l'API (FastAPI/uvicorn) ET le frontend (Vite) en une seule commande : `npm run dev`.
-// Un seul terminal ; Ctrl+C arrête les deux. Aucune dépendance externe.
+// Superviseur résilient : si l'un des deux tombe, il est redémarré automatiquement SANS toucher
+// l'autre. Ctrl+C arrête proprement les deux. Aucune dépendance externe.
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,33 +24,43 @@ if (!existsSync(envFile)) {
   process.exit(1);
 }
 
-const procs = [];
-function lancer(cmd, args, opts) {
-  // shell:true requis sous Windows (Node ≥ 20) pour lancer .exe/.cmd de façon fiable.
-  const p = spawn(`"${cmd}"`, args, { stdio: 'inherit', shell: true, ...opts });
-  p.on('exit', (code) => {
-    // Si l'un s'arrête, on arrête l'autre pour ne pas laisser de processus orphelin.
-    arreter();
-    if (code) process.exitCode = code;
-  });
-  procs.push(p);
-  return p;
-}
 let enArret = false;
+const enfants = new Set();
+
+/** Lance un service et le redémarre s'il s'arrête (sauf arrêt volontaire ou boucle d'échec). */
+function superviser(svc) {
+  // shell:true requis sous Windows (Node ≥ 20) pour lancer .exe/.cmd de façon fiable.
+  const p = spawn(`"${svc.cmd}"`, svc.args, { stdio: 'inherit', shell: true, cwd: svc.cwd });
+  enfants.add(p);
+  p.on('exit', (code) => {
+    enfants.delete(p);
+    if (enArret) return;
+    // Anti-boucle : si le service échoue en rafale (< 4 s), on arrête d'insister.
+    const maintenant = Date.now();
+    svc.echecs = maintenant - (svc.dernier ?? 0) < 4000 ? (svc.echecs ?? 0) + 1 : 0;
+    svc.dernier = maintenant;
+    if (svc.echecs >= 4) {
+      console.error(`\n[dev] ${svc.nom} échoue en boucle — arrêt de la relance. Corrige l'erreur ci-dessus puis relance \`npm run dev\`.\n`);
+      return;
+    }
+    console.error(`\n[dev] ${svc.nom} s'est arrêté (code ${code ?? 0}). Redémarrage…\n`);
+    setTimeout(() => !enArret && superviser(svc), 1200);
+  });
+}
+
 function arreter() {
   if (enArret) return;
   enArret = true;
-  for (const p of procs) p.kill();
+  for (const p of enfants) p.kill();
 }
 process.on('SIGINT', arreter);
 process.on('SIGTERM', arreter);
 
-// API : uvicorn avec rechargement à chaud, config chargée depuis infra/local/.env.
-lancer(
-  python,
-  ['-m', 'uvicorn', 'dsi360.interface.app:app', '--host', '127.0.0.1', '--port', '8011',
+superviser({
+  nom: 'API',
+  cmd: python,
+  args: ['-m', 'uvicorn', 'dsi360.interface.app:app', '--host', '127.0.0.1', '--port', '8011',
     '--reload', '--reload-dir', join(racine, 'backend', 'src'), '--env-file', envFile],
-  { cwd: join(racine, 'backend') },
-);
-// Frontend : serveur Vite (HMR).
-lancer(win ? 'npm.cmd' : 'npm', ['run', 'web'], { cwd: ici });
+  cwd: join(racine, 'backend'),
+});
+superviser({ nom: 'Vite', cmd: win ? 'npm.cmd' : 'npm', args: ['run', 'web'], cwd: ici });
