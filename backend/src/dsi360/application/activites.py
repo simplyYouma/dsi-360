@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.domain.activite import calculer_priorite
-from dsi360.domain.etats import etat_initial, transition_autorisee
+from dsi360.domain.etats import cible_apres_decisions, etat_initial, transition_autorisee
 from dsi360.domain.sla import echeances
 from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
@@ -104,6 +104,26 @@ async def creer_activite(
         nouvelle={"reference": reference, "titre": titre, "priorite": priorite, "statut": statut},
     )
     return identifiant
+
+
+async def appliquer_decisions(
+    session: AsyncSession, module: str, identifiant: str, acteur: dict[str, Any]
+) -> str | None:
+    """Enchaîne le workflow selon les décisions des valideurs (approbation ITIL).
+
+    Approbation unanime → transition vers l'état validé ; un seul rejet → état de rejet. Ne fait
+    rien si l'activité n'est pas dans un état d'attente de validation ou si des décisions manquent.
+    Retourne l'état cible appliqué, ou ``None``.
+    """
+    courant = await repo.par_id(session, module, identifiant)
+    if courant is None:
+        return None
+    valideurs = await repo.lister_valideurs(session, identifiant)
+    cible = cible_apres_decisions(module, courant["statut"], [v["decision"] for v in valideurs])
+    if cible is None:
+        return None
+    await transition(session, module, identifiant, cible, acteur)
+    return cible
 
 
 async def transition(

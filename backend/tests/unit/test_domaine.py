@@ -4,6 +4,7 @@ import pytest
 
 from dsi360.domain.activite import calculer_criticite, calculer_priorite
 from dsi360.domain.etats import (
+    cible_apres_decisions,
     etat_initial,
     etats_terminaux,
     ordre_etats,
@@ -77,6 +78,31 @@ class TestEtats:
     def test_etats_terminaux_module_inconnu(self) -> None:
         with pytest.raises(ValueError):
             etats_terminaux("inexistant")
+
+
+class TestDecisionsValideurs:
+    def test_approbation_unanime_change_valide(self) -> None:
+        assert cible_apres_decisions("changement", "CAB", ["APPROUVE", "APPROUVE"]) == "Validé"
+        assert cible_apres_decisions("changement", "ECAB", ["APPROUVE"]) == "Validé"
+
+    def test_un_rejet_rejette(self) -> None:
+        assert cible_apres_decisions("changement", "CAB", ["APPROUVE", "REJETE"]) == "Rejeté"
+
+    def test_decision_en_attente_ne_bascule_pas(self) -> None:
+        assert cible_apres_decisions("changement", "CAB", ["APPROUVE", None]) is None
+
+    def test_sans_valideur_ne_bascule_pas(self) -> None:
+        assert cible_apres_decisions("changement", "CAB", []) is None
+
+    def test_hors_etat_attente_ne_bascule_pas(self) -> None:
+        assert cible_apres_decisions("changement", "Planifié", ["APPROUVE"]) is None
+
+    def test_demande_validation(self) -> None:
+        assert cible_apres_decisions("demande", "En validation", ["APPROUVE"]) == "Résolue"
+        assert cible_apres_decisions("demande", "En validation", ["REJETE"]) == "Rejetée"
+
+    def test_module_sans_porte(self) -> None:
+        assert cible_apres_decisions("incident", "Ouvert", ["APPROUVE"]) is None
 
 
 class TestSla:

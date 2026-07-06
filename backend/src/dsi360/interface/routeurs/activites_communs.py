@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.application.activites import (
     ActiviteIntrouvable,
     TransitionInterdite,
+    appliquer_decisions,
     creer_activite,
     transition,
 )
@@ -612,6 +613,8 @@ def creer_routeur(
             nouvelle={"decision": corps.decision},
         )
         await session.commit()
+        # Enchaîne le workflow : approbation unanime → validé ; un rejet → rejeté (ITIL CAB/ECAB).
+        await appliquer_decisions(session, module, ident, courant)
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)
 
