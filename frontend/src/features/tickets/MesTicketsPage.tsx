@@ -6,7 +6,7 @@ import { SablierSla } from '@/common/SablierSla';
 import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { Kanban, type ColonneKanban } from '@/common/Kanban';
 import { FicheTransition } from '@/common/FicheTransition';
-import { LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
+import { CAPACITES_MODULE, LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
 import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import { TableauBordAgent } from './TableauBordAgent';
@@ -75,7 +75,7 @@ export function MesTicketsPage(): JSX.Element {
   const [items, setItems] = useState<MonTicket[]>([]);
   const [stats, setStats] = useState<MesStats | null>(null);
   const [chargement, setChargement] = useState(true);
-  const [fiche, setFiche] = useState<{ base: string; id: string } | null>(null);
+  const [fiche, setFiche] = useState<{ base: string; id: string; module: string } | null>(null);
   const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
   const [onglet, setOnglet] = useState<'tickets' | 'analyse'>('tickets');
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
@@ -103,7 +103,7 @@ export function MesTicketsPage(): JSX.Element {
   const ouvrir = useCallback(
     (id: string): void => {
       const ref = baseDe(id);
-      if (ref) setFiche({ base: ref.base, id: ref.ticket.id });
+      if (ref) setFiche({ base: ref.base, id: ref.ticket.id, module: ref.ticket.module });
     },
     [baseDe],
   );
@@ -285,6 +285,7 @@ export function MesTicketsPage(): JSX.Element {
         base={fiche?.base ?? ''}
         id={fiche?.id ?? null}
         assignable
+        {...(fiche ? (CAPACITES_MODULE[fiche.module] ?? {}) : {})}
         onFermer={() => setFiche(null)}
         onChange={charger}
       />
