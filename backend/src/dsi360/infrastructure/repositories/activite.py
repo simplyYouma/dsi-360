@@ -169,7 +169,7 @@ async def assigner(session: AsyncSession, identifiant: str, responsable_id: str 
 async def lister_acteurs(session: AsyncSession, identifiant: str, role: str) -> list[RowMapping]:
     lignes = await session.execute(
         text(
-            "SELECT u.id::text AS id, u.prenom, u.nom, u.email "
+            "SELECT u.id::text AS id, u.prenom, u.nom, u.email, aa.decision "
             "FROM core.activite_acteur aa "
             "JOIN core.utilisateur u ON u.id = aa.utilisateur_id "
             "WHERE aa.activite_id = cast(:id as uuid) AND aa.role = :role "
@@ -178,6 +178,21 @@ async def lister_acteurs(session: AsyncSession, identifiant: str, role: str) -> 
         {"id": identifiant, "role": role},
     )
     return list(lignes.mappings().all())
+
+
+async def definir_decision(
+    session: AsyncSession, identifiant: str, utilisateur_id: str, decision: str
+) -> bool:
+    """Enregistre la décision (APPROUVE/REJETE) d'un valideur. False s'il n'est pas valideur."""
+    resultat = await session.execute(
+        text(
+            "UPDATE core.activite_acteur SET decision = :d, decide_le = now() "
+            "WHERE activite_id = cast(:aid as uuid) AND utilisateur_id = cast(:uid as uuid) "
+            "AND role = 'VALIDEUR' RETURNING utilisateur_id"
+        ),
+        {"aid": identifiant, "uid": utilisateur_id, "d": decision},
+    )
+    return resultat.first() is not None
 
 
 async def ajouter_acteur(

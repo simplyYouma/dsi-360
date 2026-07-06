@@ -64,6 +64,12 @@ class Contributeur(BaseModel):
     prenom: str
     nom: str
     email: str
+    # Décision d'un valideur : APPROUVE / REJETE, ou None (en attente / non applicable).
+    decision: str | None = None
+
+
+class DecisionDemande(BaseModel):
+    decision: Literal["APPROUVE", "REJETE"]
 
 
 class ActiviteCreation(BaseModel):

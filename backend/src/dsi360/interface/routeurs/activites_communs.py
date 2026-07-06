@@ -40,6 +40,7 @@ from dsi360.interface.schemas import (
     CategorieDemande,
     ContributeurDemande,
     CreationReponse,
+    DecisionDemande,
     PageActivites,
     ResultatAssignationLot,
     Tache,
@@ -569,6 +570,42 @@ def creer_routeur(
             cible_type=module,
             cible_id=avant["reference"],
             ancienne={"valideur_retire": utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.post("/{ident}/decision", response_model=ActiviteDetail)
+    async def decider(
+        ident: str, corps: DecisionDemande, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        """Un valideur approuve ou rejette l'activité (approbation ITIL : CAB/ECAB, demandes)."""
+        avant = await charger_visible(session, ident, courant)
+        ok = await repo.definir_decision(session, ident, courant["id"], corps.decision)
+        if not ok:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous n'êtes pas valideur de cette activité.",
+            )
+        libelle = "approuvé" if corps.decision == "APPROUVE" else "rejeté"
+        if avant["resp_id"] is not None and str(avant["resp_id"]) != courant["id"]:
+            await notifier(
+                session,
+                destinataire_id=str(avant["resp_id"]),
+                activite_id=str(avant["id"]),
+                type_="VALIDATION",
+                titre=f"{avant['reference']} — {libelle} par un valideur",
+                message=f"{courant['email']} a {libelle} {avant['reference']}.",
+            )
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            nouvelle={"decision": corps.decision},
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)

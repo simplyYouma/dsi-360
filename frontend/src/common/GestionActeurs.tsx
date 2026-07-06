@@ -7,6 +7,7 @@ export interface Acteur {
   prenom: string;
   nom: string;
   email: string;
+  decision?: string | null;
 }
 
 interface OptionAgent {
@@ -45,6 +46,8 @@ export function GestionActeurs({
               <span>
                 {a.prenom} {a.nom}
               </span>
+              {a.decision === 'APPROUVE' && <span className={styles.approuve}>Approuvé</span>}
+              {a.decision === 'REJETE' && <span className={styles.rejete}>Rejeté</span>}
               <button
                 type="button"
                 className={styles.retirer}

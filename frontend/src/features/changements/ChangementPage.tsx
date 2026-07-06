@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Send, XCircle } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
+import { useAuth } from '@/lib/auth';
 import { ChampInline } from '@/common/ChampInline';
 import { GestionActeurs } from '@/common/GestionActeurs';
 import { ListeTaches } from '@/common/ListeTaches';
@@ -46,6 +47,7 @@ export function ChangementPage(): JSX.Element {
   const creation = id === undefined;
   const navigate = useNavigate();
   const { notifier } = useToast();
+  const { moi } = useAuth();
 
   const [detail, setDetail] = useState<ChangementDetail | null>(null);
   const [taches, setTaches] = useState<Tache[]>([]);
@@ -290,6 +292,17 @@ export function ChangementPage(): JSX.Element {
                         placeholder="Ajouter un valideur…"
                         disabled={envoi}
                       />
+                      {moi !== null && detail.valideurs.some((v) => v.id === moi.id) && (
+                        <div className={styles.decision}>
+                          <span className={styles.note}>Votre décision :</span>
+                          <Button variante="secondaire" onClick={() => void agir(() => changementsApi.decider(id!, 'APPROUVE'), 'Approuvé')} disabled={envoi}>
+                            <Check size={15} /> Approuver
+                          </Button>
+                          <Button variante="secondaire" onClick={() => void agir(() => changementsApi.decider(id!, 'REJETE'), 'Rejeté')} disabled={envoi}>
+                            <XCircle size={15} /> Rejeter
+                          </Button>
+                        </div>
+                      )}
                     </dd>
                   </div>
                 </>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, ArrowUp, Send } from 'lucide-react';
+import { ArrowRight, ArrowUp, Check, Send, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
@@ -214,6 +214,21 @@ export function FicheTransition({
     }
   };
 
+  const decider = async (decision: 'APPROUVE' | 'REJETE'): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      setDetail(await api.post<Detail>(`${base}/${id}/decision`, { decision }));
+      onChange();
+      notifier(decision === 'APPROUVE' ? 'Approuvé' : 'Rejeté', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Décision impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const escalader = async (): Promise<void> => {
     if (id === null) return;
     setEnvoi(true);
@@ -397,6 +412,17 @@ export function FicheTransition({
                       placeholder="Ajouter un valideur…"
                       disabled={envoi}
                     />
+                    {moi !== null && (detail.valideurs ?? []).some((v) => v.id === moi.id) && (
+                      <div className={styles.decision}>
+                        <span className={styles.decisionLabel}>Votre décision :</span>
+                        <Button variante="secondaire" onClick={() => void decider('APPROUVE')} disabled={envoi}>
+                          <Check size={15} /> Approuver
+                        </Button>
+                        <Button variante="secondaire" onClick={() => void decider('REJETE')} disabled={envoi}>
+                          <XCircle size={15} /> Rejeter
+                        </Button>
+                      </div>
+                    )}
                   </dd>
                 </div>
               </>

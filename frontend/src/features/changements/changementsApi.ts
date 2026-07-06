@@ -13,6 +13,7 @@ export interface Contributeur {
   prenom: string;
   nom: string;
   email: string;
+  decision?: string | null;
 }
 
 export interface ChangementDetail {
@@ -87,6 +88,8 @@ export const changementsApi = {
     api.post(`${B}/${id}/valideurs`, { utilisateur_id }),
   retirerValideur: (id: string, uid: string): Promise<ChangementDetail> =>
     api.del(`${B}/${id}/valideurs/${uid}`),
+  decider: (id: string, decision: 'APPROUVE' | 'REJETE'): Promise<ChangementDetail> =>
+    api.post(`${B}/${id}/decision`, { decision }),
   taches: (id: string): Promise<Tache[]> => api.get(`${B}/${id}/taches`),
   creerTache: (id: string, corps: NouvelleTache): Promise<ChangementDetail> =>
     api.post(`${B}/${id}/taches`, corps),
