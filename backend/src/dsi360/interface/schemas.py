@@ -505,6 +505,27 @@ class AvancementDemande(BaseModel):
     avancement: int = Field(ge=0, le=100)
 
 
+class JalonItem(BaseModel):
+    id: str
+    titre: str
+    echeance: date | None
+    atteint: bool
+    ordre: int
+
+
+class JalonCreation(BaseModel):
+    titre: str = Field(min_length=2, max_length=200)
+    echeance: date | None = None
+    ordre: int = 0
+
+
+class JalonMaj(BaseModel):
+    titre: str | None = Field(default=None, min_length=2, max_length=200)
+    echeance: date | None = None
+    atteint: bool | None = None
+    ordre: int | None = None
+
+
 # --- Tâches (d'un projet, d'un changement…) ---
 
 StatutTache = Literal["À faire", "En cours", "Terminée"]

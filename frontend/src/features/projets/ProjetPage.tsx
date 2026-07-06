@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Flag, Plus, Trash2 } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { PiecesJointes } from '@/common/PiecesJointes';
@@ -13,7 +13,88 @@ import { api, ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ProjetPage.module.css';
-import { projetsApi, type ProjetDetail } from './projetsApi';
+import { projetsApi, type Jalon, type ProjetDetail } from './projetsApi';
+
+function formaterDateCourte(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+/** Jalons (dates clés) d'un projet : liste avec case « atteint », ajout et suppression. */
+function Jalons({ projetId }: { projetId: string }): JSX.Element {
+  const [jalons, setJalons] = useState<Jalon[]>([]);
+  const [titre, setTitre] = useState('');
+  const [echeance, setEcheance] = useState('');
+  const { notifier } = useToast();
+
+  const charger = useCallback((): void => {
+    void projetsApi.jalons(projetId).then(setJalons);
+  }, [projetId]);
+  useEffect(() => charger(), [charger]);
+
+  const ajouter = async (): Promise<void> => {
+    if (titre.trim().length < 2) return;
+    try {
+      await projetsApi.creerJalon(projetId, { titre: titre.trim(), echeance: echeance || null });
+      setTitre('');
+      setEcheance('');
+      charger();
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Ajout impossible.', 'erreur');
+    }
+  };
+  const basculer = async (j: Jalon): Promise<void> => {
+    await projetsApi.majJalon(projetId, j.id, { atteint: !j.atteint });
+    charger();
+  };
+  const retirer = async (id: string): Promise<void> => {
+    await projetsApi.supprimerJalon(projetId, id);
+    charger();
+  };
+
+  return (
+    <div className={styles.jalons}>
+      {jalons.length === 0 && <p className={styles.note}>Aucun jalon.</p>}
+      {jalons.map((j) => (
+        <div key={j.id} className={styles.jalon}>
+          <button
+            type="button"
+            className={cx(styles.jalonCase, j.atteint && styles.jalonAtteint)}
+            onClick={() => void basculer(j)}
+            aria-label={j.atteint ? 'Marquer non atteint' : 'Marquer atteint'}
+          >
+            {j.atteint ? <Check size={13} /> : <Flag size={13} />}
+          </button>
+          <span className={cx(styles.jalonTitre, j.atteint && styles.jalonFait)}>{j.titre}</span>
+          <span className={styles.note}>{formaterDateCourte(j.echeance)}</span>
+          <button
+            type="button"
+            className={styles.docAction}
+            aria-label={`Supprimer ${j.titre}`}
+            onClick={() => void retirer(j.id)}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <div className={styles.jalonAjout}>
+        <input
+          className={styles.jalonInput}
+          value={titre}
+          onChange={(e) => setTitre(e.target.value)}
+          placeholder="Nouveau jalon…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void ajouter();
+          }}
+        />
+        <SelecteurDate valeur={echeance || null} onChange={(v) => setEcheance(v ?? '')} placeholder="Échéance" />
+        <Button onClick={() => void ajouter()} disabled={titre.trim().length < 2}>
+          <Plus size={15} />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 interface Agent {
   id: string;
@@ -297,6 +378,13 @@ export function ProjetPage(): JSX.Element {
               )
             )}
           </section>
+
+          {!creation && id !== undefined && (
+            <section className={styles.carte}>
+              <span className={styles.carteTitre}>Jalons</span>
+              <Jalons projetId={id} />
+            </section>
+          )}
         </div>
 
         <div className={styles.colonne}>

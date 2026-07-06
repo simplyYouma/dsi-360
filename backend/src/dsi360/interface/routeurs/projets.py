@@ -12,13 +12,18 @@ from dsi360.application.projets import creer_projet, maj_projet
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import transitions_possibles
 from dsi360.domain.texte import phrase_propre
+from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import jalon as jalon_repo
 from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.schemas import (
     CreationReponse,
+    JalonCreation,
+    JalonItem,
+    JalonMaj,
     PageProjets,
     ProjetCreation,
     ProjetDetail,
@@ -327,6 +332,82 @@ async def supprimer_tache_projet(
     await supprimer_tache(session, dict(tache), MODULE, courant)
     await session.commit()
     return _detail(await _charger(session, ident, courant))
+
+
+# --- Jalons (dates clés du projet) ---
+
+
+async def _charger_jalon(
+    session: AsyncSession, ident: str, jalon_id: str, courant: dict[str, Any]
+) -> RowMapping:
+    await _charger(session, ident, courant)
+    j = await jalon_repo.par_id(session, jalon_id, ident)
+    if j is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Jalon introuvable.")
+    return j
+
+
+async def _auditer_jalon(
+    session: AsyncSession, ident: str, courant: dict[str, Any], action: str, detail: dict[str, Any]
+) -> None:
+    projet = await _charger(session, ident, courant)
+    await audit.consigner(
+        session,
+        action=action,
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="jalon",
+        cible_id=projet["reference"],
+        nouvelle=detail,
+    )
+
+
+@routeur.get("/{ident}/jalons", response_model=list[JalonItem])
+async def lister_jalons(ident: str, courant: Courant, session: Session) -> list[dict[str, Any]]:
+    await _charger(session, ident, courant)
+    return [dict(j) for j in await jalon_repo.lister(session, ident)]
+
+
+@routeur.post("/{ident}/jalons", response_model=JalonItem, status_code=status.HTTP_201_CREATED)
+async def creer_jalon(
+    ident: str, corps: JalonCreation, courant: Courant, session: Session
+) -> dict[str, Any]:
+    await _charger(session, ident, courant)
+    ligne = await jalon_repo.creer(
+        session,
+        ident,
+        {"titre": phrase_propre(corps.titre), "echeance": corps.echeance, "ordre": corps.ordre},
+    )
+    await _auditer_jalon(session, ident, courant, "CREATION", {"titre": corps.titre})
+    await session.commit()
+    return dict(ligne)
+
+
+@routeur.patch("/{ident}/jalons/{jalon_id}", response_model=JalonItem)
+async def maj_jalon(
+    ident: str, jalon_id: str, corps: JalonMaj, courant: Courant, session: Session
+) -> dict[str, Any]:
+    await _charger_jalon(session, ident, jalon_id, courant)
+    champs = corps.model_dump(exclude_unset=True)
+    if champs.get("titre") is not None:
+        champs["titre"] = phrase_propre(champs["titre"])
+    await jalon_repo.maj(session, jalon_id, champs)
+    await _auditer_jalon(session, ident, courant, "MODIFICATION", champs)
+    await session.commit()
+    j = await jalon_repo.par_id(session, jalon_id, ident)
+    return dict(j) if j is not None else {}
+
+
+@routeur.delete("/{ident}/jalons/{jalon_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_jalon(
+    ident: str, jalon_id: str, courant: Courant, session: Session
+) -> None:
+    jalon = await _charger_jalon(session, ident, jalon_id, courant)
+    await jalon_repo.supprimer(session, jalon_id)
+    await _auditer_jalon(session, ident, courant, "SUPPRESSION", {"titre": jalon["titre"]})
+    await session.commit()
+
 
 # Pièces jointes (activité + tâches) : logique partagée avec les autres modules.
 enregistrer_documents(routeur, module=MODULE, charger=_charger, Courant=Courant)

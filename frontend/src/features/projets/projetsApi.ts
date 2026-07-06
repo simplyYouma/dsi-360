@@ -60,6 +60,14 @@ export interface DocumentItem {
 export { STATUTS_TACHE };
 export type { StatutTache, Tache, NouvelleTache, MajTache };
 
+export interface Jalon {
+  id: string;
+  titre: string;
+  echeance: string | null;
+  atteint: boolean;
+  ordre: number;
+}
+
 export const projetsApi = {
   lister: (page: number, f?: FiltresListe): Promise<PageProjets> =>
     api.get(`/projets?${chaineFiltres(page, f)}`),
@@ -77,6 +85,16 @@ export const projetsApi = {
     api.patch(`/projets/${id}/taches/${tacheId}`, corps),
   supprimerTache: (id: string, tacheId: string): Promise<ProjetDetail> =>
     api.del(`/projets/${id}/taches/${tacheId}`),
+  jalons: (id: string): Promise<Jalon[]> => api.get(`/projets/${id}/jalons`),
+  creerJalon: (id: string, corps: { titre: string; echeance?: string | null }): Promise<Jalon> =>
+    api.post(`/projets/${id}/jalons`, corps),
+  majJalon: (
+    id: string,
+    jalonId: string,
+    corps: Partial<{ titre: string; echeance: string | null; atteint: boolean }>,
+  ): Promise<Jalon> => api.patch(`/projets/${id}/jalons/${jalonId}`, corps),
+  supprimerJalon: (id: string, jalonId: string): Promise<void> =>
+    api.del(`/projets/${id}/jalons/${jalonId}`),
   documents: (id: string): Promise<DocumentItem[]> => api.get(`/projets/${id}/documents`),
   deposerDocument: (id: string, fichier: File): Promise<DocumentItem> =>
     televerser(`/projets/${id}/documents`, fichier),
