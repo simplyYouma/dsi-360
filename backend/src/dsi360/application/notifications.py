@@ -150,9 +150,88 @@ _INSERT_ESCALADE = text(
 
 
 async def scanner_tout() -> None:
-    """Un passage complet de l'ordonnanceur : échéances SLA + escalades P1."""
+    """Un passage complet de l'ordonnanceur : échéances SLA + escalades P1 + revues + jalons."""
     await scanner_echeances()
     await scanner_escalades()
+    await scanner_revues()
+    await scanner_jalons()
+
+
+_REVUES_DUES = text(
+    "SELECT a.id::text AS id, a.reference, a.titre, a.responsable_id::text AS resp, "
+    "       a.donnees->>'prochaine_revue' AS prochaine "
+    "FROM core.activite a "
+    "WHERE a.responsable_id IS NOT NULL "
+    "  AND a.donnees->>'prochaine_revue' IS NOT NULL "
+    "  AND (a.donnees->>'prochaine_revue')::date <= (now() + make_interval(days => :j))::date "
+    "  AND coalesce(a.donnees->>'revue_notifiee_le','') <> (a.donnees->>'prochaine_revue')"
+)
+
+
+async def scanner_revues(jours: int = 3) -> dict[str, int]:
+    """Rappelle les revues périodiques (cyber, gouvernance, risques) dont l'échéance approche.
+
+    Une seule notification par date de revue : un marqueur `revue_notifiee_le` empêche le doublon,
+    et une nouvelle date de revue (replanification) déclenche un nouveau rappel.
+    """
+    crees = 0
+    async with get_sessionmaker()() as session:
+        lignes = (await session.execute(_REVUES_DUES, {"j": jours})).mappings().all()
+        for r in lignes:
+            await notifier(
+                session,
+                destinataire_id=r["resp"],
+                activite_id=r["id"],
+                type_="REVUE_DUE",
+                titre=f"Revue à réaliser — {r['reference']}",
+                message=f"La revue périodique de {r['reference']} « {r['titre']} » "
+                f"est prévue pour le {r['prochaine']}.",
+            )
+            await session.execute(
+                text(
+                    "UPDATE core.activite SET donnees = donnees || "
+                    "jsonb_build_object('revue_notifiee_le', donnees->>'prochaine_revue') "
+                    "WHERE id::text = :id"
+                ),
+                {"id": r["id"]},
+            )
+            crees += 1
+        await session.commit()
+    return {"vues": len(lignes), "crees": crees}
+
+
+_JALONS_DUS = text(
+    "SELECT j.id::text AS jid, j.titre AS jtitre, j.echeance, "
+    "       a.id::text AS aid, a.reference, a.responsable_id::text AS resp "
+    "FROM core.jalon j JOIN core.activite a ON a.id = j.activite_id "
+    "WHERE j.atteint = false AND j.echeance IS NOT NULL AND j.rappel_le IS NULL "
+    "  AND j.echeance <= (now() + make_interval(days => :j))::date "
+    "  AND a.cloture_le IS NULL AND a.responsable_id IS NOT NULL"
+)
+
+
+async def scanner_jalons(jours: int = 3) -> dict[str, int]:
+    """Rappelle les jalons de projet non atteints dont l'échéance approche (une fois par jalon)."""
+    crees = 0
+    async with get_sessionmaker()() as session:
+        lignes = (await session.execute(_JALONS_DUS, {"j": jours})).mappings().all()
+        for r in lignes:
+            await notifier(
+                session,
+                destinataire_id=r["resp"],
+                activite_id=r["aid"],
+                type_="JALON_DU",
+                titre=f"Jalon proche — {r['reference']}",
+                message=f"Le jalon « {r['jtitre']} » de {r['reference']} arrive à échéance "
+                f"le {r['echeance']}.",
+            )
+            await session.execute(
+                text("UPDATE core.jalon SET rappel_le = now() WHERE id::text = :id"),
+                {"id": r["jid"]},
+            )
+            crees += 1
+        await session.commit()
+    return {"vues": len(lignes), "crees": crees}
 
 
 async def scanner_escalades() -> dict[str, int]:
