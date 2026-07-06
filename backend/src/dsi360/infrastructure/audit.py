@@ -4,6 +4,7 @@ Chaque entrée enchaîne l'empreinte de la précédente : toute altération ult�
 détectable. L'e-mail de l'acteur est figé à l'écriture (il survit à la suppression du compte).
 """
 
+import contextvars
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -11,6 +12,17 @@ from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Adresse IP de la requête courante, posée par le middleware HTTP (cf. interface/app.py) et lue
+# automatiquement par consigner() : évite d'injecter Request dans chaque endpoint d'écriture.
+_adresse_ip_courante: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "adresse_ip_courante", default=None
+)
+
+
+def definir_adresse_ip(ip: str | None) -> None:
+    _adresse_ip_courante.set(ip)
+
 
 _DERNIER = text("SELECT hash_courant FROM audit.journal ORDER BY id DESC LIMIT 1")
 
@@ -60,6 +72,9 @@ async def consigner(
     nouvelle: dict[str, Any] | None = None,
     adresse_ip: str | None = None,
 ) -> None:
+    # Repli sur l'IP de la requête courante (contextvar) si l'appelant ne la fournit pas.
+    if adresse_ip is None:
+        adresse_ip = _adresse_ip_courante.get()
     precedent = await session.scalar(_DERNIER)
     horodatage = datetime.now(UTC)
     av = json.dumps(ancienne, ensure_ascii=False, sort_keys=True) if ancienne is not None else None

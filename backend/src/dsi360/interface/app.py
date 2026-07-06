@@ -10,13 +10,14 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from dsi360.application.notifications import scanner_tout
 from dsi360.config import Settings, get_settings
+from dsi360.infrastructure.audit import definir_adresse_ip
 from dsi360.infrastructure.db import get_engine
 from dsi360.interface.routeurs import (
     administration,
@@ -69,6 +70,11 @@ async def _cycle_vie(app: FastAPI) -> AsyncIterator[None]:
                 await tache
 
 
+async def _capter_ip(request: Request) -> None:
+    """Dépendance globale : mémorise l'IP de la requête pour l'audit (même contexte)."""
+    definir_adresse_ip(request.client.host if request.client else None)
+
+
 def _monter_frontend(app: FastAPI, settings: Settings) -> None:
     """Sert la SPA (build Vite) directement depuis l'API — prod native sans reverse-proxy statique.
 
@@ -116,7 +122,7 @@ def creer_app() -> FastAPI:
             db = "ko"
         return {"statut": "pret" if db == "ok" else "degrade", "db": db}
 
-    v1 = APIRouter(prefix="/api/v1")
+    v1 = APIRouter(prefix="/api/v1", dependencies=[Depends(_capter_ip)])
     v1.include_router(auth.routeur)
     v1.include_router(administration.routeur)
     v1.include_router(referentiels.routeur)
