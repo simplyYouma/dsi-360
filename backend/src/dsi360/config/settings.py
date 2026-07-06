@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     jwt_acces_minutes: int = 15
 
     max_upload_mb: int = 20
+    # Ordonnanceur natif : intervalle du scan SLA/escalade (secondes). 0 = désactivé.
+    sla_scan_intervalle_s: int = 300
     # Dossier des migrations SQL. En natif, fourni par l'environnement (infra/local/env.ps1).
     migrations_dir: str = "/db/migrations"
 

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.application.notifications import notifier_acteurs
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import CommentaireCreation, CommentaireItem
@@ -83,6 +84,14 @@ async def commenter(
         acteur_email=courant["email"],
         cible_type="activite",
         cible_id=reference,
+    )
+    await notifier_acteurs(
+        session,
+        activite_id=activite_id,
+        type_="COMMENTAIRE",
+        titre=f"Nouveau commentaire — {reference}",
+        message=f"{courant['email']} a commenté l'activité {reference}.",
+        exclure_id=courant["id"],
     )
     await session.commit()
     return {

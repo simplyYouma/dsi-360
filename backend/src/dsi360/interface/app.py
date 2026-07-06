@@ -4,6 +4,10 @@ Les routeurs des modules (incidents, demandes, projets, dashboard…) seront mon
 au fur et à mesure des lots (cf. docs/07-ROADMAP.md). Architecture en couches : cf. docs/01.
 """
 
+import asyncio
+import contextlib
+import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
@@ -11,6 +15,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
+from dsi360.application.notifications import scanner_tout
 from dsi360.config import Settings, get_settings
 from dsi360.infrastructure.db import get_engine
 from dsi360.interface.routeurs import (
@@ -34,6 +39,34 @@ from dsi360.interface.routeurs import (
     risques,
     tableau_de_bord,
 )
+
+_log = logging.getLogger("dsi360.ordonnanceur")
+
+
+async def _ordonnanceur(intervalle_s: int) -> None:
+    """Tâche de fond native : scanne périodiquement les échéances SLA et les escalades P1.
+
+    Remplace le worker/beat Celery (exécution native sans Redis, cf. ADR-0002).
+    """
+    while True:
+        await asyncio.sleep(intervalle_s)
+        try:
+            await scanner_tout()
+        except Exception as exc:  # noqa: BLE001 — un scan raté ne doit pas tuer la boucle
+            _log.warning("Scan SLA/escalade échec : %s", exc)
+
+
+@contextlib.asynccontextmanager
+async def _cycle_vie(app: FastAPI) -> AsyncIterator[None]:
+    intervalle = get_settings().sla_scan_intervalle_s
+    tache = asyncio.create_task(_ordonnanceur(intervalle)) if intervalle > 0 else None
+    try:
+        yield
+    finally:
+        if tache is not None:
+            tache.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tache
 
 
 def _monter_frontend(app: FastAPI, settings: Settings) -> None:
@@ -65,6 +98,7 @@ def creer_app() -> FastAPI:
         version="0.1.0",
         docs_url="/api/v1/docs",
         openapi_url="/api/v1/openapi.json",
+        lifespan=_cycle_vie,
     )
 
     @app.get("/healthz", tags=["sante"], summary="Vivant")

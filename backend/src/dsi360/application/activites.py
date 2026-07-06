@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.domain.activite import calculer_priorite
 from dsi360.domain.etats import etat_initial, transition_autorisee
 from dsi360.domain.sla import echeances
@@ -81,6 +82,17 @@ async def creer_activite(
             "sla_resolution_le": ech.resolution_le,
         },
     )
+    # Notifie le responsable désigné à la création (sauf s'il est lui-même l'auteur).
+    # Placé AVANT l'audit, qui committe la transaction (les notifications en profitent).
+    if responsable_id is not None and responsable_id != acteur["id"]:
+        await notifier(
+            session,
+            destinataire_id=responsable_id,
+            activite_id=identifiant,
+            type_="ASSIGNATION",
+            titre=f"Nouvelle activité assignée — {reference}",
+            message=f"{reference} « {phrase_propre(titre)} » vous a été assignée.",
+        )
     await audit.consigner(
         session,
         action="CREATION",
@@ -118,6 +130,15 @@ async def transition(
         horodatages["cloture_le"] = maintenant
 
     await repo.changer_statut(session, identifiant, vers, horodatages)
+    # Notifie les acteurs du changement d'état AVANT l'audit (qui committe la transaction).
+    await notifier_acteurs(
+        session,
+        activite_id=identifiant,
+        type_="TRANSITION",
+        titre=f"{courant['reference']} — {vers}",
+        message=f"L'activité {courant['reference']} est passée à l'état « {vers} ».",
+        exclure_id=acteur["id"],
+    )
     await audit.consigner(
         session,
         action="TRANSITION",

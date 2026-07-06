@@ -6,11 +6,82 @@ dépassée, et crée une notification (sans doublon, cf. index unique). Cf. docs
 
 import asyncpg
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config import get_settings
-from dsi360.infrastructure import audit
+from dsi360.infrastructure import audit, email_modeles
 from dsi360.infrastructure.db import get_sessionmaker
 from dsi360.infrastructure.email import envoyer
+
+
+async def notifier(
+    session: AsyncSession,
+    *,
+    destinataire_id: str | None,
+    activite_id: str | None,
+    type_: str,
+    titre: str,
+    message: str,
+) -> None:
+    """Notifie un destinataire (canal interne) et, selon sa préférence, par e-mail.
+
+    Ne notifie pas si `destinataire_id` est vide. L'échec d'e-mail n'interrompt jamais l'appelant.
+    """
+    if not destinataire_id:
+        return
+    await session.execute(
+        text(
+            "INSERT INTO core.notification (destinataire_id, activite_id, type, titre, message) "
+            "VALUES (cast(:d as uuid), cast(:a as uuid), :t, :ti, :m)"
+        ),
+        {"d": destinataire_id, "a": activite_id, "t": type_, "ti": titre, "m": message},
+    )
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT u.email, coalesce(p.email, true) AS envoyer_email "
+                "FROM core.utilisateur u "
+                "LEFT JOIN core.preference_notification p ON p.utilisateur_id = u.id "
+                "WHERE u.id = cast(:d as uuid) AND u.actif"
+            ),
+            {"d": destinataire_id},
+        )
+    ).mappings().first()
+    if ligne and ligne["envoyer_email"] and ligne["email"]:
+        sujet, texte, html = email_modeles.notification_activite(
+            titre, message, get_settings().url_app
+        )
+        envoyer(ligne["email"], sujet, texte, html)
+
+
+async def notifier_acteurs(
+    session: AsyncSession,
+    *,
+    activite_id: str,
+    type_: str,
+    titre: str,
+    message: str,
+    exclure_id: str | None = None,
+) -> None:
+    """Notifie tous les acteurs d'une activité (responsable + contributeurs + valideurs),
+    sauf l'auteur de l'action (`exclure_id`) et sans doublon."""
+    lignes = await session.execute(
+        text(
+            "SELECT DISTINCT uid FROM ("
+            "  SELECT responsable_id AS uid FROM core.activite WHERE id = cast(:a as uuid)"
+            "  UNION SELECT utilisateur_id FROM core.activite_acteur "
+            "         WHERE activite_id = cast(:a as uuid)"
+            ") s WHERE uid IS NOT NULL"
+        ),
+        {"a": activite_id},
+    )
+    for r in lignes.mappings().all():
+        dest = str(r["uid"])
+        if dest != (exclure_id or ""):
+            await notifier(
+                session, destinataire_id=dest, activite_id=activite_id,
+                type_=type_, titre=titre, message=message,
+            )
 
 _SELECTION = """
     SELECT a.id::text AS id, a.reference, a.titre,
@@ -76,6 +147,12 @@ _INSERT_ESCALADE = text(
     "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ESCALADE', :titre, :message) "
     "ON CONFLICT DO NOTHING RETURNING id"
 )
+
+
+async def scanner_tout() -> None:
+    """Un passage complet de l'ordonnanceur : échéances SLA + escalades P1."""
+    await scanner_echeances()
+    await scanner_escalades()
 
 
 async def scanner_escalades() -> dict[str, int]:

@@ -132,6 +132,16 @@ def mot_de_passe_change(prenom: str) -> tuple[str, str, str]:
     return sujet, texte, html
 
 
+def notification_activite(
+    titre: str, message: str, url: str | None = None
+) -> tuple[str, str, str]:
+    """Gabarit générique des notifications métier (assignation, commentaire, validation, SLA…)."""
+    texte = f"{titre}\n\n{message}\n" + (f"\nAccéder : {url}\n" if url else "")
+    corps = _p(message) + (_bouton(url, "Ouvrir dans DSI 360") if url else "")
+    html = _gabarit(titre, corps)
+    return titre, texte, html
+
+
 def compte_bloque(prenom: str) -> tuple[str, str, str]:
     sujet = "Votre accès DSI 360 a été suspendu"
     texte = (

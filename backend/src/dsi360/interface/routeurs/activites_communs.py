@@ -20,6 +20,7 @@ from dsi360.application.activites import (
     creer_activite,
     transition,
 )
+from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.sla import statut_sla
@@ -372,6 +373,16 @@ def creer_routeur(
                     "titre": f"Ticket assigné : {avant['reference']}",
                     "msg": avant["titre"],
                 },
+            )
+        # Réaffectation : prévient aussi l'ancien responsable qu'il n'est plus en charge.
+        if avant["resp_id"] is not None and avant["resp_id"] != corps.responsable_id:
+            await notifier(
+                session,
+                destinataire_id=str(avant["resp_id"]),
+                activite_id=str(avant["id"]),
+                type_="ASSIGNATION",
+                titre=f"Ticket réaffecté : {avant['reference']}",
+                message=f"{avant['reference']} ne vous est plus assigné.",
             )
         await audit.consigner(
             session,
