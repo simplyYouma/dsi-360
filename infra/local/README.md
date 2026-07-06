@@ -37,6 +37,12 @@ Décision tracée : [ADR-0002](../../docs/adr/0002-execution-native-sans-docker.
    infra\local\migrer.ps1
    ```
 
+5. *(optionnel, dev)* **Données de démonstration** — jeu réaliste pour tester tous les écrans
+   (remet à zéro les données puis régénère ; refuse de tourner hors `dev`) :
+   ```powershell
+   infra\local\donnees-demo.ps1
+   ```
+
 ## Lancer en développement
 
 **Une seule commande** (démarre l'API + le frontend dans le même terminal, Ctrl+C arrête les deux) :

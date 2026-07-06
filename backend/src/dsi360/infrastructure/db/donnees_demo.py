@@ -1,8 +1,13 @@
-"""Jeu de données de démonstration varié : utilisateurs + activités sur tous les modules.
+"""Jeu de données de démonstration réaliste — DÉVELOPPEMENT UNIQUEMENT.
 
-Idempotent côté utilisateurs (ON CONFLICT). Les activités sont ajoutées à chaque exécution
-(références incrémentales), avec statuts / priorités / SLA / dates étalés pour que les écrans
-(tableau de bord, analyses, listes, notifications) montrent des données réalistes.
+Refuse de s'exécuter hors ``environnement == "dev"``. À chaque lancement : **remet à zéro** les
+activités/tâches/documents/commentaires/acteurs/notifications et les utilisateurs de démo, puis
+recrée un jeu cohérent et stable (graine fixe) couvrant tous les modules et toutes les
+fonctionnalités : tâches qui pilotent l'avancement, documents, commentaires, contributeurs et
+valideurs, incidents/demandes « importés » simulés (pour les analyses SLA), SLA par module.
+
+Le compte administrateur du seed et les référentiels (profils, directions, catégories, règles SLA)
+ne sont jamais touchés.
 
 Lancement : ``python -m dsi360.infrastructure.db.donnees_demo``.
 """
@@ -10,6 +15,7 @@ Lancement : ``python -m dsi360.infrastructure.db.donnees_demo``.
 import asyncio
 import json
 import random
+import sys
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -17,6 +23,7 @@ import asyncpg
 
 from dsi360.config import get_settings
 from dsi360.domain.activite import PREFIXE_REFERENCE, calculer_criticite, calculer_priorite
+from dsi360.domain.sla import CiblesSla, echeances
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 random.seed(42)
@@ -29,6 +36,7 @@ UTILISATEURS = [
     ("k.coulibaly@afgbank.ml", "Coulibaly", "Kadia", "METIER", "METIER"),
     ("s.traore@afgbank.ml", "Traoré", "Salif", "DSI", "DG"),
 ]
+EMAILS_DEMO = [u[0] for u in UTILISATEURS]
 
 TITRES: dict[str, list[str]] = {
     "incident": [
@@ -71,23 +79,59 @@ TITRES: dict[str, list[str]] = {
     ],
 }
 
+# Modules dont les tickets proviennent de l'import (incidents/demandes = import-only).
+MODULES_IMPORTES = {"incident", "demande"}
+# Modules « fiche » à statuts génériques.
 STATUTS: dict[str, list[str]] = {
-    "incident": ["Nouveau", "Ouvert", "Ouvert", "Résolu", "Clôturé", "Annulé", "Réouvert"],
-    "demande": ["Nouvelle", "Qualifiée", "En cours", "En cours", "En validation", "Résolue", "Clôturée", "Rejetée"],
-    "changement": ["Brouillon", "Soumis", "Évaluation", "CAB", "Validé", "Planifié", "En implémentation", "Implémenté", "Clôturé"],
+    "incident": ["Nouveau", "Ouvert", "Ouvert", "Résolu", "Clôturé", "Réouvert"],
+    "demande": ["Nouvelle", "Qualifiée", "En cours", "En validation", "Résolue", "Clôturée"],
     "audit": ["Ouverte", "Plan d'action", "En cours", "En cours", "En validation de clôture", "Clôturée"],
     "risque": ["Identifié", "Évalué", "Traitement", "Maîtrisé", "Accepté", "Revue"],
     "cybersecurite": ["Ouvert", "En traitement", "En traitement", "Corrigé", "Clôturé", "Accepté"],
     "gouvernance": ["À engager", "En cours", "En cours", "Réalisé", "Reporté"],
-    "projet": ["Cadrage", "En cours", "En cours", "Suspendu", "Clôturé"],
 }
-
-TERMINAUX = {"Clôturé", "Clôturée", "Résolu", "Résolue", "Annulé", "Rejeté", "Réalisé"}
+TERMINAUX = {"Clôturé", "Clôturée", "Résolu", "Résolue", "Annulé", "Rejeté", "Réalisé", "Implémenté"}
 SPONSORS = ["Direction Générale", "DSI", "Direction des Risques", "Direction Métier"]
+
+TACHES_TITRES = [
+    "Cadrer le besoin", "Analyser l'existant", "Rédiger la spécification", "Développer",
+    "Tester en recette", "Préparer le déploiement", "Déployer en production", "Documenter",
+    "Former les utilisateurs", "Clôturer et bilan",
+]
+COMMENTAIRES = [
+    "Prise en charge, analyse en cours.", "En attente d'un retour du prestataire.",
+    "Point d'avancement fait en réunion d'équipe.", "Correctif appliqué, à confirmer côté métier.",
+    "Escaladé au support niveau 2.", "Validé par le responsable, on peut clôturer.",
+]
+DOC_TXT = b"Note de demonstration DSI 360.\nContenu simule pour les tests (apercu, renommage).\n"
 
 
 def _dsn() -> str:
     return get_settings().database_url.replace("+asyncpg", "")
+
+
+async def _matrice(conn: asyncpg.Connection, module: str) -> dict[int, CiblesSla]:
+    lignes = await conn.fetch(
+        "SELECT priorite, prise_en_charge_minutes, resolution_minutes "
+        "FROM core.sla_regle WHERE module=$1",
+        module,
+    )
+    if not lignes:
+        return {
+            p: CiblesSla(30, 480) for p in range(1, 6)
+        }
+    return {
+        int(r["priorite"]): CiblesSla(int(r["prise_en_charge_minutes"]), int(r["resolution_minutes"]))
+        for r in lignes
+    }
+
+
+async def _reset(conn: asyncpg.Connection) -> None:
+    """Vide toutes les données transactionnelles + utilisateurs de démo (dev only)."""
+    await conn.execute("DELETE FROM core.activite")  # cascade : tache, document, commentaire, acteur
+    await conn.execute("DELETE FROM core.notification")
+    await conn.execute("DELETE FROM core.demandeur")
+    await conn.execute("DELETE FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO)
 
 
 async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
@@ -111,100 +155,203 @@ async def _categories(conn: asyncpg.Connection, module: str) -> list[str]:
     )]
 
 
-async def creer_donnees() -> None:
+async def _creer_taches(
+    conn: asyncpg.Connection, activite_id: str, cree_le: datetime, utilisateurs: list[str],
+    nb: int, part_terminees: float,
+) -> int:
+    """Crée nb tâches, dont ~part_terminees terminées. Renvoie l'avancement (%)."""
+    terminees = 0
+    for i in range(nb):
+        finie = random.random() < part_terminees
+        statut = "Terminée" if finie else random.choice(["À faire", "En cours"])
+        if finie:
+            terminees += 1
+        await conn.execute(
+            "INSERT INTO core.tache "
+            "(activite_id, titre, statut, assigne_id, echeance, ordre, cree_le) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            activite_id, random.choice(TACHES_TITRES), statut, random.choice(utilisateurs),
+            (cree_le + timedelta(days=random.randint(5, 40))).date(), i, cree_le,
+        )
+    return round(100 * terminees / nb) if nb else 0
+
+
+async def _pieces_jointes(
+    conn: asyncpg.Connection, activite_id: str, email: str, nb: int
+) -> None:
+    for i in range(nb):
+        await conn.execute(
+            "INSERT INTO core.document "
+            "(activite_id, nom, type_mime, taille, contenu, depose_par) "
+            "VALUES ($1,$2,'text/plain',$3,$4,$5)",
+            activite_id, f"note-demo-{i + 1}.txt", len(DOC_TXT), DOC_TXT, email,
+        )
+
+
+async def _commentaires(
+    conn: asyncpg.Connection, activite_id: str, utilisateurs: list[str], cree_le: datetime, nb: int
+) -> None:
+    for _ in range(nb):
+        uid = random.choice(utilisateurs)
+        email = await conn.fetchval("SELECT email FROM core.utilisateur WHERE id=$1", uid)
+        await conn.execute(
+            "INSERT INTO core.commentaire (activite_id, auteur_id, auteur_email, texte, cree_le) "
+            "VALUES ($1,$2,$3,$4,$5)",
+            activite_id, uid, email, random.choice(COMMENTAIRES),
+            cree_le + timedelta(hours=random.randint(1, 72)),
+        )
+
+
+async def _acteurs(
+    conn: asyncpg.Connection, activite_id: str, utilisateurs: list[str], responsable_id: str
+) -> None:
+    autres = [u for u in utilisateurs if u != responsable_id]
+    random.shuffle(autres)
+    for uid in autres[:2]:
+        await conn.execute(
+            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+            "VALUES ($1,$2,'CONTRIBUTEUR') ON CONFLICT DO NOTHING",
+            activite_id, uid,
+        )
+    if len(autres) > 2:
+        await conn.execute(
+            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+            "VALUES ($1,$2,'VALIDEUR') ON CONFLICT DO NOTHING",
+            activite_id, autres[2],
+        )
+
+
+async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de démo
+    if get_settings().environnement != "dev":
+        print("REFUS : les données de démonstration ne sont créées qu'en environnement 'dev'.")
+        sys.exit(1)
+
     maintenant = datetime.now(UTC)
     annee = maintenant.year
     conn = await asyncpg.connect(_dsn())
     total = 0
     try:
+        await _reset(conn)
         utilisateurs = await _assurer_utilisateurs(conn)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
-        demandeur = utilisateurs[0]
 
         for module, titres in TITRES.items():
             prefixe = PREFIXE_REFERENCE[module]
-            base = await conn.fetchval(
-                "SELECT count(*) FROM core.activite WHERE module=$1 AND reference LIKE $2",
-                module, f"{prefixe}-{annee}-%",
-            )
             cats = await _categories(conn, module)
-            seq = base or 0
+            matrice = await _matrice(conn, module)
+            seq = 0
             for titre in titres:
-                # Idempotence : on ne recrée pas un libellé déjà présent pour ce module.
-                deja = await conn.fetchval(
-                    "SELECT 1 FROM core.activite WHERE module=$1 AND titre=$2 LIMIT 1",
-                    module, titre,
-                )
-                if deja:
-                    continue
                 seq += 1
                 reference = f"{prefixe}-{annee}-{seq:05d}"
-                statut = random.choice(STATUTS[module])
                 impact = random.randint(1, 5)
                 urgence = random.randint(1, 5)
                 cree_le = maintenant - timedelta(days=random.randint(0, 55), hours=random.randint(0, 23))
+                responsable = random.choice(utilisateurs)
+                donnees: dict[str, Any] = {}
+                priorite: int | None = None
+                sla_pc: datetime | None = None
+                sla_res: datetime | None = None
+                resolu: datetime | None = None
+                cloture: datetime | None = None
+                source = "SAISIE"
+                source_id: str | None = None
 
-                donnees: dict[str, Any]
-                if module == "risque":
-                    priorite = None
-                    donnees = {
-                        "probabilite": impact,
-                        "impact": urgence,
-                        "criticite": calculer_criticite(impact, urgence),
-                    }
-                elif module == "projet":
-                    priorite = None
+                if module == "projet":
+                    statut = random.choice(["Cadrage", "En cours", "En cours", "Clôturé"])
                     donnees = {
                         "sponsor": random.choice(SPONSORS),
-                        "budget": random.choice(
-                            [5_000_000, 8_500_000, 15_000_000, 25_000_000, 42_000_000,
-                             60_000_000, 90_000_000, 120_000_000]
-                        ),
+                        "budget": random.choice([5_000_000, 15_000_000, 42_000_000, 90_000_000, 120_000_000]),
                         "date_debut": cree_le.date().isoformat(),
                         "date_fin": (cree_le + timedelta(days=random.randint(60, 240))).date().isoformat(),
-                        "avancement": random.choice([0, 10, 25, 40, 55, 70, 85, 100]),
+                        "avancement": 0,
                     }
-                else:
+                elif module == "risque":
+                    statut = random.choice(STATUTS[module])
+                    donnees = {"probabilite": impact, "impact": urgence,
+                               "criticite": calculer_criticite(impact, urgence)}
+                elif module == "changement":
+                    statut = random.choice(
+                        ["Brouillon", "Soumis", "Évaluation", "CAB", "Validé", "Planifié",
+                         "En implémentation", "Implémenté", "Clôturé"]
+                    )
                     priorite = calculer_priorite(impact, urgence)
-                    donnees = {}
-
-                terminal = statut in TERMINAUX
-                # SLA réparti : passé (dépassé), proche (approche), futur (à l'heure).
-                if terminal:
-                    sla_res = cree_le + timedelta(hours=random.choice([4, 8, 48]))
-                    resolu = cree_le + timedelta(days=random.randint(1, 5))
-                    cloture = resolu
+                    donnees = {"avancement": 0}
                 else:
-                    choix = random.random()
-                    if choix < 0.3:
-                        sla_res = maintenant - timedelta(hours=random.randint(1, 48))
-                    elif choix < 0.5:
-                        sla_res = maintenant + timedelta(minutes=random.randint(15, 110))
-                    else:
-                        sla_res = maintenant + timedelta(days=random.randint(1, 6))
-                    resolu = None
-                    cloture = None
+                    statut = random.choice(STATUTS[module])
+                    priorite = calculer_priorite(impact, urgence)
 
-                await conn.execute(
+                # Incidents/Demandes : simulés « importés » (source SD) avec TTR mesuré.
+                if module in MODULES_IMPORTES:
+                    source = "IMPORT_SD"
+                    source_id = f"{seq:06d}"
+                    cible = matrice.get(priorite or 3, CiblesSla(30, 480)).resolution_minutes
+                    ttr = int(cible * random.choice([0.4, 0.7, 0.9, 1.3, 1.8]))  # sous/dépassement
+                    donnees.update({"ttr_minutes": ttr, "gestionnaire": "Support DSI",
+                                    "demandeur": "Agent AFG"})
+                    if statut in TERMINAUX:
+                        resolu = cree_le + timedelta(minutes=ttr)
+                        cloture = resolu if statut.startswith("Clôtur") else None
+
+                # Échéances SLA depuis la matrice du module (activités « fiche »).
+                if priorite is not None and module not in MODULES_IMPORTES:
+                    ech = echeances(priorite, cree_le, matrice)
+                    sla_pc, sla_res = ech.prise_en_charge_le, ech.resolution_le
+                    if statut in TERMINAUX:
+                        resolu = cree_le + timedelta(days=random.randint(1, 5))
+                        cloture = resolu
+
+                activite_id = await conn.fetchval(
                     "INSERT INTO core.activite"
                     "(reference, module, titre, description, direction_id, categorie_id, "
-                    " demandeur_id, responsable_id, impact, urgence, priorite, statut, "
+                    " responsable_id, impact, urgence, priorite, statut, source, source_id, "
                     " sla_prise_en_charge_le, sla_resolution_le, cree_le, resolu_le, cloture_le, donnees)"
                     " VALUES ($1,$2,$3,$4,"
                     " (SELECT id FROM core.direction WHERE code=$5),"
-                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb)",
+                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb) RETURNING id",
                     reference, module, titre, "Donnée de démonstration.",
                     random.choice(directions),
-                    random.choice(cats) if cats and module not in ("projet",) else None,
-                    demandeur, random.choice(utilisateurs),
-                    impact if module not in ("projet",) else None,
-                    urgence if module not in ("projet",) else None,
-                    priorite, statut,
-                    cree_le + timedelta(minutes=30) if not terminal else None,
-                    sla_res, cree_le, resolu, cloture, json.dumps(donnees),
+                    random.choice(cats) if cats and module != "projet" else None,
+                    responsable,
+                    impact if module != "projet" else None,
+                    urgence if module != "projet" else None,
+                    priorite, statut, source, source_id,
+                    sla_pc, sla_res, cree_le, resolu, cloture, json.dumps(donnees),
                 )
                 total += 1
-        print(f"{total} activités de démonstration créées.")
+
+                # Tâches (projets & changements) → avancement + acteurs/docs/commentaires.
+                if module in ("projet", "changement") and statut not in ("Cadrage", "Brouillon", "Soumis"):
+                    part = 1.0 if statut in ("Clôturé", "Implémenté") else random.choice([0.25, 0.5, 0.75])
+                    avancement = await _creer_taches(
+                        conn, activite_id, cree_le, utilisateurs, random.randint(3, 5), part
+                    )
+                    await conn.execute(
+                        "UPDATE core.activite SET donnees = donnees || $2::jsonb WHERE id=$1",
+                        activite_id, json.dumps({"avancement": avancement}),
+                    )
+                    await _pieces_jointes(conn, activite_id, EMAILS_DEMO[0], random.randint(0, 2))
+
+                # Commentaires + contributeurs/valideurs sur un échantillon.
+                if random.random() < 0.6:
+                    await _commentaires(conn, activite_id, utilisateurs, cree_le, random.randint(1, 3))
+                if random.random() < 0.5:
+                    await _acteurs(conn, activite_id, utilisateurs, responsable)
+
+        # Quelques notifications pour peupler la cloche.
+        activites_recentes = await conn.fetch(
+            "SELECT id FROM core.activite ORDER BY cree_le DESC LIMIT 8"
+        )
+        for r in activites_recentes:
+            await conn.execute(
+                "INSERT INTO core.notification (destinataire_id, activite_id, type, titre, message) "
+                "VALUES ($1,$2,$3,$4,$5)",
+                random.choice(utilisateurs), r["id"],
+                random.choice(["ASSIGNATION", "SLA_APPROCHE"]),
+                "Notification de démonstration", "Action requise sur une activité.",
+            )
+
+        print(f"Données de démonstration recréées : {total} activités (+ tâches, documents, "
+              f"commentaires, acteurs, notifications).")
     finally:
         await conn.close()
 
