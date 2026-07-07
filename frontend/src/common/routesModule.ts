@@ -22,6 +22,10 @@ export const LIBELLE_MODULE: Record<string, string> = {
   gouvernance: 'Gouvernance',
 };
 
+/** Modules dont le détail est une page dédiée complète (tâches, jalons, RFC…) plutôt qu'une fiche
+ *  modale : ouvrir un tel ticket doit renvoyer vers `/{route}/{id}`, pas vers la modale partielle. */
+export const MODULES_PAGE_DEDIEE = new Set<string>(['projet', 'changement']);
+
 /** Capacités de la fiche par module (miroir des flags `creer_routeur` côté backend).
  *  Source unique : garantit que la fiche ouverte depuis « Mes tickets » (multi-modules) expose
  *  exactement les mêmes fonctions que la page dédiée du module (escalade, revue, documents, type). */

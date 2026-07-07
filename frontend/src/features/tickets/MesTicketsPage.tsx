@@ -6,7 +6,8 @@ import { SablierSla } from '@/common/SablierSla';
 import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { Kanban, type ColonneKanban } from '@/common/Kanban';
 import { FicheTransition } from '@/common/FicheTransition';
-import { CAPACITES_MODULE, LIBELLE_MODULE, ROUTE_MODULE } from '@/common/routesModule';
+import { useNavigate } from 'react-router-dom';
+import { CAPACITES_MODULE, LIBELLE_MODULE, MODULES_PAGE_DEDIEE, ROUTE_MODULE } from '@/common/routesModule';
 import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import { TableauBordAgent } from './TableauBordAgent';
@@ -81,6 +82,7 @@ export function MesTicketsPage(): JSX.Element {
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
   const analyseRef = useRef<HTMLDivElement>(null);
   const { notifier } = useToast();
+  const navigate = useNavigate();
 
   const charger = useCallback((): void => {
     setChargement(true);
@@ -103,9 +105,16 @@ export function MesTicketsPage(): JSX.Element {
   const ouvrir = useCallback(
     (id: string): void => {
       const ref = baseDe(id);
-      if (ref) setFiche({ base: ref.base, id: ref.ticket.id, module: ref.ticket.module });
+      if (!ref) return;
+      // Projets et changements ont une page dédiée (tâches, jalons, RFC) : on y renvoie plutôt que
+      // d'ouvrir la fiche modale partielle.
+      if (MODULES_PAGE_DEDIEE.has(ref.ticket.module)) {
+        navigate(`${ref.base}/${ref.ticket.id}`);
+        return;
+      }
+      setFiche({ base: ref.base, id: ref.ticket.id, module: ref.ticket.module });
     },
-    [baseDe],
+    [baseDe, navigate],
   );
 
   // Glisser-déposer : transitions autorisées de la carte, puis exécution de la transition.
