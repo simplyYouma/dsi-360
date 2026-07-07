@@ -153,6 +153,7 @@ async def _reset(conn: asyncpg.Connection) -> None:
     await conn.execute("DELETE FROM core.activite")  # cascade : tache, document, commentaire, acteur
     await conn.execute("DELETE FROM core.notification")
     await conn.execute("DELETE FROM core.demandeur")
+    await conn.execute("DELETE FROM core.groupe_support_membre")  # ré-affectés ci-dessous (démo)
     await conn.execute("DELETE FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO)
 
 
@@ -168,7 +169,14 @@ async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
             "ON CONFLICT (email) DO NOTHING",
             email, nom, prenom, profil, direction, empreinte,
         )
-    return [r["id"] for r in await conn.fetch("SELECT id FROM core.utilisateur")]
+    # Uniquement les comptes de démo : le compte admin (et tout autre compte réel) ne doit jamais
+    # devenir acteur des données fictives, sinon l'ordonnanceur lui envoie de vrais e-mails.
+    return [
+        r["id"]
+        for r in await conn.fetch(
+            "SELECT id FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO
+        )
+    ]
 
 
 async def _categories(conn: asyncpg.Connection, module: str) -> list[str]:
