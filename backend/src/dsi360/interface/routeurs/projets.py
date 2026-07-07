@@ -24,6 +24,10 @@ from dsi360.interface.schemas import (
     JalonCreation,
     JalonItem,
     JalonMaj,
+    LienCreation,
+    LienItem,
+    NoteCreation,
+    NoteItem,
     PageProjets,
     ProjetCreation,
     ProjetDetail,
@@ -214,11 +218,20 @@ async def detail(ident: str, courant: Courant, session: Session) -> dict[str, An
     return _detail(await _charger(session, ident, courant))
 
 
+# Transitions qui doivent être justifiées : la justification est enregistrée comme note.
+_TRANSITIONS_JUSTIFIEES = frozenset({"Suspendu", "Clôturé"})
+
+
 @routeur.post("/{ident}/transition", response_model=ProjetDetail)
 async def transitionner(
     ident: str, corps: TransitionDemande, courant: Courant, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
+    if corps.vers in _TRANSITIONS_JUSTIFIEES and not (corps.note or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Une note de justification est requise pour « {corps.vers} ».",
+        )
     try:
         await transition(session, MODULE, ident, corps.vers, courant)
     except ActiviteIntrouvable as exc:
@@ -227,7 +240,148 @@ async def transitionner(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
         ) from exc
+    # La justification rejoint le journal de bord, rattachée à l'état cible.
+    if corps.vers in _TRANSITIONS_JUSTIFIEES:
+        await session.execute(
+            text(
+                "INSERT INTO core.note (activite_id, texte, contexte, auteur_email) "
+                "VALUES (cast(:aid as uuid), :texte, :ctx, :email)"
+            ),
+            {
+                "aid": ident,
+                "texte": (corps.note or "").strip(),
+                "ctx": corps.vers,
+                "email": courant["email"],
+            },
+        )
+        await session.commit()
     return _detail(await _charger(session, ident, courant))
+
+
+# --- Journal de bord (notes) & liens utiles ---
+
+
+@routeur.get("/{ident}/notes", response_model=list[NoteItem])
+async def lister_notes(ident: str, courant: Courant, session: Session) -> list[dict[str, Any]]:
+    await _charger(session, ident, courant)
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT n.id::text AS id, n.texte, n.contexte, n.auteur_email AS auteur, "
+                "n.cree_le FROM core.note n WHERE n.activite_id = cast(:id as uuid) "
+                "ORDER BY n.cree_le DESC"
+            ),
+            {"id": ident},
+        )
+    ).mappings().all()
+    return [dict(x) for x in lignes]
+
+
+@routeur.post("/{ident}/notes", response_model=NoteItem, status_code=status.HTTP_201_CREATED)
+async def creer_note(
+    ident: str, corps: NoteCreation, courant: Courant, session: Session
+) -> dict[str, Any]:
+    projet = await _charger(session, ident, courant)
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.note (activite_id, texte, auteur_email) "
+                "VALUES (cast(:aid as uuid), :texte, :email) "
+                "RETURNING id::text AS id, texte, contexte, auteur_email AS auteur, cree_le"
+            ),
+            {"aid": ident, "texte": corps.texte.strip(), "email": courant["email"]},
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="note",
+        cible_id=projet["reference"],
+        nouvelle={"texte": corps.texte.strip()[:200]},
+    )
+    await session.commit()
+    return dict(ligne)
+
+
+@routeur.get("/{ident}/liens", response_model=list[LienItem])
+async def lister_liens(ident: str, courant: Courant, session: Session) -> list[dict[str, Any]]:
+    await _charger(session, ident, courant)
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT id::text AS id, libelle, url, cree_le FROM core.lien "
+                "WHERE activite_id = cast(:id as uuid) ORDER BY cree_le"
+            ),
+            {"id": ident},
+        )
+    ).mappings().all()
+    return [dict(x) for x in lignes]
+
+
+@routeur.post("/{ident}/liens", response_model=LienItem, status_code=status.HTTP_201_CREATED)
+async def creer_lien(
+    ident: str, corps: LienCreation, courant: Courant, session: Session
+) -> dict[str, Any]:
+    projet = await _charger(session, ident, courant)
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.lien (activite_id, libelle, url, cree_par) "
+                "VALUES (cast(:aid as uuid), :libelle, :url, :email) "
+                "RETURNING id::text AS id, libelle, url, cree_le"
+            ),
+            {
+                "aid": ident,
+                "libelle": corps.libelle.strip(),
+                "url": corps.url.strip(),
+                "email": courant["email"],
+            },
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="lien",
+        cible_id=projet["reference"],
+        nouvelle={"libelle": corps.libelle.strip(), "url": corps.url.strip()},
+    )
+    await session.commit()
+    return dict(ligne)
+
+
+@routeur.delete("/{ident}/liens/{lien_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_lien(
+    ident: str, lien_id: str, courant: Courant, session: Session
+) -> None:
+    projet = await _charger(session, ident, courant)
+    ligne = (
+        await session.execute(
+            text(
+                "DELETE FROM core.lien WHERE id = cast(:id as uuid) "
+                "AND activite_id = cast(:aid as uuid) RETURNING libelle, url"
+            ),
+            {"id": lien_id, "aid": ident},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable.")
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="lien",
+        cible_id=projet["reference"],
+        ancienne={"libelle": ligne["libelle"], "url": ligne["url"]},
+    )
+    await session.commit()
 
 
 # --- Tâches (l'avancement et le passage « En cours » se déduisent d'elles) ---

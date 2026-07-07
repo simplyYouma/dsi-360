@@ -199,6 +199,36 @@ class PageActivites(BaseModel):
 
 class TransitionDemande(BaseModel):
     vers: str = Field(min_length=1)
+    # Justification (obligatoire pour certaines transitions : suspension/clôture d'un projet).
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class NoteItem(BaseModel):
+    """Note du journal de bord d'un projet (justifications de suspension/clôture comprises)."""
+
+    id: str
+    texte: str
+    contexte: str | None
+    auteur: str | None
+    cree_le: datetime
+
+
+class NoteCreation(BaseModel):
+    texte: str = Field(min_length=3, max_length=2000)
+
+
+class LienItem(BaseModel):
+    """Lien utile d'un projet (espace documentaire, wiki, dossier réseau…)."""
+
+    id: str
+    libelle: str
+    url: str
+    cree_le: datetime
+
+
+class LienCreation(BaseModel):
+    libelle: str = Field(min_length=2, max_length=120)
+    url: str = Field(min_length=8, max_length=2000, pattern=r"^(https?|file)://.+")
 
 
 class AssignationDemande(BaseModel):

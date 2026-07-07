@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Flag, Plus, Trash2 } from 'lucide-react';
-import { Button, Skeleton, useToast } from '@/design-system/primitives';
+import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus, Send, Trash2 } from 'lucide-react';
+import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { PiecesJointes } from '@/common/PiecesJointes';
@@ -14,7 +14,7 @@ import { api, ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ProjetPage.module.css';
-import { projetsApi, type Jalon, type ProjetDetail } from './projetsApi';
+import { projetsApi, type Jalon, type Lien, type Note, type ProjetDetail } from './projetsApi';
 
 function formaterDateCourte(iso: string | null): string {
   if (!iso) return '';
@@ -97,11 +97,175 @@ function Jalons({ projetId }: { projetId: string }): JSX.Element {
   );
 }
 
+/** Liens utiles du projet (espace documentaire, wiki, dossier réseau…). */
+function Liens({ projetId }: { projetId: string }): JSX.Element {
+  const [liens, setLiens] = useState<Lien[]>([]);
+  const [libelle, setLibelle] = useState('');
+  const [url, setUrl] = useState('');
+  const { notifier } = useToast();
+
+  const charger = useCallback((): void => {
+    void projetsApi.liens(projetId).then(setLiens);
+  }, [projetId]);
+  useEffect(() => charger(), [charger]);
+
+  const ajouter = async (): Promise<void> => {
+    if (libelle.trim().length < 2 || url.trim().length < 8) return;
+    try {
+      await projetsApi.creerLien(projetId, libelle.trim(), url.trim());
+      setLibelle('');
+      setUrl('');
+      charger();
+    } catch (e) {
+      notifier(
+        e instanceof ErreurApi ? e.message : 'Ajout impossible — adresse http(s):// attendue.',
+        'erreur',
+      );
+    }
+  };
+  const retirer = async (id: string): Promise<void> => {
+    await projetsApi.supprimerLien(projetId, id);
+    charger();
+  };
+
+  return (
+    <div className={styles.jalons}>
+      {liens.length === 0 && <p className={styles.note}>Aucun lien pour le moment.</p>}
+      {liens.map((l) => (
+        <div key={l.id} className={styles.jalon}>
+          <Link2 size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <a
+            href={l.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.jalonTitre}
+            title={l.url}
+          >
+            {l.libelle}
+          </a>
+          <button
+            type="button"
+            className={styles.docAction}
+            aria-label={`Supprimer ${l.libelle}`}
+            onClick={() => void retirer(l.id)}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <div className={styles.jalonAjout}>
+        <input
+          className={styles.jalonInput}
+          value={libelle}
+          onChange={(e) => setLibelle(e.target.value)}
+          placeholder="Libellé du lien…"
+        />
+        <input
+          className={styles.jalonInput}
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void ajouter();
+          }}
+        />
+        <Button
+          onClick={() => void ajouter()}
+          disabled={libelle.trim().length < 2 || url.trim().length < 8}
+        >
+          <Plus size={15} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Journal de bord : notes horodatées (dont les justifications de suspension/clôture). */
+function Notes({ projetId, version }: { projetId: string; version: number }): JSX.Element {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [texte, setTexte] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+
+  const charger = useCallback((): void => {
+    void projetsApi.notes(projetId).then(setNotes);
+  }, [projetId]);
+  useEffect(() => charger(), [charger, version]);
+
+  const ajouter = async (): Promise<void> => {
+    if (texte.trim().length < 3) return;
+    setEnvoi(true);
+    try {
+      await projetsApi.creerNote(projetId, texte.trim());
+      setTexte('');
+      charger();
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div>
+      {notes.length === 0 && <p className={styles.note}>Aucune note pour le moment.</p>}
+      {notes.length > 0 && (
+        <ul className={fiche.commListe}>
+          {notes.map((n) => (
+            <li key={n.id} className={fiche.commItem}>
+              <div className={fiche.commTete}>
+                <span className={fiche.commAuteur}>
+                  {n.auteur ?? '—'}
+                  {n.contexte !== null && (
+                    <span
+                      style={{
+                        marginLeft: 'var(--space-2)',
+                        color: couleurStatut(n.contexte),
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {n.contexte}
+                    </span>
+                  )}
+                </span>
+                <span className={fiche.commDate}>
+                  {new Date(n.cree_le).toLocaleString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <p className={fiche.commTexte}>{n.texte}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className={fiche.commForm}>
+        <textarea
+          className={fiche.commInput}
+          value={texte}
+          onChange={(e) => setTexte(e.target.value)}
+          rows={2}
+          placeholder="Ajouter une note (décision, point d'étape…)"
+        />
+        <Button onClick={() => void ajouter()} disabled={envoi || texte.trim().length < 3}>
+          <Send size={14} />
+          {envoi ? 'Envoi…' : 'Noter'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface Agent {
   id: string;
   nom: string;
   profil: string;
 }
+
+// Transitions qui exigent une note de justification (enregistrée au journal de bord).
+const TRANSITIONS_JUSTIFIEES = new Set(['Suspendu', 'Clôturé']);
 
 /** Page projet unifiée : même vue pour la création et le détail ; champs éditables au clic. */
 export function ProjetPage(): JSX.Element {
@@ -194,17 +358,33 @@ export function ProjetPage(): JSX.Element {
     chargerTaches();
   };
 
-  const transitionner = async (vers: string): Promise<void> => {
+  // Suspension / clôture : exigent une note de justification (modale) avant la transition.
+  const [justifPour, setJustifPour] = useState<string | null>(null);
+  const [justif, setJustif] = useState('');
+  const [versionNotes, setVersionNotes] = useState(0);
+
+  const executerTransition = async (vers: string, note?: string): Promise<void> => {
     if (id === undefined) return;
     setEnvoi(true);
     try {
-      setDetail(await projetsApi.transition(id, vers));
+      setDetail(await projetsApi.transition(id, vers, note));
       notifier(vers, 'succes');
+      setJustifPour(null);
+      if (note !== undefined) setVersionNotes((n) => n + 1);
     } catch (e) {
       notifier(e instanceof ErreurApi ? e.message : 'Transition impossible.', 'erreur');
     } finally {
       setEnvoi(false);
     }
+  };
+
+  const transitionner = async (vers: string): Promise<void> => {
+    if (TRANSITIONS_JUSTIFIEES.has(vers)) {
+      setJustif('');
+      setJustifPour(vers);
+      return;
+    }
+    await executerTransition(vers);
   };
 
   if (introuvable) {
@@ -431,29 +611,33 @@ export function ProjetPage(): JSX.Element {
                     );
                   })}
                 </div>
-                <p className={styles.note}>Le passage « En cours » est automatique ; la clôture reste manuelle (COPIL).</p>
+                <p className={styles.note}>
+                  Le passage « En cours » est automatique ; la suspension et la clôture (COPIL)
+                  exigent une note de justification.
+                </p>
               </section>
 
               <section className={styles.carte}>
-                <span className={styles.carteTitre}>Documents du projet</span>
-                {id !== undefined && (
-                  <PiecesJointes
-                    charger={() => projetsApi.documents(id)}
-                    deposer={(f) => projetsApi.deposerDocument(id, f)}
-                    telecharger={(docId) => projetsApi.telechargerDocument(id, docId)}
-                    apercu={(docId) => projetsApi.apercuDocument(id, docId)}
-                    renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
-                    supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
-                  />
-                )}
+                <span className={styles.carteTitre}>Liens utiles</span>
+                <p className={styles.note}>
+                  Espace documentaire, wiki, dossiers réseau… Les pièces jointes se déposent sur
+                  les tâches.
+                </p>
+                {id !== undefined && <Liens projetId={id} />}
+              </section>
+
+              <section className={styles.carte}>
+                <span className={styles.carteTitre}>Notes (journal de bord)</span>
+                {id !== undefined && <Notes projetId={id} version={versionNotes} />}
               </section>
             </>
           )}
           {creation && (
             <section className={styles.carte}>
-              <span className={styles.carteTitre}>Documents</span>
+              <span className={styles.carteTitre}>Liens & notes</span>
               <p className={styles.note}>
-                Disponibles après la création (au niveau du projet et de chaque tâche).
+                Disponibles après la création : liens utiles, journal de bord, et pièces jointes
+                sur chaque tâche.
               </p>
               <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3} pleineLargeur>
                 <Plus size={15} /> {envoi ? 'Création…' : 'Créer le projet'}
@@ -462,6 +646,40 @@ export function ProjetPage(): JSX.Element {
           )}
         </div>
       </div>
+
+      <Modale
+        ouverte={justifPour !== null}
+        onFermer={() => setJustifPour(null)}
+        titre={justifPour === 'Suspendu' ? 'Suspendre le projet' : 'Clôturer le projet'}
+        pied={
+          <>
+            <Button variante="secondaire" onClick={() => setJustifPour(null)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => justifPour !== null && void executerTransition(justifPour, justif.trim())}
+              disabled={envoi || justif.trim().length < 3}
+            >
+              {envoi ? 'En cours…' : 'Confirmer'}
+            </Button>
+          </>
+        }
+      >
+        <p className={styles.note}>
+          Une justification est requise : elle sera consignée au journal de bord du projet.
+        </p>
+        <textarea
+          className={fiche.commInput}
+          value={justif}
+          onChange={(e) => setJustif(e.target.value)}
+          rows={3}
+          placeholder={
+            justifPour === 'Suspendu'
+              ? 'Motif de la suspension (budget, dépendance, décision COPIL…)'
+              : 'Bilan / motif de clôture (livrables, décision COPIL…)'
+          }
+        />
+      </Modale>
     </div>
   );
 }

@@ -68,6 +68,21 @@ export interface Jalon {
   ordre: number;
 }
 
+export interface Note {
+  id: string;
+  texte: string;
+  contexte: string | null;
+  auteur: string | null;
+  cree_le: string;
+}
+
+export interface Lien {
+  id: string;
+  libelle: string;
+  url: string;
+  cree_le: string;
+}
+
 export const projetsApi = {
   lister: (page: number, f?: FiltresListe): Promise<PageProjets> =>
     api.get(`/projets?${chaineFiltres(page, f)}`),
@@ -75,8 +90,17 @@ export const projetsApi = {
   detail: (id: string): Promise<ProjetDetail> => api.get(`/projets/${id}`),
   modifier: (id: string, corps: Partial<NouveauProjet>): Promise<ProjetDetail> =>
     api.patch(`/projets/${id}`, corps),
-  transition: (id: string, vers: string): Promise<ProjetDetail> =>
-    api.post(`/projets/${id}/transition`, { vers }),
+  transition: (id: string, vers: string, note?: string): Promise<ProjetDetail> =>
+    api.post(`/projets/${id}/transition`, { vers, note: note ?? null }),
+  // Journal de bord (notes) & liens utiles.
+  notes: (id: string): Promise<Note[]> => api.get(`/projets/${id}/notes`),
+  creerNote: (id: string, texte: string): Promise<Note> =>
+    api.post(`/projets/${id}/notes`, { texte }),
+  liens: (id: string): Promise<Lien[]> => api.get(`/projets/${id}/liens`),
+  creerLien: (id: string, libelle: string, url: string): Promise<Lien> =>
+    api.post(`/projets/${id}/liens`, { libelle, url }),
+  supprimerLien: (id: string, lienId: string): Promise<void> =>
+    api.del(`/projets/${id}/liens/${lienId}`),
   // Tâches (l'avancement et le passage « En cours » se déduisent des tâches, côté serveur).
   taches: (id: string): Promise<Tache[]> => api.get(`/projets/${id}/taches`),
   creerTache: (id: string, corps: NouvelleTache): Promise<ProjetDetail> =>
