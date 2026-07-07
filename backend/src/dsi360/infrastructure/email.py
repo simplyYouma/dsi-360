@@ -2,22 +2,34 @@
 
 Sans hôte SMTP configuré, on journalise au lieu d'envoyer (mode dev). Tout échec d'envoi est
 journalisé et n'interrompt jamais l'appelant (scanner SLA, flux d'auth…).
+
+L'envoi est **asynchrone** (fil d'arrière-plan) : l'e-mail est best-effort et ne doit jamais
+ralentir ni geler l'application — en particulier en **mode hors ligne** (réseau interne sans
+Internet), où chaque tentative SMTP peut bloquer ~15 s. Un disjoncteur suspend en plus les envois
+pendant quelques minutes après une panne réseau ; le canal interne (cloche) reste garanti.
 """
 
 import logging
 import os
 import smtplib
 import ssl
+import threading
 import time
 from email.message import EmailMessage
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from dsi360.infrastructure.email_modeles import CID_LOGO
 
 _log = logging.getLogger("dsi360.email")
 _TENTATIVES = 2  # reprise sur échec transitoire (ex. résolution DNS intermittente)
 _LOGO = Path(__file__).parent / "assets" / "logo-email.png"
+
+# Disjoncteur hors ligne : après une panne SMTP, on n'essaie plus pendant ce délai (les envois
+# sont ignorés et journalisés) pour ne pas empiler des fils bloqués quand Internet est absent.
+_PANNE_PAUSE_S = 120.0
+_panne_jusqua = 0.0
+_verrou = threading.Lock()
 
 
 def _logo_octets() -> bytes | None:
@@ -42,10 +54,17 @@ def _config() -> dict[str, str | int | bool]:
 
 
 def envoyer(destinataire: str, sujet: str, corps: str, html: str | None = None) -> None:
-    """Envoie un e-mail (texte + HTML optionnel). Sans SMTP configuré : journalise (mode dev)."""
+    """Envoie un e-mail (texte + HTML optionnel), en arrière-plan — ne bloque jamais l'appelant.
+
+    Sans SMTP configuré : journalise (mode dev). Pendant une panne réseau (disjoncteur ouvert) :
+    ignore l'envoi et journalise — l'application reste pleinement utilisable hors ligne.
+    """
     cfg = _config()
     if not cfg["hote"]:
         _log.info("EMAIL (simulé, SMTP absent) -> %s | %s", destinataire, sujet)
+        return
+    if time.time() < _panne_jusqua:
+        _log.info("EMAIL ignoré (SMTP en panne / hors ligne) -> %s | %s", destinataire, sujet)
         return
 
     message = EmailMessage()
@@ -61,6 +80,16 @@ def envoyer(destinataire: str, sujet: str, corps: str, html: str | None = None) 
             parties = cast(list[EmailMessage], message.get_payload())
             parties[1].add_related(logo, maintype="image", subtype="png", cid=f"<{CID_LOGO}>")
 
+    threading.Thread(
+        target=_envoyer_sync, args=(cfg, message, destinataire, sujet), daemon=True
+    ).start()
+
+
+def _envoyer_sync(
+    cfg: dict[str, Any], message: EmailMessage, destinataire: str, sujet: str
+) -> None:
+    """Transmission SMTP réelle (dans un fil dédié). Ouvre le disjoncteur en cas d'échec final."""
+    global _panne_jusqua
     contexte = ssl.create_default_context()
     for tentative in range(_TENTATIVES):
         try:
@@ -85,4 +114,9 @@ def envoyer(destinataire: str, sujet: str, corps: str, html: str | None = None) 
             if tentative + 1 < _TENTATIVES:
                 time.sleep(1)
                 continue
-            _log.warning("EMAIL échec -> %s | %s : %s", destinataire, sujet, exc)
+            with _verrou:
+                _panne_jusqua = time.time() + _PANNE_PAUSE_S
+            _log.warning(
+                "EMAIL échec -> %s | %s : %s (envois suspendus %.0f s)",
+                destinataire, sujet, exc, _PANNE_PAUSE_S,
+            )
