@@ -847,6 +847,7 @@ def _tache_resume(r: RowMapping) -> dict[str, Any]:
         "assigne_id": r["assigne_id"],
         "echeance": r["echeance"],
         "ordre": r["ordre"],
+        "nb_commentaires": r["nb_commentaires"],
     }
 
 

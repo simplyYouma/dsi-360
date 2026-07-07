@@ -25,6 +25,7 @@ export interface Tache {
   assigne_id: string | null;
   echeance: string | null;
   ordre: number;
+  nb_commentaires?: number;
 }
 
 export interface NouvelleTache {

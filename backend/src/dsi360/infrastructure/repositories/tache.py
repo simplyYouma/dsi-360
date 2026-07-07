@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 _CHAMPS = """
     t.id::text AS id, t.activite_id::text AS activite_id, t.titre, t.description, t.statut,
     t.assigne_id::text AS assigne_id, t.echeance, t.ordre, t.cree_le, t.maj_le,
-    u.prenom AS assigne_prenom, u.nom AS assigne_nom, u.email AS assigne_email
+    u.prenom AS assigne_prenom, u.nom AS assigne_nom, u.email AS assigne_email,
+    (SELECT count(*) FROM core.commentaire c WHERE c.tache_id = t.id) AS nb_commentaires
 """
 
 _BASE = """

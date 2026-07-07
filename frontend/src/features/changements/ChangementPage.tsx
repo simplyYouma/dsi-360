@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Send, XCircle } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { ChampInline } from '@/common/ChampInline';
+import { DiscussionTache } from '@/common/DiscussionTache';
 import { GestionActeurs } from '@/common/GestionActeurs';
 import { ListeTaches } from '@/common/ListeTaches';
 import { PiecesJointes } from '@/common/PiecesJointes';
@@ -336,15 +337,18 @@ export function ChangementPage(): JSX.Element {
                 onMaj={majTache}
                 onSupprimer={supprimerTache}
                 renduEnfant={(t) => (
-                  <PiecesJointes
-                    compact
-                    charger={() => changementsApi.documentsTache(id!, t.id)}
-                    deposer={(f) => changementsApi.deposerDocumentTache(id!, t.id, f)}
-                    telecharger={(docId) => changementsApi.telechargerDocument(id!, docId)}
-                    apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
-                    renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
-                    supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
-                  />
+                  <>
+                    <PiecesJointes
+                      compact
+                      charger={() => changementsApi.documentsTache(id!, t.id)}
+                      deposer={(f) => changementsApi.deposerDocumentTache(id!, t.id, f)}
+                      telecharger={(docId) => changementsApi.telechargerDocument(id!, docId)}
+                      apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
+                      renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
+                      supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
+                    />
+                    <DiscussionTache activiteId={id!} tacheId={t.id} nombre={t.nb_commentaires ?? 0} />
+                  </>
                 )}
               />
             )}

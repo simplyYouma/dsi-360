@@ -44,7 +44,8 @@ def _requete_liste(segment: str) -> Any:
     sql = (
         "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
         "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur, "
-        "(SELECT count(*) FROM core.commentaire cm WHERE cm.activite_id = a.id) AS nb_commentaires "
+        "(SELECT count(*) FROM core.commentaire cm "
+        " WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires "
         "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
         f"WHERE a.responsable_id = cast(:id as uuid) AND a.module IN {_MODULES} AND {cond} "
         "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST LIMIT 200"

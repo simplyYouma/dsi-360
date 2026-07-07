@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Flag, Plus, Trash2 } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
+import { DiscussionTache } from '@/common/DiscussionTache';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { ListeTaches } from '@/common/ListeTaches';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -364,15 +365,18 @@ export function ProjetPage(): JSX.Element {
                   onMaj={majTache}
                   onSupprimer={supprimerTache}
                   renduEnfant={(t) => (
-                    <PiecesJointes
-                      compact
-                      charger={() => projetsApi.documentsTache(id, t.id)}
-                      deposer={(f) => projetsApi.deposerDocumentTache(id, t.id, f)}
-                      telecharger={(docId) => projetsApi.telechargerDocument(id, docId)}
-                      apercu={(docId) => projetsApi.apercuDocument(id, docId)}
-                      renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
-                      supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
-                    />
+                    <>
+                      <PiecesJointes
+                        compact
+                        charger={() => projetsApi.documentsTache(id, t.id)}
+                        deposer={(f) => projetsApi.deposerDocumentTache(id, t.id, f)}
+                        telecharger={(docId) => projetsApi.telechargerDocument(id, docId)}
+                        apercu={(docId) => projetsApi.apercuDocument(id, docId)}
+                        renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
+                        supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
+                      />
+                      <DiscussionTache activiteId={id} tacheId={t.id} nombre={t.nb_commentaires ?? 0} />
+                    </>
                   )}
                 />
               )
