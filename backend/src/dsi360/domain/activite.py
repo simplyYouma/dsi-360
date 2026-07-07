@@ -8,7 +8,6 @@ paramétrable au niveau supérieur. Cf. docs/02-DOMAIN-MODEL §2.
 MODULES: tuple[str, ...] = (
     "incident",
     "demande",
-    "probleme",
     "changement",
     "projet",
     "audit",
@@ -21,7 +20,6 @@ MODULES: tuple[str, ...] = (
 PREFIXE_REFERENCE: dict[str, str] = {
     "incident": "INC",
     "demande": "DEM",
-    "probleme": "PRB",
     "changement": "CHG",
     "projet": "PRJ",
     "audit": "AUD",

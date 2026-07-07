@@ -25,7 +25,7 @@ SLA_DEFAUT: dict[int, CiblesSla] = {
 
 # Modules dont les cibles SLA (P1..P5) sont paramétrables par module dans l'administration.
 # Les autres (projet, risque, audit, gouvernance) suivent une logique d'échéance propre.
-MODULES_SLA: tuple[str, ...] = ("incident", "demande", "changement", "probleme", "cybersecurite")
+MODULES_SLA: tuple[str, ...] = ("incident", "demande", "changement", "cybersecurite")
 
 
 class Echeances(NamedTuple):

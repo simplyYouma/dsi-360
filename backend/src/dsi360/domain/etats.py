@@ -24,13 +24,6 @@ TRANSITIONS: dict[str, dict[str, list[str]]] = {
         "Clôturée": ["Réouverte"],
         "Rejetée": [],
     },
-    "probleme": {
-        "Nouveau": ["En cours d'analyse"],
-        "En cours d'analyse": ["Résolu"],
-        "Résolu": ["Clôturé", "Réouvert"],
-        "Réouvert": ["En cours d'analyse"],
-        "Clôturé": ["Réouvert"],
-    },
     "changement": {
         "Brouillon": ["Soumis"],
         "Soumis": ["Évaluation"],

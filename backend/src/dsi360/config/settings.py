@@ -10,9 +10,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DSI360_", env_file=None)
 
     environnement: Literal["dev", "recette", "prod"] = "dev"
-    # DSN PostgreSQL (asyncpg). Fournie par l'environnement / docker-compose.
+    # DSN PostgreSQL (asyncpg). Fournie par l'environnement (exécution native, cf. ADR-0002).
     database_url: str = "postgresql+asyncpg://dsi360:dsi360@postgres:5432/dsi360"
-    redis_url: str = "redis://redis:6379/0"
 
     # Authentification : LOCAL (dev/bootstrap) | OIDC (Microsoft Entra ID) | LDAP.
     auth_mode: Literal["local", "oidc", "ldap"] = "local"
