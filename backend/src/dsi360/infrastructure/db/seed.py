@@ -13,6 +13,7 @@ from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 DIRECTIONS: list[tuple[str, str]] = [
     ("DSI", "Direction des Systèmes d'Information"),
+    ("DBS", "Direction DBS"),
     ("DG", "Direction Générale"),
     ("EXPLOIT", "Exploitation & Production"),
     ("METIER", "Directions Métier"),

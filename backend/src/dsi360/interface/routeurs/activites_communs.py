@@ -126,7 +126,10 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         ],
         "etats": ordre_etats(module),
         "avancement": int(_donnees(r).get("avancement", 0)),
-        "niveau_support": int(_donnees(r).get("niveau_support", 1)),
+        # Sans gestionnaire affecté, un ticket est considéré d'office au niveau de support 3.
+        "niveau_support": int(
+            _donnees(r).get("niveau_support", 3 if r["resp_id"] is None else 1)
+        ),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
         "periodicite": _donnees(r).get("periodicite"),
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
@@ -671,13 +674,32 @@ def creer_routeur(
         @routeur.post("/{ident}/escalader", response_model=ActiviteDetail)
         async def escalader(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
             avant = await charger_visible(session, ident, courant)
-            niveau = int(_donnees(avant).get("niveau_support", 1))
-            if niveau >= 3:
+            sans_gestionnaire = avant["resp_id"] is None
+            # Sans gestionnaire, un ticket est considéré d'office au niveau 3.
+            defaut = 3 if sans_gestionnaire else 1
+            courant_niveau = int(_donnees(avant).get("niveau_support", defaut))
+            if sans_gestionnaire:
+                # Escalader un ticket sans gestionnaire = l'affecter au groupe N3 de sa direction.
+                niveau = 3
+            elif courant_niveau >= 3:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Déjà au niveau de support maximal (N3).",
                 )
-            niveau += 1
+            else:
+                niveau = courant_niveau + 1
+            resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
+            # Réaffecte au membre le moins chargé du groupe (direction du ticket, niveau cible).
+            # Si le niveau n'existe pas ou est vide dans cette direction (ex. DBS sans N1/N2),
+            # on monte jusqu'au N3 ; le niveau retenu est celui du groupe qui a réellement pris.
+            nouveau_resp: str | None = None
+            for candidat in range(niveau, 4):
+                nouveau_resp = await groupe_repo.membre_le_moins_charge(
+                    session, candidat, avant["direction"]
+                )
+                if nouveau_resp is not None:
+                    niveau = candidat
+                    break
             await session.execute(
                 text(
                     "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
@@ -685,9 +707,6 @@ def creer_routeur(
                 ),
                 {"id": ident, "f": json.dumps({"niveau_support": niveau})},
             )
-            resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
-            # Réaffecte au membre le moins chargé du groupe de support du niveau cible (si présent).
-            nouveau_resp = await groupe_repo.membre_le_moins_charge(session, niveau)
             reaffecte = nouveau_resp is not None and nouveau_resp != resp_avant
             if reaffecte:
                 await repo.assigner(session, ident, nouveau_resp)

@@ -110,16 +110,19 @@ class MembreSupport(BaseModel):
 
 
 class GroupeSupportItem(BaseModel):
-    """Un niveau de support (N1/N2/N3) et ses membres (administration)."""
+    """Un niveau de support d'une direction (DSI : N1/N2/N3 ; DBS : N3) et ses membres."""
 
+    direction: str
+    direction_libelle: str
     niveau: int
     nom: str
     membres: list[MembreSupport] = []
 
 
 class MajGroupeSupport(BaseModel):
-    """Redéfinit les membres d'un niveau de support."""
+    """Redéfinit les membres d'un niveau de support d'une direction."""
 
+    direction: str
     niveau: int = Field(ge=1, le=3)
     utilisateur_ids: list[str] = []
 

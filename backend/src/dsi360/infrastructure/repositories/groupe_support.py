@@ -1,20 +1,26 @@
-"""Repository des groupes de support ITIL (N1/N2/N3) et de leurs membres.
+"""Repository des groupes de support ITIL (N1/N2/N3), propres à chaque direction.
 
-L'escalade fonctionnelle réaffecte le ticket au membre le moins chargé du groupe du niveau cible.
-Groupes paramétrables (un par niveau) ; les membres sont gérés depuis l'administration.
+DSI : N1/N2/N3 ; DBS : N3 uniquement. L'escalade fonctionnelle réaffecte le ticket au membre le
+moins chargé du groupe (direction du ticket, niveau cible) ; l'appelant monte jusqu'au N3 si le
+niveau demandé n'existe pas ou n'a aucun membre dans cette direction.
 """
 
 from typing import Any
 
-from sqlalchemy import RowMapping, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def lister(session: AsyncSession) -> list[dict[str, Any]]:
-    """Les 3 groupes avec leurs membres (pour l'administration)."""
+    """Tous les groupes (direction + niveau) avec leurs membres (pour l'administration)."""
     groupes = (
         await session.execute(
-            text("SELECT id::text AS id, niveau, nom FROM core.groupe_support ORDER BY niveau")
+            text(
+                "SELECT g.id::text AS id, g.niveau, g.nom, d.code AS direction, "
+                "       d.libelle AS direction_libelle "
+                "FROM core.groupe_support g JOIN core.direction d ON d.id = g.direction_id "
+                "ORDER BY d.code, g.niveau"
+            )
         )
     ).mappings().all()
     membres = (
@@ -33,17 +39,28 @@ async def lister(session: AsyncSession) -> list[dict[str, Any]]:
             {"id": m["id"], "prenom": m["prenom"], "nom": m["nom"], "email": m["email"]}
         )
     return [
-        {"niveau": g["niveau"], "nom": g["nom"], "membres": par_groupe.get(g["id"], [])}
+        {
+            "direction": g["direction"],
+            "direction_libelle": g["direction_libelle"],
+            "niveau": g["niveau"],
+            "nom": g["nom"],
+            "membres": par_groupe.get(g["id"], []),
+        }
         for g in groupes
     ]
 
 
 async def definir_membres(
-    session: AsyncSession, niveau: int, utilisateur_ids: list[str]
+    session: AsyncSession, direction: str, niveau: int, utilisateur_ids: list[str]
 ) -> bool:
-    """Remplace les membres du groupe d'un niveau. False si le niveau n'existe pas."""
+    """Remplace les membres du groupe (direction, niveau). False si le groupe n'existe pas."""
     gid = await session.scalar(
-        text("SELECT id::text FROM core.groupe_support WHERE niveau = :n"), {"n": niveau}
+        text(
+            "SELECT g.id::text FROM core.groupe_support g "
+            "JOIN core.direction d ON d.id = g.direction_id "
+            "WHERE d.code = :d AND g.niveau = :n"
+        ),
+        {"d": direction, "n": niveau},
     )
     if gid is None:
         return False
@@ -62,31 +79,26 @@ async def definir_membres(
     return True
 
 
-async def membre_le_moins_charge(session: AsyncSession, niveau: int) -> str | None:
-    """Membre actif du groupe du niveau ayant le moins d'activités en cours, ou ``None``.
+async def membre_le_moins_charge(
+    session: AsyncSession, niveau: int, direction: str | None
+) -> str | None:
+    """Membre actif le moins chargé du groupe (direction, niveau), ou ``None``.
 
-    Permet une réaffectation équilibrée à l'escalade. ``None`` si le groupe est vide/non configuré.
+    ``direction`` = code de la direction du ticket ; ``None`` (ticket sans direction) accepte le
+    groupe du niveau de n'importe quelle direction. Permet une réaffectation équilibrée.
     """
     uid = await session.scalar(
         text(
             "SELECT m.utilisateur_id::text FROM core.groupe_support g "
+            "JOIN core.direction d ON d.id = g.direction_id "
             "JOIN core.groupe_support_membre m ON m.groupe_id = g.id "
             "JOIN core.utilisateur u ON u.id = m.utilisateur_id AND u.actif "
-            "WHERE g.niveau = :n "
+            "WHERE g.niveau = :n AND (cast(:d as text) IS NULL OR d.code = :d) "
             "ORDER BY (SELECT count(*) FROM core.activite a "
             "          WHERE a.responsable_id = m.utilisateur_id "
             "          AND a.cloture_le IS NULL AND a.resolu_le IS NULL) ASC, u.cree_le ASC "
             "LIMIT 1"
         ),
-        {"n": niveau},
+        {"n": niveau, "d": direction},
     )
     return str(uid) if uid is not None else None
-
-
-async def par_niveau(session: AsyncSession, niveau: int) -> RowMapping | None:
-    return (
-        await session.execute(
-            text("SELECT id::text AS id, niveau, nom FROM core.groupe_support WHERE niveau = :n"),
-            {"n": niveau},
-        )
-    ).mappings().first()

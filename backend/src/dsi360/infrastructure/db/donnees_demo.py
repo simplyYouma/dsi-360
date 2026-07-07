@@ -275,12 +275,22 @@ async def _jalons(
 
 
 async def _groupes_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
-    """Rattache des agents de démo aux 3 niveaux de support (pour illustrer la réaffectation)."""
-    # niveau -> indices dans UTILISATEURS (N1 = technicien + chef de service, N2 = DSI + chef de
-    # projet, N3 = DSI transverse).
-    repartition = {1: [1, 2], 2: [0, 3], 3: [5]}
-    for niveau, indices in repartition.items():
-        gid = await conn.fetchval("SELECT id FROM core.groupe_support WHERE niveau=$1", niveau)
+    """Rattache des agents de démo aux niveaux de support par direction (DSI : N1/N2/N3 ;
+    DBS : N3 uniquement) pour illustrer la réaffectation à l'escalade."""
+    # (direction, niveau) -> indices dans UTILISATEURS.
+    repartition = {
+        ("DSI", 1): [1, 2],
+        ("DSI", 2): [0, 3],
+        ("DSI", 3): [5],
+        ("DBS", 3): [4],
+    }
+    for (direction, niveau), indices in repartition.items():
+        gid = await conn.fetchval(
+            "SELECT g.id FROM core.groupe_support g "
+            "JOIN core.direction d ON d.id = g.direction_id "
+            "WHERE d.code=$1 AND g.niveau=$2",
+            direction, niveau,
+        )
         if gid is None:
             continue
         for i in indices:

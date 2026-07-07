@@ -68,6 +68,8 @@ export interface MembreSupport {
   email: string;
 }
 export interface GroupeSupport {
+  direction: string;
+  direction_libelle: string;
   niveau: number;
   nom: string;
   membres: MembreSupport[];
@@ -94,6 +96,9 @@ export const adminApi = {
   journal: (page: number): Promise<{ elements: EntreeJournal[]; total: number }> =>
     api.get(`/admin/journal?page=${page}`),
   groupesSupport: (): Promise<GroupeSupport[]> => api.get('/admin/groupes-support'),
-  definirGroupeSupport: (niveau: number, utilisateur_ids: string[]): Promise<void> =>
-    api.put('/admin/groupes-support', { niveau, utilisateur_ids }),
+  definirGroupeSupport: (
+    direction: string,
+    niveau: number,
+    utilisateur_ids: string[],
+  ): Promise<void> => api.put('/admin/groupes-support', { direction, niveau, utilisateur_ids }),
 };

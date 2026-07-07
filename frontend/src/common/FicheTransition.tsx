@@ -492,7 +492,11 @@ export function FicheTransition({
                   <Button
                     variante="secondaire"
                     onClick={() => void escalader()}
-                    disabled={envoi || (detail.niveau_support ?? 1) >= 3}
+                    // Sans gestionnaire, escalader = affecter au groupe N3 : toujours possible.
+                    disabled={
+                      envoi ||
+                      ((detail.niveau_support ?? 1) >= 3 && detail.responsable_id != null)
+                    }
                   >
                     <ArrowUp size={15} />
                     Escalader

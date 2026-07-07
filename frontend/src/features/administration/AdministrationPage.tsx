@@ -803,9 +803,9 @@ function OngletSupport(): JSX.Element {
     void api.get<AgentSupport[]>('/referentiels/agents').then(setAgents);
   }, [charger]);
 
-  const definir = async (niveau: number, ids: string[]): Promise<void> => {
+  const definir = async (direction: string, niveau: number, ids: string[]): Promise<void> => {
     try {
-      await adminApi.definirGroupeSupport(niveau, ids);
+      await adminApi.definirGroupeSupport(direction, niveau, ids);
       charger();
       notifier('Niveau de support mis à jour', 'succes');
     } catch (e) {
@@ -813,26 +813,43 @@ function OngletSupport(): JSX.Element {
     }
   };
 
+  const directions = [...new Set(groupes.map((g) => g.direction))];
+
   return (
     <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
       <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-        Membres des niveaux de support (ITIL). À l’escalade d’un incident ou d’une demande, le ticket
-        est réaffecté au membre <strong>le moins chargé</strong> du niveau atteint.
+        Membres des niveaux de support (ITIL), <strong>par direction</strong>. À l’escalade, le
+        ticket est réaffecté au membre le moins chargé du niveau atteint <strong>dans sa
+        direction</strong> ; si le niveau n’y existe pas (ex. DBS sans N1/N2), il monte au N3. Un
+        ticket sans gestionnaire est considéré d’office au niveau 3.
       </p>
-      <div style={{ display: 'grid', gap: 'var(--space-5)', maxWidth: 640 }}>
-        {groupes.map((g) => (
-          <div key={g.niveau}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
-              <StatusBadge couleur="var(--cat-4)">N{g.niveau}</StatusBadge>
-              <strong>{g.nom}</strong>
+      <div style={{ display: 'grid', gap: 'var(--space-6)', maxWidth: 640 }}>
+        {directions.map((dir) => (
+          <div key={dir}>
+            <h3 style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--text-md)' }}>
+              {groupes.find((g) => g.direction === dir)?.direction_libelle ?? dir}
+            </h3>
+            <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+              {groupes
+                .filter((g) => g.direction === dir)
+                .map((g) => (
+                  <div key={`${g.direction}-${g.niveau}`}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+                      <StatusBadge couleur="var(--cat-4)">N{g.niveau}</StatusBadge>
+                      <strong>{g.nom}</strong>
+                    </div>
+                    <GestionActeurs
+                      acteurs={g.membres}
+                      agents={agents}
+                      onAjouter={(v) => void definir(g.direction, g.niveau, [...g.membres.map((m) => m.id), v])}
+                      onRetirer={(v) =>
+                        void definir(g.direction, g.niveau, g.membres.filter((m) => m.id !== v).map((m) => m.id))
+                      }
+                      placeholder="Ajouter un membre…"
+                    />
+                  </div>
+                ))}
             </div>
-            <GestionActeurs
-              acteurs={g.membres}
-              agents={agents}
-              onAjouter={(v) => void definir(g.niveau, [...g.membres.map((m) => m.id), v])}
-              onRetirer={(v) => void definir(g.niveau, g.membres.filter((m) => m.id !== v).map((m) => m.id))}
-              placeholder="Ajouter un membre…"
-            />
           </div>
         ))}
       </div>

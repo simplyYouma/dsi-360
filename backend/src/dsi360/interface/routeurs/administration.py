@@ -391,10 +391,13 @@ async def lister_groupes_support(courant: Courant, session: Session) -> list[dic
 async def definir_groupe_support(
     corps: MajGroupeSupport, courant: Courant, session: Session
 ) -> None:
-    ok = await repo_groupe.definir_membres(session, corps.niveau, corps.utilisateur_ids)
+    ok = await repo_groupe.definir_membres(
+        session, corps.direction, corps.niveau, corps.utilisateur_ids
+    )
     if not ok:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Niveau de support inconnu."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Niveau de support inconnu pour cette direction.",
         )
     await audit.consigner(
         session,
@@ -403,8 +406,12 @@ async def definir_groupe_support(
         acteur_email=courant["email"],
         module="administration",
         cible_type="groupe_support",
-        cible_id=f"N{corps.niveau}",
-        nouvelle={"niveau": corps.niveau, "membres": corps.utilisateur_ids},
+        cible_id=f"{corps.direction}/N{corps.niveau}",
+        nouvelle={
+            "direction": corps.direction,
+            "niveau": corps.niveau,
+            "membres": corps.utilisateur_ids,
+        },
     )
     await session.commit()
 
