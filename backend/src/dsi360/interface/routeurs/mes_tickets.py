@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.domain.etats import etats_terminaux
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import MesStats, MonTicket
+from dsi360.infrastructure.repositories import tache as tache_repo
+from dsi360.interface.schemas import MaTache, MesStats, MonTicket
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/mes-tickets", tags=["mes-tickets"])
@@ -91,6 +92,19 @@ def _comptes(valeurs: list[Any]) -> list[dict[str, Any]]:
     """Compte par libellé, du plus fréquent au moins fréquent."""
     compte = Counter(str(v) for v in valeurs if v is not None)
     return [{"libelle": k, "valeur": n} for k, n in compte.most_common()]
+
+
+@routeur.get("/taches", response_model=list[MaTache])
+async def mes_taches(
+    courant: Courant,
+    session: Session,
+    inclure_terminees: Annotated[bool, Query()] = False,
+) -> list[dict[str, Any]]:
+    """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
+    lignes = await tache_repo.lister_pour_utilisateur(
+        session, courant["id"], inclure_terminees=inclure_terminees
+    )
+    return [dict(r) for r in lignes]
 
 
 @routeur.get("/stats", response_model=MesStats)

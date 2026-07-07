@@ -89,6 +89,19 @@ class EvaluationDemande(BaseModel):
     urgence: int | None = Field(default=None, ge=1, le=5)
 
 
+class MaTache(BaseModel):
+    """Une tâche assignée à l'utilisateur connecté, avec son activité parente (navigation)."""
+
+    id: str
+    titre: str
+    statut: str
+    echeance: date | None
+    activite_id: str
+    module: str
+    reference: str
+    activite_titre: str
+
+
 class MembreSupport(BaseModel):
     id: str
     prenom: str

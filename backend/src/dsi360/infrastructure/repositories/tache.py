@@ -31,6 +31,25 @@ async def lister(session: AsyncSession, activite_id: str) -> list[RowMapping]:
     return list(lignes.mappings().all())
 
 
+async def lister_pour_utilisateur(
+    session: AsyncSession, utilisateur_id: str, *, inclure_terminees: bool = False
+) -> list[RowMapping]:
+    """Tâches assignées à un utilisateur, avec leur activité parente (pour la navigation)."""
+    filtre_statut = "" if inclure_terminees else "AND t.statut <> 'Terminée' "
+    lignes = await session.execute(
+        text(
+            "SELECT t.id::text AS id, t.titre, t.statut, t.echeance, t.cree_le, "
+            "       a.id::text AS activite_id, a.module, a.reference, a.titre AS activite_titre "
+            "FROM core.tache t JOIN core.activite a ON a.id = t.activite_id "
+            "WHERE t.assigne_id = cast(:u as uuid) "
+            f"{filtre_statut}"
+            "ORDER BY (t.echeance IS NULL), t.echeance, t.cree_le"
+        ),
+        {"u": utilisateur_id},
+    )
+    return list(lignes.mappings().all())
+
+
 async def par_id(session: AsyncSession, tache_id: str) -> RowMapping | None:
     resultat = await session.execute(
         text(f"SELECT {_CHAMPS} {_BASE} WHERE t.id = cast(:id as uuid)"), {"id": tache_id}

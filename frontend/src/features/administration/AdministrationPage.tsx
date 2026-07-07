@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, KeyRound, Dices, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { GestionActeurs } from '@/common/GestionActeurs';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { BadgePriorite } from '@/common/statuts';
@@ -16,6 +17,7 @@ import {
   adminApi,
   type Direction,
   type EntreeJournal,
+  type GroupeSupport,
   type Matrice,
   type Profil,
   type SlaRegle,
@@ -529,7 +531,6 @@ const LIBELLES_MODULE_SLA: Record<string, string> = {
   incident: 'Incidents',
   demande: 'Demandes',
   changement: 'Changements',
-  probleme: 'Problèmes',
   cybersecurite: 'Cybersécurité',
 };
 
@@ -781,11 +782,69 @@ function OngletCategories(): JSX.Element {
   );
 }
 
+// ---------------------------------------------------------------- Groupes de support
+
+interface AgentSupport {
+  id: string;
+  nom: string;
+  profil: string;
+}
+
+function OngletSupport(): JSX.Element {
+  const { notifier } = useToast();
+  const [groupes, setGroupes] = useState<GroupeSupport[]>([]);
+  const [agents, setAgents] = useState<AgentSupport[]>([]);
+
+  const charger = useCallback((): void => {
+    void adminApi.groupesSupport().then(setGroupes);
+  }, []);
+  useEffect(() => {
+    charger();
+    void api.get<AgentSupport[]>('/referentiels/agents').then(setAgents);
+  }, [charger]);
+
+  const definir = async (niveau: number, ids: string[]): Promise<void> => {
+    try {
+      await adminApi.definirGroupeSupport(niveau, ids);
+      charger();
+      notifier('Niveau de support mis à jour', 'succes');
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Modification impossible.', 'erreur');
+    }
+  };
+
+  return (
+    <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
+      <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
+        Membres des niveaux de support (ITIL). À l’escalade d’un incident ou d’une demande, le ticket
+        est réaffecté au membre <strong>le moins chargé</strong> du niveau atteint.
+      </p>
+      <div style={{ display: 'grid', gap: 'var(--space-5)', maxWidth: 640 }}>
+        {groupes.map((g) => (
+          <div key={g.niveau}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+              <StatusBadge couleur="var(--cat-4)">N{g.niveau}</StatusBadge>
+              <strong>{g.nom}</strong>
+            </div>
+            <GestionActeurs
+              acteurs={g.membres}
+              agents={agents}
+              onAjouter={(v) => void definir(g.niveau, [...g.membres.map((m) => m.id), v])}
+              onRetirer={(v) => void definir(g.niveau, g.membres.filter((m) => m.id !== v).map((m) => m.id))}
+              placeholder="Ajouter un membre…"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AdministrationPage(): JSX.Element {
   const [onglet, setOnglet] = useState<
-    'utilisateurs' | 'acces' | 'journal' | 'sla' | 'categories'
+    'utilisateurs' | 'acces' | 'journal' | 'sla' | 'categories' | 'support'
   >('utilisateurs');
   const [signalCreation, setSignalCreation] = useState(0);
 
@@ -819,6 +878,12 @@ export function AdministrationPage(): JSX.Element {
             SLA
           </button>
           <button
+            className={onglet === 'support' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('support')}
+          >
+            Support N1/N2/N3
+          </button>
+          <button
             className={onglet === 'journal' ? a.tabActif : a.tab}
             onClick={() => setOnglet('journal')}
           >
@@ -839,6 +904,7 @@ export function AdministrationPage(): JSX.Element {
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}
       {onglet === 'sla' && <OngletSla />}
+      {onglet === 'support' && <OngletSupport />}
       {onglet === 'categories' && <OngletCategories />}
     </div>
   );

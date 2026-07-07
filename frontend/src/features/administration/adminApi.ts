@@ -61,6 +61,18 @@ export interface SlaRegle {
   resolution_minutes: number;
 }
 
+export interface MembreSupport {
+  id: string;
+  prenom: string;
+  nom: string;
+  email: string;
+}
+export interface GroupeSupport {
+  niveau: number;
+  nom: string;
+  membres: MembreSupport[];
+}
+
 export const adminApi = {
   profils: (): Promise<Profil[]> => api.get('/admin/profils'),
   modulesSla: (): Promise<string[]> => api.get('/admin/sla/modules'),
@@ -81,4 +93,7 @@ export const adminApi = {
     api.put('/admin/acces', { profil, acces }),
   journal: (page: number): Promise<{ elements: EntreeJournal[]; total: number }> =>
     api.get(`/admin/journal?page=${page}`),
+  groupesSupport: (): Promise<GroupeSupport[]> => api.get('/admin/groupes-support'),
+  definirGroupeSupport: (niveau: number, utilisateur_ids: string[]): Promise<void> =>
+    api.put('/admin/groupes-support', { niveau, utilisateur_ids }),
 };

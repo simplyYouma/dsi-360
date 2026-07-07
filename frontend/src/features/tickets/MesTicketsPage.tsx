@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Inbox, List, LayoutGrid, BarChart3 } from 'lucide-react';
+import { Inbox, List, LayoutGrid, BarChart3, ListChecks } from 'lucide-react';
 import { Table, StatusBadge, useToast, type Colonne } from '@/design-system/primitives';
+import { COULEUR_STATUT_TACHE, type StatutTache } from '@/common/tacheTypes';
 import { BadgeStatut, BadgePriorite, couleurStatut } from '@/common/statuts';
 import { SablierSla } from '@/common/SablierSla';
 import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
@@ -15,7 +16,13 @@ import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BandeauAgent } from './BandeauAgent';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
-import { mesTicketsApi, type MonTicket, type MesStats, type SegmentTicket } from './mesTicketsApi';
+import {
+  mesTicketsApi,
+  type MonTicket,
+  type MesStats,
+  type SegmentTicket,
+  type MaTache,
+} from './mesTicketsApi';
 
 const SEGMENTS: { cle: SegmentTicket; libelle: string }[] = [
   { cle: 'actifs', libelle: 'Actifs' },
@@ -72,13 +79,47 @@ const COLONNES: Colonne<MonTicket>[] = [
   },
 ];
 
+const COLONNES_TACHE: Colonne<MaTache>[] = [
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    largeur: '120px',
+    rendu: (t) => (
+      <StatusBadge couleur={COULEUR_STATUT_TACHE[t.statut as StatutTache] ?? 'var(--text-muted)'}>
+        {t.statut}
+      </StatusBadge>
+    ),
+  },
+  { cle: 'titre', entete: 'Tâche', tronque: true, rendu: (t) => <strong title={t.titre}>{t.titre}</strong>, valeur: (t) => t.titre },
+  {
+    cle: 'activite',
+    entete: 'Rattachée à',
+    rendu: (t) => (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <StatusBadge couleur={MODULE_COULEUR[t.module] ?? 'var(--text-muted)'}>
+          {LIBELLE_MODULE[t.module] ?? t.module}
+        </StatusBadge>
+        <span title={t.activite_titre}>{t.reference}</span>
+      </span>
+    ),
+    valeur: (t) => t.reference,
+  },
+  {
+    cle: 'echeance',
+    entete: 'Échéance',
+    valeur: (t) => t.echeance ?? '',
+    rendu: (t) => (t.echeance ? formaterDate(t.echeance) : '—'),
+  },
+];
+
 export function MesTicketsPage(): JSX.Element {
   const [items, setItems] = useState<MonTicket[]>([]);
   const [stats, setStats] = useState<MesStats | null>(null);
   const [chargement, setChargement] = useState(true);
   const [fiche, setFiche] = useState<{ base: string; id: string; module: string } | null>(null);
   const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
-  const [onglet, setOnglet] = useState<'tickets' | 'analyse'>('tickets');
+  const [onglet, setOnglet] = useState<'tickets' | 'taches' | 'analyse'>('tickets');
+  const [taches, setTaches] = useState<MaTache[]>([]);
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
   const analyseRef = useRef<HTMLDivElement>(null);
   const { notifier } = useToast();
@@ -148,6 +189,10 @@ export function MesTicketsPage(): JSX.Element {
     charger();
   }, [charger]);
 
+  useEffect(() => {
+    if (onglet === 'taches') void mesTicketsApi.taches().then(setTaches);
+  }, [onglet]);
+
   // Kanban : une colonne par statut présent (ordre d'apparition : déjà trié priorité/SLA).
   const statutsPresents = [...new Set(items.map((t) => t.statut))];
   const colonnesKanban: ColonneKanban[] = statutsPresents.map((statut) => ({
@@ -181,7 +226,9 @@ export function MesTicketsPage(): JSX.Element {
           <p className={incidents.sous}>
             {onglet === 'tickets'
               ? 'Votre file de travail — du plus prioritaire au plus urgent. Les SLA dépassés sont surlignés.'
-              : 'Analyse complète de votre activité : SLA, charge et rythme de résolution.'}
+              : onglet === 'taches'
+                ? 'Les tâches qui vous sont assignées dans les projets et les changements.'
+                : 'Analyse complète de votre activité : SLA, charge et rythme de résolution.'}
           </p>
         </div>
         <div className={local.onglets} role="tablist" aria-label="Vues de la page">
@@ -193,6 +240,15 @@ export function MesTicketsPage(): JSX.Element {
           >
             <Inbox size={15} />
             Tickets
+          </button>
+          <button
+            role="tab"
+            aria-selected={onglet === 'taches'}
+            className={cx(local.onglet, onglet === 'taches' && local.ongletOn)}
+            onClick={() => setOnglet('taches')}
+          >
+            <ListChecks size={15} />
+            Mes tâches
           </button>
           <button
             role="tab"
@@ -221,6 +277,14 @@ export function MesTicketsPage(): JSX.Element {
             </div>
           </>
         )
+      ) : onglet === 'taches' ? (
+        <Table
+          colonnes={COLONNES_TACHE}
+          lignes={taches}
+          cleLigne={(t) => t.id}
+          vide="Aucune tâche ne vous est assignée pour le moment."
+          onLigne={(t) => navigate(`${ROUTE_MODULE[t.module] ?? ''}/${t.activite_id}`)}
+        />
       ) : (
         <>
           {stats !== null && <BandeauAgent stats={stats} />}
