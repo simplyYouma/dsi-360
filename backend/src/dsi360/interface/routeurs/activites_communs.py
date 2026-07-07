@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.application.activites import (
     ActiviteIntrouvable,
     TransitionInterdite,
+    TransitionReservee,
     appliquer_decisions,
     creer_activite,
     reevaluer,
@@ -24,7 +25,7 @@ from dsi360.application.activites import (
 )
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
-from dsi360.domain.etats import ordre_etats, transitions_possibles
+from dsi360.domain.etats import ordre_etats, transition_reservee, transitions_possibles
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import phrase_propre
 from dsi360.infrastructure import audit
@@ -116,7 +117,13 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "sla_prise_en_charge_le": r["sla_prise_en_charge_le"],
         "resolu_le": r["resolu_le"],
         "cloture_le": r["cloture_le"],
-        "transitions_possibles": transitions_possibles(module, r["statut"]),
+        # On masque les issues réservées aux valideurs (elles passent par la décision, pas par un
+        # changement d'état manuel) : l'UI n'offre que les transitions vraiment actionnables.
+        "transitions_possibles": [
+            e
+            for e in transitions_possibles(module, r["statut"])
+            if not transition_reservee(module, r["statut"], e)
+        ],
         "etats": ordre_etats(module),
         "avancement": int(_donnees(r).get("avancement", 0)),
         "niveau_support": int(_donnees(r).get("niveau_support", 1)),
@@ -358,6 +365,14 @@ def creer_routeur(
         except TransitionInterdite as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
+            ) from exc
+        except TransitionReservee as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Cette étape se décide via les valideurs (approbation), "
+                    "pas par un changement d'état manuel."
+                ),
             ) from exc
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)

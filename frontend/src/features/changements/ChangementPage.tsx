@@ -461,8 +461,8 @@ export function ChangementPage(): JSX.Element {
                   })}
                 </div>
                 <p className={styles.note}>
-                  « En implémentation » et « Implémenté » découlent des tâches ; CAB/ECAB et clôture
-                  restent manuels.
+                  « En implémentation » et « Implémenté » découlent des tâches ; l'issue du CAB/ECAB
+                  se décide via les valideurs ; la clôture reste manuelle.
                 </p>
               </section>
 

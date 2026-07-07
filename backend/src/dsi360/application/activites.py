@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.domain.activite import calculer_priorite
-from dsi360.domain.etats import cible_apres_decisions, etat_initial, transition_autorisee
+from dsi360.domain.etats import (
+    cible_apres_decisions,
+    etat_initial,
+    transition_autorisee,
+    transition_reservee,
+)
 from dsi360.domain.sla import echeances
 from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
@@ -35,6 +40,10 @@ async def _resoudre_demandeur(session: AsyncSession, nom: str | None) -> str | N
 
 class TransitionInterdite(Exception):
     """Transition d'état non autorisée par la machine à états du module."""
+
+
+class TransitionReservee(Exception):
+    """Issue de validation réservée aux valideurs : pas de déclenchement manuel."""
 
 
 class ActiviteIntrouvable(Exception):
@@ -168,7 +177,8 @@ async def appliquer_decisions(
     cible = cible_apres_decisions(module, courant["statut"], [v["decision"] for v in valideurs])
     if cible is None:
         return None
-    await transition(session, module, identifiant, cible, acteur)
+    # force=True : c'est précisément la décision des valideurs qui autorise cette issue réservée.
+    await transition(session, module, identifiant, cible, acteur, force=True)
     return cible
 
 
@@ -178,6 +188,8 @@ async def transition(
     identifiant: str,
     vers: str,
     acteur: dict[str, Any],
+    *,
+    force: bool = False,
 ) -> None:
     courant = await repo.par_id(session, module, identifiant)
     if courant is None:
@@ -185,6 +197,10 @@ async def transition(
     depuis = courant["statut"]
     if not transition_autorisee(module, depuis, vers):
         raise TransitionInterdite(f"{depuis} → {vers}")
+    # Les issues de validation (CAB/ECAB, validation de demande) ne se poussent pas à la main :
+    # elles passent par la décision des valideurs (appliquer_decisions, force=True).
+    if not force and transition_reservee(module, depuis, vers):
+        raise TransitionReservee(f"{depuis} → {vers}")
 
     maintenant = datetime.now(UTC)
     horodatages: dict[str, datetime] = {}

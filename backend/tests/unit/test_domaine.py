@@ -9,6 +9,7 @@ from dsi360.domain.etats import (
     etats_terminaux,
     ordre_etats,
     transition_autorisee,
+    transition_reservee,
     transitions_possibles,
 )
 from dsi360.domain.sla import echeances, statut_sla
@@ -103,6 +104,21 @@ class TestDecisionsValideurs:
 
     def test_module_sans_porte(self) -> None:
         assert cible_apres_decisions("incident", "Ouvert", ["APPROUVE"]) is None
+
+
+class TestTransitionReservee:
+    def test_issue_validation_reservee(self) -> None:
+        # Pousser « Validé » depuis CAB à la main est réservé (doit passer par les valideurs).
+        assert transition_reservee("changement", "CAB", "Validé") is True
+        assert transition_reservee("changement", "ECAB", "Rejeté") is True
+        assert transition_reservee("demande", "En validation", "Résolue") is True
+
+    def test_transition_ordinaire_non_reservee(self) -> None:
+        assert transition_reservee("changement", "Validé", "Planifié") is False
+        assert transition_reservee("incident", "Nouveau", "Ouvert") is False
+
+    def test_module_sans_porte(self) -> None:
+        assert transition_reservee("incident", "Ouvert", "Résolu") is False
 
 
 class TestSla:

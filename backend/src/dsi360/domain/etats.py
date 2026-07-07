@@ -149,6 +149,20 @@ GATES_VALIDATION: dict[str, tuple[frozenset[str], str, str]] = {
 }
 
 
+def transition_reservee(module: str, depuis: str, vers: str) -> bool:
+    """Vrai si la transition est une issue de validation, réservée à la décision des valideurs.
+
+    L'approbation/le rejet en CAB/ECAB (et la validation d'une demande) ne se déclenchent pas
+    manuellement : ils résultent de l'agrégation des décisions des valideurs. Empêche qu'un simple
+    accès au module suffise à « valider » ou « rejeter » en poussant l'état à la main.
+    """
+    gate = GATES_VALIDATION.get(module)
+    if gate is None:
+        return False
+    en_attente, cible_ok, cible_ko = gate
+    return depuis in en_attente and vers in (cible_ok, cible_ko)
+
+
 def cible_apres_decisions(module: str, statut: str, decisions: list[str | None]) -> str | None:
     """État cible après agrégation des décisions des valideurs, ou ``None`` si aucune bascule.
 
