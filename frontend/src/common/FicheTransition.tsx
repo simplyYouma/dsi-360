@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Send, XCircle } from 'lucide-react';
+import { ArrowRight, Check, Clock, Send, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -470,15 +470,29 @@ export function FicheTransition({
             {assignable && detail.impact !== undefined && detail.priorite !== undefined && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Évaluation</dt>
-                <dd style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Impact
-                    <CurseurNiveau valeur={detail.impact ?? 3} onChange={(v) => void reevaluer('impact', v)} />
-                  </label>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Urgence
-                    <CurseurNiveau valeur={detail.urgence ?? 3} onChange={(v) => void reevaluer('urgence', v)} />
-                  </label>
+                <dd className={styles.evaluation}>
+                  <div className={styles.evalChamps}>
+                    <label className={styles.evalChamp}>
+                      <span className={styles.evalLabel}>Impact</span>
+                      <CurseurNiveau valeur={detail.impact ?? 3} onChange={(v) => void reevaluer('impact', v)} />
+                    </label>
+                    <span className={styles.evalOperateur} aria-hidden="true">×</span>
+                    <label className={styles.evalChamp}>
+                      <span className={styles.evalLabel}>Urgence</span>
+                      <CurseurNiveau valeur={detail.urgence ?? 3} onChange={(v) => void reevaluer('urgence', v)} />
+                    </label>
+                    <span className={styles.evalFleche} aria-hidden="true">
+                      <ArrowRight size={15} />
+                    </span>
+                    <span className={styles.evalResultat}>
+                      <span className={styles.evalLabel}>Priorité</span>
+                      <BadgePriorite priorite={detail.priorite} />
+                    </span>
+                  </div>
+                  <p className={styles.evalAide}>
+                    Impact × urgence détermine la priorité (P1 à P5), qui fixe les délais SLA de prise
+                    en charge et de résolution.
+                  </p>
                 </dd>
               </div>
             )}
@@ -505,16 +519,21 @@ export function FicheTransition({
                 </dd>
               </div>
             )}
-            {detail.sla_resolution_le !== undefined && (
-              <div className={styles.metaItem}>
-                <dt>Échéance</dt>
-                <dd className={styles.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
-              </div>
-            )}
-            {detail.cree_le !== undefined && (
-              <div className={styles.metaItem}>
-                <dt>Créé le</dt>
-                <dd className={styles.valeur}>{formaterDate(detail.cree_le)}</dd>
+            {(detail.cree_le !== undefined || detail.sla_resolution_le !== undefined) && (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dd className={styles.datesLigne}>
+                  <span className={styles.dateBloc}>
+                    <span className={styles.dateLabel}>Créé le</span>
+                    <span className={styles.dateValeur}>{formaterDate(detail.cree_le ?? null)}</span>
+                  </span>
+                  <span className={cx(styles.dateBloc, styles.dateDroite)}>
+                    <span className={styles.dateLabel}>Échéance</span>
+                    <span className={styles.dateValeur}>
+                      <Clock size={14} className={styles.dateIcone} />
+                      {formaterDate(detail.sla_resolution_le ?? null)}
+                    </span>
+                  </span>
+                </dd>
               </div>
             )}
           </dl>

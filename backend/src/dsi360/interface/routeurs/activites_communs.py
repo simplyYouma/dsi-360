@@ -108,6 +108,7 @@ def _resume(r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "gestionnaire": _gestionnaire(r),
         "responsable_id": r["resp_id"],
         "nb_commentaires": r["nb_commentaires"],
+        "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,
     }
 
 
@@ -216,7 +217,7 @@ def creer_routeur(
     async def charger_visible(
         session: AsyncSession, ident: str, courant: dict[str, Any]
     ) -> RowMapping:
-        r = await repo.par_id(session, module, ident)
+        r = await repo.par_id(session, module, ident, moi=courant["id"])
         if r is None or not _visible(r, courant):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Introuvable.")
         return r
@@ -244,6 +245,7 @@ def creer_routeur(
             non_assigne=non_assigne,
             q=q,
             etat=etat,
+            moi=courant["id"],
         )
         maintenant = datetime.now(UTC)
         return {
@@ -323,7 +325,7 @@ def creer_routeur(
                 )
         assignes = 0
         for ident in corps.ids:
-            r = await repo.par_id(session, module, ident)
+            r = await repo.par_id(session, module, ident, moi=courant["id"])
             if r is None or not _visible(r, courant):
                 continue  # on ignore silencieusement hors périmètre / introuvable
             await repo.assigner(session, ident, corps.responsable_id)

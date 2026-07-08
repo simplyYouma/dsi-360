@@ -6,7 +6,7 @@ import { useFicheUrl } from '@/common/useFicheUrl';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
-import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
+import { CelluleReference } from '@/common/CelluleReference';
 import { BadgeStatut } from '@/common/statuts';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { assignerLot, type FiltresListe } from '@/features/incidents/incidentsApi';
@@ -17,7 +17,15 @@ function formaterDate(iso: string): string {
 }
 
 const COLONNES: Colonne<Demande>[] = [
-  { cle: 'reference', entete: 'Référence', valeur: (d) => d.reference, largeur: '150px' },
+  {
+    cle: 'reference',
+    entete: 'Référence',
+    valeur: (d) => d.reference,
+    largeur: '190px',
+    rendu: (d) => (
+      <CelluleReference reference={d.reference} nombre={d.nb_commentaires} nonVus={d.nb_non_vus} />
+    ),
+  },
   { cle: 'titre', entete: 'Objet', tronque: true, rendu: (d) => <strong title={d.titre}>{d.titre}</strong>, valeur: (d) => d.titre },
   {
     cle: 'categorie',
@@ -42,13 +50,6 @@ const COLONNES: Colonne<Demande>[] = [
       ),
   },
   { cle: 'cree_le', entete: 'Créée le', valeur: (d) => d.cree_le, rendu: (d) => formaterDate(d.cree_le) },
-  {
-    cle: 'discussion',
-    entete: '',
-    aligne: 'centre',
-    largeur: '46px',
-    rendu: (d) => <IndicateurDiscussion nombre={d.nb_commentaires} />,
-  },
 ];
 
 export function DemandesPage(): JSX.Element {

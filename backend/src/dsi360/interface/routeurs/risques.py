@@ -58,6 +58,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "responsable": _responsable(r),
         "responsable_id": r["resp_id"],
         "nb_commentaires": r["nb_commentaires"],
+        "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,
         "probabilite": int(d.get("probabilite", 0)),
         "impact": int(d.get("impact", 0)),
         "criticite": int(d.get("criticite", 0)),
@@ -86,7 +87,7 @@ def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
 
 
 async def _charger(session: AsyncSession, ident: str, courant: dict[str, Any]) -> RowMapping:
-    r = await repo.par_id(session, MODULE, ident)
+    r = await repo.par_id(session, MODULE, ident, moi=courant["id"])
     if r is None or not _visible(r, courant):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Risque introuvable.")
     return r
@@ -115,6 +116,7 @@ async def lister(
         non_assigne=non_assigne,
         q=q,
         etat=etat,
+        moi=courant["id"],
     )
     return {
         "elements": [_resume(r) for r in lignes],

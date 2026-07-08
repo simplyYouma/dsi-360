@@ -319,3 +319,85 @@
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+
+/* Évaluation : Impact × Urgence -> Priorité (mise en forme propre, remplace les styles en ligne). */
+.evaluation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.evalChamps {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.evalChamp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.evalLabel {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+}
+.evalOperateur {
+  align-self: center;
+  padding-bottom: 6px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+}
+.evalFleche {
+  align-self: center;
+  display: inline-flex;
+  padding-bottom: 4px;
+  color: var(--text-muted);
+}
+.evalResultat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.evalAide {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Ligne Créé le (gauche) / Échéance (droite) avec icône horloge. */
+.datesLigne {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.dateBloc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dateDroite {
+  align-items: flex-end;
+  text-align: right;
+}
+.dateLabel {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+}
+.dateValeur {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.dateIcone {
+  color: var(--text-muted);
+}

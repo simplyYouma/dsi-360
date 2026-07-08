@@ -135,6 +135,7 @@ class ActiviteResume(BaseModel):
     gestionnaire: str | None
     responsable_id: str | None
     nb_commentaires: int = 0
+    nb_non_vus: int = 0
 
 
 class ActiviteDetail(ActiviteResume):
@@ -261,6 +262,7 @@ class MonTicket(BaseModel):
     demandeur: str | None
     cree_le: datetime
     nb_commentaires: int = 0
+    nb_non_vus: int = 0
 
 
 class CompteLibelle(BaseModel):
@@ -670,6 +672,7 @@ class RisqueResume(BaseModel):
     responsable: ResponsableBref | None
     responsable_id: str | None
     nb_commentaires: int = 0
+    nb_non_vus: int = 0
     probabilite: int
     impact: int
     criticite: int

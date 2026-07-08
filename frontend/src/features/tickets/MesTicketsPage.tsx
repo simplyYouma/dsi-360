@@ -4,7 +4,7 @@ import { Table, StatusBadge, useToast, type Colonne } from '@/design-system/prim
 import { COULEUR_STATUT_TACHE, type StatutTache } from '@/common/tacheTypes';
 import { BadgeStatut, BadgePriorite, couleurStatut } from '@/common/statuts';
 import { SablierSla } from '@/common/SablierSla';
-import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
+import { CelluleReference } from '@/common/CelluleReference';
 import { Kanban, type ColonneKanban } from '@/common/Kanban';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useNavigate } from 'react-router-dom';
@@ -55,7 +55,15 @@ const COLONNES: Colonne<MonTicket>[] = [
       </StatusBadge>
     ),
   },
-  { cle: 'reference', entete: 'Référence', valeur: (t) => t.reference, largeur: '140px' },
+  {
+    cle: 'reference',
+    entete: 'Référence',
+    valeur: (t) => t.reference,
+    largeur: '180px',
+    rendu: (t) => (
+      <CelluleReference reference={t.reference} nombre={t.nb_commentaires} nonVus={t.nb_non_vus} />
+    ),
+  },
   { cle: 'titre', entete: 'Objet', tronque: true, rendu: (t) => <strong title={t.titre}>{t.titre}</strong>, valeur: (t) => t.titre },
   {
     cle: 'priorite',
@@ -70,13 +78,6 @@ const COLONNES: Colonne<MonTicket>[] = [
   },
   { cle: 'statut', entete: 'Statut', rendu: (t) => <BadgeStatut statut={t.statut} /> },
   { cle: 'cree_le', entete: 'Reçu le', valeur: (t) => t.cree_le, rendu: (t) => formaterDate(t.cree_le) },
-  {
-    cle: 'discussion',
-    entete: '',
-    aligne: 'centre',
-    largeur: '46px',
-    rendu: (t) => <IndicateurDiscussion nombre={t.nb_commentaires} />,
-  },
 ];
 
 const COLONNES_TACHE: Colonne<MaTache>[] = [

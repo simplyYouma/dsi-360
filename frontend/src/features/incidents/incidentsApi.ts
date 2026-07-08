@@ -22,6 +22,7 @@ export interface Incident {
   gestionnaire: string | null;
   responsable_id: string | null;
   nb_commentaires: number;
+  nb_non_vus: number;
 }
 
 export interface PageIncidents {

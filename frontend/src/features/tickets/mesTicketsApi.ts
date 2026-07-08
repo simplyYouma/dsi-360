@@ -12,6 +12,7 @@ export interface MonTicket {
   demandeur: string | null;
   cree_le: string;
   nb_commentaires: number;
+  nb_non_vus: number;
 }
 
 export interface CompteLibelle {

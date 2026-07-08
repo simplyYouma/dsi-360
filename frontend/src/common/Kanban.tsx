@@ -17,6 +17,7 @@ export interface CarteKanban {
   statutSla: 'a_lheure' | 'approche' | 'depasse';
   meta: string | null; // demandeur ou gestionnaire (avatar)
   nbCommentaires: number;
+  nbNonVus?: number;
   /** Étiquette optionnelle (ex. domaine/module) affichée sur la carte. */
   etiquette?: { texte: string; couleur: string };
 }
@@ -213,7 +214,7 @@ export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides, cleStock
                     <div className={styles.carteBas}>
                       <SablierSla echeance={c.echeance} debut={c.debut} statut={c.statutSla} />
                       <span className={styles.carteMeta}>
-                        <IndicateurDiscussion nombre={c.nbCommentaires} />
+                        <IndicateurDiscussion nombre={c.nbCommentaires} nonVus={c.nbNonVus ?? 0} />
                         {c.meta !== null && (
                           <span title={c.meta}>
                             <AvatarPersonnage seed={c.meta} taille={20} />

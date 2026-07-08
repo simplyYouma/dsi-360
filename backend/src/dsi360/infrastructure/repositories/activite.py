@@ -17,7 +17,13 @@ _LISTE_CHAMPS = """
     r.id::text AS resp_id, r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email,
     dem.nom_complet AS demandeur_nom,
     (SELECT count(*) FROM core.commentaire cm
-     WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires
+     WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires,
+    (SELECT count(*) FROM core.commentaire cm
+     WHERE cm.activite_id = a.id AND cm.tache_id IS NULL
+       AND cm.auteur_id IS DISTINCT FROM cast(:moi as uuid)
+       AND NOT EXISTS (SELECT 1 FROM core.commentaire_vue v
+                       WHERE v.commentaire_id = cm.id
+                         AND v.utilisateur_id = cast(:moi as uuid))) AS nb_non_vus
 """
 
 _BASE = """
@@ -67,9 +73,13 @@ async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
     return str(identifiant)
 
 
-async def par_id(session: AsyncSession, module: str, identifiant: str) -> RowMapping | None:
+async def par_id(
+    session: AsyncSession, module: str, identifiant: str, *, moi: str | None = None
+) -> RowMapping | None:
     requete = text(f"SELECT {_LISTE_CHAMPS}, a.description {_BASE} AND a.id::text = :id")
-    resultat = await session.execute(requete, {"module": module, "id": identifiant})
+    resultat = await session.execute(
+        requete, {"module": module, "id": identifiant, "moi": moi}
+    )
     return resultat.mappings().first()
 
 
@@ -108,8 +118,9 @@ async def lister(
     non_assigne: bool = False,
     q: str | None = None,
     etat: str | None = None,
+    moi: str | None = None,
 ) -> tuple[list[RowMapping], int]:
-    params: dict[str, Any] = {"module": module}
+    params: dict[str, Any] = {"module": module, "moi": moi}
     filtres = ""
     if direction is not None:
         filtres += " AND d.code = :direction"
@@ -140,10 +151,15 @@ async def lister(
 
 
 async def lister_tout(
-    session: AsyncSession, module: str, *, direction: str | None, limite: int = 5000
+    session: AsyncSession,
+    module: str,
+    *,
+    direction: str | None,
+    limite: int = 5000,
+    moi: str | None = None,
 ) -> list[RowMapping]:
     """Toutes les activités du périmètre (sans pagination) — pour les exports."""
-    params: dict[str, Any] = {"module": module, "limite": limite}
+    params: dict[str, Any] = {"module": module, "limite": limite, "moi": moi}
     cond = ""
     if direction is not None:
         cond = " AND d.code = :direction"
