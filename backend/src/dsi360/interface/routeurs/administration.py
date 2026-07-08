@@ -14,7 +14,6 @@ from dsi360.domain.sla import MODULES_SLA
 from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
-from dsi360.infrastructure.repositories import groupe_support as repo_groupe
 from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.infrastructure.securite import hacher_mot_de_passe
@@ -24,9 +23,7 @@ from dsi360.interface.schemas import (
     CreationReponse,
     CreationUtilisateur,
     DirectionItem,
-    GroupeSupportItem,
     MajAcces,
-    MajGroupeSupport,
     MajSlaRegles,
     MajUtilisateur,
     MatriceAcces,
@@ -173,7 +170,7 @@ async def supprimer_categorie(ident: str, courant: Courant, session: Session) ->
 
 _CHAMPS_U = (
     "u.id::text AS id, u.email, u.nom, u.prenom, p.code AS profil, p.libelle AS profil_libelle, "
-    "d.code AS direction, u.actif, u.expire_le, u.doit_changer_mdp"
+    "d.code AS direction, u.niveau_support, u.actif, u.expire_le, u.doit_changer_mdp"
 )
 _BASE_U = (
     "FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
@@ -223,11 +220,11 @@ async def creer_utilisateur(
     ident = await session.scalar(
         text(
             "INSERT INTO core.utilisateur"
-            "(email, nom, prenom, profil_id, direction_id, source_auth, mot_de_passe_hash, "
-            " doit_changer_mdp, expire_le) VALUES (:email, :nom, :prenom, "
+            "(email, nom, prenom, profil_id, direction_id, niveau_support, source_auth, "
+            " mot_de_passe_hash, doit_changer_mdp, expire_le) VALUES (:email, :nom, :prenom, "
             " (SELECT id FROM core.profil WHERE code = :profil), "
-            " (SELECT id FROM core.direction WHERE code = :direction), 'LOCAL', :hash, true, "
-            " :expire_le) "
+            " (SELECT id FROM core.direction WHERE code = :direction), :niveau, 'LOCAL', :hash, "
+            " true, :expire_le) "
             "RETURNING id::text"
         ),
         {
@@ -236,6 +233,7 @@ async def creer_utilisateur(
             "prenom": nom_propre(corps.prenom),
             "profil": corps.profil_code,
             "direction": corps.direction_code,
+            "niveau": corps.niveau_support,
             "hash": hacher_mot_de_passe(corps.mot_de_passe),
             "expire_le": corps.expire_le,
         },
@@ -279,7 +277,7 @@ async def modifier_utilisateur(
     await session.execute(
         text(
             "UPDATE core.utilisateur SET nom = :nom, prenom = :prenom, actif = :actif, "
-            "expire_le = :expire_le, "
+            "expire_le = :expire_le, niveau_support = :niveau, "
             "profil_id = (SELECT id FROM core.profil WHERE code = :profil), "
             "direction_id = (SELECT id FROM core.direction WHERE code = :direction) "
             "WHERE id::text = :id"
@@ -290,6 +288,7 @@ async def modifier_utilisateur(
             "prenom": nom_propre(corps.prenom),
             "actif": corps.actif,
             "expire_le": corps.expire_le,
+            "niveau": corps.niveau_support,
             "profil": corps.profil_code,
             "direction": corps.direction_code,
         },
@@ -374,44 +373,6 @@ async def definir_acces(corps: MajAcces, courant: Courant, session: Session) -> 
         module="administration",
         cible_type="acces_role",
         cible_id=corps.profil,
-    )
-    await session.commit()
-
-
-# --- Groupes de support (N1/N2/N3) ---
-
-
-@routeur.get("/groupes-support", response_model=list[GroupeSupportItem])
-async def lister_groupes_support(courant: Courant, session: Session) -> list[dict[str, Any]]:
-    """Les niveaux de support et leurs membres (l'escalade réaffecte au niveau cible)."""
-    return await repo_groupe.lister(session)
-
-
-@routeur.put("/groupes-support", status_code=status.HTTP_204_NO_CONTENT)
-async def definir_groupe_support(
-    corps: MajGroupeSupport, courant: Courant, session: Session
-) -> None:
-    ok = await repo_groupe.definir_membres(
-        session, corps.direction, corps.niveau, corps.utilisateur_ids
-    )
-    if not ok:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Niveau de support inconnu pour cette direction.",
-        )
-    await audit.consigner(
-        session,
-        action="MODIFICATION",
-        acteur_id=courant["id"],
-        acteur_email=courant["email"],
-        module="administration",
-        cible_type="groupe_support",
-        cible_id=f"{corps.direction}/N{corps.niveau}",
-        nouvelle={
-            "direction": corps.direction,
-            "niveau": corps.niveau,
-            "membres": corps.utilisateur_ids,
-        },
     )
     await session.commit()
 

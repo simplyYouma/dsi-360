@@ -153,7 +153,6 @@ async def _reset(conn: asyncpg.Connection) -> None:
     await conn.execute("DELETE FROM core.activite")  # cascade : tache, document, commentaire, acteur
     await conn.execute("DELETE FROM core.notification")
     await conn.execute("DELETE FROM core.demandeur")
-    await conn.execute("DELETE FROM core.groupe_support_membre")  # ré-affectés ci-dessous (démo)
     await conn.execute("DELETE FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO)
 
 
@@ -274,32 +273,18 @@ async def _jalons(
         )
 
 
-async def _groupes_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
-    """Rattache des agents de démo aux niveaux de support par direction (DSI : N1/N2/N3 ;
-    DBS : N3 uniquement) pour illustrer la réaffectation à l'escalade."""
-    # (direction, niveau) -> indices dans UTILISATEURS.
-    repartition = {
-        ("DSI", 1): [1, 2],
-        ("DSI", 2): [0, 3],
-        ("DSI", 3): [5],
-        ("DBS", 3): [4],
-    }
-    for (direction, niveau), indices in repartition.items():
-        gid = await conn.fetchval(
-            "SELECT g.id FROM core.groupe_support g "
-            "JOIN core.direction d ON d.id = g.direction_id "
-            "WHERE d.code=$1 AND g.niveau=$2",
-            direction, niveau,
-        )
-        if gid is None:
-            continue
-        for i in indices:
-            if i < len(utilisateurs):
-                await conn.execute(
-                    "INSERT INTO core.groupe_support_membre (groupe_id, utilisateur_id) "
-                    "VALUES ($1,$2) ON CONFLICT DO NOTHING",
-                    gid, utilisateurs[i],
-                )
+async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
+    """Affecte un niveau de support (N1/N2/N3) à quelques gestionnaires de démo, pour illustrer la
+    réaffectation à l'escalade (le niveau est désormais porté par le gestionnaire)."""
+    # indice dans UTILISATEURS -> niveau : technicien/chef de service N1, DSI/chef de projet N2,
+    # DSI transverse et métier N3.
+    niveaux = {1: 1, 2: 1, 0: 2, 3: 2, 5: 3, 4: 3}
+    for i, niveau in niveaux.items():
+        if i < len(utilisateurs):
+            await conn.execute(
+                "UPDATE core.utilisateur SET niveau_support=$2 WHERE id=$1",
+                utilisateurs[i], niveau,
+            )
 
 
 async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de démo
@@ -314,7 +299,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
     try:
         await _reset(conn)
         utilisateurs = await _assurer_utilisateurs(conn)
-        await _groupes_support(conn, utilisateurs)
+        await _niveaux_support(conn, utilisateurs)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
 
         for module, titres in TITRES.items():

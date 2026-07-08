@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, KeyRound, Dices, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
-import { GestionActeurs } from '@/common/GestionActeurs';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { BadgePriorite } from '@/common/statuts';
@@ -17,7 +16,6 @@ import {
   adminApi,
   type Direction,
   type EntreeJournal,
-  type GroupeSupport,
   type Matrice,
   type Profil,
   type SlaRegle,
@@ -66,6 +64,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [prenom, setPrenom] = useState('');
   const [profil, setProfil] = useState('');
   const [direction, setDirection] = useState<string | null>(null);
+  const [niveau, setNiveau] = useState<string | null>(null);
   const [motDePasse, setMotDePasse] = useState('');
   const [actif, setActif] = useState(true);
   const [temporaire, setTemporaire] = useState(false);
@@ -98,6 +97,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setPrenom('');
     setProfil('');
     setDirection(null);
+    setNiveau(null);
     setMotDePasse(genererMotDePasse()); // un mot de passe provisoire unique par utilisateur
     setActif(true);
     setTemporaire(false);
@@ -117,6 +117,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setPrenom(u.prenom);
     setProfil(u.profil);
     setDirection(u.direction);
+    setNiveau(u.niveau_support !== null ? String(u.niveau_support) : null);
     setActif(u.actif);
     setTemporaire(u.expire_le !== null);
     setExpiration(u.expire_le ? u.expire_le.slice(0, 10) : null);
@@ -135,6 +136,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           prenom: prenom.trim(),
           profil_code: profil,
           direction_code: direction,
+          niveau_support: niveau !== null ? Number(niveau) : null,
           mot_de_passe: motDePasse,
           expire_le: temporaire ? expiration : null,
         });
@@ -144,6 +146,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           prenom: prenom.trim(),
           profil_code: profil,
           direction_code: direction,
+          niveau_support: niveau !== null ? Number(niveau) : null,
           actif,
           expire_le: temporaire ? expiration : null,
         });
@@ -171,6 +174,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
         prenom: u.prenom,
         profil_code: u.profil,
         direction_code: u.direction,
+        niveau_support: u.niveau_support,
         actif: !u.actif,
         expire_le: u.expire_le,
       });
@@ -210,6 +214,16 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     { cle: 'nom', entete: 'Nom', rendu: (u) => <strong>{`${u.prenom} ${u.nom}`}</strong> },
     { cle: 'profil', entete: 'Profil', rendu: (u) => <StatusBadge couleur="var(--cat-1)">{u.profil_libelle}</StatusBadge> },
     { cle: 'direction', entete: 'Direction', rendu: (u) => u.direction ?? '—' },
+    {
+      cle: 'niveau',
+      entete: 'Niveau',
+      rendu: (u) =>
+        u.niveau_support !== null ? (
+          <StatusBadge couleur="var(--cat-4)">N{u.niveau_support}</StatusBadge>
+        ) : (
+          <span style={{ color: 'var(--text-muted)' }}>—</span>
+        ),
+    },
     {
       cle: 'actif',
       entete: 'Statut',
@@ -316,6 +330,21 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
               placeholder="Choisir une direction"
             />
           </div>
+        </div>
+        <div className={styles.champ}>
+          <span>Niveau de support (escalade)</span>
+          <SelecteurListe
+            options={[
+              { valeur: '1', libelle: 'N1 — Service Desk' },
+              { valeur: '2', libelle: 'N2 — Expert' },
+              { valeur: '3', libelle: 'N3 — Référent' },
+            ]}
+            valeur={niveau}
+            onChange={setNiveau}
+            permettreVide
+            libelleVide="Aucun (pas un gestionnaire de support)"
+            placeholder="Choisir un niveau"
+          />
         </div>
         <div className={styles.champ}>
           <button
@@ -782,86 +811,11 @@ function OngletCategories(): JSX.Element {
   );
 }
 
-// ---------------------------------------------------------------- Groupes de support
-
-interface AgentSupport {
-  id: string;
-  nom: string;
-  profil: string;
-}
-
-function OngletSupport(): JSX.Element {
-  const { notifier } = useToast();
-  const [groupes, setGroupes] = useState<GroupeSupport[]>([]);
-  const [agents, setAgents] = useState<AgentSupport[]>([]);
-
-  const charger = useCallback((): void => {
-    void adminApi.groupesSupport().then(setGroupes);
-  }, []);
-  useEffect(() => {
-    charger();
-    void api.get<AgentSupport[]>('/referentiels/agents').then(setAgents);
-  }, [charger]);
-
-  const definir = async (direction: string, niveau: number, ids: string[]): Promise<void> => {
-    try {
-      await adminApi.definirGroupeSupport(direction, niveau, ids);
-      charger();
-      notifier('Niveau de support mis à jour', 'succes');
-    } catch (e) {
-      notifier(e instanceof ErreurApi ? e.message : 'Modification impossible.', 'erreur');
-    }
-  };
-
-  const directions = [...new Set(groupes.map((g) => g.direction))];
-
-  return (
-    <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
-      <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-        Membres des niveaux de support (ITIL), <strong>par direction</strong>. À l’escalade, le
-        ticket est réaffecté au membre le moins chargé du niveau atteint <strong>dans sa
-        direction</strong> ; si le niveau n’y existe pas (ex. DBS sans N1/N2), il monte au N3. Un
-        ticket sans gestionnaire est considéré d’office au niveau 3.
-      </p>
-      <div style={{ display: 'grid', gap: 'var(--space-6)', maxWidth: 640 }}>
-        {directions.map((dir) => (
-          <div key={dir}>
-            <h3 style={{ margin: '0 0 var(--space-3)', fontSize: 'var(--text-md)' }}>
-              {groupes.find((g) => g.direction === dir)?.direction_libelle ?? dir}
-            </h3>
-            <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-              {groupes
-                .filter((g) => g.direction === dir)
-                .map((g) => (
-                  <div key={`${g.direction}-${g.niveau}`}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
-                      <StatusBadge couleur="var(--cat-4)">N{g.niveau}</StatusBadge>
-                      <strong>{g.nom}</strong>
-                    </div>
-                    <GestionActeurs
-                      acteurs={g.membres}
-                      agents={agents}
-                      onAjouter={(v) => void definir(g.direction, g.niveau, [...g.membres.map((m) => m.id), v])}
-                      onRetirer={(v) =>
-                        void definir(g.direction, g.niveau, g.membres.filter((m) => m.id !== v).map((m) => m.id))
-                      }
-                      placeholder="Ajouter un membre…"
-                    />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------- Page
 
 export function AdministrationPage(): JSX.Element {
   const [onglet, setOnglet] = useState<
-    'utilisateurs' | 'acces' | 'journal' | 'sla' | 'categories' | 'support'
+    'utilisateurs' | 'acces' | 'journal' | 'sla' | 'categories'
   >('utilisateurs');
   const [signalCreation, setSignalCreation] = useState(0);
 
@@ -895,12 +849,6 @@ export function AdministrationPage(): JSX.Element {
             SLA
           </button>
           <button
-            className={onglet === 'support' ? a.tabActif : a.tab}
-            onClick={() => setOnglet('support')}
-          >
-            Support N1/N2/N3
-          </button>
-          <button
             className={onglet === 'journal' ? a.tabActif : a.tab}
             onClick={() => setOnglet('journal')}
           >
@@ -921,7 +869,6 @@ export function AdministrationPage(): JSX.Element {
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}
       {onglet === 'sla' && <OngletSla />}
-      {onglet === 'support' && <OngletSupport />}
       {onglet === 'categories' && <OngletCategories />}
     </div>
   );

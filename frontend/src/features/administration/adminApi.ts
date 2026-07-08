@@ -8,6 +8,7 @@ export interface Utilisateur {
   profil: string;
   profil_libelle: string;
   direction: string | null;
+  niveau_support: number | null;
   actif: boolean;
   expire_le: string | null;
   doit_changer_mdp: boolean;
@@ -43,6 +44,7 @@ export interface CreationUtilisateur {
   prenom: string;
   profil_code: string;
   direction_code: string | null;
+  niveau_support: number | null;
   mot_de_passe: string;
   expire_le: string | null;
 }
@@ -51,6 +53,7 @@ export interface MajUtilisateur {
   prenom: string;
   profil_code: string;
   direction_code: string | null;
+  niveau_support: number | null;
   actif: boolean;
   expire_le: string | null;
 }
@@ -59,20 +62,6 @@ export interface SlaRegle {
   priorite: number;
   prise_en_charge_minutes: number;
   resolution_minutes: number;
-}
-
-export interface MembreSupport {
-  id: string;
-  prenom: string;
-  nom: string;
-  email: string;
-}
-export interface GroupeSupport {
-  direction: string;
-  direction_libelle: string;
-  niveau: number;
-  nom: string;
-  membres: MembreSupport[];
 }
 
 export const adminApi = {
@@ -95,10 +84,4 @@ export const adminApi = {
     api.put('/admin/acces', { profil, acces }),
   journal: (page: number): Promise<{ elements: EntreeJournal[]; total: number }> =>
     api.get(`/admin/journal?page=${page}`),
-  groupesSupport: (): Promise<GroupeSupport[]> => api.get('/admin/groupes-support'),
-  definirGroupeSupport: (
-    direction: string,
-    niveau: number,
-    utilisateur_ids: string[],
-  ): Promise<void> => api.put('/admin/groupes-support', { direction, niveau, utilisateur_ids }),
 };

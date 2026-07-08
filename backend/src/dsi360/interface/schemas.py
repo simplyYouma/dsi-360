@@ -102,31 +102,6 @@ class MaTache(BaseModel):
     activite_titre: str
 
 
-class MembreSupport(BaseModel):
-    id: str
-    prenom: str
-    nom: str
-    email: str
-
-
-class GroupeSupportItem(BaseModel):
-    """Un niveau de support d'une direction (DSI : N1/N2/N3 ; DBS : N3) et ses membres."""
-
-    direction: str
-    direction_libelle: str
-    niveau: int
-    nom: str
-    membres: list[MembreSupport] = []
-
-
-class MajGroupeSupport(BaseModel):
-    """Redéfinit les membres d'un niveau de support d'une direction."""
-
-    direction: str
-    niveau: int = Field(ge=1, le=3)
-    utilisateur_ids: list[str] = []
-
-
 class ActiviteCreation(BaseModel):
     titre: str = Field(min_length=3, max_length=200)
     description: str | None = None
@@ -479,6 +454,7 @@ class UtilisateurResume(BaseModel):
     profil: str
     profil_libelle: str
     direction: str | None
+    niveau_support: int | None = None
     actif: bool
     expire_le: datetime | None = None
     doit_changer_mdp: bool
@@ -497,6 +473,7 @@ class CreationUtilisateur(BaseModel):
     prenom: str
     profil_code: str
     direction_code: str | None = None
+    niveau_support: int | None = Field(default=None, ge=1, le=3)
     mot_de_passe: str = Field(min_length=8)
     expire_le: datetime | None = None
 
@@ -506,6 +483,7 @@ class MajUtilisateur(BaseModel):
     prenom: str
     profil_code: str
     direction_code: str | None = None
+    niveau_support: int | None = Field(default=None, ge=1, le=3)
     actif: bool
     expire_le: datetime | None = None
 
