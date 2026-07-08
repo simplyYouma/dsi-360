@@ -24,6 +24,8 @@ interface Props {
   supprimer: (docId: string) => Promise<void>;
   /** Variante compacte (pièces jointes d'une tâche). */
   compact?: boolean;
+  /** Si fourni, affiche un en-tête « {titre} · N » (compteur de fichiers). */
+  titre?: string;
 }
 
 function formaterTaille(octets: number): string {
@@ -41,6 +43,7 @@ export function PiecesJointes({
   renommer,
   supprimer,
   compact,
+  titre,
 }: Props): JSX.Element {
   const [docs, setDocs] = useState<PieceJointe[]>([]);
   const [envoi, setEnvoi] = useState(false);
@@ -108,6 +111,12 @@ export function PiecesJointes({
 
   return (
     <div className={styles.docs}>
+      {titre !== undefined && (
+        <div className={styles.entete}>
+          <span className={styles.enteteTitre}>{titre}</span>
+          <span className={styles.compteur}>{docs.length}</span>
+        </div>
+      )}
       <input
         ref={input}
         type="file"

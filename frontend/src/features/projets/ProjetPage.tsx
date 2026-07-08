@@ -480,7 +480,14 @@ export function ProjetPage(): JSX.Element {
           </section>
 
           <section className={styles.carte}>
-            <span className={styles.carteTitre}>Tâches</span>
+            <div className={styles.enteteStat}>
+              <span className={styles.carteTitre}>Tâches</span>
+              {taches.length > 0 && (
+                <span className={styles.stat}>
+                  {taches.filter((t) => t.statut === 'Terminée').length}/{taches.length} terminées
+                </span>
+              )}
+            </div>
             {creation ? (
               <p className={styles.note}>
                 Créez le projet pour y ajouter des tâches (l'avancement et le passage « En cours »

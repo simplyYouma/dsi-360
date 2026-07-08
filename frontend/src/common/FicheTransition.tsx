@@ -594,8 +594,8 @@ export function FicheTransition({
 
           {avecDocuments && id !== null && (
             <div className={styles.histo}>
-              <span className={styles.wfTitre}>Pièces jointes</span>
               <PiecesJointes
+                titre="Pièces jointes"
                 charger={() => api.get(`${base}/${id}/documents`)}
                 deposer={(f) => televerser(`${base}/${id}/documents`, f)}
                 telecharger={(docId) => telecharger(`${base}/${id}/documents/${docId}`)}

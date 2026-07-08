@@ -306,7 +306,14 @@ export function ChangementPage(): JSX.Element {
           </section>
 
           <section className={styles.carte}>
-            <span className={styles.carteTitre}>Tâches (plan de déploiement)</span>
+            <div className={styles.enteteStat}>
+              <span className={styles.carteTitre}>Tâches (plan de déploiement)</span>
+              {taches.length > 0 && (
+                <span className={styles.stat}>
+                  {taches.filter((t) => t.statut === 'Terminée').length}/{taches.length} terminées
+                </span>
+              )}
+            </div>
             {creation ? (
               <p className={styles.note}>
                 Créez le changement pour ajouter les tâches ; elles pilotent le passage « En

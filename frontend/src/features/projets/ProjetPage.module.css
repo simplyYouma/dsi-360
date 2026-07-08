@@ -255,3 +255,18 @@
   border-color: var(--secondary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 16%, transparent);
 }
+
+/* En-tête de section avec une mini-statistique alignée à droite (sobre, sans déborder). */
+.enteteStat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.stat {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
