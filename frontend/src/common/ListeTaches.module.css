@@ -16,6 +16,35 @@
 .tache:hover {
   box-shadow: 0 2px 10px color-mix(in srgb, var(--text) 8%, transparent);
 }
+/* Cellule de tête : poignée de glisser + titre. */
+.tacheTete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.poignee {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  touch-action: none;
+}
+.poignee:hover {
+  color: var(--text);
+  background: var(--bg-subtle);
+}
+.poignee:active {
+  cursor: grabbing;
+}
+/* Carte en cours de déplacement : relief + légère transparence. */
+.tacheSaisie {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--text) 16%, transparent);
+  opacity: 0.92;
+}
 .tacheTitre {
   font-weight: var(--weight-medium);
   min-width: 0;

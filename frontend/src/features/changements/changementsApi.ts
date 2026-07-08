@@ -99,6 +99,8 @@ export const changementsApi = {
     api.patch(`${B}/${id}/taches/${tacheId}`, corps),
   supprimerTache: (id: string, tacheId: string): Promise<ChangementDetail> =>
     api.del(`${B}/${id}/taches/${tacheId}`),
+  reordonnerTaches: (id: string, ordre: string[]): Promise<ChangementDetail> =>
+    api.patch(`${B}/${id}/taches`, { ordre }),
   // Pièces jointes (niveau changement + par tâche) — mêmes routes que les projets.
   documents: (id: string): Promise<DocumentItem[]> => api.get(`${B}/${id}/documents`),
   deposerDocument: (id: string, fichier: File): Promise<DocumentItem> =>

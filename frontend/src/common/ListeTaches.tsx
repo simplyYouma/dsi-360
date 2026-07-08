@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Plus } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { GripVertical, Plus } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -26,6 +26,8 @@ interface Props {
   onAjouter: (corps: NouvelleTache) => Promise<void>;
   onMaj: (id: string, corps: MajTache) => Promise<void>;
   onSupprimer: (id: string) => Promise<void>;
+  /** Persiste le nouvel ordre (glisser-déposer). Sans lui, la poignée n'apparaît pas. */
+  onReordonner?: (ids: string[]) => Promise<void>;
   /** Contenu additionnel par tâche (ex. pièces jointes). */
   renduEnfant?: (tache: Tache) => ReactNode;
 }
@@ -49,12 +51,40 @@ export function ListeTaches({
   onAjouter,
   onMaj,
   onSupprimer,
+  onReordonner,
   renduEnfant,
 }: Props): JSX.Element {
   const [titre, setTitre] = useState('');
   const [assigne, setAssigne] = useState<string | null>(null);
   const [echeance, setEcheance] = useState('');
   const [envoi, setEnvoi] = useState(false);
+
+  // Ordre local pour un réordonnancement fluide (glisser-déposer), synchronisé avec les props.
+  const [local, setLocal] = useState<Tache[]>(taches);
+  const localRef = useRef<Tache[]>(taches);
+  const drag = useRef<number | null>(null);
+  const [saisiPar, setSaisiPar] = useState<string | null>(null);
+  useEffect(() => {
+    setLocal(taches);
+    localRef.current = taches;
+  }, [taches]);
+
+  const deplacer = (de: number, vers: number): void => {
+    setLocal((liste) => {
+      const copie = [...liste];
+      const [item] = copie.splice(de, 1);
+      if (item) copie.splice(vers, 0, item);
+      localRef.current = copie;
+      return copie;
+    });
+  };
+
+  const persisterOrdre = (): void => {
+    setSaisiPar(null);
+    if (drag.current === null) return;
+    drag.current = null;
+    if (onReordonner) void onReordonner(localRef.current.map((t) => t.id));
+  };
 
   const ajouter = async (): Promise<void> => {
     if (titre.trim().length < 2) return;
@@ -69,14 +99,47 @@ export function ListeTaches({
     }
   };
 
+  const reordonnable = onReordonner !== undefined;
+
   return (
     <div className={styles.taches}>
-      {taches.length === 0 && <p className={styles.vide}>Aucune tâche pour le moment.</p>}
-      {taches.map((t) => (
-        <div key={t.id} className={styles.tache}>
-          <div className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
-            {t.titre}
-            <EtatEcheance tache={t} />
+      {local.length === 0 && <p className={styles.vide}>Aucune tâche pour le moment.</p>}
+      {local.map((t, index) => (
+        <div
+          key={t.id}
+          className={cx(styles.tache, saisiPar === t.id && styles.tacheSaisie)}
+          draggable={reordonnable && saisiPar === t.id}
+          onDragStart={() => {
+            drag.current = index;
+          }}
+          onDragOver={(e) => {
+            if (drag.current === null) return;
+            e.preventDefault();
+            if (drag.current !== index) {
+              deplacer(drag.current, index);
+              drag.current = index;
+            }
+          }}
+          onDragEnd={persisterOrdre}
+        >
+          <div className={styles.tacheTete}>
+            {reordonnable && (
+              <button
+                type="button"
+                className={styles.poignee}
+                title="Glisser pour réordonner"
+                aria-label="Réordonner la tâche"
+                // La poignée arme le glisser (le reste de la carte reste cliquable).
+                onMouseDown={() => setSaisiPar(t.id)}
+                onMouseUp={() => setSaisiPar(null)}
+              >
+                <GripVertical size={15} />
+              </button>
+            )}
+            <span className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
+              {t.titre}
+              <EtatEcheance tache={t} />
+            </span>
           </div>
           <BoutonSupprimer
             cible={`la tâche « ${t.titre} »`}

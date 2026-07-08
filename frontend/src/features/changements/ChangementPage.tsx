@@ -326,6 +326,10 @@ export function ChangementPage(): JSX.Element {
                 onAjouter={ajouterTache}
                 onMaj={majTache}
                 onSupprimer={supprimerTache}
+                onReordonner={async (ids) => {
+                  setDetail(await changementsApi.reordonnerTaches(id!, ids));
+                  chargerTaches();
+                }}
                 renduEnfant={(t) => (
                   <>
                     <LiensTache

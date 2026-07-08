@@ -104,6 +104,18 @@ async def supprimer(session: AsyncSession, tache_id: str) -> None:
     )
 
 
+async def reordonner(session: AsyncSession, activite_id: str, ids: list[str]) -> None:
+    """Fixe l'ordre des tâches d'après la liste d'identifiants (position = rang), par activité."""
+    for rang, tid in enumerate(ids):
+        await session.execute(
+            text(
+                "UPDATE core.tache SET ordre = :o, maj_le = now() "
+                "WHERE id = cast(:id as uuid) AND activite_id = cast(:a as uuid)"
+            ),
+            {"o": rang, "id": tid, "a": activite_id},
+        )
+
+
 async def compter(session: AsyncSession, activite_id: str) -> tuple[int, int]:
     """(total, terminées) des tâches d'une activité — base du calcul d'avancement."""
     ligne = (

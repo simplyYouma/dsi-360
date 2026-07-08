@@ -665,6 +665,12 @@ class TacheMaj(BaseModel):
     ordre: int | None = None
 
 
+class ReordreTaches(BaseModel):
+    """Nouvel ordre des tâches (liste d'identifiants, position = rang)."""
+
+    ordre: list[str]
+
+
 # --- Risques IT ---
 
 

@@ -110,6 +110,8 @@ export const projetsApi = {
     api.patch(`/projets/${id}/taches/${tacheId}`, corps),
   supprimerTache: (id: string, tacheId: string): Promise<ProjetDetail> =>
     api.del(`/projets/${id}/taches/${tacheId}`),
+  reordonnerTaches: (id: string, ordre: string[]): Promise<ProjetDetail> =>
+    api.patch(`/projets/${id}/taches`, { ordre }),
   jalons: (id: string): Promise<Jalon[]> => api.get(`/projets/${id}/jalons`),
   creerJalon: (id: string, corps: { titre: string; echeance?: string | null }): Promise<Jalon> =>
     api.post(`/projets/${id}/jalons`, corps),

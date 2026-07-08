@@ -501,6 +501,10 @@ export function ProjetPage(): JSX.Element {
                   onAjouter={ajouterTache}
                   onMaj={majTache}
                   onSupprimer={supprimerTache}
+                  onReordonner={async (ids) => {
+                    setDetail(await projetsApi.reordonnerTaches(id, ids));
+                    chargerTaches();
+                  }}
                   renduEnfant={(t) => (
                     <>
                       <LiensTache

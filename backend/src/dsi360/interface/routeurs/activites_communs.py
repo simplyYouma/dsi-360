@@ -50,6 +50,7 @@ from dsi360.interface.schemas import (
     NoteCreation,
     NoteItem,
     PageActivites,
+    ReordreTaches,
     ResultatAssignationLot,
     RevueDemande,
     Tache,
@@ -990,6 +991,16 @@ def _enregistrer_taches(
     ) -> dict[str, Any]:
         tache = await _charger_tache(session, ident, tache_id, courant)
         await supprimer_tache(session, dict(tache), module, courant)
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session)
+
+    @routeur.patch("/{ident}/taches", response_model=ActiviteDetail)
+    async def reordonner_taches_activite(
+        ident: str, corps: ReordreTaches, courant: Courant, session: Session
+    ) -> dict[str, Any]:
+        await charger_visible(session, ident, courant)
+        await tache_repo.reordonner(session, ident, corps.ordre)
         await session.commit()
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session)

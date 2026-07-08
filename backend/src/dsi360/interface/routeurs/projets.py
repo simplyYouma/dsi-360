@@ -31,6 +31,7 @@ from dsi360.interface.schemas import (
     ProjetCreation,
     ProjetDetail,
     ProjetMaj,
+    ReordreTaches,
     Tache,
     TacheCreation,
     TacheMaj,
@@ -410,6 +411,16 @@ async def supprimer_tache_projet(
 ) -> dict[str, Any]:
     tache = await _charger_tache(session, ident, tache_id, courant)
     await supprimer_tache(session, dict(tache), MODULE, courant)
+    await session.commit()
+    return _detail(await _charger(session, ident, courant))
+
+
+@routeur.patch("/{ident}/taches", response_model=ProjetDetail)
+async def reordonner_taches_projet(
+    ident: str, corps: ReordreTaches, courant: Courant, session: Session
+) -> dict[str, Any]:
+    await _charger(session, ident, courant)
+    await tache_repo.reordonner(session, ident, corps.ordre)
     await session.commit()
     return _detail(await _charger(session, ident, courant))
 
