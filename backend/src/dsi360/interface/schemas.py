@@ -395,10 +395,19 @@ class CommentaireItem(BaseModel):
     texte: str
     cree_le: datetime
     edite: bool = False
+    nb_vues: int = 0
+    vu: bool = False
 
 
 class CommentaireMaj(BaseModel):
     texte: str = Field(min_length=1, max_length=4000)
+
+
+class LecteurCommentaire(BaseModel):
+    """Un lecteur d'un commentaire (accusé de lecture)."""
+
+    nom: str
+    vu_le: datetime
 
 
 class CommentaireCreation(BaseModel):

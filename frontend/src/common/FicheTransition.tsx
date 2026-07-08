@@ -156,14 +156,17 @@ export function FicheTransition({
     if (liste !== null) liste.scrollTop = liste.scrollHeight;
   }, [detail]);
 
-  // Charge le fil de discussion à l'ouverture.
+  // Charge le fil de discussion à l'ouverture, puis le marque comme lu.
   useEffect(() => {
     if (id === null) {
       setCommentaires([]);
       setTexte('');
       return;
     }
-    void commentairesApi.lister(id).then(setCommentaires);
+    void commentairesApi.lister(id).then((liste) => {
+      setCommentaires(liste);
+      void commentairesApi.marquerVues(id);
+    });
   }, [id]);
 
   const commenter = async (): Promise<void> => {

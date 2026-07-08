@@ -26,6 +26,8 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
 
   const charger = useCallback(async (): Promise<void> => {
     setCommentaires(await commentairesApi.lister(activiteId, tacheId));
+    // Marque le fil comme lu (sans recharger : les repères « nouveau » restent visibles ce tour).
+    void commentairesApi.marquerVues(activiteId, tacheId);
   }, [activiteId, tacheId]);
 
   useEffect(() => {

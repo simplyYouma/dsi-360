@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Pencil } from 'lucide-react';
-import { Button } from '@/design-system/primitives';
+import { Eye, Pencil } from 'lucide-react';
+import { Button, Modale } from '@/design-system/primitives';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
+import { cx } from '@/common/cx';
 import { ChampMention } from '@/common/ChampMention';
 import { TexteMentions } from '@/common/TexteMentions';
-import type { Commentaire } from '@/common/commentairesApi';
+import { commentairesApi, type Commentaire, type LecteurCommentaire } from '@/common/commentairesApi';
 import type { AgentRef } from '@/common/useAgents';
 import fiche from './FicheTransition.module.css';
 import styles from './LigneCommentaire.module.css';
@@ -28,7 +29,14 @@ export function LigneCommentaire({
   const [edition, setEdition] = useState(false);
   const [texte, setTexte] = useState(c.texte);
   const [envoi, setEnvoi] = useState(false);
+  const [lecteurs, setLecteurs] = useState<LecteurCommentaire[] | null>(null);
   const estAuteur = moiId !== null && c.auteur_id === moiId;
+  const nonVu = !estAuteur && !c.vu;
+
+  const ouvrirLecteurs = (): void => {
+    setLecteurs([]);
+    void commentairesApi.lecteurs(c.id).then(setLecteurs);
+  };
 
   const enregistrer = async (): Promise<void> => {
     if (texte.trim() === '' || texte.trim() === c.texte) {
@@ -45,9 +53,12 @@ export function LigneCommentaire({
   };
 
   return (
-    <li className={fiche.commItem}>
+    <li className={cx(fiche.commItem, nonVu && styles.nonVu)}>
       <div className={fiche.commTete}>
-        <span className={fiche.commAuteur}>{c.auteur}</span>
+        <span className={fiche.commAuteur}>
+          {c.auteur}
+          {nonVu && <span className={styles.nouveau}>nouveau</span>}
+        </span>
         <span className={fiche.commDate}>
           {new Date(c.cree_le).toLocaleString('fr-FR', {
             day: '2-digit',
@@ -97,6 +108,44 @@ export function LigneCommentaire({
           <TexteMentions texte={c.texte} agents={agents} />
         </p>
       )}
+      {/* Vues : sur ses propres messages, discret, cliquable pour voir qui a lu. */}
+      {estAuteur && !edition && c.nb_vues > 0 && (
+        <button type="button" className={styles.vues} onClick={ouvrirLecteurs} title="Voir les vues">
+          <Eye size={12} />
+          {c.nb_vues}
+        </button>
+      )}
+      <Modale
+        ouverte={lecteurs !== null}
+        onFermer={() => setLecteurs(null)}
+        titre="Vu par"
+        largeur={360}
+        pied={
+          <Button variante="secondaire" onClick={() => setLecteurs(null)}>
+            Fermer
+          </Button>
+        }
+      >
+        {lecteurs !== null && lecteurs.length === 0 ? (
+          <p className={styles.videLecteurs}>Personne n’a encore vu ce message.</p>
+        ) : (
+          <ul className={styles.lecteurs}>
+            {(lecteurs ?? []).map((l, i) => (
+              <li key={i}>
+                <span>{l.nom}</span>
+                <span className={styles.lecteurDate}>
+                  {new Date(l.vu_le).toLocaleString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Modale>
     </li>
   );
 }

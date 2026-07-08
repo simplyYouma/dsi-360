@@ -16,7 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.application.notifications import notifier_acteurs
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import CommentaireCreation, CommentaireItem, CommentaireMaj
+from dsi360.interface.schemas import (
+    CommentaireCreation,
+    CommentaireItem,
+    CommentaireMaj,
+    LecteurCommentaire,
+)
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/commentaires", tags=["commentaires"])
@@ -48,7 +53,11 @@ async def _exiger_activite_visible(
 _LISTE = text(
     "SELECT c.id, c.texte, c.cree_le, c.auteur_id::text AS auteur_id, "
     "coalesce(u.prenom || ' ' || u.nom, c.auteur_email) AS auteur, "
-    "(c.maj_le IS NOT NULL) AS edite "
+    "(c.maj_le IS NOT NULL) AS edite, "
+    "(SELECT count(*) FROM core.commentaire_vue v "
+    " WHERE v.commentaire_id = c.id AND v.utilisateur_id <> c.auteur_id) AS nb_vues, "
+    "EXISTS (SELECT 1 FROM core.commentaire_vue v "
+    "        WHERE v.commentaire_id = c.id AND v.utilisateur_id = cast(:moi as uuid)) AS vu "
     "FROM core.commentaire c LEFT JOIN core.utilisateur u ON u.id = c.auteur_id "
     "WHERE c.activite_id = cast(:id as uuid) "
     "AND (cast(:tache as text) IS NULL AND c.tache_id IS NULL OR c.tache_id::text = :tache) "
@@ -109,7 +118,61 @@ async def lister(
     await _exiger_activite_visible(session, courant, activite_id)
     await _exiger_tache_de_l_activite(session, activite_id, tache)
     lignes = (
-        await session.execute(_LISTE, {"id": activite_id, "tache": tache})
+        await session.execute(
+            _LISTE, {"id": activite_id, "tache": tache, "moi": courant["id"]}
+        )
+    ).mappings().all()
+    return [dict(x) for x in lignes]
+
+
+@routeur.post("/{activite_id}/vues", status_code=status.HTTP_204_NO_CONTENT)
+async def marquer_vues(
+    activite_id: str,
+    courant: Courant,
+    session: Session,
+    tache: Annotated[str | None, Query()] = None,
+) -> None:
+    """Marque comme lus, par l'utilisateur connecté, tous les messages du fil (hors les siens)."""
+    await _exiger_activite_visible(session, courant, activite_id)
+    await _exiger_tache_de_l_activite(session, activite_id, tache)
+    await session.execute(
+        text(
+            "INSERT INTO core.commentaire_vue (commentaire_id, utilisateur_id) "
+            "SELECT c.id, cast(:moi as uuid) FROM core.commentaire c "
+            "WHERE c.activite_id = cast(:id as uuid) "
+            "AND (cast(:tache as text) IS NULL AND c.tache_id IS NULL "
+            "     OR c.tache_id::text = :tache) "
+            "AND (c.auteur_id IS DISTINCT FROM cast(:moi as uuid)) "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"id": activite_id, "tache": tache, "moi": courant["id"]},
+    )
+    await session.commit()
+
+
+@routeur.get("/msg/{commentaire_id}/vues", response_model=list[LecteurCommentaire])
+async def lecteurs(
+    commentaire_id: int, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    """Liste des personnes ayant vu un commentaire (accusés de lecture), plus récent d'abord."""
+    aid = await session.scalar(
+        text("SELECT activite_id::text FROM core.commentaire WHERE id = :id"),
+        {"id": commentaire_id},
+    )
+    if aid is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Commentaire introuvable."
+        )
+    await _exiger_activite_visible(session, courant, str(aid))
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT (u.prenom || ' ' || u.nom) AS nom, v.vu_le "
+                "FROM core.commentaire_vue v JOIN core.utilisateur u ON u.id = v.utilisateur_id "
+                "WHERE v.commentaire_id = :id ORDER BY v.vu_le DESC"
+            ),
+            {"id": commentaire_id},
+        )
     ).mappings().all()
     return [dict(x) for x in lignes]
 

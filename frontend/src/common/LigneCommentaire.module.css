@@ -30,3 +30,57 @@
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* Message non vu (des autres) : léger repère + pastille « nouveau ». */
+.nonVu {
+  box-shadow: inset 3px 0 0 var(--secondary);
+}
+.nouveau {
+  margin-left: var(--space-2);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  font-size: 0.625rem;
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+}
+/* Compteur de vues (façon réseaux sociaux) : discret, cliquable. */
+.vues {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.vues:hover {
+  color: var(--secondary);
+}
+.lecteurs {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lecteurs li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.lecteurDate {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.videLecteurs {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
