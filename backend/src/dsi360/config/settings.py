@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     jwt_acces_minutes: int = 15
 
     max_upload_mb: int = 20
+    # Applique les migrations SQL en attente au démarrage de l'API (idempotent). Désactivable en
+    # prod si l'on préfère un déploiement manuel des migrations.
+    migrer_au_demarrage: bool = True
     # Ordonnanceur natif : intervalle du scan SLA/escalade (secondes). 0 = désactivé.
     sla_scan_intervalle_s: int = 300
     # Dossier des migrations SQL. En natif, fourni par l'environnement (infra/local/env.ps1).

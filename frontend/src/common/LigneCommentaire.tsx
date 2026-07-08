@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Eye, Pencil } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Eye, Pencil, X } from 'lucide-react';
 import { Button, Modale } from '@/design-system/primitives';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { cx } from '@/common/cx';
@@ -30,8 +30,14 @@ export function LigneCommentaire({
   const [texte, setTexte] = useState(c.texte);
   const [envoi, setEnvoi] = useState(false);
   const [lecteurs, setLecteurs] = useState<LecteurCommentaire[] | null>(null);
+  const editRef = useRef<HTMLDivElement>(null);
   const estAuteur = moiId !== null && c.auteur_id === moiId;
   const nonVu = !estAuteur && !c.vu;
+
+  // À l'ouverture de l'édition, on amène le formulaire (et ses boutons) dans la vue.
+  useEffect(() => {
+    if (edition) editRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [edition]);
 
   const ouvrirLecteurs = (): void => {
     setLecteurs([]);
@@ -92,15 +98,35 @@ export function LigneCommentaire({
         )}
       </div>
       {edition ? (
-        <div className={styles.edition}>
-          <ChampMention valeur={texte} onChange={setTexte} agents={agents} rows={2} />
-          <div className={styles.boutons}>
-            <Button variante="secondaire" onClick={() => setEdition(false)} disabled={envoi}>
-              Annuler
-            </Button>
-            <Button onClick={() => void enregistrer()} disabled={envoi || texte.trim() === ''}>
-              {envoi ? 'Enregistrement…' : 'Enregistrer'}
-            </Button>
+        <div ref={editRef} className={styles.edition}>
+          <ChampMention
+            valeur={texte}
+            onChange={setTexte}
+            agents={agents}
+            rows={2}
+            onEnvoyer={() => void enregistrer()}
+          />
+          <div className={styles.editActions}>
+            <button
+              type="button"
+              className={styles.editIcon}
+              title="Enregistrer"
+              aria-label="Enregistrer la modification"
+              onClick={() => void enregistrer()}
+              disabled={envoi || texte.trim() === ''}
+            >
+              <Check size={16} />
+            </button>
+            <button
+              type="button"
+              className={cx(styles.editIcon, styles.editAnnuler)}
+              title="Annuler"
+              aria-label="Annuler la modification"
+              onClick={() => setEdition(false)}
+              disabled={envoi}
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
       ) : (

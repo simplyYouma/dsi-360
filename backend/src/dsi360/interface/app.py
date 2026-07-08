@@ -19,6 +19,7 @@ from dsi360.application.notifications import scanner_tout
 from dsi360.config import Settings, get_settings
 from dsi360.infrastructure.audit import definir_adresse_ip
 from dsi360.infrastructure.db import get_engine
+from dsi360.infrastructure.db.migrate import appliquer as appliquer_migrations
 from dsi360.interface.routeurs import (
     administration,
     analyses,
@@ -59,6 +60,15 @@ async def _ordonnanceur(intervalle_s: int) -> None:
 
 @contextlib.asynccontextmanager
 async def _cycle_vie(app: FastAPI) -> AsyncIterator[None]:
+    # Applique les migrations en attente au démarrage : la base reste toujours en phase avec le
+    # code (plus besoin de lancer `migrate` à la main après un `git pull`). Idempotent + verrouillé.
+    if get_settings().migrer_au_demarrage:
+        try:
+            n = await appliquer_migrations(silencieux=True)
+            if n:
+                _log.info("Migrations appliquées au démarrage : %d", n)
+        except Exception as exc:  # noqa: BLE001 — on journalise, l'échec se voit aussi aux requêtes
+            _log.error("Échec des migrations au démarrage : %s", exc)
     intervalle = get_settings().sla_scan_intervalle_s
     tache = asyncio.create_task(_ordonnanceur(intervalle)) if intervalle > 0 else None
     try:

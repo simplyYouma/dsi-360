@@ -50,11 +50,12 @@
   border-color: var(--secondary);
   box-shadow: 0 0 0 3px var(--secondary-subtle);
 }
-/* Mention surlignée dès la sélection (avant même l'envoi) : la couleur = le sens (personne citée). */
+/* Mention surlignée dès la sélection (avant l'envoi) : couleur = sens (personne citée).
+   IMPORTANT : ne change JAMAIS la largeur du texte (pas de gras, pas d'espacement) — sinon le
+   texte réel de la saisie et le calque se désalignent et le curseur se décale après une mention. */
 .mention {
   color: var(--secondary);
-  font-weight: var(--weight-semibold);
-  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+  background: color-mix(in srgb, var(--secondary) 16%, transparent);
   border-radius: 4px;
 }
 
