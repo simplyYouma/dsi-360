@@ -1,3 +1,63 @@
+.wrap {
+  position: relative;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+/* Le calque (fond) et la zone de saisie partagent des métriques IDENTIQUES : le texte se superpose
+   au pixel près. Le calque porte le texte visible (mentions surlignées) ; la saisie, au-dessus, est
+   transparente sauf le curseur. */
+.calque,
+.saisie {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.calque {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  color: var(--text);
+  pointer-events: none;
+  user-select: none;
+}
+.saisie {
+  position: relative;
+  z-index: 1;
+  display: block;
+  min-height: calc(2 * 1.5em + 2 * var(--space-2) + 2px);
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  border-color: var(--border);
+  resize: vertical;
+}
+.saisie::placeholder {
+  color: var(--text-muted);
+}
+.saisie:focus {
+  outline: none;
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
+/* Mention surlignée dès la sélection (avant même l'envoi) : la couleur = le sens (personne citée). */
+.mention {
+  color: var(--secondary);
+  font-weight: var(--weight-semibold);
+  background: color-mix(in srgb, var(--secondary) 14%, transparent);
+  border-radius: 4px;
+}
+
 .menu {
   z-index: 1300;
   list-style: none;

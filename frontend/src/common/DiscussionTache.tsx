@@ -74,7 +74,9 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
       {ouvert && (
         <div style={{ marginTop: 'var(--space-2)' }}>
           {commentaires !== null && commentaires.length === 0 && (
-            <p className={fiche.commVide}>Aucun échange sur cette tâche.</p>
+            <p className={fiche.commVide} style={{ marginBottom: 'var(--space-3)' }}>
+              Aucun échange sur cette tâche.
+            </p>
           )}
           {commentaires !== null && commentaires.length > 0 && (
             <ul className={fiche.commListe}>
@@ -100,7 +102,6 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
           )}
           <div className={fiche.commForm}>
             <ChampMention
-              className={fiche.commInput}
               valeur={texte}
               onChange={setTexte}
               agents={agents}

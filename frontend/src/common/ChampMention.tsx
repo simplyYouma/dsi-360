@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AtSign } from 'lucide-react';
+import { cx } from './cx';
 import type { AgentRef } from '@/common/useAgents';
 import styles from './ChampMention.module.css';
 
@@ -20,14 +21,34 @@ function tokenActif(texte: string, curseur: number): { debut: number; requete: s
   const avant = texte.slice(0, curseur);
   const at = avant.lastIndexOf('@');
   if (at < 0) return null;
-  // Le @ doit être en début de texte ou précédé d'un espace / saut de ligne.
   if (at > 0 && !/\s/.test(avant[at - 1] ?? '')) return null;
   const fragment = avant.slice(at + 1);
-  if (/\s/.test(fragment)) return null; // un espace ferme la mention
+  if (/\s/.test(fragment)) return null;
   return { debut: at, requete: fragment };
 }
 
-/** Zone de texte avec autocomplétion @ : mentionner un agent DSI dans une discussion. */
+/** Découpe le texte en segments texte / mention (« @Nom » d'un agent connu). */
+function segmenter(texte: string, agents: AgentRef[]): { t: string; mention: boolean }[] {
+  const noms = agents
+    .map((a) => a.nom)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  if (noms.length === 0) return [{ t: texte, mention: false }];
+  const motif = noms.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp(`@(${motif})`, 'g');
+  const out: { t: string; mention: boolean }[] = [];
+  let dernier = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(texte)) !== null) {
+    if (m.index > dernier) out.push({ t: texte.slice(dernier, m.index), mention: false });
+    out.push({ t: m[0], mention: true });
+    dernier = m.index + m[0].length;
+  }
+  if (dernier < texte.length) out.push({ t: texte.slice(dernier), mention: false });
+  return out;
+}
+
+/** Zone de texte avec autocomplétion @ et surlignage inline des mentions (façon réseaux sociaux). */
 export function ChampMention({
   valeur,
   onChange,
@@ -38,6 +59,7 @@ export function ChampMention({
   onEnvoyer,
 }: Props): JSX.Element {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const calque = useRef<HTMLDivElement>(null);
   const [token, setToken] = useState<{ debut: number; requete: string } | null>(null);
   const [surligne, setSurligne] = useState(0);
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
@@ -70,26 +92,61 @@ export function ChampMention({
     const curseur = el?.selectionStart ?? valeur.length;
     const avant = valeur.slice(0, token.debut);
     const apres = valeur.slice(curseur);
-    const nouveau = `${avant}@${agent.nom} ${apres}`;
-    onChange(nouveau);
+    const prefixe = `${avant}@${agent.nom} `;
+    onChange(`${prefixe}${apres}`);
     setToken(null);
-    // Replace le curseur juste après la mention insérée.
     requestAnimationFrame(() => {
-      const p = `${avant}@${agent.nom} `.length;
       el?.focus();
-      el?.setSelectionRange(p, p);
+      el?.setSelectionRange(prefixe.length, prefixe.length);
     });
   };
 
+  // Efface une mention entière d'un coup (pas lettre par lettre) quand le curseur la suit.
+  const effacerMention = (el: HTMLTextAreaElement): boolean => {
+    if (el.selectionStart !== el.selectionEnd) return false;
+    const c = el.selectionStart;
+    const avant = valeur.slice(0, c);
+    const agent = agents
+      .filter((a) => a.nom)
+      .sort((a, b) => b.nom.length - a.nom.length)
+      .find((a) => avant.endsWith(`@${a.nom}`));
+    if (!agent) return false;
+    const debut = c - `@${agent.nom}`.length;
+    onChange(valeur.slice(0, debut) + valeur.slice(c));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(debut, debut);
+    });
+    return true;
+  };
+
+  const segments = segmenter(valeur, agents);
+
   return (
-    <>
+    <div className={cx(styles.wrap, className)}>
+      <div ref={calque} className={styles.calque} aria-hidden="true">
+        {segments.map((s, i) =>
+          s.mention ? (
+            <span key={i} className={styles.mention}>
+              {s.t}
+            </span>
+          ) : (
+            <span key={i}>{s.t}</span>
+          ),
+        )}
+        {/* Une ligne vide finale doit rester visible dans le calque. */}
+        {valeur.endsWith('\n') && ' '}
+      </div>
       <textarea
         ref={ref}
-        className={className}
+        className={styles.saisie}
         value={valeur}
         rows={rows}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        onScroll={() => {
+          if (calque.current && ref.current) calque.current.scrollTop = ref.current.scrollTop;
+        }}
         onClick={majToken}
         onKeyUp={majToken}
         onKeyDown={(e) => {
@@ -107,6 +164,10 @@ export function ChampMention({
             } else if (e.key === 'Escape') {
               setToken(null);
             }
+            return;
+          }
+          if (e.key === 'Backspace' && ref.current && effacerMention(ref.current)) {
+            e.preventDefault();
             return;
           }
           if (e.key === 'Enter' && !e.shiftKey && onEnvoyer) {
@@ -127,7 +188,6 @@ export function ChampMention({
                 <button
                   type="button"
                   className={i === surligne ? styles.optionActive : styles.option}
-                  // onMouseDown (pas onClick) : agit avant le blur du textarea.
                   onMouseDown={(e) => {
                     e.preventDefault();
                     inserer(a);
@@ -142,6 +202,6 @@ export function ChampMention({
           </ul>,
           document.body,
         )}
-    </>
+    </div>
   );
 }

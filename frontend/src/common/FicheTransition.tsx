@@ -654,7 +654,6 @@ export function FicheTransition({
             )}
             <div className={styles.commForm}>
               <ChampMention
-                className={styles.commInput}
                 valeur={texte}
                 onChange={setTexte}
                 agents={agentsMention}
