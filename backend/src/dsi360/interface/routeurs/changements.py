@@ -9,5 +9,6 @@ routeur = creer_routeur(
     tag="changements",
     avec_taches=True,
     avec_documents=True,
+    avec_notes=True,
     editable=True,
 )

@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, XCircle } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { GestionActeurs } from '@/common/GestionActeurs';
+import { JournalNotes } from '@/common/JournalNotes';
 import { ListeTaches } from '@/common/ListeTaches';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from '@/common/statuts';
-import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
@@ -54,8 +54,6 @@ export function ChangementPage(): JSX.Element {
   const [taches, setTaches] = useState<Tache[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [categories, setCategories] = useState<Categorie[]>([]);
-  const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
-  const [texte, setTexte] = useState('');
   const [introuvable, setIntrouvable] = useState(false);
   const [envoi, setEnvoi] = useState(false);
 
@@ -68,20 +66,16 @@ export function ChangementPage(): JSX.Element {
   const chargerTaches = useCallback((): void => {
     if (id !== undefined) void changementsApi.taches(id).then(setTaches);
   }, [id]);
-  const chargerCommentaires = useCallback((): void => {
-    if (id !== undefined) void commentairesApi.lister(id).then(setCommentaires);
-  }, [id]);
 
   const charger = useCallback(async (): Promise<void> => {
     if (id === undefined) return;
     try {
       setDetail(await changementsApi.detail(id));
       chargerTaches();
-      chargerCommentaires();
     } catch {
       setIntrouvable(true);
     }
-  }, [id, chargerTaches, chargerCommentaires]);
+  }, [id, chargerTaches]);
 
   useEffect(() => {
     void charger();
@@ -125,17 +119,6 @@ export function ChangementPage(): JSX.Element {
     } catch (e) {
       notifier(e instanceof ErreurApi ? e.message : 'Création impossible.', 'erreur');
       setEnvoi(false);
-    }
-  };
-
-  const commenter = async (): Promise<void> => {
-    if (id === undefined || texte.trim() === '') return;
-    try {
-      await commentairesApi.ajouter(id, texte.trim());
-      setTexte('');
-      chargerCommentaires();
-    } catch (e) {
-      notifier(e instanceof ErreurApi ? e.message : 'Envoi impossible.', 'erreur');
     }
   };
 
@@ -382,46 +365,6 @@ export function ChangementPage(): JSX.Element {
             </section>
           )}
 
-          {!creation && (
-            <section className={styles.carte}>
-              <span className={styles.carteTitre}>Discussion interne (DSI)</span>
-              {commentaires.length === 0 ? (
-                <p className={fiche.commVide}>Aucun échange pour le moment.</p>
-              ) : (
-                <ul className={fiche.commListe}>
-                  {commentaires.map((c) => (
-                    <li key={c.id} className={fiche.commItem}>
-                      <div className={fiche.commTete}>
-                        <span className={fiche.commAuteur}>{c.auteur}</span>
-                        <span className={fiche.commDate}>
-                          {new Date(c.cree_le).toLocaleString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                      <p className={fiche.commTexte}>{c.texte}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className={fiche.commForm}>
-                <textarea
-                  className={fiche.commInput}
-                  value={texte}
-                  onChange={(e) => setTexte(e.target.value)}
-                  rows={2}
-                  placeholder="Ajouter un commentaire pour l'équipe…"
-                />
-                <Button onClick={() => void commenter()} disabled={texte.trim() === ''}>
-                  <Send size={15} />
-                  Commenter
-                </Button>
-              </div>
-            </section>
-          )}
         </div>
 
         <div className={styles.colonne}>
@@ -433,7 +376,13 @@ export function ChangementPage(): JSX.Element {
                   <span className={styles.avValeur}>{detail.avancement}%</span>
                 </div>
                 <div className={styles.barre}>
-                  <div className={styles.remplissage} style={{ width: `${detail.avancement}%` }} />
+                  <div
+                    className={cx(
+                      styles.remplissage,
+                      detail.avancement === 100 && styles.remplissageComplet,
+                    )}
+                    style={{ width: `${detail.avancement}%` }}
+                  />
                 </div>
                 <p className={styles.note}>Calculé d'après les tâches terminées.</p>
               </section>
@@ -471,14 +420,10 @@ export function ChangementPage(): JSX.Element {
               </section>
 
               <section className={styles.carte}>
-                <span className={styles.carteTitre}>Documents du changement</span>
-                <PiecesJointes
-                  charger={() => changementsApi.documents(id!)}
-                  deposer={(f) => changementsApi.deposerDocument(id!, f)}
-                  telecharger={(docId) => changementsApi.telechargerDocument(id!, docId)}
-                  apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
-                  renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
-                  supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
+                <span className={styles.carteTitre}>Notes (journal de bord)</span>
+                <JournalNotes
+                  charger={() => changementsApi.notes(id!)}
+                  creer={(texte) => changementsApi.creerNote(id!, texte)}
                 />
               </section>
             </>
@@ -486,7 +431,7 @@ export function ChangementPage(): JSX.Element {
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Prochaines étapes</span>
               <p className={styles.note}>
-                Après création : tâches, cycle de vie ITIL (CAB/ECAB), contributeurs et discussion.
+                Après création : tâches, cycle de vie ITIL (CAB/ECAB), valideurs et notes.
               </p>
               <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3} pleineLargeur>
                 {envoi ? 'Création…' : 'Créer le changement'}

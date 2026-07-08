@@ -2,6 +2,7 @@ import { api, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
+import type { NoteJournal } from '@/common/JournalNotes';
 import type { DocumentItem } from '@/features/projets/projetsApi';
 
 // Un changement partage la forme d'activité (priorité, catégorie = type Standard/Normal/Urgent).
@@ -113,4 +114,8 @@ export const changementsApi = {
     api.patch(`${B}/${id}/documents/${docId}`, { nom }),
   supprimerDocument: (id: string, docId: string): Promise<void> =>
     api.del(`${B}/${id}/documents/${docId}`),
+  // Journal de bord (notes horodatées) — mêmes routes que les projets.
+  notes: (id: string): Promise<NoteJournal[]> => api.get(`${B}/${id}/notes`),
+  creerNote: (id: string, texte: string): Promise<NoteJournal> =>
+    api.post(`${B}/${id}/notes`, { texte }),
 };

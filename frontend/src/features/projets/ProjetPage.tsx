@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus, Trash2 } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
@@ -14,7 +14,8 @@ import { api, ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ProjetPage.module.css';
-import { projetsApi, type Jalon, type Lien, type Note, type ProjetDetail } from './projetsApi';
+import { JournalNotes } from '@/common/JournalNotes';
+import { projetsApi, type Jalon, type Lien, type ProjetDetail } from './projetsApi';
 
 function formaterDateCourte(iso: string | null): string {
   if (!iso) return '';
@@ -180,82 +181,27 @@ function Liens({ projetId }: { projetId: string }): JSX.Element {
   );
 }
 
-/** Journal de bord : notes horodatées (dont les justifications de suspension/clôture). */
-function Notes({ projetId, version }: { projetId: string; version: number }): JSX.Element {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [texte, setTexte] = useState('');
-  const [envoi, setEnvoi] = useState(false);
-
-  const charger = useCallback((): void => {
-    void projetsApi.notes(projetId).then(setNotes);
-  }, [projetId]);
-  useEffect(() => charger(), [charger, version]);
-
-  const ajouter = async (): Promise<void> => {
-    if (texte.trim().length < 3) return;
-    setEnvoi(true);
-    try {
-      await projetsApi.creerNote(projetId, texte.trim());
-      setTexte('');
-      charger();
-    } finally {
-      setEnvoi(false);
-    }
-  };
-
-  return (
-    <div>
-      {notes.length === 0 && <p className={styles.note}>Aucune note pour le moment.</p>}
-      {notes.length > 0 && (
-        <ul className={fiche.commListe}>
-          {notes.map((n) => (
-            <li key={n.id} className={fiche.commItem}>
-              <div className={fiche.commTete}>
-                <span className={fiche.commAuteur}>
-                  {n.auteur ?? '—'}
-                  {n.contexte !== null && (
-                    <span
-                      style={{
-                        marginLeft: 'var(--space-2)',
-                        color: couleurStatut(n.contexte),
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {n.contexte}
-                    </span>
-                  )}
-                </span>
-                <span className={fiche.commDate}>
-                  {new Date(n.cree_le).toLocaleString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </div>
-              <p className={fiche.commTexte}>{n.texte}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className={fiche.commForm}>
-        <textarea
-          className={fiche.commInput}
-          value={texte}
-          onChange={(e) => setTexte(e.target.value)}
-          rows={2}
-          placeholder="Ajouter une note (décision, point d'étape…)"
-        />
-        <Button onClick={() => void ajouter()} disabled={envoi || texte.trim().length < 3}>
-          <Send size={14} />
-          {envoi ? 'Envoi…' : 'Noter'}
-        </Button>
-      </div>
-    </div>
+/** Pastille d'état d'échéance du projet (date de fin dépassée / proche), hors clôture. */
+function EtatEcheanceProjet({
+  dateFin,
+  statut,
+}: {
+  dateFin: string;
+  statut: string;
+}): JSX.Element | null {
+  if (statut === 'Clôturé') return null;
+  const jours = Math.ceil(
+    (new Date(dateFin).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000,
   );
+  if (jours < 0) return <span className={styles.pilRetard}>Échéance dépassée</span>;
+  if (jours <= 7) {
+    return (
+      <span className={styles.pilProche}>
+        {jours === 0 ? 'Échéance aujourd’hui' : `Échéance dans ${jours} j`}
+      </span>
+    );
+  }
+  return null;
 }
 
 interface Agent {
@@ -504,7 +450,12 @@ export function ProjetPage(): JSX.Element {
                 </dd>
               </div>
               <div className={styles.metaItem}>
-                <dt>Échéance</dt>
+                <dt>
+                  Échéance{' '}
+                  {!creation && detail && v.dateFin && (
+                    <EtatEcheanceProjet dateFin={v.dateFin} statut={detail.statut} />
+                  )}
+                </dt>
                 <dd>
                   <SelecteurDate
                     valeur={v.dateFin || null}
@@ -580,7 +531,13 @@ export function ProjetPage(): JSX.Element {
                   <span className={styles.avValeur}>{detail.avancement}%</span>
                 </div>
                 <div className={styles.barre}>
-                  <div className={styles.remplissage} style={{ width: `${detail.avancement}%` }} />
+                  <div
+                    className={cx(
+                      styles.remplissage,
+                      detail.avancement === 100 && styles.remplissageComplet,
+                    )}
+                    style={{ width: `${detail.avancement}%` }}
+                  />
                 </div>
                 <p className={styles.note}>Calculé automatiquement d'après les tâches terminées.</p>
               </section>
@@ -628,7 +585,13 @@ export function ProjetPage(): JSX.Element {
 
               <section className={styles.carte}>
                 <span className={styles.carteTitre}>Notes (journal de bord)</span>
-                {id !== undefined && <Notes projetId={id} version={versionNotes} />}
+                {id !== undefined && (
+                  <JournalNotes
+                    charger={() => projetsApi.notes(id)}
+                    creer={(texte) => projetsApi.creerNote(id, texte)}
+                    version={versionNotes}
+                  />
+                )}
               </section>
             </>
           )}

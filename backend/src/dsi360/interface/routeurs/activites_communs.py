@@ -46,6 +46,8 @@ from dsi360.interface.schemas import (
     CreationReponse,
     DecisionDemande,
     EvaluationDemande,
+    NoteCreation,
+    NoteItem,
     PageActivites,
     ResultatAssignationLot,
     RevueDemande,
@@ -195,6 +197,7 @@ def creer_routeur(
     avec_documents: bool = False,
     avec_escalade: bool = False,
     avec_revue: bool = False,
+    avec_notes: bool = False,
     editable: bool = False,
 ) -> APIRouter:
     """Routeur générique d'un module d'activités.
@@ -668,6 +671,56 @@ def creer_routeur(
                 await session.commit()
             r = await charger_visible(session, ident, courant)
             return await detail_complet(r, session)
+
+    if avec_notes:
+
+        @routeur.get("/{ident}/notes", response_model=list[NoteItem])
+        async def lister_notes(
+            ident: str, courant: Courant, session: Session
+        ) -> list[dict[str, Any]]:
+            await charger_visible(session, ident, courant)
+            lignes = (
+                await session.execute(
+                    text(
+                        "SELECT n.id::text AS id, n.texte, n.contexte, "
+                        "n.auteur_email AS auteur, n.cree_le "
+                        "FROM core.note n WHERE n.activite_id = cast(:id as uuid) "
+                        "ORDER BY n.cree_le DESC"
+                    ),
+                    {"id": ident},
+                )
+            ).mappings().all()
+            return [dict(x) for x in lignes]
+
+        @routeur.post(
+            "/{ident}/notes", response_model=NoteItem, status_code=status.HTTP_201_CREATED
+        )
+        async def creer_note(
+            ident: str, corps: NoteCreation, courant: Courant, session: Session
+        ) -> dict[str, Any]:
+            avant = await charger_visible(session, ident, courant)
+            ligne = (
+                await session.execute(
+                    text(
+                        "INSERT INTO core.note (activite_id, texte, auteur_email) "
+                        "VALUES (cast(:aid as uuid), :texte, :email) "
+                        "RETURNING id::text AS id, texte, contexte, auteur_email AS auteur, cree_le"
+                    ),
+                    {"aid": ident, "texte": corps.texte.strip(), "email": courant["email"]},
+                )
+            ).mappings().one()
+            await audit.consigner(
+                session,
+                action="CREATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type="note",
+                cible_id=avant["reference"],
+                nouvelle={"texte": corps.texte.strip()[:200]},
+            )
+            await session.commit()
+            return dict(ligne)
 
     if avec_escalade:
 

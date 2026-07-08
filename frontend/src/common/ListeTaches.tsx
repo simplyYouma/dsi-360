@@ -29,6 +29,18 @@ interface Props {
   renduEnfant?: (tache: Tache) => ReactNode;
 }
 
+/** Pastille d'état d'échéance d'une tâche non terminée : dépassée (rouge) / proche (ambre). */
+function EtatEcheance({ tache }: { tache: Tache }): JSX.Element | null {
+  if (tache.echeance === null || tache.statut === 'Terminée') return null;
+  const jours = Math.ceil(
+    (new Date(tache.echeance).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000,
+  );
+  if (jours < 0) return <span className={styles.pilRetard}>Échéance dépassée</span>;
+  if (jours === 0) return <span className={styles.pilProche}>Échéance aujourd’hui</span>;
+  if (jours <= 3) return <span className={styles.pilProche}>Échéance dans {jours} j</span>;
+  return null;
+}
+
 /** Liste de tâches réutilisable (projets, changements) : ajout, statut, assigné, échéance. */
 export function ListeTaches({
   taches,
@@ -63,6 +75,7 @@ export function ListeTaches({
         <div key={t.id} className={styles.tache}>
           <div className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
             {t.titre}
+            <EtatEcheance tache={t} />
           </div>
           <button
             type="button"
