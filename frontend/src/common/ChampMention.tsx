@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AtSign } from 'lucide-react';
 import { cx } from './cx';
@@ -85,6 +85,19 @@ export function ChampMention({
   useLayoutEffect(() => {
     majToken();
   }, [valeur]);
+
+  // Le menu est en position fixe : à tout défilement/redimensionnement, on le ferme (il rouvre à
+  // la frappe) plutôt que de le laisser flotter détaché du champ.
+  useEffect(() => {
+    if (token === null) return;
+    const fermer = (): void => setToken(null);
+    window.addEventListener('scroll', fermer, true);
+    window.addEventListener('resize', fermer);
+    return () => {
+      window.removeEventListener('scroll', fermer, true);
+      window.removeEventListener('resize', fermer);
+    };
+  }, [token]);
 
   const inserer = (agent: AgentRef): void => {
     if (!token) return;
