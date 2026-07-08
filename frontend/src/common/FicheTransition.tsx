@@ -338,6 +338,7 @@ export function FicheTransition({
       ouverte={id !== null}
       onFermer={onFermer}
       titre={detail ? detail.reference : 'Fiche'}
+      largeur={640}
       pied={
         <Button variante="secondaire" onClick={onFermer}>
           Fermer

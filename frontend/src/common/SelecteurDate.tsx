@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cx } from './cx';
 import styles from './SelecteurDate.module.css';
@@ -62,25 +63,32 @@ export function SelecteurDate({
   const [pos, setPos] = useState<CSSProperties | null>(null);
   const [curseur, setCurseur] = useState<Date>(() => depuisIso(valeur) ?? new Date());
   const ref = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const declencheur = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    // Le calendrier est rendu en portal (hors `ref`) : on l'inclut dans le test de clic intérieur.
     const surClic = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOuvert(false);
+      const n = e.target as Node;
+      const dedans = (ref.current?.contains(n) ?? false) || (popoverRef.current?.contains(n) ?? false);
+      if (!dedans) setOuvert(false);
     };
     document.addEventListener('mousedown', surClic);
     return () => document.removeEventListener('mousedown', surClic);
   }, []);
 
-  // Popover en position fixe (calcul au clic) : bascule vers le haut si peu de place en bas.
+  // Popover en position fixe (calcul au clic) : bascule vers le haut si peu de place en bas ;
+  // on garde le calendrier (268 px) dans la fenêtre pour éviter tout débordement horizontal.
+  const LARGEUR = 268;
   const basculer = (): void => {
     const r = declencheur.current?.getBoundingClientRect();
     if (r) {
       const dessous = window.innerHeight - r.bottom;
+      const left = Math.max(4, Math.min(r.left, window.innerWidth - LARGEUR - 4));
       setPos(
         dessous < 340 && r.top > dessous
-          ? { position: 'fixed', bottom: window.innerHeight - r.top + 4, left: r.left }
-          : { position: 'fixed', top: r.bottom + 4, left: r.left },
+          ? { position: 'fixed', bottom: window.innerHeight - r.top + 4, left }
+          : { position: 'fixed', top: r.bottom + 4, left },
       );
     }
     setOuvert((o) => !o);
@@ -125,8 +133,8 @@ export function SelecteurDate({
         </span>
       </button>
 
-      {ouvert && pos !== null && (
-        <div className={styles.popover} style={pos}>
+      {ouvert && pos !== null && createPortal(
+        <div ref={popoverRef} className={styles.popover} style={pos}>
           <div className={styles.tete}>
             <button type="button" className={styles.nav} onClick={() => setCurseur(new Date(annee, mois - 1, 1))} aria-label="Mois précédent">
               <ChevronLeft size={16} />
@@ -173,7 +181,8 @@ export function SelecteurDate({
               Effacer
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

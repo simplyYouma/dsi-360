@@ -73,11 +73,7 @@ export function ListeTaches({
     <div className={styles.taches}>
       {taches.length === 0 && <p className={styles.vide}>Aucune tâche pour le moment.</p>}
       {taches.map((t) => (
-        <div
-          key={t.id}
-          className={styles.tache}
-          style={{ borderLeftColor: COULEUR_STATUT_TACHE[t.statut] }}
-        >
+        <div key={t.id} className={styles.tache}>
           <div className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
             {t.titre}
             <EtatEcheance tache={t} />

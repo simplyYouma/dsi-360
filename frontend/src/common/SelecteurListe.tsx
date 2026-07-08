@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Check, Search } from 'lucide-react';
 import { cx } from './cx';
 import styles from './SelecteurListe.module.css';
@@ -31,6 +32,8 @@ interface Position {
 
 const MARGE = 4;
 const ESPACE_MINI = 200;
+// Largeur minimale du menu : assez pour lire les noms complets, même si le champ est étroit.
+const LARGEUR_MINI = 240;
 // Au-delà de ce nombre d'options, on affiche un champ de recherche (filtre au clavier).
 const SEUIL_RECHERCHE = 7;
 
@@ -47,6 +50,7 @@ export function SelecteurListe({
   const [pos, setPos] = useState<Position | null>(null);
   const [filtre, setFiltre] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const declencheur = useRef<HTMLButtonElement>(null);
 
   const recherche = options.length > SEUIL_RECHERCHE;
@@ -64,17 +68,24 @@ export function SelecteurListe({
     const dessous = window.innerHeight - r.bottom;
     const dessus = r.top;
     const versHaut = dessous < ESPACE_MINI && dessus > dessous;
+    // Largeur au moins celle du champ, mais assez large pour lire les noms complets ; et on garde
+    // le popover dans la fenêtre (jamais de débordement / scroll horizontal).
+    const largeur = Math.min(
+      Math.max(r.width, LARGEUR_MINI),
+      window.innerWidth - 2 * MARGE,
+    );
+    const left = Math.max(MARGE, Math.min(r.left, window.innerWidth - largeur - MARGE));
     if (versHaut) {
       setPos({
-        left: r.left,
-        width: r.width,
+        left,
+        width: largeur,
         bottom: window.innerHeight - r.top + MARGE,
         maxHeight: Math.max(160, dessus - 2 * MARGE),
       });
     } else {
       setPos({
-        left: r.left,
-        width: r.width,
+        left,
+        width: largeur,
         top: r.bottom + MARGE,
         maxHeight: Math.max(160, dessous - 2 * MARGE),
       });
@@ -83,12 +94,15 @@ export function SelecteurListe({
 
   useEffect(() => {
     if (!ouvert) return;
+    // Le popover est rendu en portal (hors `ref`) : on l'inclut dans le test de clic intérieur.
+    const dedans = (n: Node): boolean =>
+      (ref.current?.contains(n) ?? false) || (popoverRef.current?.contains(n) ?? false);
     const fermer = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOuvert(false);
+      if (!dedans(e.target as Node)) setOuvert(false);
     };
     // Ne ferme que sur un scroll EXTÉRIEUR (le défilement interne au menu reste possible).
     const surScroll = (e: Event): void => {
-      if (ref.current && ref.current.contains(e.target as Node)) return;
+      if (dedans(e.target as Node)) return;
       setOuvert(false);
     };
     const surResize = (): void => setOuvert(false);
@@ -143,8 +157,9 @@ export function SelecteurListe({
         <ChevronDown size={16} className={cx(styles.fleche, ouvert && styles.flecheOuverte)} />
       </button>
 
-      {ouvert && pos !== null && (
+      {ouvert && pos !== null && createPortal(
         <div
+          ref={popoverRef}
           className={styles.popover}
           style={{
             position: 'fixed',
@@ -208,7 +223,8 @@ export function SelecteurListe({
             ))}
             {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
