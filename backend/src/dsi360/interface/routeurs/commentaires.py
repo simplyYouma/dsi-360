@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.application.notifications import notifier_acteurs
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import CommentaireCreation, CommentaireItem
+from dsi360.interface.schemas import CommentaireCreation, CommentaireItem, CommentaireMaj
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/commentaires", tags=["commentaires"])
@@ -46,13 +46,37 @@ async def _exiger_activite_visible(
 
 
 _LISTE = text(
-    "SELECT c.id, c.texte, c.cree_le, "
-    "coalesce(u.prenom || ' ' || u.nom, c.auteur_email) AS auteur "
+    "SELECT c.id, c.texte, c.cree_le, c.auteur_id::text AS auteur_id, "
+    "coalesce(u.prenom || ' ' || u.nom, c.auteur_email) AS auteur, "
+    "(c.maj_le IS NOT NULL) AS edite "
     "FROM core.commentaire c LEFT JOIN core.utilisateur u ON u.id = c.auteur_id "
     "WHERE c.activite_id = cast(:id as uuid) "
     "AND (cast(:tache as text) IS NULL AND c.tache_id IS NULL OR c.tache_id::text = :tache) "
     "ORDER BY c.cree_le"
 )
+
+
+async def _charger_commentaire_edition(
+    session: AsyncSession, courant: dict[str, Any], commentaire_id: int
+) -> str:
+    """Vérifie que le commentaire existe et appartient à l'auteur connecté ; renvoie activite_id."""
+    ligne = (
+        await session.execute(
+            text("SELECT activite_id::text AS aid, auteur_id::text AS auteur FROM core.commentaire "
+                 "WHERE id = :id"),
+            {"id": commentaire_id},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Commentaire introuvable."
+        )
+    if ligne["auteur"] != courant["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seul l'auteur peut modifier ou supprimer ce commentaire.",
+        )
+    return str(ligne["aid"])
 
 
 async def _exiger_tache_de_l_activite(
@@ -160,7 +184,47 @@ async def commenter(
         "id": ligne["id"],
         "texte": ligne["texte"],
         "cree_le": ligne["cree_le"],
+        "auteur_id": courant["id"],
+        "edite": False,
         "auteur": f"{courant['prenom']} {courant['nom']}"
         if courant.get("prenom")
         else courant["email"],
     }
+
+
+@routeur.patch("/msg/{commentaire_id}", response_model=CommentaireItem)
+async def modifier(
+    commentaire_id: int, corps: CommentaireMaj, courant: Courant, session: Session
+) -> dict[str, Any]:
+    """Modifie son propre commentaire (marqué « modifié »)."""
+    await _charger_commentaire_edition(session, courant, commentaire_id)
+    ligne = (
+        await session.execute(
+            text(
+                "UPDATE core.commentaire SET texte = :texte, maj_le = now() "
+                "WHERE id = :id RETURNING id, texte, cree_le, auteur_id::text AS auteur_id"
+            ),
+            {"id": commentaire_id, "texte": corps.texte.strip()},
+        )
+    ).mappings().one()
+    await session.commit()
+    return {
+        "id": ligne["id"],
+        "texte": ligne["texte"],
+        "cree_le": ligne["cree_le"],
+        "auteur_id": ligne["auteur_id"],
+        "edite": True,
+        "auteur": f"{courant['prenom']} {courant['nom']}"
+        if courant.get("prenom")
+        else courant["email"],
+    }
+
+
+@routeur.delete("/msg/{commentaire_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer(commentaire_id: int, courant: Courant, session: Session) -> None:
+    """Supprime son propre commentaire."""
+    await _charger_commentaire_edition(session, courant, commentaire_id)
+    await session.execute(
+        text("DELETE FROM core.commentaire WHERE id = :id"), {"id": commentaire_id}
+    )
+    await session.commit()

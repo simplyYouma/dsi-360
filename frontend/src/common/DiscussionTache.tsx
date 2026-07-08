@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, MessageSquare, Send } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
+import { useAuth } from '@/lib/auth';
 import { ChampMention } from '@/common/ChampMention';
+import { LigneCommentaire } from '@/common/LigneCommentaire';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { extraireMentions, useAgents } from '@/common/useAgents';
-import { TexteMentions } from '@/common/TexteMentions';
 import fiche from './FicheTransition.module.css';
 
 interface Props {
@@ -21,6 +22,7 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
   const [texte, setTexte] = useState('');
   const [envoi, setEnvoi] = useState(false);
   const agents = useAgents();
+  const { moi } = useAuth();
 
   const charger = useCallback(async (): Promise<void> => {
     setCommentaires(await commentairesApi.lister(activiteId, tacheId));
@@ -81,22 +83,20 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
           {commentaires !== null && commentaires.length > 0 && (
             <ul className={fiche.commListe}>
               {commentaires.map((c) => (
-                <li key={c.id} className={fiche.commItem}>
-                  <div className={fiche.commTete}>
-                    <span className={fiche.commAuteur}>{c.auteur}</span>
-                    <span className={fiche.commDate}>
-                      {new Date(c.cree_le).toLocaleString('fr-FR', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                  <p className={fiche.commTexte}>
-                    <TexteMentions texte={c.texte} agents={agents} />
-                  </p>
-                </li>
+                <LigneCommentaire
+                  key={c.id}
+                  commentaire={c}
+                  moiId={moi?.id ?? null}
+                  agents={agents}
+                  onModifier={async (id, t) => {
+                    await commentairesApi.modifier(id, t);
+                    await charger();
+                  }}
+                  onSupprimer={async (id) => {
+                    await commentairesApi.supprimer(id);
+                    await charger();
+                  }}
+                />
               ))}
             </ul>
           )}

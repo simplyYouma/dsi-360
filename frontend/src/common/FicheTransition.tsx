@@ -8,7 +8,7 @@ import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
 import { ChampMention } from '@/common/ChampMention';
-import { TexteMentions } from '@/common/TexteMentions';
+import { LigneCommentaire } from '@/common/LigneCommentaire';
 import { extraireMentions, useAgents } from '@/common/useAgents';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { api, ErreurApi, televerser, telecharger, recupererBlob } from '@/lib/api';
@@ -633,22 +633,20 @@ export function FicheTransition({
             ) : (
               <ul className={styles.commListe}>
                 {commentaires.map((c) => (
-                  <li key={c.id} className={styles.commItem}>
-                    <div className={styles.commTete}>
-                      <span className={styles.commAuteur}>{c.auteur}</span>
-                      <span className={styles.commDate}>
-                        {new Date(c.cree_le).toLocaleString('fr-FR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    <p className={styles.commTexte}>
-                      <TexteMentions texte={c.texte} agents={agentsMention} />
-                    </p>
-                  </li>
+                  <LigneCommentaire
+                    key={c.id}
+                    commentaire={c}
+                    moiId={moi?.id ?? null}
+                    agents={agentsMention}
+                    onModifier={async (cid, t) => {
+                      await commentairesApi.modifier(cid, t);
+                      if (id !== null) setCommentaires(await commentairesApi.lister(id));
+                    }}
+                    onSupprimer={async (cid) => {
+                      await commentairesApi.supprimer(cid);
+                      if (id !== null) setCommentaires(await commentairesApi.lister(id));
+                    }}
+                  />
                 ))}
               </ul>
             )}

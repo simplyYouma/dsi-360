@@ -391,8 +391,14 @@ class PreferencesNotif(BaseModel):
 class CommentaireItem(BaseModel):
     id: int
     auteur: str
+    auteur_id: str | None = None
     texte: str
     cree_le: datetime
+    edite: bool = False
+
+
+class CommentaireMaj(BaseModel):
+    texte: str = Field(min_length=1, max_length=4000)
 
 
 class CommentaireCreation(BaseModel):
