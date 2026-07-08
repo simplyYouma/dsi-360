@@ -150,7 +150,7 @@ export function DemandesPage(): JSX.Element {
         base="/demandes"
         id={ficheId}
         assignable
-        avecEscalade
+        gestionnaireFige
         moduleCategorie="demande"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}

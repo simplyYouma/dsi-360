@@ -31,15 +31,15 @@ export const MODULES_PAGE_DEDIEE = new Set<string>(['projet', 'changement']);
  *  exactement les mêmes fonctions que la page dédiée du module (escalade, revue, documents, type). */
 export interface CapacitesModule {
   avecDocuments?: boolean;
-  avecEscalade?: boolean;
   avecRevue?: boolean;
+  gestionnaireFige?: boolean;
   moduleCategorie?: string;
   labelCategorie?: string;
 }
 
 export const CAPACITES_MODULE: Record<string, CapacitesModule> = {
-  incident: { avecDocuments: true, avecEscalade: true, moduleCategorie: 'incident' },
-  demande: { avecEscalade: true, moduleCategorie: 'demande' },
+  incident: { avecDocuments: true, gestionnaireFige: true, moduleCategorie: 'incident' },
+  demande: { gestionnaireFige: true, moduleCategorie: 'demande' },
   changement: { avecDocuments: true, moduleCategorie: 'changement', labelCategorie: 'Type' },
   audit: { avecDocuments: true, moduleCategorie: 'audit', labelCategorie: 'Source' },
   risque: { avecRevue: true, moduleCategorie: 'risque' },

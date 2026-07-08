@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, ArrowUp, Check, Send, XCircle } from 'lucide-react';
+import { ArrowRight, Check, Send, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -65,10 +65,10 @@ interface FicheTransitionProps {
   moduleCategorie?: string;
   /** Active la gestion des pièces jointes (module avec `avec_documents`). */
   avecDocuments?: boolean;
-  /** Active l'escalade fonctionnelle N1→N2→N3 (module avec `avec_escalade`). */
-  avecEscalade?: boolean;
   /** Active la revue périodique (périodicité + prochaine revue). */
   avecRevue?: boolean;
+  /** Gestionnaire figé (tickets importés) : affiché (compte lié ou nom importé), non modifiable. */
+  gestionnaireFige?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -90,7 +90,7 @@ export function FicheTransition({
   labelCategorie = 'Catégorie',
   moduleCategorie,
   avecDocuments = false,
-  avecEscalade = false,
+  gestionnaireFige = false,
   avecRevue = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -278,21 +278,6 @@ export function FicheTransition({
     }
   };
 
-  const escalader = async (): Promise<void> => {
-    if (id === null) return;
-    setEnvoi(true);
-    setErreur(null);
-    try {
-      const d = await api.post<Detail>(`${base}/${id}/escalader`);
-      setDetail(d);
-      onChange();
-      notifier(`Escaladé au support N${d.niveau_support ?? ''}`, 'succes');
-    } catch (err) {
-      setErreur(err instanceof ErreurApi ? err.message : 'Escalade impossible.');
-    } finally {
-      setEnvoi(false);
-    }
-  };
 
   const ajouterValideur = async (utilisateurId: string): Promise<void> => {
     if (id === null) return;
@@ -410,7 +395,12 @@ export function FicheTransition({
                 <dd className={styles.valeur}>{detail.demandeur}</dd>
               </div>
             ) : null}
-            {assignable ? (
+            {gestionnaireFige ? (
+              <div className={styles.metaItem}>
+                <dt>Gestionnaire (import)</dt>
+                <dd className={styles.valeur}>{detail.gestionnaire ?? '—'}</dd>
+              </div>
+            ) : assignable ? (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Gestionnaire</dt>
                 <dd>
@@ -489,26 +479,6 @@ export function FicheTransition({
                     Urgence
                     <CurseurNiveau valeur={detail.urgence ?? 3} onChange={(v) => void reevaluer('urgence', v)} />
                   </label>
-                </dd>
-              </div>
-            )}
-            {avecEscalade && (
-              <div className={cx(styles.metaItem, styles.metaLarge)}>
-                <dt>Support (ITIL)</dt>
-                <dd className={styles.escalade}>
-                  <span className={styles.niveau}>N{detail.niveau_support ?? 1}</span>
-                  <Button
-                    variante="secondaire"
-                    onClick={() => void escalader()}
-                    // Sans gestionnaire, escalader = affecter au groupe N3 : toujours possible.
-                    disabled={
-                      envoi ||
-                      ((detail.niveau_support ?? 1) >= 3 && detail.responsable_id != null)
-                    }
-                  >
-                    <ArrowUp size={15} />
-                    Escalader
-                  </Button>
                 </dd>
               </div>
             )}

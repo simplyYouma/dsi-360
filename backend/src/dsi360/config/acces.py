@@ -20,14 +20,12 @@ MODULES: tuple[str, ...] = (
     "administration",
 )
 
-# Profils (code, libellé, transverse = voit au-delà de son périmètre).
+# Profils (code, libellé, transverse = voit au-delà de son périmètre). Tous les utilisateurs sont
+# de la DSI ; le Gestionnaire traite les activités, la DG a une vue de restitution.
 PROFILS: tuple[tuple[str, str, bool], ...] = (
     ("ADMIN", "Administrateur", True),
     ("DSI", "DSI", True),
-    ("CHEF_SERVICE", "Chef de Service", False),
-    ("CHEF_PROJET", "Chef de Projet", False),
-    ("TECHNICIEN", "Technicien", False),
-    ("METIER", "Métier", False),
+    ("GESTIONNAIRE", "Gestionnaire", False),
     ("DG", "Direction Générale", True),
 )
 
@@ -35,18 +33,7 @@ PROFILS: tuple[tuple[str, str, bool], ...] = (
 ACCES_PAR_PROFIL_DEFAUT: dict[str, list[str]] = {
     "ADMIN": list(MODULES),
     "DSI": [m for m in MODULES if m != "administration"],
-    "CHEF_SERVICE": [
-        "tableau-de-bord",
-        "analyses",
-        "incidents",
-        "demandes",
-        "projets",
-        "changements",
-        "audit",
-        "risques",
-    ],
-    "CHEF_PROJET": ["tableau-de-bord", "projets", "changements"],
-    "TECHNICIEN": ["tableau-de-bord", "incidents", "demandes", "changements"],
-    "METIER": ["tableau-de-bord", "demandes"],
+    # Le gestionnaire traite tout l'opérationnel (hors administration).
+    "GESTIONNAIRE": [m for m in MODULES if m != "administration"],
     "DG": ["tableau-de-bord", "analyses", "gouvernance", "audit", "risques"],
 }

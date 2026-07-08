@@ -35,37 +35,17 @@ async def _index_gestionnaires(session: AsyncSession) -> dict[str, str]:
     return index
 
 
-_CREER_AGENT = text(
-    "INSERT INTO core.utilisateur "
-    "(email, nom, prenom, profil_id, direction_id, source_auth, doit_changer_mdp) VALUES ("
-    " :email, :nom, :prenom, "
-    " (SELECT id FROM core.profil WHERE code = 'TECHNICIEN'), "
-    " (SELECT id FROM core.direction WHERE code = 'DSI'), 'LOCAL', true) "
-    "ON CONFLICT (email) DO NOTHING RETURNING id::text"
-)
+def _gestionnaire_id(cache: dict[str, str], nom: str | None) -> str | None:
+    """Rattache le gestionnaire du ticket à un compte DSI EXISTANT (jamais de création).
 
-
-async def _gestionnaire_id(session: AsyncSession, cache: dict[str, str], nom: str | None) -> str | None:
-    """Le gestionnaire EST un agent DSI : on rattache au compte existant, sinon on le crée.
-
-    Source unique : les utilisateurs et les gestionnaires des tickets désignent les mêmes personnes.
+    Le rapprochement se fait par nom normalisé (prénom nom / nom prénom). Si le nom n'appartient à
+    aucun utilisateur du système (typiquement un agent DBS), on renvoie ``None`` : le nom brut reste
+    conservé dans ``donnees.gestionnaire`` (affiché, non modifiable) et un contributeur DSI pourra
+    prendre le relais. Les comptes se créent uniquement depuis l'administration.
     """
     if nom is None or nom.strip() == "":
         return None
-    cle = _norme(nom)
-    if cle in cache:
-        return cache[cle]
-    parts = (nom_propre(nom) or nom).split()
-    prenom = parts[0]
-    nom_famille = " ".join(parts[1:]) or parts[0]
-    email = f"{cle.replace(' ', '.')}@afgbank.ml"
-    ident = await session.scalar(_CREER_AGENT, {"email": email, "nom": nom_famille, "prenom": prenom})
-    if ident is None:  # email déjà pris (homonyme/slug identique) : on récupère le compte
-        ident = await session.scalar(
-            text("SELECT id::text FROM core.utilisateur WHERE email = :e"), {"e": email}
-        )
-    cache[cle] = str(ident)
-    return str(ident)
+    return cache.get(_norme(nom))
 
 
 async def _demandeur_id(session: AsyncSession, cache: dict[str, str], nom: str | None) -> str | None:
@@ -160,7 +140,7 @@ async def importer_tickets(
 
     for t in tickets:
         gest = t["gestionnaire"]
-        responsable_id = await _gestionnaire_id(session, cache_gest, gest)
+        responsable_id = _gestionnaire_id(cache_gest, gest)
 
         donnees = {
             "sous_categorie": t["sous_categorie"],

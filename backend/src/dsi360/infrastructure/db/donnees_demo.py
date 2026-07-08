@@ -28,13 +28,15 @@ from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 random.seed(42)
 
+# Tous les utilisateurs du système sont de la DSI (les autres noms des fichiers importés — DBS —
+# ne deviennent pas des comptes).
 UTILISATEURS = [
     ("a.toure@afgbank.ml", "Touré", "Aïcha", "DSI", "DSI"),
-    ("m.diallo@afgbank.ml", "Diallo", "Moussa", "TECHNICIEN", "EXPLOIT"),
-    ("f.keita@afgbank.ml", "Keïta", "Fanta", "CHEF_SERVICE", "DSI"),
-    ("o.sanogo@afgbank.ml", "Sanogo", "Oumar", "CHEF_PROJET", "DSI"),
-    ("k.coulibaly@afgbank.ml", "Coulibaly", "Kadia", "METIER", "METIER"),
-    ("s.traore@afgbank.ml", "Traoré", "Salif", "DSI", "DG"),
+    ("m.diallo@afgbank.ml", "Diallo", "Moussa", "GESTIONNAIRE", "DSI"),
+    ("f.keita@afgbank.ml", "Keïta", "Fanta", "GESTIONNAIRE", "DSI"),
+    ("o.sanogo@afgbank.ml", "Sanogo", "Oumar", "GESTIONNAIRE", "DSI"),
+    ("k.coulibaly@afgbank.ml", "Coulibaly", "Kadia", "GESTIONNAIRE", "DSI"),
+    ("s.traore@afgbank.ml", "Traoré", "Salif", "DG", "DSI"),
 ]
 EMAILS_DEMO = [u[0] for u in UTILISATEURS]
 
