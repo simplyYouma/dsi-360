@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
+import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { cx } from '@/common/cx';
@@ -72,19 +73,20 @@ export function ListeTaches({
     <div className={styles.taches}>
       {taches.length === 0 && <p className={styles.vide}>Aucune tâche pour le moment.</p>}
       {taches.map((t) => (
-        <div key={t.id} className={styles.tache}>
+        <div
+          key={t.id}
+          className={styles.tache}
+          style={{ borderLeftColor: COULEUR_STATUT_TACHE[t.statut] }}
+        >
           <div className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
             {t.titre}
             <EtatEcheance tache={t} />
           </div>
-          <button
-            type="button"
+          <BoutonSupprimer
+            cible={`la tâche « ${t.titre} »`}
+            onSupprimer={() => onSupprimer(t.id)}
             className={styles.tacheSuppr}
-            aria-label={`Supprimer ${t.titre}`}
-            onClick={() => void onSupprimer(t.id)}
-          >
-            <Trash2 size={15} />
-          </button>
+          />
           <div className={styles.tacheChamps}>
             <div className={styles.tacheChamp}>
               <SelecteurListe

@@ -101,17 +101,20 @@
   font-weight: var(--weight-medium);
 }
 
-/* Badge sémantique de la valeur sélectionnée (ex. statut de tâche). */
-.badge {
+/* Valeur sélectionnée (déborde en points de suspension, jamais sur le voisin). */
+.valeur {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  font-size: var(--text-sm);
+}
+/* État sémantique : le champ ENTIER porte la teinte (fond/bordure/texte via style inline). */
+.champTeinte {
   font-weight: var(--weight-medium);
+}
+.champTeinte:hover {
+  filter: brightness(0.97);
 }
 .optionLibelle {
   display: inline-flex;

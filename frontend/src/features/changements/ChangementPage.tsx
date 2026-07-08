@@ -7,6 +7,7 @@ import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { GestionActeurs } from '@/common/GestionActeurs';
 import { JournalNotes } from '@/common/JournalNotes';
+import { LiensTache } from '@/common/LiensTache';
 import { ListeTaches } from '@/common/ListeTaches';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
@@ -329,6 +330,11 @@ export function ChangementPage(): JSX.Element {
                       apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
                       renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
                       supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
+                    />
+                    <LiensTache
+                      charger={() => changementsApi.liensTache(id!, t.id)}
+                      creer={(libelle, url) => changementsApi.creerLienTache(id!, t.id, libelle, url)}
+                      supprimer={(lienId) => changementsApi.supprimerLien(id!, lienId)}
                     />
                     <DiscussionTache activiteId={id!} tacheId={t.id} nombre={t.nb_commentaires ?? 0} />
                   </>

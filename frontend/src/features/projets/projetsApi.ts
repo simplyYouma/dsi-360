@@ -96,9 +96,10 @@ export const projetsApi = {
   notes: (id: string): Promise<Note[]> => api.get(`/projets/${id}/notes`),
   creerNote: (id: string, texte: string): Promise<Note> =>
     api.post(`/projets/${id}/notes`, { texte }),
-  liens: (id: string): Promise<Lien[]> => api.get(`/projets/${id}/liens`),
-  creerLien: (id: string, libelle: string, url: string): Promise<Lien> =>
-    api.post(`/projets/${id}/liens`, { libelle, url }),
+  liens: (id: string, tacheId?: string): Promise<Lien[]> =>
+    api.get(`/projets/${id}/liens${tacheId ? `?tache=${tacheId}` : ''}`),
+  creerLien: (id: string, libelle: string, url: string, tacheId?: string): Promise<Lien> =>
+    api.post(`/projets/${id}/liens${tacheId ? `?tache=${tacheId}` : ''}`, { libelle, url }),
   supprimerLien: (id: string, lienId: string): Promise<void> =>
     api.del(`/projets/${id}/liens/${lienId}`),
   // Tâches (l'avancement et le passage « En cours » se déduisent des tâches, côté serveur).

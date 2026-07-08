@@ -19,13 +19,12 @@ from dsi360.infrastructure.repositories import activite as repo
 from dsi360.infrastructure.repositories import jalon as jalon_repo
 from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
+from dsi360.interface.routeurs.liens_communs import enregistrer_liens
 from dsi360.interface.schemas import (
     CreationReponse,
     JalonCreation,
     JalonItem,
     JalonMaj,
-    LienCreation,
-    LienItem,
     NoteCreation,
     NoteItem,
     PageProjets,
@@ -306,82 +305,8 @@ async def creer_note(
     return dict(ligne)
 
 
-@routeur.get("/{ident}/liens", response_model=list[LienItem])
-async def lister_liens(ident: str, courant: Courant, session: Session) -> list[dict[str, Any]]:
-    await _charger(session, ident, courant)
-    lignes = (
-        await session.execute(
-            text(
-                "SELECT id::text AS id, libelle, url, cree_le FROM core.lien "
-                "WHERE activite_id = cast(:id as uuid) ORDER BY cree_le"
-            ),
-            {"id": ident},
-        )
-    ).mappings().all()
-    return [dict(x) for x in lignes]
-
-
-@routeur.post("/{ident}/liens", response_model=LienItem, status_code=status.HTTP_201_CREATED)
-async def creer_lien(
-    ident: str, corps: LienCreation, courant: Courant, session: Session
-) -> dict[str, Any]:
-    projet = await _charger(session, ident, courant)
-    ligne = (
-        await session.execute(
-            text(
-                "INSERT INTO core.lien (activite_id, libelle, url, cree_par) "
-                "VALUES (cast(:aid as uuid), :libelle, :url, :email) "
-                "RETURNING id::text AS id, libelle, url, cree_le"
-            ),
-            {
-                "aid": ident,
-                "libelle": corps.libelle.strip(),
-                "url": corps.url.strip(),
-                "email": courant["email"],
-            },
-        )
-    ).mappings().one()
-    await audit.consigner(
-        session,
-        action="CREATION",
-        acteur_id=courant["id"],
-        acteur_email=courant["email"],
-        module=MODULE,
-        cible_type="lien",
-        cible_id=projet["reference"],
-        nouvelle={"libelle": corps.libelle.strip(), "url": corps.url.strip()},
-    )
-    await session.commit()
-    return dict(ligne)
-
-
-@routeur.delete("/{ident}/liens/{lien_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def supprimer_lien(
-    ident: str, lien_id: str, courant: Courant, session: Session
-) -> None:
-    projet = await _charger(session, ident, courant)
-    ligne = (
-        await session.execute(
-            text(
-                "DELETE FROM core.lien WHERE id = cast(:id as uuid) "
-                "AND activite_id = cast(:aid as uuid) RETURNING libelle, url"
-            ),
-            {"id": lien_id, "aid": ident},
-        )
-    ).mappings().first()
-    if ligne is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable.")
-    await audit.consigner(
-        session,
-        action="SUPPRESSION",
-        acteur_id=courant["id"],
-        acteur_email=courant["email"],
-        module=MODULE,
-        cible_type="lien",
-        cible_id=projet["reference"],
-        ancienne={"libelle": ligne["libelle"], "url": ligne["url"]},
-    )
-    await session.commit()
+# Liens utiles (projet + tâches) : logique partagée avec les changements.
+enregistrer_liens(routeur, module=MODULE, charger=_charger, Courant=Courant, Session=Session)
 
 
 # --- Tâches (l'avancement et le passage « En cours » se déduisent d'elles) ---

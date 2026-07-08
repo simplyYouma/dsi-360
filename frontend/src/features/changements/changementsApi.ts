@@ -3,6 +3,7 @@ import { chaineFiltres, type FiltresListe, type Incident } from '@/features/inci
 import type { Categorie } from '@/features/demandes/demandesApi';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import type { NoteJournal } from '@/common/JournalNotes';
+import type { LienItem } from '@/common/LiensTache';
 import type { DocumentItem } from '@/features/projets/projetsApi';
 
 // Un changement partage la forme d'activité (priorité, catégorie = type Standard/Normal/Urgent).
@@ -118,4 +119,11 @@ export const changementsApi = {
   notes: (id: string): Promise<NoteJournal[]> => api.get(`${B}/${id}/notes`),
   creerNote: (id: string, texte: string): Promise<NoteJournal> =>
     api.post(`${B}/${id}/notes`, { texte }),
+  // Liens utiles d'une tâche — mêmes routes que les projets.
+  liensTache: (id: string, tacheId: string): Promise<LienItem[]> =>
+    api.get(`${B}/${id}/liens?tache=${tacheId}`),
+  creerLienTache: (id: string, tacheId: string, libelle: string, url: string): Promise<LienItem> =>
+    api.post(`${B}/${id}/liens?tache=${tacheId}`, { libelle, url }),
+  supprimerLien: (id: string, lienId: string): Promise<void> =>
+    api.del(`${B}/${id}/liens/${lienId}`),
 };

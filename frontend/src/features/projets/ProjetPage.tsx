@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
+import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
+import { LiensTache } from '@/common/LiensTache';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { ListeTaches } from '@/common/ListeTaches';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -69,14 +71,12 @@ function Jalons({ projetId }: { projetId: string }): JSX.Element {
           </button>
           <span className={cx(styles.jalonTitre, j.atteint && styles.jalonFait)}>{j.titre}</span>
           <span className={styles.note}>{formaterDateCourte(j.echeance)}</span>
-          <button
-            type="button"
+          <BoutonSupprimer
+            cible={`le jalon « ${j.titre} »`}
+            onSupprimer={() => retirer(j.id)}
             className={styles.docAction}
-            aria-label={`Supprimer ${j.titre}`}
-            onClick={() => void retirer(j.id)}
-          >
-            <Trash2 size={14} />
-          </button>
+            taille={14}
+          />
         </div>
       ))}
       <div className={styles.jalonAjout}>
@@ -144,14 +144,12 @@ function Liens({ projetId }: { projetId: string }): JSX.Element {
           >
             {l.libelle}
           </a>
-          <button
-            type="button"
+          <BoutonSupprimer
+            cible={`le lien « ${l.libelle} »`}
+            onSupprimer={() => retirer(l.id)}
             className={styles.docAction}
-            aria-label={`Supprimer ${l.libelle}`}
-            onClick={() => void retirer(l.id)}
-          >
-            <Trash2 size={14} />
-          </button>
+            taille={14}
+          />
         </div>
       ))}
       <div className={styles.jalonAjout}>
@@ -506,6 +504,11 @@ export function ProjetPage(): JSX.Element {
                         renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
                         supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
                       />
+                      <LiensTache
+                        charger={() => projetsApi.liens(id, t.id)}
+                        creer={(libelle, url) => projetsApi.creerLien(id, libelle, url, t.id)}
+                        supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
+                      />
                       <DiscussionTache activiteId={id} tacheId={t.id} nombre={t.nb_commentaires ?? 0} />
                     </>
                   )}
@@ -568,10 +571,6 @@ export function ProjetPage(): JSX.Element {
                     );
                   })}
                 </div>
-                <p className={styles.note}>
-                  Le passage « En cours » est automatique ; la suspension et la clôture (COPIL)
-                  exigent une note de justification.
-                </p>
               </section>
 
               <section className={styles.carte}>

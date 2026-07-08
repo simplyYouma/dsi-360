@@ -117,24 +117,29 @@ export function SelecteurListe({
     setOuvert(false);
   };
 
+  // État coloré : le champ ENTIER prend la teinte du badge (fond, bordure, texte, chevron).
+  const teinte = courant !== undefined ? couleurs?.[courant.valeur] : undefined;
+
   return (
     <div className={styles.conteneur} ref={ref}>
-      <button ref={declencheur} type="button" className={styles.champ} onClick={basculer}>
-        {courant && couleurs?.[courant.valeur] ? (
-          <span
-            className={styles.badge}
-            style={{
-              color: couleurs[courant.valeur],
-              background: `color-mix(in srgb, ${couleurs[courant.valeur]} 14%, transparent)`,
-            }}
-          >
-            {courant.libelle}
-          </span>
-        ) : (
-          <span className={courant ? styles.valeur : styles.placeholder}>
-            {courant ? courant.libelle : placeholder}
-          </span>
-        )}
+      <button
+        ref={declencheur}
+        type="button"
+        className={cx(styles.champ, teinte !== undefined && styles.champTeinte)}
+        style={
+          teinte !== undefined
+            ? {
+                color: teinte,
+                background: `color-mix(in srgb, ${teinte} 14%, var(--surface))`,
+                borderColor: `color-mix(in srgb, ${teinte} 45%, transparent)`,
+              }
+            : undefined
+        }
+        onClick={basculer}
+      >
+        <span className={courant ? styles.valeur : styles.placeholder}>
+          {courant ? courant.libelle : placeholder}
+        </span>
         <ChevronDown size={16} className={cx(styles.fleche, ouvert && styles.flecheOuverte)} />
       </button>
 

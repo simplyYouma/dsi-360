@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Eye, Paperclip, Trash2, Upload } from 'lucide-react';
+import { Download, Eye, Paperclip, Upload } from 'lucide-react';
 import { useToast } from '@/design-system/primitives';
 import { ApercuDocument } from '@/common/ApercuDocument';
+import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
@@ -168,9 +169,12 @@ export function PiecesJointes({
           <button type="button" className={styles.docAction} aria-label="Télécharger" title="Télécharger" onClick={() => void telecharger(d.id)}>
             <Download size={14} />
           </button>
-          <button type="button" className={styles.docAction} aria-label="Supprimer" title="Supprimer" onClick={() => void retirer(d.id)}>
-            <Trash2 size={14} />
-          </button>
+          <BoutonSupprimer
+            cible={`la pièce jointe « ${d.nom} »`}
+            onSupprimer={() => retirer(d.id)}
+            className={styles.docAction}
+            taille={14}
+          />
         </div>
       ))}
       {vue !== null && (

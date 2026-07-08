@@ -35,6 +35,7 @@ from dsi360.infrastructure.repositories import activite as repo
 from dsi360.infrastructure.repositories import groupe_support as groupe_repo
 from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
+from dsi360.interface.routeurs.liens_communs import enregistrer_liens
 from dsi360.interface.schemas import (
     ActiviteCreation,
     ActiviteDetail,
@@ -877,6 +878,10 @@ def creer_routeur(
 
     if avec_taches:
         _enregistrer_taches(routeur, module, charger_visible, Courant, detail_complet)
+        # Les modules à tâches ont aussi les liens utiles (au niveau tâche, ex. changements).
+        enregistrer_liens(
+            routeur, module=module, charger=charger_visible, Courant=Courant, Session=Session
+        )
     if avec_documents:
         enregistrer_documents(routeur, module=module, charger=charger_visible, Courant=Courant)
 

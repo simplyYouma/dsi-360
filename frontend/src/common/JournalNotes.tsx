@@ -87,7 +87,7 @@ export function JournalNotes({
           ))}
         </ul>
       )}
-      <div className={fiche.commForm}>
+      <div className={fiche.commForm} style={{ marginTop: 'var(--space-4)' }}>
         <textarea
           className={fiche.commInput}
           value={texte}
