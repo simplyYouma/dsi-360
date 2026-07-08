@@ -40,8 +40,12 @@ export function ReinitialiserPage(): JSX.Element {
       await authApi.reinitialiser(jeton, nouveau);
       setFait(true);
     } catch (err) {
+      const base = err instanceof ErreurApi ? err.message : 'Réinitialisation impossible. Réessayez.';
+      const expire = /expir|invalide/i.test(base);
       setErreur(
-        err instanceof ErreurApi ? err.message : 'Réinitialisation impossible. Réessayez.',
+        expire
+          ? `${base} Demandez un nouveau lien à votre administrateur.`
+          : base,
       );
     } finally {
       setEnvoi(false);

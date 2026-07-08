@@ -45,7 +45,6 @@ export interface CreationUtilisateur {
   profil_code: string;
   direction_code: string | null;
   niveau_support: number | null;
-  mot_de_passe: string;
   expire_le: string | null;
 }
 export interface MajUtilisateur {
@@ -77,7 +76,7 @@ export const adminApi = {
     api.post('/admin/utilisateurs', corps),
   modifierUtilisateur: (id: string, corps: MajUtilisateur): Promise<void> =>
     api.put(`/admin/utilisateurs/${id}`, corps),
-  reinitialiserMdp: (id: string): Promise<{ mot_de_passe_temporaire: string }> =>
+  reinitialiserMdp: (id: string): Promise<{ email: string }> =>
     api.post(`/admin/utilisateurs/${id}/reinitialiser-mdp`),
   acces: (): Promise<Matrice> => api.get('/admin/acces'),
   definirAcces: (profil: string, acces: string[]): Promise<void> =>

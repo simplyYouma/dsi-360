@@ -278,9 +278,9 @@ async def _jalons(
 async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
     """Affecte un niveau de support (N1/N2/N3) à quelques gestionnaires de démo, pour illustrer la
     réaffectation à l'escalade (le niveau est désormais porté par le gestionnaire)."""
-    # indice dans UTILISATEURS -> niveau : technicien/chef de service N1, DSI/chef de projet N2,
-    # DSI transverse et métier N3.
-    niveaux = {1: 1, 2: 1, 0: 2, 3: 2, 5: 3, 4: 3}
+    # Seuls les gestionnaires portent un niveau (les profils DSI/DG n'en ont pas).
+    # indices GESTIONNAIRE : m.diallo/f.keita N1, o.sanogo N2, k.coulibaly N3.
+    niveaux = {1: 1, 2: 1, 3: 2, 4: 3}
     for i, niveau in niveaux.items():
         if i < len(utilisateurs):
             await conn.execute(

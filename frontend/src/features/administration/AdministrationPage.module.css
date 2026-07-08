@@ -172,55 +172,24 @@
   left: 15px;
 }
 
-.actions {
-  display: inline-flex;
-  gap: var(--space-1);
-}
-.iconBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.iconBtn:hover {
+/* Note d'activation affichée à la création d'un utilisateur (mot de passe défini par e-mail). */
+.noteActivation {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  padding: var(--space-3);
   background: var(--bg-subtle);
-  color: var(--text);
-}
-.iconBtn:hover.danger {
-  background: var(--status-danger-bg);
-  color: var(--status-danger);
-}
-
-.champMdp {
-  position: relative;
-}
-.champMdp input {
-  width: 100%;
-  box-sizing: border-box;
-  padding-right: 46px;
-}
-.genererMdp {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: 1.5;
   color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease;
 }
-.genererMdp:hover {
-  background: var(--secondary-subtle);
-  color: var(--secondary-hover);
+.noteActivation svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--secondary);
 }
 
 .slaInput {
@@ -259,18 +228,4 @@
 }
 .supprCat:disabled {
   opacity: 0.4;
-}
-
-.temp {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--secondary-subtle);
-  border-radius: var(--radius-md);
-}
-.tempCode {
-  font-family: var(--font-mono);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
 }

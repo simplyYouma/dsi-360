@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, KeyRound, Dices, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
+import { Plus, Pencil, Mail, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { MenuActions } from '@/common/MenuActions';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { BadgePriorite } from '@/common/statuts';
@@ -9,7 +10,6 @@ import { categoriesApi } from '@/common/categoriesApi';
 import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { genererMotDePasse } from '@/common/motDePasse';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import a from './AdministrationPage.module.css';
 import {
@@ -55,7 +55,6 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [profils, setProfils] = useState<Profil[]>([]);
   const [directions, setDirections] = useState<Direction[]>([]);
   const [modale, setModale] = useState<null | { id: string | null }>(null);
-  const [tempMdp, setTempMdp] = useState<string | null>(null);
   const { notifier } = useToast();
   const { moi } = useAuth();
 
@@ -65,7 +64,6 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [profil, setProfil] = useState('');
   const [direction, setDirection] = useState<string | null>(null);
   const [niveau, setNiveau] = useState<string | null>(null);
-  const [motDePasse, setMotDePasse] = useState('');
   const [actif, setActif] = useState(true);
   const [temporaire, setTemporaire] = useState(false);
   const [expiration, setExpiration] = useState<string | null>(null);
@@ -98,7 +96,6 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setProfil('');
     setDirection(null);
     setNiveau(null);
-    setMotDePasse(genererMotDePasse()); // un mot de passe provisoire unique par utilisateur
     setActif(true);
     setTemporaire(false);
     setExpiration(null);
@@ -137,9 +134,9 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           profil_code: profil,
           direction_code: direction,
           niveau_support: niveau !== null ? Number(niveau) : null,
-          mot_de_passe: motDePasse,
           expire_le: temporaire ? expiration : null,
         });
+        notifier(`Compte créé — e-mail d’activation envoyé à ${email.trim()}.`, 'succes');
       } else if (modale) {
         await adminApi.modifierUtilisateur(modale.id, {
           nom: nom.trim(),
@@ -161,9 +158,12 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   };
 
   const reinitialiser = async (u: Utilisateur): Promise<void> => {
-    const r = await adminApi.reinitialiserMdp(u.id);
-    setTempMdp(r.mot_de_passe_temporaire);
-    await charger(page);
+    try {
+      const r = await adminApi.reinitialiserMdp(u.id);
+      notifier(`Lien de définition du mot de passe envoyé à ${r.email}.`, 'succes');
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Envoi impossible.', 'erreur');
+    }
   };
 
   // Blocage / déblocage immédiat (appliqué côté serveur à chaque requête, sans contournement).
@@ -218,7 +218,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
       cle: 'niveau',
       entete: 'Niveau',
       rendu: (u) =>
-        u.niveau_support !== null ? (
+        typeof u.niveau_support === 'number' ? (
           <StatusBadge couleur="var(--cat-4)">N{u.niveau_support}</StatusBadge>
         ) : (
           <span style={{ color: 'var(--text-muted)' }}>—</span>
@@ -232,37 +232,33 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     {
       cle: 'actions',
       entete: '',
+      largeur: '48px',
       rendu: (u) => (
-        <span className={a.actions}>
-          <button className={a.iconBtn} title="Modifier" onClick={() => ouvrirEdition(u)}>
-            <Pencil size={16} />
-          </button>
-          <button
-            className={a.iconBtn}
-            title="Réinitialiser le mot de passe"
-            onClick={() => void reinitialiser(u)}
-          >
-            <KeyRound size={16} />
-          </button>
-          {u.id !== moi?.id &&
-            (u.actif ? (
-              <button
-                className={cx(a.iconBtn, a.danger)}
-                title="Bloquer l’accès"
-                onClick={() => void basculerActif(u)}
-              >
-                <Ban size={16} />
-              </button>
-            ) : (
-              <button
-                className={a.iconBtn}
-                title="Rétablir l’accès"
-                onClick={() => void basculerActif(u)}
-              >
-                <ShieldCheck size={16} />
-              </button>
-            ))}
-        </span>
+        <MenuActions
+          etiquette={`Actions pour ${u.prenom} ${u.nom}`}
+          actions={[
+            {
+              cle: 'editer',
+              libelle: 'Modifier',
+              icone: <Pencil size={15} />,
+              onClick: () => ouvrirEdition(u),
+            },
+            {
+              cle: 'lien',
+              libelle: 'Envoyer un lien mot de passe',
+              icone: <Mail size={15} />,
+              onClick: () => void reinitialiser(u),
+            },
+            {
+              cle: 'bloquer',
+              libelle: u.actif ? 'Bloquer l’accès' : 'Rétablir l’accès',
+              icone: u.actif ? <Ban size={15} /> : <ShieldCheck size={15} />,
+              danger: u.actif,
+              masque: u.id === moi?.id,
+              onClick: () => void basculerActif(u),
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -372,25 +368,14 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           )}
         </div>
         {modale?.id === null ? (
-          <label className={styles.champ}>
-            <span>Mot de passe initial (8+ car., à changer à la 1re connexion)</span>
-            <div className={a.champMdp}>
-              <input
-                type="text"
-                value={motDePasse}
-                onChange={(e) => setMotDePasse(e.target.value)}
-                placeholder="Mot de passe temporaire"
-              />
-              <button
-                type="button"
-                className={a.genererMdp}
-                title="Générer un mot de passe aléatoire"
-                onClick={() => setMotDePasse(genererMotDePasse())}
-              >
-                <Dices size={16} />
-              </button>
-            </div>
-          </label>
+          <p className={a.noteActivation}>
+            <Mail size={15} />
+            <span>
+              Aucun mot de passe n’est saisi ici : à la création, l’utilisateur reçoit un e-mail
+              d’activation (valable 1 heure) pour définir lui-même son mot de passe. Passé ce
+              délai, renvoyez-lui un lien depuis le menu d’actions.
+            </span>
+          </p>
         ) : (
           <label className={styles.champ}>
             <span>Compte actif</span>
@@ -413,20 +398,6 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           </label>
         )}
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
-      </Modale>
-
-      <Modale
-        ouverte={tempMdp !== null}
-        onFermer={() => setTempMdp(null)}
-        titre="Mot de passe réinitialisé"
-        pied={
-          <Button onClick={() => setTempMdp(null)}>Compris</Button>
-        }
-      >
-        <div className={a.temp}>
-          <span>Communiquez ce mot de passe temporaire à l’utilisateur. Il devra le changer à la connexion.</span>
-          <span className={a.tempCode}>{tempMdp}</span>
-        </div>
       </Modale>
     </>
   );

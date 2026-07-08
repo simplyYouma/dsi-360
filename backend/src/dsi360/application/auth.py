@@ -1,13 +1,61 @@
 """Cas d'usage d'authentification (mode LOCAL). L'OIDC Entra ID viendra s'ajouter ici."""
 
-from datetime import UTC, datetime
+import hashlib
+import secrets
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import RowMapping
+from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.config import get_settings
+from dsi360.infrastructure import email as email_infra
+from dsi360.infrastructure import email_modeles
 from dsi360.infrastructure.repositories import utilisateur as repo
 from dsi360.infrastructure.securite import verifier_mot_de_passe
+
+
+def empreinte_jeton(jeton: str) -> str:
+    """Empreinte SHA-256 stockée en base (le jeton en clair n'est jamais persisté)."""
+    return hashlib.sha256(jeton.encode()).hexdigest()
+
+
+async def envoyer_lien_mot_de_passe(
+    session: AsyncSession,
+    *,
+    utilisateur_id: str,
+    prenom: str,
+    email_destinataire: str,
+    minutes: int,
+    bienvenue: bool,
+) -> None:
+    """Crée un jeton à usage unique et envoie le lien de (ré)définition du mot de passe.
+
+    `bienvenue=True` : e-mail d'activation de compte (1er mot de passe). `bienvenue=False` :
+    réinitialisation. Le jeton expire au bout de `minutes`. La transaction est validée ici pour
+    garantir que le jeton est persistant avant l'envoi de l'e-mail.
+    """
+    jeton = secrets.token_urlsafe(32)
+    await session.execute(
+        text(
+            "INSERT INTO core.reinitialisation_mdp (utilisateur_id, jeton_hash, expire_le) "
+            "VALUES (cast(:uid as uuid), :h, :exp)"
+        ),
+        {
+            "uid": utilisateur_id,
+            "h": empreinte_jeton(jeton),
+            "exp": datetime.now(UTC) + timedelta(minutes=minutes),
+        },
+    )
+    await session.commit()
+    url = f"{get_settings().url_app}/reinitialiser?jeton={jeton}"
+    if bienvenue:
+        sujet, corps, html = email_modeles.definir_mot_de_passe(
+            prenom, email_destinataire, url, minutes
+        )
+    else:
+        sujet, corps, html = email_modeles.reinitialisation(prenom, url, minutes)
+    email_infra.envoyer(email_destinataire, sujet, corps, html)
 
 
 def compte_actif(u: RowMapping) -> bool:

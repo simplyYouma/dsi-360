@@ -474,7 +474,6 @@ class CreationUtilisateur(BaseModel):
     profil_code: str
     direction_code: str | None = None
     niveau_support: int | None = Field(default=None, ge=1, le=3)
-    mot_de_passe: str = Field(min_length=8)
     expire_le: datetime | None = None
 
 

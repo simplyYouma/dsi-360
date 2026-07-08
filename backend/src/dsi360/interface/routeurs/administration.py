@@ -1,13 +1,13 @@
 """Administration (§9) : utilisateurs, matrice d'accès, journal d'audit."""
 
 import re
-import secrets
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.application.auth import envoyer_lien_mot_de_passe
 from dsi360.config import get_settings
 from dsi360.config.acces import MODULES
 from dsi360.domain.sla import MODULES_SLA
@@ -16,7 +16,6 @@ from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.infrastructure.repositories import utilisateur as repo_u
-from dsi360.infrastructure.securite import hacher_mot_de_passe
 from dsi360.interface.schemas import (
     CategorieItem,
     CreationCategorie,
@@ -217,13 +216,15 @@ async def creer_utilisateur(
         text("SELECT 1 FROM core.utilisateur WHERE lower(email) = lower(:e)"), {"e": corps.email}
     ):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="E-mail déjà utilisé.")
+    # Aucun mot de passe n'est fixé ici : l'utilisateur définit le sien via un lien d'activation
+    # expirable (cf. e-mail ci-dessous). Le compte reste inutilisable tant qu'il ne l'a pas défini.
     ident = await session.scalar(
         text(
             "INSERT INTO core.utilisateur"
             "(email, nom, prenom, profil_id, direction_id, niveau_support, source_auth, "
             " mot_de_passe_hash, doit_changer_mdp, expire_le) VALUES (:email, :nom, :prenom, "
             " (SELECT id FROM core.profil WHERE code = :profil), "
-            " (SELECT id FROM core.direction WHERE code = :direction), :niveau, 'LOCAL', :hash, "
+            " (SELECT id FROM core.direction WHERE code = :direction), :niveau, 'LOCAL', NULL, "
             " true, :expire_le) "
             "RETURNING id::text"
         ),
@@ -234,7 +235,6 @@ async def creer_utilisateur(
             "profil": corps.profil_code,
             "direction": corps.direction_code,
             "niveau": corps.niveau_support,
-            "hash": hacher_mot_de_passe(corps.mot_de_passe),
             "expire_le": corps.expire_le,
         },
     )
@@ -247,10 +247,14 @@ async def creer_utilisateur(
         cible_type="utilisateur",
         cible_id=corps.email,
     )
-    sujet, texte, html = email_modeles.bienvenue(
-        corps.prenom, corps.email, corps.mot_de_passe, f"{get_settings().url_app}/"
+    await envoyer_lien_mot_de_passe(
+        session,
+        utilisateur_id=str(ident),
+        prenom=nom_propre(corps.prenom) or corps.prenom,
+        email_destinataire=corps.email,
+        minutes=get_settings().activation_validite_minutes,
+        bienvenue=True,
     )
-    email.envoyer(corps.email, sujet, texte, html)
     return {"id": str(ident)}
 
 
@@ -310,17 +314,17 @@ async def modifier_utilisateur(
 
 @routeur.post("/utilisateurs/{ident}/reinitialiser-mdp")
 async def reinitialiser_mdp(ident: str, courant: Courant, session: Session) -> dict[str, str]:
-    temporaire = secrets.token_urlsafe(9)
+    """Renvoie à l'utilisateur un lien expirable pour (re)définir son mot de passe lui-même.
+
+    Aucun mot de passe n'est affiché à l'écran : le lien part par e-mail (activation si le compte
+    n'a pas encore de mot de passe, réinitialisation sinon).
+    """
     u = await repo_u.par_id(session, ident)
     if u is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable."
         )
-    await repo_u.definir_mot_de_passe(session, ident, hacher_mot_de_passe(temporaire))
-    await session.execute(
-        text("UPDATE core.utilisateur SET doit_changer_mdp = true WHERE id::text = :id"),
-        {"id": ident},
-    )
+    activation = u["mot_de_passe_hash"] is None
     await audit.consigner(
         session,
         action="REINITIALISATION_MDP",
@@ -330,7 +334,20 @@ async def reinitialiser_mdp(ident: str, courant: Courant, session: Session) -> d
         cible_type="utilisateur",
         cible_id=u["email"],
     )
-    return {"mot_de_passe_temporaire": temporaire}
+    minutes = (
+        get_settings().activation_validite_minutes
+        if activation
+        else get_settings().reset_validite_minutes
+    )
+    await envoyer_lien_mot_de_passe(
+        session,
+        utilisateur_id=ident,
+        prenom=u["prenom"],
+        email_destinataire=u["email"],
+        minutes=minutes,
+        bienvenue=activation,
+    )
+    return {"email": u["email"]}
 
 
 # --- Matrice d'accès ---

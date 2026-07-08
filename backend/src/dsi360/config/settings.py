@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     url_app: str = "https://localhost:8453"
     # Durée de validité d'un lien de réinitialisation de mot de passe (minutes).
     reset_validite_minutes: int = 30
+    # Durée de validité du lien d'activation envoyé à la création d'un compte (minutes) — 1 heure.
+    activation_validite_minutes: int = 60
 
     @property
     def domaines_email(self) -> list[str]:

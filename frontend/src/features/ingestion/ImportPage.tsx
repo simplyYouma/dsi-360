@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
-import { Card, Button } from '@/design-system/primitives';
+import { Card, Button, useToast } from '@/design-system/primitives';
 import { ErreurApi } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './ImportPage.module.css';
@@ -12,6 +12,7 @@ export function ImportPage(): JSX.Element {
   const [erreur, setErreur] = useState<string | null>(null);
   const [nomFichier, setNomFichier] = useState<string | null>(null);
   const champ = useRef<HTMLInputElement>(null);
+  const { notifier } = useToast();
 
   const traiter = async (fichier: File): Promise<void> => {
     setErreur(null);
@@ -19,9 +20,16 @@ export function ImportPage(): JSX.Element {
     setNomFichier(fichier.name);
     setEnCours(true);
     try {
-      setRapport(await importApi.tickets(fichier));
+      const r = await importApi.tickets(fichier);
+      setRapport(r);
+      notifier(
+        `Import réussi : ${r.total} ticket(s) — ${r.crees} créé(s), ${r.mis_a_jour} mis à jour.`,
+        'succes',
+      );
     } catch (err) {
-      setErreur(err instanceof ErreurApi ? err.message : "Import impossible : vérifiez le fichier.");
+      const msg = err instanceof ErreurApi ? err.message : 'Import impossible : vérifiez le fichier.';
+      setErreur(msg);
+      notifier(`Échec de l’import : ${msg}`, 'erreur');
     } finally {
       setEnCours(false);
     }
@@ -124,9 +132,9 @@ export function ImportPage(): JSX.Element {
                 <strong>{rapport.incidents}</strong> incidents et{' '}
                 <strong>{rapport.demandes}</strong> demandes traités —{' '}
                 <strong>{rapport.crees}</strong> nouveaux, <strong>{rapport.mis_a_jour}</strong>{' '}
-                modifiés, <strong>{rapport.inchanges}</strong> inchangés.{' '}
-                <strong>{rapport.demandeurs_crees}</strong> demandeur(s) et{' '}
-                <strong>{rapport.gestionnaires_crees}</strong> agent(s) DSI créé(s).
+                modifiés, <strong>{rapport.inchanges}</strong> inchangés. Les gestionnaires du
+                fichier sont rattachés aux comptes DSI existants ; aucun compte n’est créé
+                automatiquement.
               </span>
             </div>
           </Card>
