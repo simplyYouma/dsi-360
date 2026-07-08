@@ -9,7 +9,6 @@ import { GestionActeurs } from '@/common/GestionActeurs';
 import { JournalNotes } from '@/common/JournalNotes';
 import { LiensTache } from '@/common/LiensTache';
 import { ListeTaches } from '@/common/ListeTaches';
-import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from '@/common/statuts';
@@ -322,15 +321,6 @@ export function ChangementPage(): JSX.Element {
                 onSupprimer={supprimerTache}
                 renduEnfant={(t) => (
                   <>
-                    <PiecesJointes
-                      compact
-                      charger={() => changementsApi.documentsTache(id!, t.id)}
-                      deposer={(f) => changementsApi.deposerDocumentTache(id!, t.id, f)}
-                      telecharger={(docId) => changementsApi.telechargerDocument(id!, docId)}
-                      apercu={(docId) => changementsApi.apercuDocument(id!, docId)}
-                      renommer={(docId, nom) => changementsApi.renommerDocument(id!, docId, nom)}
-                      supprimer={(docId) => changementsApi.supprimerDocument(id!, docId)}
-                    />
                     <LiensTache
                       charger={() => changementsApi.liensTache(id!, t.id)}
                       creer={(libelle, url) => changementsApi.creerLienTache(id!, t.id, libelle, url)}

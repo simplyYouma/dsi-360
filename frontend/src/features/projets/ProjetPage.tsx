@@ -6,7 +6,6 @@ import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { LiensTache } from '@/common/LiensTache';
-import { PiecesJointes } from '@/common/PiecesJointes';
 import { ListeTaches } from '@/common/ListeTaches';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -459,6 +458,8 @@ export function ProjetPage(): JSX.Element {
                     valeur={v.dateFin || null}
                     onChange={(val) => (creation ? setDateFin(val ?? '') : void patch({ date_fin: val }))}
                     placeholder="jj/mm/aaaa"
+                    remplissageEcheance={!creation && detail?.statut !== 'Clôturé'}
+                    depuis={v.dateDebut || null}
                   />
                 </dd>
               </div>
@@ -495,15 +496,6 @@ export function ProjetPage(): JSX.Element {
                   onSupprimer={supprimerTache}
                   renduEnfant={(t) => (
                     <>
-                      <PiecesJointes
-                        compact
-                        charger={() => projetsApi.documentsTache(id, t.id)}
-                        deposer={(f) => projetsApi.deposerDocumentTache(id, t.id, f)}
-                        telecharger={(docId) => projetsApi.telechargerDocument(id, docId)}
-                        apercu={(docId) => projetsApi.apercuDocument(id, docId)}
-                        renommer={(docId, nom) => projetsApi.renommerDocument(id, docId, nom)}
-                        supprimer={(docId) => projetsApi.supprimerDocument(id, docId)}
-                      />
                       <LiensTache
                         charger={() => projetsApi.liens(id, t.id)}
                         creer={(libelle, url) => projetsApi.creerLien(id, libelle, url, t.id)}

@@ -112,6 +112,7 @@ export function ListeTaches({
                 valeur={t.echeance}
                 onChange={(v) => void onMaj(t.id, { echeance: v })}
                 placeholder="Échéance"
+                remplissageEcheance={t.statut !== 'Terminée'}
               />
             </div>
           </div>

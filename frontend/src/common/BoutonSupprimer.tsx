@@ -26,6 +26,8 @@ export function BoutonSupprimer({ cible, onSupprimer, className, taille = 15 }: 
     }
   };
 
+  const [survol, setSurvol] = useState(false);
+
   return (
     <>
       <button
@@ -33,6 +35,12 @@ export function BoutonSupprimer({ cible, onSupprimer, className, taille = 15 }: 
         className={className}
         title="Supprimer"
         aria-label={`Supprimer ${cible}`}
+        // Survol rouge garanti quel que soit le style de l'appelant (inline > classe).
+        style={survol ? { color: 'var(--status-danger)' } : undefined}
+        onMouseEnter={() => setSurvol(true)}
+        onMouseLeave={() => setSurvol(false)}
+        onFocus={() => setSurvol(true)}
+        onBlur={() => setSurvol(false)}
         onClick={() => setOuvert(true)}
       >
         <Trash2 size={taille} />
