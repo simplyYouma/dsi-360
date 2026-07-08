@@ -397,6 +397,8 @@ class CommentaireItem(BaseModel):
 
 class CommentaireCreation(BaseModel):
     texte: str = Field(min_length=1, max_length=4000)
+    # Identifiants des personnes mentionnées avec @ (notifiées en interne).
+    mentions: list[str] = []
 
 
 # --- Ingestion / Ticketing ---

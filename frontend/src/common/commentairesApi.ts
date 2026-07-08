@@ -11,6 +11,14 @@ export interface Commentaire {
 export const commentairesApi = {
   lister: (activiteId: string, tacheId?: string): Promise<Commentaire[]> =>
     api.get(`/commentaires/${activiteId}${tacheId ? `?tache=${tacheId}` : ''}`),
-  ajouter: (activiteId: string, texte: string, tacheId?: string): Promise<Commentaire> =>
-    api.post(`/commentaires/${activiteId}${tacheId ? `?tache=${tacheId}` : ''}`, { texte }),
+  ajouter: (
+    activiteId: string,
+    texte: string,
+    tacheId?: string,
+    mentions: string[] = [],
+  ): Promise<Commentaire> =>
+    api.post(`/commentaires/${activiteId}${tacheId ? `?tache=${tacheId}` : ''}`, {
+      texte,
+      mentions,
+    }),
 };

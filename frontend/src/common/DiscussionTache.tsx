@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, MessageSquare, Send } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
+import { ChampMention } from '@/common/ChampMention';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
+import { extraireMentions, useAgents } from '@/common/useAgents';
+import { TexteMentions } from '@/common/TexteMentions';
 import fiche from './FicheTransition.module.css';
 
 interface Props {
@@ -17,6 +20,7 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
   const [commentaires, setCommentaires] = useState<Commentaire[] | null>(null);
   const [texte, setTexte] = useState('');
   const [envoi, setEnvoi] = useState(false);
+  const agents = useAgents();
 
   const charger = useCallback(async (): Promise<void> => {
     setCommentaires(await commentairesApi.lister(activiteId, tacheId));
@@ -30,7 +34,12 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
     if (texte.trim() === '') return;
     setEnvoi(true);
     try {
-      await commentairesApi.ajouter(activiteId, texte.trim(), tacheId);
+      await commentairesApi.ajouter(
+        activiteId,
+        texte.trim(),
+        tacheId,
+        extraireMentions(texte, agents),
+      );
       setTexte('');
       await charger();
     } finally {
@@ -82,18 +91,21 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
                       })}
                     </span>
                   </div>
-                  <p className={fiche.commTexte}>{c.texte}</p>
+                  <p className={fiche.commTexte}>
+                    <TexteMentions texte={c.texte} agents={agents} />
+                  </p>
                 </li>
               ))}
             </ul>
           )}
           <div className={fiche.commForm}>
-            <textarea
+            <ChampMention
               className={fiche.commInput}
-              value={texte}
-              onChange={(e) => setTexte(e.target.value)}
-              rows={2}
-              placeholder="Commenter cette tâche…"
+              valeur={texte}
+              onChange={setTexte}
+              agents={agents}
+              placeholder="Commenter cette tâche…  (@ pour mentionner)"
+              onEnvoyer={() => void envoyer()}
             />
             <Button onClick={() => void envoyer()} disabled={envoi || texte.trim() === ''}>
               <Send size={14} />

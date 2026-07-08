@@ -117,6 +117,24 @@ async def commenter(
         )
     ).mappings().one()
     cible = f"{reference} · {titre_tache}" if titre_tache else reference
+    # Mentions @ : notification interne (cloche) aux personnes citées, sauf l'auteur. L'envoi
+    # d'e-mail automatique de ces mentions sera branché ultérieurement.
+    for uid in {m for m in corps.mentions if m and m != courant["id"]}:
+        await session.execute(
+            text(
+                "INSERT INTO core.notification "
+                "(destinataire_id, activite_id, type, titre, message) "
+                "SELECT cast(:dest as uuid), cast(:aid as uuid), 'MENTION', :titre, :msg "
+                "WHERE EXISTS (SELECT 1 FROM core.utilisateur WHERE id = cast(:dest as uuid) "
+                "              AND actif)"
+            ),
+            {
+                "dest": uid,
+                "aid": activite_id,
+                "titre": f"Vous êtes mentionné — {cible}",
+                "msg": f"{courant['email']} vous a mentionné : {corps.texte.strip()[:140]}",
+            },
+        )
     await audit.consigner(
         session,
         action="COMMENTAIRE",

@@ -7,6 +7,9 @@ import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
+import { ChampMention } from '@/common/ChampMention';
+import { TexteMentions } from '@/common/TexteMentions';
+import { extraireMentions, useAgents } from '@/common/useAgents';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { api, ErreurApi, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -92,6 +95,7 @@ export function FicheTransition({
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const agentsMention = useAgents();
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
@@ -166,7 +170,7 @@ export function FicheTransition({
     if (id === null || texte.trim() === '') return;
     setEnvoiC(true);
     try {
-      await commentairesApi.ajouter(id, texte.trim());
+      await commentairesApi.ajouter(id, texte.trim(), undefined, extraireMentions(texte, agentsMention));
       setTexte('');
       setCommentaires(await commentairesApi.lister(id));
     } finally {
@@ -641,18 +645,21 @@ export function FicheTransition({
                         })}
                       </span>
                     </div>
-                    <p className={styles.commTexte}>{c.texte}</p>
+                    <p className={styles.commTexte}>
+                      <TexteMentions texte={c.texte} agents={agentsMention} />
+                    </p>
                   </li>
                 ))}
               </ul>
             )}
             <div className={styles.commForm}>
-              <textarea
+              <ChampMention
                 className={styles.commInput}
-                value={texte}
-                onChange={(e) => setTexte(e.target.value)}
-                rows={2}
-                placeholder="Ajouter un commentaire pour l'équipe…"
+                valeur={texte}
+                onChange={setTexte}
+                agents={agentsMention}
+                placeholder="Ajouter un commentaire…  (@ pour mentionner)"
+                onEnvoyer={() => void commenter()}
               />
               <Button onClick={() => void commenter()} disabled={envoiC || texte.trim() === ''}>
                 <Send size={15} />
