@@ -625,6 +625,7 @@ class Tache(BaseModel):
     echeance: date | None
     ordre: int
     nb_commentaires: int = 0
+    nb_non_vus: int = 0
 
 
 class TacheCreation(BaseModel):

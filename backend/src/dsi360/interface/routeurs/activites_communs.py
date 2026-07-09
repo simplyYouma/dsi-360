@@ -909,6 +909,7 @@ def _tache_resume(r: RowMapping) -> dict[str, Any]:
         "echeance": r["echeance"],
         "ordre": r["ordre"],
         "nb_commentaires": r["nb_commentaires"],
+        "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,
     }
 
 
@@ -925,7 +926,7 @@ def _enregistrer_taches(
         session: AsyncSession, ident: str, tache_id: str, courant: dict[str, Any]
     ) -> RowMapping:
         await charger_visible(session, ident, courant)
-        t = await tache_repo.par_id(session, tache_id)
+        t = await tache_repo.par_id(session, tache_id, moi=courant["id"])
         if t is None or t["activite_id"] != ident:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable.")
         return t
@@ -946,7 +947,9 @@ def _enregistrer_taches(
         ident: str, courant: Courant, session: Session
     ) -> list[dict[str, Any]]:
         await charger_visible(session, ident, courant)
-        return [_tache_resume(t) for t in await tache_repo.lister(session, ident)]
+        return [
+            _tache_resume(t) for t in await tache_repo.lister(session, ident, moi=courant["id"])
+        ]
 
     @routeur.post(
         "/{ident}/taches", response_model=ActiviteDetail, status_code=status.HTTP_201_CREATED

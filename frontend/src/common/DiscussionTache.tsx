@@ -1,33 +1,57 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, MessageSquare, Send } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { ChampMention } from '@/common/ChampMention';
+import { cx } from '@/common/cx';
+import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { LigneCommentaire } from '@/common/LigneCommentaire';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { extraireMentions, useAgents } from '@/common/useAgents';
 import fiche from './FicheTransition.module.css';
+import styles from './DiscussionTache.module.css';
 
 interface Props {
   activiteId: string;
   tacheId: string;
   /** Compteur initial (évite un appel réseau tant que le fil est replié). */
   nombre?: number;
+  /** Messages non lus par l'utilisateur connecté (marque colorée). */
+  nonVus?: number;
+  /** Appelé dès que le fil est marqué lu : la carte/ligne retire sa marque sans rechargement. */
+  onVu?: (tacheId: string) => void;
 }
 
-/** Fil de discussion d'une tâche, replié par défaut (bouton avec compteur). */
-export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX.Element {
+/** Fil de discussion d'une tâche, replié par défaut. Le bouton porte la marque de discussion :
+ *  colorée avec le compteur de non-lus, discrète une fois tout lu. */
+export function DiscussionTache({
+  activiteId,
+  tacheId,
+  nombre = 0,
+  nonVus = 0,
+  onVu,
+}: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [commentaires, setCommentaires] = useState<Commentaire[] | null>(null);
   const [texte, setTexte] = useState('');
   const [envoi, setEnvoi] = useState(false);
+  const [nonVusLocaux, setNonVusLocaux] = useState(nonVus);
   const agents = useAgents();
   const { moi } = useAuth();
 
+  useEffect(() => setNonVusLocaux(nonVus), [nonVus]);
+
+  // `onVu` est souvent une lambda : on la garde dans une ref pour ne pas relancer l'effet.
+  const onVuRef = useRef(onVu);
+  onVuRef.current = onVu;
+
   const charger = useCallback(async (): Promise<void> => {
     setCommentaires(await commentairesApi.lister(activiteId, tacheId));
-    // Marque le fil comme lu (sans recharger : les repères « nouveau » restent visibles ce tour).
-    void commentairesApi.marquerVues(activiteId, tacheId);
+    // Marque le fil comme lu, puis retire la marque « nouveaux » sans recharger la page.
+    // Les repères « nouveau » sur chaque message restent visibles ce tour-ci.
+    await commentairesApi.marquerVues(activiteId, tacheId);
+    setNonVusLocaux(0);
+    onVuRef.current?.(tacheId);
   }, [activiteId, tacheId]);
 
   useEffect(() => {
@@ -57,30 +81,21 @@ export function DiscussionTache({ activiteId, tacheId, nombre = 0 }: Props): JSX
     <div>
       <button
         type="button"
+        className={styles.bascule}
         onClick={() => setOuvert((o) => !o)}
         aria-expanded={ouvert}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 'var(--space-1)',
-          background: 'none',
-          border: 'none',
-          padding: 0,
-          cursor: 'pointer',
-          color: 'var(--text-muted)',
-          fontSize: 'var(--text-xs)',
-        }}
       >
         {ouvert ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         <MessageSquare size={13} />
-        Discussion{total > 0 ? ` (${total})` : ''}
+        Discussion
+        <span className={styles.marque}>
+          <IndicateurDiscussion nombre={total} nonVus={nonVusLocaux} />
+        </span>
       </button>
       {ouvert && (
-        <div style={{ marginTop: 'var(--space-2)' }}>
+        <div className={styles.corps}>
           {commentaires !== null && commentaires.length === 0 && (
-            <p className={fiche.commVide} style={{ marginBottom: 'var(--space-3)' }}>
-              Aucun échange sur cette tâche.
-            </p>
+            <p className={cx(fiche.commVide, styles.vide)}>Aucun échange sur cette tâche.</p>
           )}
           {commentaires !== null && commentaires.length > 0 && (
             <ul className={fiche.commListe}>

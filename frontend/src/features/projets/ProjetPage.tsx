@@ -512,7 +512,17 @@ export function ProjetPage(): JSX.Element {
                         creer={(libelle, url) => projetsApi.creerLien(id, libelle, url, t.id)}
                         supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
                       />
-                      <DiscussionTache activiteId={id} tacheId={t.id} nombre={t.nb_commentaires ?? 0} />
+                      <DiscussionTache
+                        activiteId={id}
+                        tacheId={t.id}
+                        nombre={t.nb_commentaires ?? 0}
+                        nonVus={t.nb_non_vus ?? 0}
+                        onVu={(tid) =>
+                          setTaches((liste) =>
+                            liste.map((x) => (x.id === tid ? { ...x, nb_non_vus: 0 } : x)),
+                          )
+                        }
+                      />
                     </>
                   )}
                 />

@@ -212,6 +212,7 @@ export function MesTicketsPage(): JSX.Element {
         statutSla: t.statut_sla,
         meta: t.demandeur,
         nbCommentaires: t.nb_commentaires,
+        nbNonVus: t.nb_non_vus,
         etiquette: {
           texte: LIBELLE_MODULE[t.module] ?? t.module,
           couleur: MODULE_COULEUR[t.module] ?? 'var(--text-muted)',

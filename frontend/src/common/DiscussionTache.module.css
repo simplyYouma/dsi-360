@@ -1,0 +1,26 @@
+.bascule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.bascule:hover {
+  color: var(--text);
+}
+
+.marque {
+  margin-left: 2px;
+}
+
+.corps {
+  margin-top: var(--space-2);
+}
+
+.vide {
+  margin-bottom: var(--space-3);
+}

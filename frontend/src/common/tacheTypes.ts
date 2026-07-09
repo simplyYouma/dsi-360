@@ -26,6 +26,8 @@ export interface Tache {
   echeance: string | null;
   ordre: number;
   nb_commentaires?: number;
+  /** Messages de la tâche non encore lus par l'utilisateur connecté. */
+  nb_non_vus?: number;
 }
 
 export interface NouvelleTache {

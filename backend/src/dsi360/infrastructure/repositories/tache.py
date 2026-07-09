@@ -9,7 +9,13 @@ _CHAMPS = """
     t.id::text AS id, t.activite_id::text AS activite_id, t.titre, t.description, t.statut,
     t.assigne_id::text AS assigne_id, t.echeance, t.ordre, t.cree_le, t.maj_le,
     u.prenom AS assigne_prenom, u.nom AS assigne_nom, u.email AS assigne_email,
-    (SELECT count(*) FROM core.commentaire c WHERE c.tache_id = t.id) AS nb_commentaires
+    (SELECT count(*) FROM core.commentaire c WHERE c.tache_id = t.id) AS nb_commentaires,
+    (SELECT count(*) FROM core.commentaire c
+     WHERE c.tache_id = t.id
+       AND c.auteur_id IS DISTINCT FROM cast(:moi as uuid)
+       AND NOT EXISTS (SELECT 1 FROM core.commentaire_vue v
+                       WHERE v.commentaire_id = c.id
+                         AND v.utilisateur_id = cast(:moi as uuid))) AS nb_non_vus
 """
 
 _BASE = """
@@ -21,13 +27,15 @@ _BASE = """
 _MODIFIABLES = frozenset({"titre", "description", "statut", "assigne_id", "echeance", "ordre"})
 
 
-async def lister(session: AsyncSession, activite_id: str) -> list[RowMapping]:
+async def lister(
+    session: AsyncSession, activite_id: str, *, moi: str | None = None
+) -> list[RowMapping]:
     lignes = await session.execute(
         text(
             f"SELECT {_CHAMPS} {_BASE} WHERE t.activite_id = cast(:a as uuid) "
             "ORDER BY t.ordre, t.cree_le"
         ),
-        {"a": activite_id},
+        {"a": activite_id, "moi": moi},
     )
     return list(lignes.mappings().all())
 
@@ -51,9 +59,12 @@ async def lister_pour_utilisateur(
     return list(lignes.mappings().all())
 
 
-async def par_id(session: AsyncSession, tache_id: str) -> RowMapping | None:
+async def par_id(
+    session: AsyncSession, tache_id: str, *, moi: str | None = None
+) -> RowMapping | None:
     resultat = await session.execute(
-        text(f"SELECT {_CHAMPS} {_BASE} WHERE t.id = cast(:id as uuid)"), {"id": tache_id}
+        text(f"SELECT {_CHAMPS} {_BASE} WHERE t.id = cast(:id as uuid)"),
+        {"id": tache_id, "moi": moi},
     )
     return resultat.mappings().first()
 
