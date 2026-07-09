@@ -14,6 +14,10 @@ interface ModaleProps {
   pied?: ReactNode;
   /** Largeur maximale en px (défaut 560). */
   largeur?: number;
+  /** Colonne latérale fixe à droite (ex. fil de discussion), avec son propre défilement. */
+  panneau?: ReactNode;
+  /** Largeur de la colonne latérale en px (défaut 380). */
+  largeurPanneau?: number;
 }
 
 /**
@@ -27,6 +31,8 @@ export function Modale({
   children,
   pied,
   largeur = 560,
+  panneau,
+  largeurPanneau = 380,
 }: ModaleProps): JSX.Element | null {
   useEffect(() => {
     if (!ouverte) return;
@@ -48,7 +54,7 @@ export function Modale({
     <div className={styles.overlay} onMouseDown={onFermer}>
       <div
         className={styles.modale}
-        style={{ maxWidth: largeur }}
+        style={{ maxWidth: panneau !== undefined ? largeur + largeurPanneau : largeur }}
         role="dialog"
         aria-modal="true"
         aria-label={titre}
@@ -57,9 +63,18 @@ export function Modale({
         <button className={styles.fermer} onClick={onFermer} aria-label="Fermer">
           <X size={20} />
         </button>
-        <h2 className={styles.titre}>{titre}</h2>
-        <div className={styles.corps}>{children}</div>
-        {pied !== undefined && <div className={cx(styles.pied)}>{pied}</div>}
+        <div className={styles.grille}>
+          <div className={styles.principal}>
+            <h2 className={styles.titre}>{titre}</h2>
+            <div className={styles.corps}>{children}</div>
+            {pied !== undefined && <div className={cx(styles.pied)}>{pied}</div>}
+          </div>
+          {panneau !== undefined && (
+            <aside className={styles.panneau} style={{ flexBasis: largeurPanneau }}>
+              {panneau}
+            </aside>
+          )}
+        </div>
       </div>
     </div>,
     document.body,

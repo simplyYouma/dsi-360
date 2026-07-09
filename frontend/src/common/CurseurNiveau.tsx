@@ -1,27 +1,35 @@
 import { useRef } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
+import { cx } from './cx';
 import styles from './CurseurNiveau.module.css';
 
-const COULEURS = ['#1f9d55', '#7fc81f', '#e0a341', '#e07a3c', '#d64545'];
 const MOTS = ['Très faible', 'Faible', 'Moyen', 'Élevé', 'Critique'];
+const NIVEAUX = [1, 2, 3, 4, 5];
+
+/** Couleur par bande ITIL (1-2 faible, 3 moyen, 4-5 élevé) : la couleur porte le sens,
+ *  au lieu d'un dégradé arc-en-ciel décoratif. */
+function couleurBande(valeur: number): string {
+  if (valeur <= 2) return 'var(--status-ok)';
+  if (valeur === 3) return 'var(--status-warn)';
+  return 'var(--status-danger)';
+}
 
 interface CurseurNiveauProps {
   valeur: number; // 1..5
   onChange: (n: number) => void;
 }
 
-/** Curseur maison 1→5 avec piste en dégradé de gravité (vert → rouge). Pas de composant natif. */
+/** Sélecteur de niveau 1→5 : cinq segments de hauteur croissante. Maison, zéro composant natif. */
 export function CurseurNiveau({ valeur, onChange }: CurseurNiveauProps): JSX.Element {
   const piste = useRef<HTMLDivElement>(null);
-  const couleur = COULEURS[valeur - 1] ?? '#888';
-  const position = ((valeur - 1) / 4) * 100;
+  const couleur = couleurBande(valeur);
 
   const depuisX = (clientX: number): void => {
     const el = piste.current;
     if (el === null) return;
     const r = el.getBoundingClientRect();
     const ratio = (clientX - r.left) / r.width;
-    onChange(Math.min(5, Math.max(1, Math.round(ratio * 4) + 1)));
+    onChange(Math.min(5, Math.max(1, Math.ceil(ratio * 5))));
   };
 
   const surTouche = (e: KeyboardEvent): void => {
@@ -38,7 +46,7 @@ export function CurseurNiveau({ valeur, onChange }: CurseurNiveauProps): JSX.Ele
     <div className={styles.bloc}>
       <div
         ref={piste}
-        className={styles.piste}
+        className={styles.segments}
         onPointerDown={surPointe}
         onPointerMove={(e) => {
           if (e.buttons === 1) depuisX(e.clientX);
@@ -49,11 +57,20 @@ export function CurseurNiveau({ valeur, onChange }: CurseurNiveauProps): JSX.Ele
         aria-valuemin={1}
         aria-valuemax={5}
         aria-valuenow={valeur}
+        aria-valuetext={`${valeur} · ${MOTS[valeur - 1] ?? ''}`}
       >
-        <span className={styles.curseur} style={{ left: `${position}%`, borderColor: couleur }} />
+        {NIVEAUX.map((n) => (
+          <span
+            key={n}
+            className={cx(styles.segment, n <= valeur && styles.actif)}
+            style={n <= valeur ? { background: couleur } : undefined}
+            aria-hidden="true"
+          />
+        ))}
       </div>
       <span className={styles.etiquette} style={{ color: couleur }}>
-        {valeur} · {MOTS[valeur - 1] ?? ''}
+        <span className={styles.chiffre}>{valeur}</span>
+        {MOTS[valeur - 1] ?? ''}
       </span>
     </div>
   );

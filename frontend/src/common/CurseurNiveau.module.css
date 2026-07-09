@@ -1,35 +1,76 @@
 .bloc {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
 }
-.piste {
-  position: relative;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, #1f9d55 0%, #7fc81f 28%, #e0a341 55%, #e07a3c 78%, #d64545 100%);
+
+/* Cinq segments de hauteur croissante : la gravité se lit à la forme, pas à un arc-en-ciel. */
+.segments {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 22px;
+  min-width: 124px;
   cursor: pointer;
-  margin: 0 9px; /* place pour le curseur aux extrémités */
+  border-radius: var(--radius-sm);
 }
-.piste:focus-visible {
+.segments:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 6px;
+  outline-offset: 5px;
 }
-.curseur {
-  position: absolute;
-  top: 50%;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  border: 3px solid;
-  box-shadow: var(--shadow-md);
-  transform: translate(-50%, -50%);
-  transition: left 0.12s ease;
-  pointer-events: none;
+
+.segment {
+  flex: 1;
+  border-radius: 3px;
+  background: var(--border);
+  transition:
+    background-color 0.12s ease,
+    opacity 0.12s ease;
 }
+.segment:nth-child(1) {
+  height: 40%;
+}
+.segment:nth-child(2) {
+  height: 55%;
+}
+.segment:nth-child(3) {
+  height: 70%;
+}
+.segment:nth-child(4) {
+  height: 85%;
+}
+.segment:nth-child(5) {
+  height: 100%;
+}
+.segments:hover .segment:not(.actif) {
+  background: color-mix(in srgb, var(--text-muted) 32%, transparent);
+}
+
 .etiquette {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+/* Le chiffre dans une pastille teintée : lecture immédiate du niveau. */
+.chiffre {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: currentColor;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment {
+    transition: none;
+  }
 }

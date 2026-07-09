@@ -45,6 +45,30 @@
   background: var(--bg-subtle);
 }
 
+/* Deux colonnes : le contenu principal, et une colonne latérale figée (ex. discussion). */
+.grille {
+  display: flex;
+  gap: var(--space-5);
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.principal {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.panneau {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 0;
+  flex-shrink: 0;
+  min-height: 0;
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--border);
+}
+
 .titre {
   flex: 0 0 auto;
   font-size: var(--text-2xl);
@@ -74,6 +98,21 @@
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-6);
+}
+
+/* Écran étroit : la colonne latérale repasse sous le contenu principal. */
+@media (max-width: 900px) {
+  .grille {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .panneau {
+    flex-basis: auto !important;
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
 }
 
 /* Sur petit écran, le X revient dans le coin pour ne pas sortir de l'écran. */

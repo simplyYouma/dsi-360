@@ -339,6 +339,49 @@ export function FicheTransition({
       onFermer={onFermer}
       titre={detail ? detail.reference : 'Fiche'}
       largeur={640}
+      largeurPanneau={390}
+      panneau={
+        <div className={styles.panneauDiscussion}>
+          <span className={styles.panneauTitre}>Discussion interne (DSI)</span>
+          <div className={styles.panneauFil}>
+            {commentaires.length === 0 ? (
+              <p className={styles.commVide}>Aucun échange pour le moment.</p>
+            ) : (
+              <ul className={styles.commListe}>
+                {commentaires.map((c) => (
+                  <LigneCommentaire
+                    key={c.id}
+                    commentaire={c}
+                    moiId={moi?.id ?? null}
+                    agents={agentsMention}
+                    onModifier={async (cid, t) => {
+                      await commentairesApi.modifier(cid, t);
+                      if (id !== null) setCommentaires(await commentairesApi.lister(id));
+                    }}
+                    onSupprimer={async (cid) => {
+                      await commentairesApi.supprimer(cid);
+                      if (id !== null) setCommentaires(await commentairesApi.lister(id));
+                    }}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className={styles.panneauForm}>
+            <ChampMention
+              valeur={texte}
+              onChange={setTexte}
+              agents={agentsMention}
+              placeholder="Ajouter un commentaire…  (@ pour mentionner)"
+              onEnvoyer={() => void commenter()}
+            />
+            <Button onClick={() => void commenter()} disabled={envoiC || texte.trim() === ''}>
+              <Send size={15} />
+              {envoiC ? 'Envoi…' : 'Commenter'}
+            </Button>
+          </div>
+        </div>
+      }
       pied={
         <Button variante="secondaire" onClick={onFermer}>
           Fermer
@@ -625,45 +668,6 @@ export function FicheTransition({
               </div>
             </div>
           )}
-
-          <div className={styles.discussion}>
-            <span className={styles.wfTitre}>Discussion interne (DSI)</span>
-            {commentaires.length === 0 ? (
-              <p className={styles.commVide}>Aucun échange pour le moment.</p>
-            ) : (
-              <ul className={styles.commListe}>
-                {commentaires.map((c) => (
-                  <LigneCommentaire
-                    key={c.id}
-                    commentaire={c}
-                    moiId={moi?.id ?? null}
-                    agents={agentsMention}
-                    onModifier={async (cid, t) => {
-                      await commentairesApi.modifier(cid, t);
-                      if (id !== null) setCommentaires(await commentairesApi.lister(id));
-                    }}
-                    onSupprimer={async (cid) => {
-                      await commentairesApi.supprimer(cid);
-                      if (id !== null) setCommentaires(await commentairesApi.lister(id));
-                    }}
-                  />
-                ))}
-              </ul>
-            )}
-            <div className={styles.commForm}>
-              <ChampMention
-                valeur={texte}
-                onChange={setTexte}
-                agents={agentsMention}
-                placeholder="Ajouter un commentaire…  (@ pour mentionner)"
-                onEnvoyer={() => void commenter()}
-              />
-              <Button onClick={() => void commenter()} disabled={envoiC || texte.trim() === ''}>
-                <Send size={15} />
-                {envoiC ? 'Envoi…' : 'Commenter'}
-              </Button>
-            </div>
-          </div>
 
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
         </div>
