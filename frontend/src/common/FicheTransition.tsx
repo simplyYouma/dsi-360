@@ -415,7 +415,24 @@ export function FicheTransition({
       ) : (
         <div className={styles.fiche}>
           <div className={styles.tete}>
-            <h3 className={styles.titre}>{detail.titre}</h3>
+            <div className={styles.teteTexte}>
+              <h3 className={styles.titre}>{detail.titre}</h3>
+              {(detail.cree_le !== undefined || detail.sla_resolution_le !== undefined) && (
+                <div className={styles.teteDates}>
+                  {detail.cree_le !== undefined && (
+                    <span>
+                      Créé le <strong>{formaterDate(detail.cree_le ?? null)}</strong>
+                    </span>
+                  )}
+                  {detail.sla_resolution_le !== undefined && (
+                    <span className={styles.teteEcheance}>
+                      <Clock size={13} />
+                      Échéance <strong>{formaterDate(detail.sla_resolution_le ?? null)}</strong>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             {detail.priorite !== undefined ? (
               <BadgePriorite priorite={detail.priorite} />
             ) : detail.criticite !== undefined ? (
@@ -551,13 +568,6 @@ export function FicheTransition({
                       <span className={styles.evalLabel}>Urgence</span>
                       <CurseurNiveau valeur={detail.urgence ?? 3} onChange={(v) => void reevaluer('urgence', v)} />
                     </label>
-                    <span className={styles.evalFleche} aria-hidden="true">
-                      <ArrowRight size={15} />
-                    </span>
-                    <span className={styles.evalResultat}>
-                      <span className={styles.evalLabel}>Priorité</span>
-                      <BadgePriorite priorite={detail.priorite} />
-                    </span>
                   </div>
                 </dd>
               </div>
@@ -600,23 +610,6 @@ export function FicheTransition({
                       Dernière revue : {formaterDate(detail.derniere_revue)}
                     </span>
                   )}
-                </dd>
-              </div>
-            )}
-            {(detail.cree_le !== undefined || detail.sla_resolution_le !== undefined) && (
-              <div className={cx(styles.metaItem, styles.metaLarge)}>
-                <dd className={styles.datesLigne}>
-                  <span className={styles.dateBloc}>
-                    <span className={styles.dateLabel}>Créé le</span>
-                    <span className={styles.dateValeur}>{formaterDate(detail.cree_le ?? null)}</span>
-                  </span>
-                  <span className={cx(styles.dateBloc, styles.dateDroite)}>
-                    <span className={styles.dateLabel}>Échéance</span>
-                    <span className={styles.dateValeur}>
-                      <Clock size={14} className={styles.dateIcone} />
-                      {formaterDate(detail.sla_resolution_le ?? null)}
-                    </span>
-                  </span>
                 </dd>
               </div>
             )}

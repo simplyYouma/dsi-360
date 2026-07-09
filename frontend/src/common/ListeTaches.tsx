@@ -28,8 +28,10 @@ interface Props {
   onSupprimer: (id: string) => Promise<void>;
   /** Persiste le nouvel ordre (glisser-déposer). Sans lui, la poignée n'apparaît pas. */
   onReordonner?: (ids: string[]) => Promise<void>;
-  /** Contenu additionnel par tâche (ex. pièces jointes). */
+  /** Contenu additionnel par tâche, en pied de carte (ex. discussion). */
   renduEnfant?: (tache: Tache) => ReactNode;
+  /** Contenu rattaché au titre, en tête de carte (ex. liens utiles). */
+  renduSousTitre?: (tache: Tache) => ReactNode;
 }
 
 /** Pastille d'état d'échéance d'une tâche non terminée : dépassée (rouge) / proche (ambre). */
@@ -53,6 +55,7 @@ export function ListeTaches({
   onSupprimer,
   onReordonner,
   renduEnfant,
+  renduSousTitre,
 }: Props): JSX.Element {
   const [titre, setTitre] = useState('');
   const [assigne, setAssigne] = useState<string | null>(null);
@@ -136,10 +139,15 @@ export function ListeTaches({
                 <GripVertical size={15} />
               </button>
             )}
-            <span className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
-              {t.titre}
-              <EtatEcheance tache={t} />
-            </span>
+            <div className={styles.tacheTitreBloc}>
+              <span className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
+                {t.titre}
+                <EtatEcheance tache={t} />
+              </span>
+              {renduSousTitre && (
+                <div className={styles.tacheSousTitre}>{renduSousTitre(t)}</div>
+              )}
+            </div>
           </div>
           <BoutonSupprimer
             cible={`la tâche « ${t.titre} »`}

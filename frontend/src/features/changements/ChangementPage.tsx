@@ -357,13 +357,15 @@ export function ChangementPage(): JSX.Element {
                   setDetail(await changementsApi.reordonnerTaches(id!, ids));
                   chargerTaches();
                 }}
+                renduSousTitre={(t) => (
+                  <LiensTache
+                    charger={() => changementsApi.liensTache(id!, t.id)}
+                    creer={(libelle, url) => changementsApi.creerLienTache(id!, t.id, libelle, url)}
+                    supprimer={(lienId) => changementsApi.supprimerLien(id!, lienId)}
+                  />
+                )}
                 renduEnfant={(t) => (
                   <>
-                    <LiensTache
-                      charger={() => changementsApi.liensTache(id!, t.id)}
-                      creer={(libelle, url) => changementsApi.creerLienTache(id!, t.id, libelle, url)}
-                      supprimer={(lienId) => changementsApi.supprimerLien(id!, lienId)}
-                    />
                     <DiscussionTache
                       activiteId={id!}
                       tacheId={t.id}

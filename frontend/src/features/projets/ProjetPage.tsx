@@ -505,25 +505,25 @@ export function ProjetPage(): JSX.Element {
                     setDetail(await projetsApi.reordonnerTaches(id, ids));
                     chargerTaches();
                   }}
+                  renduSousTitre={(t) => (
+                    <LiensTache
+                      charger={() => projetsApi.liens(id, t.id)}
+                      creer={(libelle, url) => projetsApi.creerLien(id, libelle, url, t.id)}
+                      supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
+                    />
+                  )}
                   renduEnfant={(t) => (
-                    <>
-                      <LiensTache
-                        charger={() => projetsApi.liens(id, t.id)}
-                        creer={(libelle, url) => projetsApi.creerLien(id, libelle, url, t.id)}
-                        supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
-                      />
-                      <DiscussionTache
-                        activiteId={id}
-                        tacheId={t.id}
-                        nombre={t.nb_commentaires ?? 0}
-                        nonVus={t.nb_non_vus ?? 0}
-                        onVu={(tid) =>
-                          setTaches((liste) =>
-                            liste.map((x) => (x.id === tid ? { ...x, nb_non_vus: 0 } : x)),
-                          )
-                        }
-                      />
-                    </>
+                    <DiscussionTache
+                      activiteId={id}
+                      tacheId={t.id}
+                      nombre={t.nb_commentaires ?? 0}
+                      nonVus={t.nb_non_vus ?? 0}
+                      onVu={(tid) =>
+                        setTaches((liste) =>
+                          liste.map((x) => (x.id === tid ? { ...x, nb_non_vus: 0 } : x)),
+                        )
+                      }
+                    />
                   )}
                 />
               )
