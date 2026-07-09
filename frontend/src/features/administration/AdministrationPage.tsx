@@ -329,11 +329,12 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
         </div>
         <div className={styles.champ}>
           <span>Niveau de support (escalade)</span>
+          {/* La DSI n'a que N1 et N2 : le N3 désigne un transfert vers DBS, qui n'a pas de compte
+              ici. Escalader un ticket au-delà du N2 le transfère (cf. ADR-0003 §3). */}
           <SelecteurListe
             options={[
               { valeur: '1', libelle: 'N1 — Service Desk' },
               { valeur: '2', libelle: 'N2 — Expert' },
-              { valeur: '3', libelle: 'N3 — Référent' },
             ]}
             valeur={niveau}
             onChange={setNiveau}

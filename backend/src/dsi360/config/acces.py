@@ -20,20 +20,25 @@ MODULES: tuple[str, ...] = (
     "administration",
 )
 
-# Profils (code, libellé, transverse = voit au-delà de son périmètre). Tous les utilisateurs sont
-# de la DSI ; le Gestionnaire traite les activités, la DG a une vue de restitution.
+# Profils métier de la DSI (code, libellé, transverse = voit au-delà de son périmètre), cf.
+# docs/adr/0003. Ce n'est qu'un **point de départ** : l'administration crée, renomme et supprime
+# des profils. Aucun code ne doit dépendre de cette liste — sauf ADMIN, protégé côté API.
+PROFIL_ADMIN = "ADMIN"
+
 PROFILS: tuple[tuple[str, str, bool], ...] = (
-    ("ADMIN", "Administrateur", True),
-    ("DSI", "DSI", True),
-    ("GESTIONNAIRE", "Gestionnaire", False),
-    ("DG", "Direction Générale", True),
+    (PROFIL_ADMIN, "Administrateur", True),
+    ("SUPPORT_APP_HELPDESK", "IT Support Applicatif et HelpDesk", False),
+    ("RESEAU_TELECOM", "Réseau télécom", False),
+    ("SYSTEME_RESEAU_TELECOM", "Système et Réseau télécom", False),
+    ("SUPPORT_APP", "IT Support Applicatif", False),
 )
 
-# Accès par défaut : profil -> modules autorisés.
+# Tout l'opérationnel, hors administration : le socle commun des profils métier. Ils se distinguent
+# par leur périmètre de travail, et bientôt par leurs actions (ADR-0003 §4).
+_OPERATIONNEL = [m for m in MODULES if m != "administration"]
+
+# Accès par défaut : profil -> modules autorisés. Paramétrable ensuite depuis l'administration.
 ACCES_PAR_PROFIL_DEFAUT: dict[str, list[str]] = {
-    "ADMIN": list(MODULES),
-    "DSI": [m for m in MODULES if m != "administration"],
-    # Le gestionnaire traite tout l'opérationnel (hors administration).
-    "GESTIONNAIRE": [m for m in MODULES if m != "administration"],
-    "DG": ["tableau-de-bord", "analyses", "gouvernance", "audit", "risques"],
+    code: list(MODULES) if code == PROFIL_ADMIN else list(_OPERATIONNEL)
+    for code, _, _ in PROFILS
 }

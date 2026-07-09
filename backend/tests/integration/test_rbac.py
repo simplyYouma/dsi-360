@@ -10,25 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.integration.conftest import creer_utilisateur, entetes
 
-# (profil, chemin, statut attendu) — dérivé de ACCES_PAR_PROFIL_DEFAUT.
+# (profil, chemin, statut attendu) — dérivé de ACCES_PAR_PROFIL_DEFAUT (cf. ADR-0003).
 CAS_ACCES = [
-    # L'administrateur atteint tout.
+    # L'administrateur atteint tout, lui seul entre dans l'administration.
     ("ADMIN", "/incidents", 200),
     ("ADMIN", "/admin/utilisateurs", 200),
-    # Le DSI a tout sauf l'administration.
-    ("DSI", "/incidents", 200),
-    ("DSI", "/admin/utilisateurs", 403),
-    # Le gestionnaire traite l'opérationnel, jamais l'administration.
-    ("GESTIONNAIRE", "/incidents", 200),
-    ("GESTIONNAIRE", "/demandes", 200),
-    ("GESTIONNAIRE", "/admin/utilisateurs", 403),
-    # La DG est en restitution : pas d'incidents ni de demandes, mais gouvernance et risques.
-    ("DG", "/incidents", 403),
-    ("DG", "/demandes", 403),
-    ("DG", "/changements", 403),
-    ("DG", "/gouvernance", 200),
-    ("DG", "/risques", 200),
-    ("DG", "/admin/utilisateurs", 403),
+    # Les profils métier traitent l'opérationnel, jamais l'administration.
+    ("SUPPORT_APP_HELPDESK", "/incidents", 200),
+    ("SUPPORT_APP_HELPDESK", "/demandes", 200),
+    ("SUPPORT_APP_HELPDESK", "/admin/utilisateurs", 403),
+    ("RESEAU_TELECOM", "/incidents", 200),
+    ("RESEAU_TELECOM", "/admin/utilisateurs", 403),
+    ("SYSTEME_RESEAU_TELECOM", "/incidents", 200),
+    ("SYSTEME_RESEAU_TELECOM", "/admin/utilisateurs", 403),
+    ("SUPPORT_APP", "/changements", 200),
+    ("SUPPORT_APP", "/admin/utilisateurs", 403),
 ]
 
 
@@ -49,11 +45,13 @@ async def test_aucune_route_protegee_sans_jeton(client: AsyncClient, chemin: str
     assert (await client.get(chemin)).status_code == 401
 
 
-async def test_un_gestionnaire_ne_peut_pas_creer_d_utilisateur(
+async def test_un_agent_metier_ne_peut_pas_creer_d_utilisateur(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Le contrôle est côté serveur : masquer le bouton ne suffirait pas."""
-    uid = await creer_utilisateur(session, email="gest.escalade@afgbank.ml", profil="GESTIONNAIRE")
+    uid = await creer_utilisateur(
+        session, email="agent.escalade@afgbank.ml", profil="SUPPORT_APP_HELPDESK"
+    )
 
     r = await client.post(
         "/admin/utilisateurs",

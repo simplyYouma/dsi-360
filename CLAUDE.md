@@ -54,8 +54,14 @@ Neuf modules, livrés par phases (cf. §7) :
   **ancienne et nouvelle valeur**, adresse IP). Consultable par les administrateurs.
 - **Reporting** : exports PDF / Excel / CSV ; rapports par responsable, par direction, SLA,
   incidents, projets, audits, risques.
-- **Gestion des accès — 7 profils** : Administrateur, DSI, Chef de Service, Chef de Projet,
-  Technicien, Métier, Direction Générale.
+- **Gestion des accès — profils métier paramétrables** ([ADR-0003](docs/adr/0003-profils-metier-et-perimetre-dsi.md)) :
+  Administrateur · IT Support Applicatif et HelpDesk · Réseau télécom · Système et Réseau télécom ·
+  IT Support Applicatif. Créables, renommables, supprimables depuis l'administration ; seul `ADMIN`
+  est protégé. Les accès se déclarent **par module et par action**. Remplace les 7 rôles
+  hiérarchiques du cahier (Chef de Service, Chef de Projet, Technicien, Métier, DG), qui ne
+  décrivaient pas le travail réel de la DSI. **Aucun code ne dépend d'une liste figée de profils.**
+- **Périmètre — la DSI seule** : une unique direction, `DSI`. Les niveaux de support sont **N1 et
+  N2** ; escalader au-delà transfère le ticket à **DBS**, qui n'a aucun compte dans le système.
 - **Non fonctionnel** : multi-utilisateurs, **haute disponibilité (> 99 %)**, **respect SLA > 90 %**,
   authentification **Active Directory / LDAP / Microsoft 365**.
 

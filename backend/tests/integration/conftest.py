@@ -132,16 +132,37 @@ async def client(session: AsyncSession) -> AsyncIterator[AsyncClient]:
     app.dependency_overrides.clear()
 
 
-# --- Fabriques d'utilisateurs ------------------------------------------------------------------
+# --- Fabriques ---------------------------------------------------------------------------------
 
 MOT_DE_PASSE = "MotDePasseDeTest1"
+
+# Profil métier par défaut des comptes de test : non transverse, tout l'opérationnel (ADR-0003).
+PROFIL_METIER = "SUPPORT_APP_HELPDESK"
+
+
+async def creer_direction(session: AsyncSession, *, code: str, libelle: str | None = None) -> None:
+    """Crée une direction le temps du test.
+
+    Le référentiel n'en contient plus qu'une (DSI, ADR-0003 §2), mais le cloisonnement reste
+    implémenté : on le prouve en fabriquant une seconde direction, effacée avec la transaction.
+    """
+    from sqlalchemy import text
+
+    await session.execute(
+        text(
+            "INSERT INTO core.direction (code, libelle) VALUES (:code, :libelle) "
+            "ON CONFLICT (code) DO NOTHING"
+        ),
+        {"code": code, "libelle": libelle or f"Direction {code}"},
+    )
+    await session.commit()
 
 
 async def creer_utilisateur(
     session: AsyncSession,
     *,
     email: str,
-    profil: str = "GESTIONNAIRE",
+    profil: str = PROFIL_METIER,
     direction: str = "DSI",
     actif: bool = True,
     expire_le: Any = None,

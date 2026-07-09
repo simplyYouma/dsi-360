@@ -11,12 +11,9 @@ from dsi360.config import get_settings
 from dsi360.config.acces import ACCES_PAR_PROFIL_DEFAUT, PROFILS
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 
+# La plateforme ne sert que la DSI (ADR-0003 §2). DBS reçoit les escalades N3, hors du système.
 DIRECTIONS: list[tuple[str, str]] = [
     ("DSI", "Direction des Systèmes d'Information"),
-    ("DBS", "Direction DBS"),
-    ("DG", "Direction Générale"),
-    ("EXPLOIT", "Exploitation & Production"),
-    ("METIER", "Directions Métier"),
 ]
 
 # Catégories par défaut, par module (paramétrables ensuite).

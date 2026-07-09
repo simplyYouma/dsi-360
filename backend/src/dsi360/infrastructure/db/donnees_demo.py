@@ -30,14 +30,14 @@ from dsi360.infrastructure.securite import hacher_mot_de_passe
 random.seed(42)
 
 # Tous les utilisateurs du système sont de la DSI (les autres noms des fichiers importés — DBS —
-# ne deviennent pas des comptes).
+# ne deviennent pas des comptes). Profils métier : cf. docs/adr/0003.
 UTILISATEURS = [
-    ("a.toure@afgbank.ml", "Touré", "Aïcha", "DSI", "DSI"),
-    ("m.diallo@afgbank.ml", "Diallo", "Moussa", "GESTIONNAIRE", "DSI"),
-    ("f.keita@afgbank.ml", "Keïta", "Fanta", "GESTIONNAIRE", "DSI"),
-    ("o.sanogo@afgbank.ml", "Sanogo", "Oumar", "GESTIONNAIRE", "DSI"),
-    ("k.coulibaly@afgbank.ml", "Coulibaly", "Kadia", "GESTIONNAIRE", "DSI"),
-    ("s.traore@afgbank.ml", "Traoré", "Salif", "DG", "DSI"),
+    ("a.toure@afgbank.ml", "Touré", "Aïcha", "ADMIN", "DSI"),
+    ("m.diallo@afgbank.ml", "Diallo", "Moussa", "SUPPORT_APP_HELPDESK", "DSI"),
+    ("f.keita@afgbank.ml", "Keïta", "Fanta", "SUPPORT_APP_HELPDESK", "DSI"),
+    ("o.sanogo@afgbank.ml", "Sanogo", "Oumar", "RESEAU_TELECOM", "DSI"),
+    ("k.coulibaly@afgbank.ml", "Coulibaly", "Kadia", "SYSTEME_RESEAU_TELECOM", "DSI"),
+    ("s.traore@afgbank.ml", "Traoré", "Salif", "SUPPORT_APP", "DSI"),
 ]
 EMAILS_DEMO = [u[0] for u in UTILISATEURS]
 
@@ -101,10 +101,68 @@ TACHES_TITRES = [
     "Tester en recette", "Préparer le déploiement", "Déployer en production", "Documenter",
     "Former les utilisateurs", "Clôturer et bilan",
 ]
-COMMENTAIRES = [
-    "Prise en charge, analyse en cours.", "En attente d'un retour du prestataire.",
-    "Point d'avancement fait en réunion d'équipe.", "Correctif appliqué, à confirmer côté métier.",
-    "Escaladé au support niveau 2.", "Validé par le responsable, on peut clôturer.",
+# Fil de discussion, par module : un projet ne se commente pas comme un incident. Un commentaire
+# hors sujet (« escaladé au N2 » sur un projet) rendrait les écrans de démonstration trompeurs.
+COMMENTAIRES: dict[str, list[str]] = {
+    "incident": [
+        "Prise en charge, analyse des journaux en cours.",
+        "Reproduit en recette : le service ne redémarre pas après la bascule.",
+        "Contournement en place, les guichets peuvent travailler.",
+        "Escaladé au support niveau 2, l'éditeur est sollicité.",
+        "Correctif appliqué, à confirmer côté métier avant clôture.",
+    ],
+    "demande": [
+        "Demande qualifiée, il manque l'accord du responsable hiérarchique.",
+        "Compte créé, habilitations positionnées selon la fiche de poste.",
+        "En attente de la validation du propriétaire de l'application.",
+        "Matériel commandé, livraison annoncée sous dix jours.",
+        "Accès VPN ouvert et testé avec l'agent.",
+    ],
+    "projet": [
+        "Comité de pilotage tenu : le périmètre de la phase 1 est validé.",
+        "Le prestataire a livré la recette ; deux anomalies bloquantes restent ouvertes.",
+        "Décalage d'une semaine sur le jalon de recette, sans impact sur le go-live.",
+        "Budget consommé à 60 % pour 55 % d'avancement, à surveiller.",
+        "Formation des utilisateurs planifiée avant la bascule en production.",
+        "Point d'avancement hebdomadaire : aucun point bloquant remonté.",
+    ],
+    "changement": [
+        "Analyse d'impact complétée, le plan de retour arrière est testé.",
+        "Passage en CAB demandé pour la fenêtre de samedi soir.",
+        "Le CAB approuve sous réserve d'une communication préalable aux agences.",
+        "Bascule réalisée dans la fenêtre ; surveillance renforcée pendant 48 h.",
+        "Bilan post-implémentation rédigé, aucun incident consécutif.",
+    ],
+    "audit": [
+        "Plan d'action rédigé avec le contrôle permanent.",
+        "Justificatifs déposés, en attente de la validation de clôture.",
+        "Échéance renégociée avec l'auditeur : fin du trimestre.",
+        "Recommandation traitée, la preuve de mise en œuvre est jointe.",
+    ],
+    "risque": [
+        "Criticité réévaluée après la mise en place du plan de traitement.",
+        "Risque accepté par la Direction, revue programmée dans six mois.",
+        "Le contrat fournisseur prévoit désormais une clause de réversibilité.",
+        "Revue périodique effectuée : la probabilité baisse, l'impact reste élevé.",
+    ],
+    "cybersecurite": [
+        "Revue des comptes administrateurs terminée, trois comptes dormants désactivés.",
+        "Correctif de sécurité déployé sur l'ensemble du parc serveur.",
+        "MFA activé pour les agences, quelques agents restent à enrôler.",
+        "Vulnérabilité confirmée par le scan, correctif éditeur attendu.",
+    ],
+    "gouvernance": [
+        "Décision entérinée en COPIL, la DG en est informée.",
+        "Engagement reporté au prochain comité faute de quorum.",
+        "Plan d'actions mis à jour, deux actions soldées sur cinq.",
+        "Compte rendu diffusé aux membres du comité.",
+    ],
+}
+# Repli pour un module sans texte dédié : volontairement neutre, jamais trompeur.
+COMMENTAIRES_DEFAUT = [
+    "Prise en charge, analyse en cours.",
+    "Point d'avancement fait en réunion d'équipe.",
+    "Validé par le responsable, on peut clôturer.",
 ]
 DOC_TXT = b"Note de demonstration DSI 360.\nContenu simule pour les tests (apercu, renommage).\n"
 
@@ -221,15 +279,23 @@ async def _pieces_jointes(
 
 
 async def _commentaires(
-    conn: asyncpg.Connection, activite_id: str, utilisateurs: list[str], cree_le: datetime, nb: int
+    conn: asyncpg.Connection,
+    activite_id: str,
+    utilisateurs: list[str],
+    cree_le: datetime,
+    nb: int,
+    module: str,
 ) -> None:
-    for _ in range(nb):
+    textes = COMMENTAIRES.get(module, COMMENTAIRES_DEFAUT)
+    # Sans tirage sans remise, un fil de trois messages répète souvent deux fois la même phrase.
+    choisis = random.sample(textes, min(nb, len(textes)))
+    for texte in choisis:
         uid = random.choice(utilisateurs)
         email = await conn.fetchval("SELECT email FROM core.utilisateur WHERE id=$1", uid)
         await conn.execute(
             "INSERT INTO core.commentaire (activite_id, auteur_id, auteur_email, texte, cree_le) "
             "VALUES ($1,$2,$3,$4,$5)",
-            activite_id, uid, email, random.choice(COMMENTAIRES),
+            activite_id, uid, email, texte,
             cree_le + timedelta(hours=random.randint(1, 72)),
         )
 
@@ -291,11 +357,11 @@ async def _jalons(
 
 
 async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
-    """Affecte un niveau de support (N1/N2/N3) à quelques gestionnaires de démo, pour illustrer la
-    réaffectation à l'escalade (le niveau est désormais porté par le gestionnaire)."""
-    # Seuls les gestionnaires portent un niveau (les profils DSI/DG n'en ont pas).
-    # indices GESTIONNAIRE : m.diallo/f.keita N1, o.sanogo N2, k.coulibaly N3.
-    niveaux = {1: 1, 2: 1, 3: 2, 4: 3}
+    """Affecte un niveau de support (N1/N2) aux agents de démo, pour illustrer la réaffectation à
+    l'escalade (le niveau est porté par le gestionnaire)."""
+    # La DSI n'a pas de N3 : escalader au-delà du N2 transfère le ticket à DBS (ADR-0003 §3).
+    # Indices : m.diallo/f.keita N1, o.sanogo N2, k.coulibaly N2. L'administrateur n'a pas de niveau.
+    niveaux = {1: 1, 2: 1, 3: 2, 4: 2}
     for i, niveau in niveaux.items():
         if i < len(utilisateurs):
             await conn.execute(
@@ -384,6 +450,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         resolu = cree_le + timedelta(minutes=ttr)
                         cloture = resolu if statut.startswith("Clôtur") else None
                     # Escalade fonctionnelle N1→N2/N3 sur une partie des incidents (SI-12.01).
+                    # Niveau du *ticket*, pas de l'agent : N3 = transféré à DBS, sans gestionnaire.
                     if module == "incident" and random.random() < 0.3:
                         donnees["niveau_support"] = random.choice([2, 2, 3])
 
@@ -439,7 +506,9 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
 
                 # Commentaires + contributeurs/valideurs sur un échantillon.
                 if random.random() < 0.6:
-                    await _commentaires(conn, activite_id, utilisateurs, cree_le, random.randint(1, 3))
+                    await _commentaires(
+                        conn, activite_id, utilisateurs, cree_le, random.randint(1, 3), module
+                    )
                 if random.random() < 0.5:
                     await _acteurs(conn, activite_id, utilisateurs, responsable, statut, module)
 

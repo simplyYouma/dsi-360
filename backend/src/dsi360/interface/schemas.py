@@ -487,7 +487,9 @@ class CreationUtilisateur(BaseModel):
     prenom: str
     profil_code: str
     direction_code: str | None = None
-    niveau_support: int | None = Field(default=None, ge=1, le=3)
+    # La DSI n'a que N1 et N2 : le niveau 3 désigne un transfert vers DBS, qui n'a pas de compte
+    # ici (ADR-0003 §3). Miroir de la contrainte CHECK sur core.utilisateur.
+    niveau_support: int | None = Field(default=None, ge=1, le=2)
     expire_le: datetime | None = None
 
 
@@ -496,7 +498,9 @@ class MajUtilisateur(BaseModel):
     prenom: str
     profil_code: str
     direction_code: str | None = None
-    niveau_support: int | None = Field(default=None, ge=1, le=3)
+    # La DSI n'a que N1 et N2 : le niveau 3 désigne un transfert vers DBS, qui n'a pas de compte
+    # ici (ADR-0003 §3). Miroir de la contrainte CHECK sur core.utilisateur.
+    niveau_support: int | None = Field(default=None, ge=1, le=2)
     actif: bool
     expire_le: datetime | None = None
 
