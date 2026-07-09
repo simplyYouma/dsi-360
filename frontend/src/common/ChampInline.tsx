@@ -5,7 +5,10 @@ import styles from './ChampInline.module.css';
 interface Props {
   valeur: string;
   onValider: (v: string) => void;
+  /** Marqueur affiché quand le champ est vide, hors saisie (défaut « — »). */
   placeholder?: string;
+  /** Indication affichée dans la zone de saisie tant qu'elle est vide (ex. « Décrivez… »). */
+  indication?: string | undefined;
   multiligne?: boolean;
   inputMode?: 'numeric';
   /** Mode création : champ toujours en édition (pas de clic requis). */
@@ -22,6 +25,7 @@ export function ChampInline({
   valeur,
   onValider,
   placeholder,
+  indication,
   multiligne = false,
   inputMode,
   toujoursEdition = false,
@@ -69,7 +73,7 @@ export function ChampInline({
       className={classeInput}
       rows={3}
       value={brouillon}
-      placeholder={placeholder}
+      placeholder={indication ?? placeholder}
       autoFocus={!toujoursEdition}
       aria-label={ariaLabel}
       onChange={(e) => setBrouillon(e.target.value)}
@@ -80,7 +84,7 @@ export function ChampInline({
     <input
       className={classeInput}
       value={brouillon}
-      placeholder={placeholder}
+      placeholder={indication ?? placeholder}
       inputMode={inputMode}
       autoFocus={!toujoursEdition}
       aria-label={ariaLabel}

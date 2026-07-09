@@ -37,6 +37,36 @@ const TYPE_NIVEAU: Record<string, { impact: number; urgence: number }> = {
 };
 const NIVEAU_DEFAUT = { impact: 3, urgence: 3 };
 
+/** Dossier RFC (ITIL SI-12.04) : ce que le CAB attend avant d'autoriser le changement, et le
+ *  bilan qui suit la mise en production. Chaque champ porte son indication de saisie. */
+const CHAMPS_RFC = [
+  [
+    'analyse_impact',
+    "Analyse d'impact",
+    'Systèmes, services et utilisateurs touchés ; interruption prévue.',
+  ],
+  [
+    'analyse_risque',
+    'Analyse de risque',
+    'Risques identifiés, probabilité, mesures de réduction.',
+  ],
+  [
+    'plan_deploiement',
+    'Plan de déploiement',
+    'Étapes de mise en production, fenêtre, contrôles après bascule.',
+  ],
+  [
+    'plan_retour_arriere',
+    'Plan de retour arrière',
+    'Comment revenir à l’état antérieur, et en combien de temps.',
+  ],
+  [
+    'bilan_post_implementation',
+    'Bilan post-implémentation',
+    'À remplir après la mise en production : résultat, écarts, incidents.',
+  ],
+] as const;
+
 function formaterDate(iso: string | null): string {
   if (iso === null || iso === '') return '—';
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -315,10 +345,7 @@ export function ChangementPage(): JSX.Element {
               )}
             </div>
             {creation ? (
-              <p className={styles.note}>
-                Créez le changement pour ajouter les tâches ; elles pilotent le passage « En
-                implémentation » puis « Implémenté ».
-              </p>
+              <p className={styles.note}>Créez le changement pour ajouter des tâches.</p>
             ) : (
               <ListeTaches
                 taches={taches}
@@ -357,15 +384,7 @@ export function ChangementPage(): JSX.Element {
           {!creation && detail && (
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Analyse & plans (RFC)</span>
-              {(
-                [
-                  ['analyse_impact', "Analyse d'impact"],
-                  ['analyse_risque', 'Analyse de risque'],
-                  ['plan_deploiement', 'Plan de déploiement'],
-                  ['plan_retour_arriere', 'Plan de retour arrière'],
-                  ['bilan_post_implementation', 'Bilan post-implémentation'],
-                ] as const
-              ).map(([champ, libelle]) => (
+              {CHAMPS_RFC.map(([champ, libelle, indication]) => (
                 <div key={champ} className={styles.champBloc}>
                   <span className={styles.note}>{libelle}</span>
                   <ChampInline
@@ -374,7 +393,7 @@ export function ChangementPage(): JSX.Element {
                       void agir(() => changementsApi.modifier(id!, { [champ]: val }))
                     }
                     multiligne
-                    placeholder="—"
+                    indication={indication}
                     aria-label={libelle}
                   />
                 </div>
@@ -431,8 +450,8 @@ export function ChangementPage(): JSX.Element {
                   })}
                 </div>
                 <p className={styles.note}>
-                  « En implémentation » et « Implémenté » découlent des tâches ; l'issue du CAB/ECAB
-                  se décide via les valideurs ; la clôture reste manuelle.
+                  Les tâches font avancer l’implémentation ; le CAB/ECAB est tranché par les
+                  valideurs.
                 </p>
               </section>
 
