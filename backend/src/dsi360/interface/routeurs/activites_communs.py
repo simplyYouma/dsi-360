@@ -26,6 +26,7 @@ from dsi360.application.activites import (
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import ordre_etats, transition_reservee, transitions_possibles
+from dsi360.domain.revue import prochaine_revue
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import phrase_propre
 from dsi360.infrastructure import audit
@@ -138,6 +139,7 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
         "periodicite": _donnees(r).get("periodicite"),
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
+        "derniere_revue": _donnees(r).get("derniere_revue"),
     }
 
 
@@ -673,6 +675,56 @@ def creer_routeur(
                     nouvelle=fragment,
                 )
                 await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session)
+
+        @routeur.post("/{ident}/revue/effectuee", response_model=ActiviteDetail)
+        async def marquer_revue_effectuee(
+            ident: str, courant: Courant, session: Session
+        ) -> dict[str, Any]:
+            """Enregistre la revue du jour et reporte l'échéance suivante selon la périodicité.
+
+            Sans périodicité, aucune cadence n'existe : on refuse plutôt que d'inventer une date.
+            """
+            avant = await charger_visible(session, ident, courant)
+            periodicite = _donnees(avant).get("periodicite")
+            if not periodicite:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Définissez d'abord une périodicité pour cette revue.",
+                )
+            try:
+                faite_le = datetime.now(UTC).date()
+                suivante = prochaine_revue(str(periodicite), faite_le)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
+            fragment = {
+                "derniere_revue": faite_le.isoformat(),
+                "prochaine_revue": suivante.isoformat(),
+            }
+            # `revue_notifiee_le` est retiré : la nouvelle échéance doit pouvoir rappeler.
+            await session.execute(
+                text(
+                    "UPDATE core.activite SET donnees = "
+                    "(donnees - 'revue_notifiee_le') || cast(:f as jsonb) "
+                    "WHERE id = cast(:id as uuid)"
+                ),
+                {"id": ident, "f": json.dumps(fragment)},
+            )
+            await audit.consigner(
+                session,
+                action="REVUE_EFFECTUEE",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                ancienne={"prochaine_revue": _donnees(avant).get("prochaine_revue")},
+                nouvelle=fragment,
+            )
+            await session.commit()
             r = await charger_visible(session, ident, courant)
             return await detail_complet(r, session)
 

@@ -23,6 +23,7 @@ import asyncpg
 
 from dsi360.config import get_settings
 from dsi360.domain.activite import PREFIXE_REFERENCE, calculer_criticite, calculer_priorite
+from dsi360.domain.etats import GATES_VALIDATION
 from dsi360.domain.sla import CiblesSla, echeances
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 
@@ -233,9 +234,29 @@ async def _commentaires(
         )
 
 
+def _decision_valideur(module: str, statut: str) -> str | None:
+    """Décision cohérente avec l'état atteint.
+
+    Une décision de valideur **fait basculer** l'activité (approbation unanime → état validé,
+    un rejet → état de rejet). Le jeu de démo ne doit donc jamais poser une décision qui
+    contredirait le statut : une activité encore *en attente de validation* n'a pas de décision.
+    """
+    gate = GATES_VALIDATION.get(module)
+    if gate is None:
+        return None  # module sans porte de validation : la décision n'aurait aucun effet
+    en_attente, cible_ok, cible_ko = gate
+    if statut in en_attente:
+        return None  # décision encore attendue — cohérent avec l'état affiché
+    if statut == cible_ko and statut in TERMINAUX:
+        return "REJETE"
+    if statut in TERMINAUX or statut == cible_ok:
+        return "APPROUVE"
+    return None
+
+
 async def _acteurs(
     conn: asyncpg.Connection, activite_id: str, utilisateurs: list[str], responsable_id: str,
-    statut: str,
+    statut: str, module: str,
 ) -> None:
     autres = [u for u in utilisateurs if u != responsable_id]
     random.shuffle(autres)
@@ -246,16 +267,10 @@ async def _acteurs(
             activite_id, uid,
         )
     if len(autres) > 2:
-        # Le valideur a déjà tranché sur les activités terminées ; sinon parfois en attente.
-        decision: str | None = None
-        if statut in TERMINAUX:
-            decision = "APPROUVE"
-        elif random.random() < 0.4:
-            decision = random.choice(["APPROUVE", "REJETE"])
         await conn.execute(
             "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role, decision) "
             "VALUES ($1,$2,'VALIDEUR',$3) ON CONFLICT DO NOTHING",
-            activite_id, autres[2], decision,
+            activite_id, autres[2], _decision_valideur(module, statut),
         )
 
 
@@ -426,7 +441,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                 if random.random() < 0.6:
                     await _commentaires(conn, activite_id, utilisateurs, cree_le, random.randint(1, 3))
                 if random.random() < 0.5:
-                    await _acteurs(conn, activite_id, utilisateurs, responsable, statut)
+                    await _acteurs(conn, activite_id, utilisateurs, responsable, statut, module)
 
         # Quelques notifications pour peupler la cloche.
         activites_recentes = await conn.fetch(

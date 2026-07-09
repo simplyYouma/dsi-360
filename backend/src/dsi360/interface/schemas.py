@@ -164,6 +164,7 @@ class ActiviteDetail(ActiviteResume):
     # Revue périodique (risques, cybersécurité, gouvernance) — stockés dans donnees.
     periodicite: str | None = None
     prochaine_revue: date | None = None
+    derniere_revue: date | None = None
 
 
 class PageActivites(BaseModel):
@@ -688,6 +689,7 @@ class RisqueDetail(RisqueResume):
     historique: list[EntreeHistorique]
     periodicite: str | None = None
     prochaine_revue: date | None = None
+    derniere_revue: date | None = None
 
 
 class PageRisques(BaseModel):

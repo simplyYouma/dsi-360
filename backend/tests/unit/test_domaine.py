@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -12,6 +12,7 @@ from dsi360.domain.etats import (
     transition_reservee,
     transitions_possibles,
 )
+from dsi360.domain.revue import prochaine_revue
 from dsi360.domain.sla import echeances, statut_sla
 
 
@@ -142,3 +143,25 @@ class TestSla:
         ech = datetime(2026, 6, 17, 12, 0, tzinfo=UTC)
         maintenant = datetime(2026, 6, 17, 8, 0, tzinfo=UTC)
         assert statut_sla(ech, maintenant, timedelta(minutes=30)) == "a_lheure"
+
+
+class TestRevuePeriodique:
+    def test_cadence_par_periodicite(self) -> None:
+        depart = date(2026, 1, 15)
+        assert prochaine_revue("Mensuelle", depart) == date(2026, 2, 15)
+        assert prochaine_revue("Trimestrielle", depart) == date(2026, 4, 15)
+        assert prochaine_revue("Semestrielle", depart) == date(2026, 7, 15)
+        assert prochaine_revue("Annuelle", depart) == date(2027, 1, 15)
+
+    def test_borne_le_jour_au_dernier_du_mois(self) -> None:
+        # 31 janvier + 1 mois -> 28 février (2026 n'est pas bissextile), pas de date invalide.
+        assert prochaine_revue("Mensuelle", date(2026, 1, 31)) == date(2026, 2, 28)
+        # Année bissextile : 29 février existe.
+        assert prochaine_revue("Mensuelle", date(2024, 1, 31)) == date(2024, 2, 29)
+
+    def test_franchit_l_annee(self) -> None:
+        assert prochaine_revue("Trimestrielle", date(2026, 11, 30)) == date(2027, 2, 28)
+
+    def test_periodicite_inconnue(self) -> None:
+        with pytest.raises(ValueError):
+            prochaine_revue("Hebdomadaire", date(2026, 1, 1))

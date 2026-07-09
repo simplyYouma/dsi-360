@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Clock, Send, XCircle } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock, Send, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -50,6 +50,7 @@ interface Detail {
   niveau_support?: number;
   periodicite?: string | null;
   prochaine_revue?: string | null;
+  derniere_revue?: string | null;
 }
 
 interface FicheTransitionProps {
@@ -250,6 +251,22 @@ export function FicheTransition({
       notifier('Revue mise à jour', 'succes');
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Mise à jour impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const revueEffectuee = async (): Promise<void> => {
+    if (id === null) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      const d = await api.post<Detail>(`${base}/${id}/revue/effectuee`, {});
+      setDetail(d);
+      onChange();
+      notifier('Revue enregistrée — prochaine échéance reportée', 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Enregistrement impossible.');
     } finally {
       setEnvoi(false);
     }
@@ -503,6 +520,7 @@ export function FicheTransition({
                       onRetirer={(v) => void retirerValideur(v)}
                       placeholder="Ajouter un valideur…"
                       disabled={envoi}
+                      avecDecision
                     />
                     {moi !== null && (detail.valideurs ?? []).some((v) => v.id === moi.id) && (
                       <div className={styles.decision}>
@@ -564,6 +582,24 @@ export function FicheTransition({
                     onChange={(v) => void planifierRevue('prochaine_revue', v)}
                     placeholder="Prochaine revue"
                   />
+                  <Button
+                    variante="secondaire"
+                    onClick={() => void revueEffectuee()}
+                    disabled={envoi || !detail.periodicite}
+                    title={
+                      detail.periodicite
+                        ? 'Enregistre la revue du jour et reporte l’échéance selon la périodicité'
+                        : 'Définissez d’abord une périodicité'
+                    }
+                  >
+                    <CheckCircle2 size={15} />
+                    Revue effectuée
+                  </Button>
+                  {detail.derniere_revue != null && (
+                    <span className={styles.revueDerniere}>
+                      Dernière revue : {formaterDate(detail.derniere_revue)}
+                    </span>
+                  )}
                 </dd>
               </div>
             )}

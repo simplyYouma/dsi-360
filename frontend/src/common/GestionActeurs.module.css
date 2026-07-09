@@ -1,8 +1,14 @@
+.bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
 .liste {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
+  list-style: none;
 }
 .item {
   display: inline-flex;
@@ -28,12 +34,68 @@
   cursor: default;
 }
 
+/* Bouton « + » : n'ouvre le sélecteur qu'à la demande. */
+.ajouter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease,
+    background-color 0.12s ease;
+}
+.ajouter:hover:not(:disabled) {
+  border-color: var(--secondary);
+  color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 10%, transparent);
+}
+.ajouter:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.zoneAjout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.zoneAjout > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.annuler {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.annuler:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
 .approuve,
-.rejete {
+.rejete,
+.attente {
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
+}
+.attente {
+  color: var(--status-warn);
+  background: color-mix(in srgb, var(--status-warn) 14%, transparent);
 }
 .approuve {
   color: var(--status-ok);

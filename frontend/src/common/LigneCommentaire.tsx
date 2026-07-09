@@ -109,8 +109,9 @@ export function LigneCommentaire({
           })}
           {c.edite && <span className={styles.modifie}> · modifié</span>}
         </span>
-        {/* Accusé de lecture (façon messagerie) : une coche = envoyé, deux coches colorées = lu. */}
-        {estAuteur && !edition && (
+        {/* Accusé de lecture visible par tous (façon groupe de messagerie) : une coche = envoyé,
+            deux coches vertes = vu par au moins une personne. */}
+        {!edition && (
           <button
             ref={accuseRef}
             type="button"

@@ -1,4 +1,5 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import styles from './GestionActeurs.module.css';
 
@@ -24,9 +25,12 @@ interface Props {
   onRetirer: (id: string) => void;
   placeholder: string;
   disabled?: boolean;
+  /** Acteurs qui tranchent (valideurs) : affiche « En attente » tant qu'ils n'ont pas décidé. */
+  avecDecision?: boolean;
 }
 
-/** Gestion d'acteurs secondaires d'une activité (contributeurs, valideurs) : liste + ajout. */
+/** Acteurs secondaires d'une activité (contributeurs, valideurs) : puces + ajout à la demande.
+ *  Le sélecteur n'apparaît qu'au clic sur « + », pour ne pas encombrer la fiche. */
 export function GestionActeurs({
   acteurs,
   agents,
@@ -35,39 +39,74 @@ export function GestionActeurs({
   onRetirer,
   placeholder,
   disabled = false,
+  avecDecision = false,
 }: Props): JSX.Element {
+  const [ajout, setAjout] = useState(false);
   const exclus = new Set([...exclureIds, ...acteurs.map((a) => a.id)]);
+  const options = agents
+    .filter((a) => !exclus.has(a.id))
+    .map((a) => ({ valeur: a.id, libelle: a.nom }));
+
   return (
-    <div>
-      {acteurs.length > 0 && (
-        <ul className={styles.liste}>
-          {acteurs.map((a) => (
-            <li key={a.id} className={styles.item}>
-              <span>
-                {a.prenom} {a.nom}
-              </span>
-              {a.decision === 'APPROUVE' && <span className={styles.approuve}>Approuvé</span>}
-              {a.decision === 'REJETE' && <span className={styles.rejete}>Rejeté</span>}
-              <button
-                type="button"
-                className={styles.retirer}
-                disabled={disabled}
-                onClick={() => onRetirer(a.id)}
-                aria-label={`Retirer ${a.prenom} ${a.nom}`}
-              >
-                <X size={13} />
-              </button>
-            </li>
-          ))}
-        </ul>
+    <div className={styles.bloc}>
+      <ul className={styles.liste}>
+        {acteurs.map((a) => (
+          <li key={a.id} className={styles.item}>
+            <span>
+              {a.prenom} {a.nom}
+            </span>
+            {a.decision === 'APPROUVE' && <span className={styles.approuve}>Approuvé</span>}
+            {a.decision === 'REJETE' && <span className={styles.rejete}>Rejeté</span>}
+            {avecDecision && !a.decision && <span className={styles.attente}>En attente</span>}
+            <button
+              type="button"
+              className={styles.retirer}
+              disabled={disabled}
+              onClick={() => onRetirer(a.id)}
+              aria-label={`Retirer ${a.prenom} ${a.nom}`}
+            >
+              <X size={13} />
+            </button>
+          </li>
+        ))}
+        {!ajout && (
+          <li>
+            <button
+              type="button"
+              className={styles.ajouter}
+              disabled={disabled || options.length === 0}
+              onClick={() => setAjout(true)}
+              title={placeholder}
+              aria-label={placeholder}
+            >
+              <Plus size={14} />
+            </button>
+          </li>
+        )}
+      </ul>
+
+      {ajout && (
+        <div className={styles.zoneAjout}>
+          <SelecteurListe
+            options={options}
+            valeur={null}
+            onChange={(v) => {
+              if (v !== null) onAjouter(v);
+              setAjout(false);
+            }}
+            permettreVide={false}
+            placeholder={placeholder}
+          />
+          <button
+            type="button"
+            className={styles.annuler}
+            onClick={() => setAjout(false)}
+            aria-label="Annuler l’ajout"
+          >
+            <X size={15} />
+          </button>
+        </div>
       )}
-      <SelecteurListe
-        options={agents.filter((a) => !exclus.has(a.id)).map((a) => ({ valeur: a.id, libelle: a.nom }))}
-        valeur={null}
-        onChange={(v) => v !== null && onAjouter(v)}
-        permettreVide={false}
-        placeholder={placeholder}
-      />
     </div>
   );
 }
