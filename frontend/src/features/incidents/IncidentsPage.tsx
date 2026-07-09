@@ -164,6 +164,7 @@ export function IncidentsPage(): JSX.Element {
         assignable
         avecDocuments
         gestionnaireFige
+        escaladable
         moduleCategorie="incident"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}

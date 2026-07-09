@@ -4,6 +4,7 @@ import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
+import { BoutonEscalade } from '@/common/BoutonEscalade';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
@@ -48,6 +49,8 @@ interface Detail {
   contributeurs?: Acteur[];
   valideurs?: Acteur[];
   niveau_support?: number;
+  /** Transféré à DBS (N3) : traité hors plateforme, le gestionnaire reste référent du suivi. */
+  transfere_dbs?: boolean;
   periodicite?: string | null;
   prochaine_revue?: string | null;
   derniere_revue?: string | null;
@@ -73,6 +76,8 @@ interface FicheTransitionProps {
   avecRevue?: boolean;
   /** Gestionnaire figé (tickets importés) : affiché (compte lié ou nom importé), non modifiable. */
   gestionnaireFige?: boolean;
+  /** Affiche le niveau de support et l'escalade (modules `avec_escalade` : incidents, demandes). */
+  escaladable?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -97,6 +102,7 @@ export function FicheTransition({
   avecDocuments = false,
   gestionnaireFige = false,
   avecRevue = false,
+  escaladable = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -148,6 +154,12 @@ export function FicheTransition({
     if (id === null) return;
     setDetail(null);
     setErreur(null);
+    setDetail(await api.get<Detail>(`${base}/${id}`));
+  }, [base, id]);
+
+  /** Relit la fiche sans la vider : pas de squelette qui clignote après une action. */
+  const rafraichir = useCallback(async (): Promise<void> => {
+    if (id === null) return;
     setDetail(await api.get<Detail>(`${base}/${id}`));
   }, [base, id]);
 
@@ -512,6 +524,24 @@ export function FicheTransition({
                   {detail.responsable
                     ? `${detail.responsable.prenom} ${detail.responsable.nom}`
                     : '—'}
+                </dd>
+              </div>
+            ) : null}
+            {escaladable && id !== null ? (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Support</dt>
+                <dd>
+                  <BoutonEscalade
+                    base={base}
+                    id={id}
+                    niveau={detail.niveau_support ?? 1}
+                    transfereDbs={detail.transfere_dbs ?? false}
+                    sansGestionnaire={detail.responsable_id == null}
+                    onChange={() => {
+                      void rafraichir();
+                      onChange();
+                    }}
+                  />
                 </dd>
               </div>
             ) : null}

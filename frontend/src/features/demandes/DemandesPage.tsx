@@ -152,6 +152,7 @@ export function DemandesPage(): JSX.Element {
         id={ficheId}
         assignable
         gestionnaireFige
+        escaladable
         moduleCategorie="demande"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}

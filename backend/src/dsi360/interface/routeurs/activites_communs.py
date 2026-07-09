@@ -133,10 +133,8 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         ],
         "etats": ordre_etats(module),
         "avancement": int(_donnees(r).get("avancement", 0)),
-        # Sans gestionnaire affecté, un ticket est considéré d'office au niveau de support 3.
-        "niveau_support": int(
-            _donnees(r).get("niveau_support", 3 if r["resp_id"] is None else 1)
-        ),
+        "niveau_support": _niveau_support(r),
+        "transfere_dbs": _transfere_dbs(r),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
         "periodicite": _donnees(r).get("periodicite"),
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
@@ -152,6 +150,21 @@ _CHAMPS_RFC = (
     "plan_retour_arriere",
     "bilan_post_implementation",
 )
+
+
+# Niveau 3 = DBS, hors du système (ADR-0003 §3). La DSI ne tient que N1 et N2 : aucun compte ne
+# porte le niveau 3, et un ticket qui l'atteint est « transféré à DBS ».
+NIVEAU_DBS = 3
+
+
+def _niveau_support(r: RowMapping) -> int:
+    """Niveau de support du ticket. Un ticket sans gestionnaire n'est encore à aucun niveau : il
+    entre au N1, faute d'avoir été pris par qui que ce soit."""
+    return int(_donnees(r).get("niveau_support", 1))
+
+
+def _transfere_dbs(r: RowMapping) -> bool:
+    return bool(_donnees(r).get("transfere_dbs", False))
 
 
 def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
@@ -791,39 +804,46 @@ def creer_routeur(
 
         @routeur.post("/{ident}/escalader", response_model=ActiviteDetail)
         async def escalader(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
+            """Monte le ticket d'un niveau de support.
+
+            La DSI tient N1 et N2 ; le N3 est DBS, qui n'a aucun compte ici (ADR-0003 §3).
+            Escalader depuis le N2 ne réaffecte donc personne : le ticket est marqué « transféré à
+            DBS » et **garde son gestionnaire**, désormais référent du suivi et de la relance. Le
+            SLA continue de courir — le demandeur ignore quelle équipe traite son ticket.
+            """
             avant = await charger_visible(session, ident, courant)
-            sans_gestionnaire = avant["resp_id"] is None
-            # Sans gestionnaire, un ticket est considéré d'office au niveau 3.
-            defaut = 3 if sans_gestionnaire else 1
-            courant_niveau = int(_donnees(avant).get("niveau_support", defaut))
-            if sans_gestionnaire:
-                # Escalader un ticket sans gestionnaire = l'affecter au groupe N3 de sa direction.
-                niveau = 3
-            elif courant_niveau >= 3:
+            resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
+            courant_niveau = _niveau_support(avant)
+            if courant_niveau >= NIVEAU_DBS:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Déjà au niveau de support maximal (N3).",
+                    detail="Déjà transféré à DBS (N3) — dernier niveau d'escalade.",
                 )
-            else:
-                niveau = courant_niveau + 1
-            resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
-            # Réaffecte au membre le moins chargé du groupe (direction du ticket, niveau cible).
-            # Si le niveau n'existe pas ou est vide dans cette direction (ex. DBS sans N1/N2),
-            # on monte jusqu'au N3 ; le niveau retenu est celui du groupe qui a réellement pris.
+            # Sans gestionnaire, personne à la DSI ne l'a pris : l'escalader, c'est le passer à DBS.
+            niveau = NIVEAU_DBS if resp_avant is None else courant_niveau + 1
+            vers_dbs = niveau >= NIVEAU_DBS
+
             nouveau_resp: str | None = None
-            for candidat in range(niveau, 4):
+            if not vers_dbs:
+                # On ne cherche qu'au niveau visé : jamais de montée silencieuse jusqu'à DBS.
                 nouveau_resp = await groupe_repo.membre_le_moins_charge(
-                    session, candidat, avant["direction"]
+                    session, niveau, avant["direction"]
                 )
-                if nouveau_resp is not None:
-                    niveau = candidat
-                    break
+                if nouveau_resp is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Aucun gestionnaire N{niveau} disponible pour prendre ce ticket.",
+                    )
+
+            champs: dict[str, Any] = {"niveau_support": niveau}
+            if vers_dbs:
+                champs["transfere_dbs"] = True
             await session.execute(
                 text(
                     "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
                     "WHERE id = cast(:id as uuid)"
                 ),
-                {"id": ident, "f": json.dumps({"niveau_support": niveau})},
+                {"id": ident, "f": json.dumps(champs)},
             )
             reaffecte = nouveau_resp is not None and nouveau_resp != resp_avant
             if reaffecte:
@@ -836,24 +856,33 @@ def creer_routeur(
                     titre=f"Escalade N{niveau} — {avant['reference']}",
                     message=f"{avant['reference']} vous est confié en support niveau {niveau}.",
                 )
-            # Informe l'ancien gestionnaire de l'escalade (s'il existe et n'est pas l'auteur).
+            # Informe le gestionnaire précédent (s'il existe, n'est pas l'auteur, et n'est pas le
+            # nouveau). Au transfert vers DBS il reste responsable : on lui dit ce qu'on attend.
             ancien_a_prevenir = (
                 resp_avant is not None
                 and resp_avant != courant["id"]
                 and resp_avant != nouveau_resp
             )
             if ancien_a_prevenir:
-                suite = " et réaffecté" if reaffecte else ""
+                message = (
+                    f"{avant['reference']} a été transféré à DBS (N3). Vous en restez référent : "
+                    "suivi, relance et clôture."
+                    if vers_dbs
+                    else f"{avant['reference']} a été escaladé au support niveau {niveau} "
+                    f"{'et réaffecté' if reaffecte else ''}".strip()
+                )
                 await notifier(
                     session,
                     destinataire_id=resp_avant,
                     activite_id=str(avant["id"]),
                     # Type dédié : 'ESCALADE' est réservé (index unique) à l'escalade SLA auto.
                     type_="ESCALADE_SUPPORT",
-                    titre=f"Escalade N{niveau} — {avant['reference']}",
-                    message=(
-                        f"{avant['reference']} a été escaladé au support niveau {niveau}{suite}."
+                    titre=(
+                        f"Transféré à DBS — {avant['reference']}"
+                        if vers_dbs
+                        else f"Escalade N{niveau} — {avant['reference']}"
                     ),
+                    message=message,
                 )
             await audit.consigner(
                 session,
@@ -865,6 +894,7 @@ def creer_routeur(
                 cible_id=avant["reference"],
                 nouvelle={
                     "niveau_support": niveau,
+                    "transfere_dbs": vers_dbs,
                     "reaffecte_a": nouveau_resp if reaffecte else None,
                 },
             )
