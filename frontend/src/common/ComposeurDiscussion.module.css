@@ -4,6 +4,13 @@
   gap: var(--space-2);
 }
 
+/* Le champ de mention porte une base flex prévue pour une rangée (180px de largeur). En colonne,
+   cette base devient une HAUTEUR et creuse un vide sous la saisie : on la neutralise. */
+.champ {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
 /* Miniatures des images jointes, avant l'envoi. */
 .apercus {
   display: flex;

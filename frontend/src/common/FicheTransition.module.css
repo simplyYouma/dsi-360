@@ -386,12 +386,6 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
-/* En colonne, la base flex du champ de mention (prévue pour une rangée) creuserait un vide
-   sous la zone de saisie : on la neutralise pour coller le bouton au champ. */
-.panneauChamp {
-  flex: 0 0 auto;
-  width: 100%;
-}
 
 @media (max-width: 900px) {
   .panneauFil {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Send, X } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
 import { ChampMention } from '@/common/ChampMention';
+import { cx } from '@/common/cx';
 import type { AgentRef } from '@/common/useAgents';
 import styles from './ComposeurDiscussion.module.css';
 
@@ -83,7 +84,7 @@ export function ComposeurDiscussion({
         valeur={valeur}
         onChange={onChange}
         agents={agents}
-        className={className}
+        className={cx(styles.champ, className)}
         placeholder={placeholder}
         onEnvoyer={() => void envoyer()}
         onImagesCollees={ajouter}

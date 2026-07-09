@@ -398,7 +398,6 @@ export function FicheTransition({
               valeur={texte}
               onChange={setTexte}
               agents={agentsMention}
-              className={styles.panneauChamp}
               placeholder="Ajouter un commentaire…  (@ pour mentionner)"
               envoi={envoiC}
               onEnvoyer={commenter}
