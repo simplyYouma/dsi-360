@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
@@ -21,7 +22,15 @@ function formaterDate(iso: string): string {
 }
 
 const COLONNES: Colonne<Recommandation>[] = [
-  { cle: 'reference', entete: 'Référence', valeur: (r) => r.reference, largeur: '150px' },
+  {
+    cle: 'reference',
+    entete: 'Référence',
+    valeur: (r) => r.reference,
+    largeur: '190px',
+    rendu: (r) => (
+      <CelluleReference reference={r.reference} nombre={r.nb_commentaires} nonVus={r.nb_non_vus} />
+    ),
+  },
   { cle: 'titre', entete: 'Recommandation', tronque: true, rendu: (r) => <strong title={r.titre}>{r.titre}</strong>, valeur: (r) => r.titre },
   {
     cle: 'categorie',
@@ -158,6 +167,9 @@ export function AuditPage(): JSX.Element {
         moduleCategorie="audit"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
+        onVu={(aid) =>
+          setItems((liste) => liste.map((r) => (r.id === aid ? { ...r, nb_non_vus: 0 } : r)))
+        }
       />
 
       <Modale

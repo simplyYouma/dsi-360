@@ -355,6 +355,12 @@
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
+/* En colonne, la base flex du champ de mention (prévue pour une rangée) creuserait un vide
+   sous la zone de saisie : on la neutralise pour coller le bouton au champ. */
+.panneauChamp {
+  flex: 0 0 auto;
+  width: 100%;
+}
 
 @media (max-width: 900px) {
   .panneauFil {
@@ -368,6 +374,7 @@
   flex-direction: column;
   gap: var(--space-2);
 }
+/* Impact et Urgence s'étirent pour occuper la largeur : pas d'espace mort à droite. */
 .evalChamps {
   display: flex;
   align-items: flex-end;
@@ -378,6 +385,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 0;
+  min-width: 132px;
 }
 .evalLabel {
   font-size: 0.6875rem;
@@ -402,12 +411,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-.evalAide {
-  margin: 0;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--text-muted);
 }
 
 /* Ligne Créé le (gauche) / Échéance (droite) avec icône horloge. */

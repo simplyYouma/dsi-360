@@ -339,7 +339,7 @@ export function FicheTransition({
       onFermer={onFermer}
       titre={detail ? detail.reference : 'Fiche'}
       largeur={640}
-      largeurPanneau={390}
+      largeurPanneau={450}
       panneau={
         <div className={styles.panneauDiscussion}>
           <span className={styles.panneauTitre}>Discussion interne (DSI)</span>
@@ -372,6 +372,7 @@ export function FicheTransition({
               valeur={texte}
               onChange={setTexte}
               agents={agentsMention}
+              className={styles.panneauChamp}
               placeholder="Ajouter un commentaire…  (@ pour mentionner)"
               onEnvoyer={() => void commenter()}
             />
@@ -540,10 +541,6 @@ export function FicheTransition({
                       <BadgePriorite priorite={detail.priorite} />
                     </span>
                   </div>
-                  <p className={styles.evalAide}>
-                    Impact × urgence détermine la priorité (P1 à P5), qui fixe les délais SLA de prise
-                    en charge et de résolution.
-                  </p>
                 </dd>
               </div>
             )}

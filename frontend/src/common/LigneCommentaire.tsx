@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, CheckCheck, Pencil, X } from 'lucide-react';
-import { Button, Modale } from '@/design-system/primitives';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { cx } from '@/common/cx';
 import { ChampMention } from '@/common/ChampMention';
@@ -30,7 +30,10 @@ export function LigneCommentaire({
   const [texte, setTexte] = useState(c.texte);
   const [envoi, setEnvoi] = useState(false);
   const [lecteurs, setLecteurs] = useState<LecteurCommentaire[] | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const editRef = useRef<HTMLDivElement>(null);
+  const accuseRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const estAuteur = moiId !== null && c.auteur_id === moiId;
   const nonVu = !estAuteur && !c.vu;
   const lu = c.nb_vues > 0;
@@ -40,10 +43,41 @@ export function LigneCommentaire({
     if (edition) editRef.current?.scrollIntoView({ block: 'nearest' });
   }, [edition]);
 
+  // Popover discret ancré sous l'accusé (aucune modale) : on l'ouvre, on charge, on ferme au clic
+  // extérieur ou au défilement. Pas d'Échap : la fiche l'écoute déjà et se fermerait avec.
+  const LARGEUR_POP = 240;
   const ouvrirLecteurs = (): void => {
+    if (lecteurs !== null) {
+      setLecteurs(null);
+      return;
+    }
+    const r = accuseRef.current?.getBoundingClientRect();
+    if (r === undefined) return;
+    setPos({
+      top: r.bottom + 6,
+      left: Math.max(6, Math.min(r.right - LARGEUR_POP, window.innerWidth - LARGEUR_POP - 6)),
+    });
     setLecteurs([]);
     void commentairesApi.lecteurs(c.id).then(setLecteurs);
   };
+
+  useEffect(() => {
+    if (lecteurs === null) return;
+    const dedans = (n: Node): boolean =>
+      (accuseRef.current?.contains(n) ?? false) || (popRef.current?.contains(n) ?? false);
+    const surClic = (e: MouseEvent): void => {
+      if (!dedans(e.target as Node)) setLecteurs(null);
+    };
+    const surScroll = (e: Event): void => {
+      if (!dedans(e.target as Node)) setLecteurs(null);
+    };
+    document.addEventListener('mousedown', surClic);
+    window.addEventListener('scroll', surScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', surClic);
+      window.removeEventListener('scroll', surScroll, true);
+    };
+  }, [lecteurs]);
 
   const enregistrer = async (): Promise<void> => {
     if (texte.trim() === '' || texte.trim() === c.texte) {
@@ -78,6 +112,7 @@ export function LigneCommentaire({
         {/* Accusé de lecture (façon messagerie) : une coche = envoyé, deux coches colorées = lu. */}
         {estAuteur && !edition && (
           <button
+            ref={accuseRef}
             type="button"
             className={cx(styles.accuse, lu && styles.accuseLu)}
             onClick={ouvrirLecteurs}
@@ -152,37 +187,39 @@ export function LigneCommentaire({
           <TexteMentions texte={c.texte} agents={agents} />
         </p>
       )}
-      <Modale
-        ouverte={lecteurs !== null}
-        onFermer={() => setLecteurs(null)}
-        titre="Vu par"
-        largeur={360}
-        pied={
-          <Button variante="secondaire" onClick={() => setLecteurs(null)}>
-            Fermer
-          </Button>
-        }
-      >
-        {lecteurs !== null && lecteurs.length === 0 ? (
-          <p className={styles.videLecteurs}>Personne n’a encore vu ce message.</p>
-        ) : (
-          <ul className={styles.lecteurs}>
-            {(lecteurs ?? []).map((l, i) => (
-              <li key={i}>
-                <span>{l.nom}</span>
-                <span className={styles.lecteurDate}>
-                  {new Date(l.vu_le).toLocaleString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
+      {lecteurs !== null &&
+        pos !== null &&
+        createPortal(
+          <div
+            ref={popRef}
+            className={styles.popLecteurs}
+            style={{ position: 'fixed', top: pos.top, left: pos.left, width: LARGEUR_POP }}
+            role="dialog"
+            aria-label="Vu par"
+          >
+            <span className={styles.popTitre}>Vu par</span>
+            {lecteurs.length === 0 ? (
+              <p className={styles.videLecteurs}>Personne n’a encore vu ce message.</p>
+            ) : (
+              <ul className={styles.lecteurs}>
+                {lecteurs.map((l, i) => (
+                  <li key={i}>
+                    <span>{l.nom}</span>
+                    <span className={styles.lecteurDate}>
+                      {new Date(l.vu_le).toLocaleString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>,
+          document.body,
         )}
-      </Modale>
     </li>
   );
 }

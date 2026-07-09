@@ -16,6 +16,8 @@ export interface Risque {
   impact: number;
   criticite: number;
   cree_le: string;
+  nb_commentaires: number;
+  nb_non_vus: number;
 }
 
 export interface NouveauRisque {

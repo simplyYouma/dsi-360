@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
@@ -65,7 +66,15 @@ export function PageActiviteCategorie({
   const gerable = moi?.acces.includes('administration') ?? false;
 
   const colonnes: Colonne<Incident>[] = [
-    { cle: 'reference', entete: 'Référence', valeur: (a) => a.reference, largeur: '150px' },
+    {
+      cle: 'reference',
+      entete: 'Référence',
+      valeur: (a) => a.reference,
+      largeur: '190px',
+      rendu: (a) => (
+        <CelluleReference reference={a.reference} nombre={a.nb_commentaires} nonVus={a.nb_non_vus} />
+      ),
+    },
     { cle: 'titre', entete: labelObjet, tronque: true, rendu: (a) => <strong title={a.titre}>{a.titre}</strong>, valeur: (a) => a.titre },
     {
       cle: 'categorie',
@@ -182,6 +191,9 @@ export function PageActiviteCategorie({
         moduleCategorie={module}
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
+        onVu={(aid) =>
+          setItems((liste) => liste.map((a) => (a.id === aid ? { ...a, nb_non_vus: 0 } : a)))
+        }
       />
 
       <Modale
