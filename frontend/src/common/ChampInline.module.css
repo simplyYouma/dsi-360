@@ -2,6 +2,9 @@
   display: inline-block;
   width: 100%;
   text-align: left;
+  /* Les sauts de ligne saisis sont restitués tels quels hors édition. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   padding: 6px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;

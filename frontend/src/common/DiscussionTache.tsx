@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, MessageSquare, Send } from 'lucide-react';
-import { Button } from '@/design-system/primitives';
+import { ChevronDown, ChevronRight, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { ChampMention } from '@/common/ChampMention';
+import { ComposeurDiscussion } from '@/common/ComposeurDiscussion';
 import { cx } from '@/common/cx';
 import { IndicateurDiscussion } from '@/common/IndicateurDiscussion';
 import { LigneCommentaire } from '@/common/LigneCommentaire';
@@ -58,16 +57,16 @@ export function DiscussionTache({
     if (ouvert && commentaires === null) void charger();
   }, [ouvert, commentaires, charger]);
 
-  const envoyer = async (): Promise<void> => {
-    if (texte.trim() === '') return;
+  const envoyer = async (images: File[]): Promise<void> => {
+    if (texte.trim() === '' && images.length === 0) return;
     setEnvoi(true);
     try {
-      await commentairesApi.ajouter(
-        activiteId,
-        texte.trim(),
-        tacheId,
-        extraireMentions(texte, agents),
-      );
+      const mentions = extraireMentions(texte, agents);
+      if (images.length > 0) {
+        await commentairesApi.ajouterAvecImages(activiteId, texte.trim(), images, tacheId, mentions);
+      } else {
+        await commentairesApi.ajouter(activiteId, texte.trim(), tacheId, mentions);
+      }
       setTexte('');
       await charger();
     } finally {
@@ -117,19 +116,14 @@ export function DiscussionTache({
               ))}
             </ul>
           )}
-          <div className={fiche.commForm}>
-            <ChampMention
-              valeur={texte}
-              onChange={setTexte}
-              agents={agents}
-              placeholder="Commenter cette tâche…  (@ pour mentionner)"
-              onEnvoyer={() => void envoyer()}
-            />
-            <Button onClick={() => void envoyer()} disabled={envoi || texte.trim() === ''}>
-              <Send size={14} />
-              {envoi ? 'Envoi…' : 'Commenter'}
-            </Button>
-          </div>
+          <ComposeurDiscussion
+            valeur={texte}
+            onChange={setTexte}
+            agents={agents}
+            placeholder="Commenter cette tâche…  (@ pour mentionner)"
+            envoi={envoi}
+            onEnvoyer={envoyer}
+          />
         </div>
       )}
     </div>

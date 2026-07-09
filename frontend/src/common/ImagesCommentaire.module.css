@@ -1,0 +1,71 @@
+.grille {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.vignette {
+  display: block;
+  width: 108px;
+  height: 84px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: zoom-in;
+  transition: border-color 0.12s ease;
+}
+.vignette:hover {
+  border-color: var(--secondary);
+}
+.vignette img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.chargement {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-subtle);
+}
+
+/* Visionneuse : au-dessus des modales (1000) et des popovers, sous les toasts (4000). */
+.visionneuse {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, #000 78%, transparent);
+  cursor: zoom-out;
+}
+.visionneuse img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  cursor: default;
+}
+.fermer {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+}
+.fermer:hover {
+  background: var(--bg-subtle);
+}

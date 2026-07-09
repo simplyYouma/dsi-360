@@ -366,6 +366,16 @@ class PreferencesNotif(BaseModel):
 # --- Commentaires (fil de discussion interne DSI) ---
 
 
+class ImageCommentaire(BaseModel):
+    """Image jointe à un message de discussion (capture d'écran)."""
+
+    id: str
+    nom: str
+    type_mime: str
+    largeur: int | None = None
+    hauteur: int | None = None
+
+
 class CommentaireItem(BaseModel):
     id: int
     auteur: str
@@ -375,6 +385,7 @@ class CommentaireItem(BaseModel):
     edite: bool = False
     nb_vues: int = 0
     vu: bool = False
+    images: list[ImageCommentaire] = []
 
 
 class CommentaireMaj(BaseModel):

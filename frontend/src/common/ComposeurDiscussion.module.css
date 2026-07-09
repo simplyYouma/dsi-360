@@ -1,0 +1,78 @@
+.composeur {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Miniatures des images jointes, avant l'envoi. */
+.apercus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+}
+.apercu {
+  position: relative;
+  width: 72px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-subtle);
+}
+.apercu img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.retirer {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: color-mix(in srgb, #000 55%, transparent);
+}
+.retirer:hover {
+  background: var(--status-danger);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.joindre {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.joindre:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  color: var(--secondary);
+}
+.joindre:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.aide {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--text-muted) 80%, transparent);
+}

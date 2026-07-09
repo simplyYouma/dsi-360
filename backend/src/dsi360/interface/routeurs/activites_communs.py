@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import (
     ActiviteIntrouvable,
+    DossierIncomplet,
     TransitionInterdite,
     TransitionReservee,
     appliquer_decisions,
@@ -377,6 +378,14 @@ def creer_routeur(
         except TransitionInterdite as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
+            ) from exc
+        except DossierIncomplet as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Le comité ne peut pas délibérer sur un dossier incomplet. "
+                    f"Complétez d'abord : {', '.join(exc.manquantes)}."
+                ),
             ) from exc
         except TransitionReservee as exc:
             raise HTTPException(

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, Clock, Send, XCircle } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -7,7 +7,7 @@ import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
-import { ChampMention } from '@/common/ChampMention';
+import { ComposeurDiscussion } from '@/common/ComposeurDiscussion';
 import { LigneCommentaire } from '@/common/LigneCommentaire';
 import { extraireMentions, useAgents } from '@/common/useAgents';
 import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
@@ -178,13 +178,22 @@ export function FicheTransition({
     });
   }, [id]);
 
-  const commenter = async (): Promise<void> => {
-    if (id === null || texte.trim() === '') return;
+  const commenter = async (images: File[]): Promise<void> => {
+    if (id === null || (texte.trim() === '' && images.length === 0)) return;
     setEnvoiC(true);
+    setErreur(null);
     try {
-      await commentairesApi.ajouter(id, texte.trim(), undefined, extraireMentions(texte, agentsMention));
+      const mentions = extraireMentions(texte, agentsMention);
+      if (images.length > 0) {
+        await commentairesApi.ajouterAvecImages(id, texte.trim(), images, undefined, mentions);
+      } else {
+        await commentairesApi.ajouter(id, texte.trim(), undefined, mentions);
+      }
       setTexte('');
       setCommentaires(await commentairesApi.lister(id));
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Envoi impossible.');
+      throw err; // le composeur conserve les images jointes
     } finally {
       setEnvoiC(false);
     }
@@ -385,18 +394,15 @@ export function FicheTransition({
             )}
           </div>
           <div className={styles.panneauForm}>
-            <ChampMention
+            <ComposeurDiscussion
               valeur={texte}
               onChange={setTexte}
               agents={agentsMention}
               className={styles.panneauChamp}
               placeholder="Ajouter un commentaire…  (@ pour mentionner)"
-              onEnvoyer={() => void commenter()}
+              envoi={envoiC}
+              onEnvoyer={commenter}
             />
-            <Button onClick={() => void commenter()} disabled={envoiC || texte.trim() === ''}>
-              <Send size={15} />
-              {envoiC ? 'Envoi…' : 'Commenter'}
-            </Button>
           </div>
         </div>
       }

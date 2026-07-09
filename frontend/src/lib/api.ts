@@ -106,6 +106,28 @@ export async function recupererBlob(chemin: string): Promise<Blob> {
   return res.blob();
 }
 
+/** Envoie un formulaire multipart (fichiers + champs) avec jeton Bearer et réessai sur 401. */
+export async function envoyerFormulaire<T>(chemin: string, corps: FormData): Promise<T> {
+  const envoyer = async (): Promise<Response> => {
+    const headers = new Headers();
+    if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
+    return fetch(`${BASE}${chemin}`, { method: 'POST', headers, body: corps });
+  };
+  let res = await envoyer();
+  if (res.status === 401 && (await tenterRafraichir())) res = await envoyer();
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const c = (await res.json()) as { detail?: string };
+      if (c.detail !== undefined) message = c.detail;
+    } catch {
+      /* corps non JSON */
+    }
+    throw new ErreurApi(res.status, message);
+  }
+  return (await res.json()) as T;
+}
+
 /** Téléverse un fichier (multipart) avec jeton Bearer et réessai sur 401. */
 export async function televerser<T>(chemin: string, fichier: File, champ = 'fichier'): Promise<T> {
   const corps = new FormData();

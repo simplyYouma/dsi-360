@@ -1,5 +1,6 @@
 """Cas d'usage des activités (création, transition d'état) — générique par module."""
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.domain.activite import calculer_priorite
+from dsi360.domain.changement import dossier_incomplet_pour
 from dsi360.domain.etats import (
     cible_apres_decisions,
     etat_initial,
@@ -22,6 +24,13 @@ from dsi360.infrastructure.repositories import sla as sla_repo
 
 _RESOLUS = {"Résolu", "Résolue"}
 _CLOTURES = {"Clôturé", "Clôturée"}
+
+
+def _en_dict(valeur: Any) -> dict[str, Any]:
+    """Colonne `donnees` (jsonb) normalisée en dict, quel que soit le pilote."""
+    if isinstance(valeur, str):
+        valeur = json.loads(valeur)
+    return dict(valeur) if isinstance(valeur, dict) else {}
 
 
 async def _resoudre_demandeur(session: AsyncSession, nom: str | None) -> str | None:
@@ -48,6 +57,14 @@ class TransitionReservee(Exception):
 
 class ActiviteIntrouvable(Exception):
     """Activité inexistante (ou hors périmètre)."""
+
+
+class DossierIncomplet(Exception):
+    """Pièces obligatoires manquantes pour l'étape visée (dossier RFC avant le CAB/ECAB)."""
+
+    def __init__(self, manquantes: list[str]) -> None:
+        self.manquantes = manquantes
+        super().__init__(", ".join(manquantes))
 
 
 async def creer_activite(
@@ -197,6 +214,11 @@ async def transition(
     depuis = courant["statut"]
     if not transition_autorisee(module, depuis, vers):
         raise TransitionInterdite(f"{depuis} → {vers}")
+    # Le comité (CAB/ECAB) ne délibère pas sur un dossier vide : impact, risque et plan de retour
+    # arrière sont exigés par la procédure SI-12.04. Contrôle côté serveur : incontournable.
+    manquantes = dossier_incomplet_pour(module, vers, _en_dict(courant["donnees"]))
+    if manquantes:
+        raise DossierIncomplet(manquantes)
     # Les issues de validation (CAB/ECAB, validation de demande) ne se poussent pas à la main :
     # elles passent par la décision des valideurs (appliquer_decisions, force=True).
     if not force and transition_reservee(module, depuis, vers):

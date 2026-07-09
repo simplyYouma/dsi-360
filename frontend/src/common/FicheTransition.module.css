@@ -70,6 +70,9 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.5;
+  /* Les sauts de ligne de la description sont conservés. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   padding-left: var(--space-3);
   border-left: 2px solid var(--border);
 }

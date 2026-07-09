@@ -7,13 +7,26 @@ Chaque **tâche** a aussi son propre fil (paramètre ``tache``) : le fil de l'ac
 que les commentaires sans tâche, celui d'une tâche uniquement les siens.
 """
 
+import io
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import text
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
+from PIL import Image, UnidentifiedImageError
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.notifications import notifier_acteurs
+from dsi360.config import get_settings
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import (
@@ -27,6 +40,69 @@ from dsi360.interface.securite import utilisateur_courant
 routeur = APIRouter(prefix="/commentaires", tags=["commentaires"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(utilisateur_courant)]
+
+# Le fil n'accepte que des images. Le format est établi en **décodant** le fichier : l'extension
+# ou le type MIME déclarés par le client ne prouvent rien.
+_FORMATS_IMAGE: dict[str, str] = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "GIF": "image/gif",
+    "WEBP": "image/webp",
+}
+_MAX_IMAGES = 6
+
+
+async def _lire_image_valide(fichier: UploadFile) -> tuple[str, bytes, str, int, int]:
+    """Valide taille et contenu réel. Renvoie (nom, octets, type MIME, largeur, hauteur)."""
+    contenu = await fichier.read()
+    maxi = get_settings().max_upload_mb * 1024 * 1024
+    if not contenu:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Image vide.")
+    if len(contenu) > maxi:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Image trop volumineuse (max {get_settings().max_upload_mb} Mo).",
+        )
+    try:
+        with Image.open(io.BytesIO(contenu)) as img:
+            img.verify()  # rejette un fichier corrompu ou qui n'est pas une image
+        with Image.open(io.BytesIO(contenu)) as img:
+            format_ = (img.format or "").upper()
+            largeur, hauteur = img.size
+    except (UnidentifiedImageError, OSError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Seules les images sont acceptées dans la discussion.",
+        ) from exc
+    type_mime = _FORMATS_IMAGE.get(format_)
+    if type_mime is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Format d'image non pris en charge ({format_ or 'inconnu'}).",
+        )
+    nom = (fichier.filename or "image").strip()[:120]
+    return nom, contenu, type_mime, largeur, hauteur
+
+
+_IMAGES_DU_FIL = text(
+    "SELECT commentaire_id, id::text AS id, nom, type_mime, largeur, hauteur "
+    "FROM core.commentaire_image WHERE commentaire_id IN :ids ORDER BY depose_le, id"
+).bindparams(bindparam("ids", expanding=True))
+
+
+async def _images_du_commentaire(
+    session: AsyncSession, commentaire_id: int
+) -> list[dict[str, Any]]:
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT id::text AS id, nom, type_mime, largeur, hauteur "
+                "FROM core.commentaire_image WHERE commentaire_id = :cid ORDER BY depose_le, id"
+            ),
+            {"cid": commentaire_id},
+        )
+    ).mappings().all()
+    return [dict(x) for x in lignes]
 
 
 async def _exiger_activite_visible(
@@ -122,7 +198,29 @@ async def lister(
             _LISTE, {"id": activite_id, "tache": tache, "moi": courant["id"]}
         )
     ).mappings().all()
-    return [dict(x) for x in lignes]
+    messages: list[dict[str, Any]] = [dict(x) for x in lignes]
+    if not messages:
+        return messages
+    # Une seule requête pour toutes les images du fil (pas de N+1).
+    images = (
+        await session.execute(
+            _IMAGES_DU_FIL, {"ids": [int(m["id"]) for m in messages]}
+        )
+    ).mappings().all()
+    par_message: dict[int, list[dict[str, Any]]] = {}
+    for img in images:
+        par_message.setdefault(int(img["commentaire_id"]), []).append(
+            {
+                "id": img["id"],
+                "nom": img["nom"],
+                "type_mime": img["type_mime"],
+                "largeur": img["largeur"],
+                "hauteur": img["hauteur"],
+            }
+        )
+    for m in messages:
+        m["images"] = par_message.get(int(m["id"]), [])
+    return messages
 
 
 @routeur.post("/{activite_id}/vues", status_code=status.HTTP_204_NO_CONTENT)
@@ -177,14 +275,19 @@ async def lecteurs(
     return [dict(x) for x in lignes]
 
 
-@routeur.post("/{activite_id}", response_model=CommentaireItem, status_code=status.HTTP_201_CREATED)
-async def commenter(
+async def _enregistrer_commentaire(
+    session: AsyncSession,
+    *,
     activite_id: str,
-    corps: CommentaireCreation,
-    courant: Courant,
-    session: Session,
-    tache: Annotated[str | None, Query()] = None,
+    tache: str | None,
+    texte: str,
+    mentions: list[str],
+    courant: dict[str, Any],
 ) -> dict[str, Any]:
+    """Insère le message, notifie mentions et acteurs, journalise. Ne committe pas.
+
+    Partagé par le dépôt d'un message texte et par celui d'un message avec images.
+    """
     reference = await _exiger_activite_visible(session, courant, activite_id)
     titre_tache = await _exiger_tache_de_l_activite(session, activite_id, tache)
     ligne = (
@@ -199,14 +302,13 @@ async def commenter(
                 "tid": tache,
                 "uid": courant["id"],
                 "email": courant["email"],
-                "texte": corps.texte.strip(),
+                "texte": texte,
             },
         )
     ).mappings().one()
     cible = f"{reference} · {titre_tache}" if titre_tache else reference
-    # Mentions @ : notification interne (cloche) aux personnes citées, sauf l'auteur. L'envoi
-    # d'e-mail automatique de ces mentions sera branché ultérieurement.
-    for uid in {m for m in corps.mentions if m and m != courant["id"]}:
+    # Mentions @ : notification interne (cloche) aux personnes citées, sauf l'auteur.
+    for uid in {m for m in mentions if m and m != courant["id"]}:
         await session.execute(
             text(
                 "INSERT INTO core.notification "
@@ -219,7 +321,7 @@ async def commenter(
                 "dest": uid,
                 "aid": activite_id,
                 "titre": f"Vous êtes mentionné — {cible}",
-                "msg": f"{courant['email']} vous a mentionné : {corps.texte.strip()[:140]}",
+                "msg": f"{courant['email']} vous a mentionné : {texte[:140]}",
             },
         )
     await audit.consigner(
@@ -242,7 +344,6 @@ async def commenter(
         ),
         exclure_id=courant["id"],
     )
-    await session.commit()
     return {
         "id": ligne["id"],
         "texte": ligne["texte"],
@@ -253,6 +354,114 @@ async def commenter(
         if courant.get("prenom")
         else courant["email"],
     }
+
+
+@routeur.post("/{activite_id}", response_model=CommentaireItem, status_code=status.HTTP_201_CREATED)
+async def commenter(
+    activite_id: str,
+    corps: CommentaireCreation,
+    courant: Courant,
+    session: Session,
+    tache: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    item = await _enregistrer_commentaire(
+        session,
+        activite_id=activite_id,
+        tache=tache,
+        texte=corps.texte.strip(),
+        mentions=corps.mentions,
+        courant=courant,
+    )
+    await session.commit()
+    return item
+
+
+@routeur.post(
+    "/{activite_id}/images",
+    response_model=CommentaireItem,
+    status_code=status.HTTP_201_CREATED,
+)
+async def commenter_avec_images(
+    activite_id: str,
+    courant: Courant,
+    session: Session,
+    fichiers: Annotated[list[UploadFile], File()],
+    texte: Annotated[str, Form()] = "",
+    mentions: Annotated[str, Form()] = "",
+    tache: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    """Dépose un message accompagné d'images (captures d'écran).
+
+    Message et images sont écrits dans la même transaction : jamais d'image orpheline ni de
+    message amputé. `mentions` : identifiants séparés par des virgules (le multipart ne
+    transporte pas de JSON).
+    """
+    images = [f for f in fichiers if f.filename]
+    if not images:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Aucune image fournie."
+        )
+    if len(images) > _MAX_IMAGES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{_MAX_IMAGES} images au maximum par message.",
+        )
+    valides = [await _lire_image_valide(f) for f in images]
+
+    item = await _enregistrer_commentaire(
+        session,
+        activite_id=activite_id,
+        tache=tache,
+        texte=texte.strip(),
+        mentions=[m for m in mentions.split(",") if m],
+        courant=courant,
+    )
+    for nom, contenu, type_mime, largeur, hauteur in valides:
+        await session.execute(
+            text(
+                "INSERT INTO core.commentaire_image "
+                "(commentaire_id, nom, type_mime, taille, largeur, hauteur, contenu) "
+                "VALUES (:cid, :nom, :mime, :taille, :l, :h, :contenu)"
+            ),
+            {
+                "cid": item["id"],
+                "nom": nom,
+                "mime": type_mime,
+                "taille": len(contenu),
+                "l": largeur,
+                "h": hauteur,
+                "contenu": contenu,
+            },
+        )
+    await session.commit()
+    item["images"] = await _images_du_commentaire(session, int(item["id"]))
+    return item
+
+
+@routeur.get("/msg/{commentaire_id}/images/{image_id}")
+async def image(
+    commentaire_id: int, image_id: str, courant: Courant, session: Session
+) -> Response:
+    """Renvoie les octets d'une image du fil, après contrôle de périmètre sur l'activité."""
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT i.contenu, i.type_mime, c.activite_id::text AS aid "
+                "FROM core.commentaire_image i JOIN core.commentaire c ON c.id = i.commentaire_id "
+                "WHERE i.id = cast(:id as uuid) AND i.commentaire_id = :cid"
+            ),
+            {"id": image_id, "cid": commentaire_id},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image introuvable.")
+    await _exiger_activite_visible(session, courant, ligne["aid"])
+    return Response(
+        content=ligne["contenu"],
+        media_type=ligne["type_mime"],
+        # Le type vient du décodage réel au dépôt : on interdit au navigateur de le deviner.
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600"},
+    )
 
 
 @routeur.patch("/msg/{commentaire_id}", response_model=CommentaireItem)

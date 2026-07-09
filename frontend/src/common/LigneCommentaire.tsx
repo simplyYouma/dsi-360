@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, CheckCheck, Pencil, X } from 'lucide-react';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
+import { ImagesCommentaire } from '@/common/ImagesCommentaire';
 import { cx } from '@/common/cx';
 import { ChampMention } from '@/common/ChampMention';
 import { TexteMentions } from '@/common/TexteMentions';
@@ -184,9 +185,14 @@ export function LigneCommentaire({
           </div>
         </div>
       ) : (
-        <p className={fiche.commTexte}>
-          <TexteMentions texte={c.texte} agents={agents} />
-        </p>
+        <>
+          {c.texte !== '' && (
+            <p className={fiche.commTexte}>
+              <TexteMentions texte={c.texte} agents={agents} />
+            </p>
+          )}
+          <ImagesCommentaire commentaireId={c.id} images={c.images} />
+        </>
       )}
       {lecteurs !== null &&
         pos !== null &&

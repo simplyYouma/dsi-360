@@ -9,11 +9,13 @@ interface Props {
   valeur: string;
   onChange: (v: string) => void;
   agents: AgentRef[];
-  placeholder?: string;
+  placeholder?: string | undefined;
   rows?: number;
   className?: string | undefined;
-  /** Entrée simple (sans Maj) envoie le message. */
+  /** Entrée simple (sans Maj) envoie le message. Maj+Entrée insère un saut de ligne. */
   onEnvoyer?: () => void;
+  /** Images collées depuis le presse-papier (Ctrl+V d'une capture d'écran). */
+  onImagesCollees?: (fichiers: File[]) => void;
 }
 
 /** Position du « token » @ en cours de frappe (du @ jusqu'au curseur, sans espace). */
@@ -56,6 +58,7 @@ export function ChampMention({
   placeholder,
   rows = 2,
   className,
+  onImagesCollees,
   onEnvoyer,
 }: Props): JSX.Element {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -156,6 +159,15 @@ export function ChampMention({
         value={valeur}
         rows={rows}
         placeholder={placeholder}
+        onPaste={(e) => {
+          if (!onImagesCollees) return;
+          // Capture d'écran collée (Ctrl+V) : on l'attache au message plutôt que d'insérer du texte.
+          const fichiers = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'));
+          if (fichiers.length > 0) {
+            e.preventDefault();
+            onImagesCollees(fichiers);
+          }
+        }}
         onChange={(e) => onChange(e.target.value)}
         onScroll={() => {
           if (calque.current && ref.current) calque.current.scrollTop = ref.current.scrollTop;

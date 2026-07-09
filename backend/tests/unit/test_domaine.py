@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from dsi360.domain.activite import calculer_criticite, calculer_priorite
+from dsi360.domain.changement import dossier_incomplet_pour
 from dsi360.domain.etats import (
     cible_apres_decisions,
     etat_initial,
@@ -165,3 +166,41 @@ class TestRevuePeriodique:
     def test_periodicite_inconnue(self) -> None:
         with pytest.raises(ValueError):
             prochaine_revue("Hebdomadaire", date(2026, 1, 1))
+
+
+class TestDossierRfc:
+    _COMPLET = {
+        "analyse_impact": "Core banking et agences.",
+        "analyse_risque": "Régression maîtrisée.",
+        "plan_retour_arriere": "Restauration N-1.",
+    }
+
+    def test_dossier_complet_passe(self) -> None:
+        assert dossier_incomplet_pour("changement", "CAB", self._COMPLET) == []
+
+    def test_dossier_vide_bloque_le_comite(self) -> None:
+        manquantes = dossier_incomplet_pour("changement", "CAB", {})
+        assert manquantes == [
+            "l'analyse d'impact",
+            "l'analyse de risque",
+            "le plan de retour arrière",
+        ]
+
+    def test_ecab_soumis_au_meme_controle(self) -> None:
+        assert dossier_incomplet_pour("changement", "ECAB", {}) != []
+
+    def test_champ_blanc_compte_comme_manquant(self) -> None:
+        donnees = {**self._COMPLET, "plan_retour_arriere": "   "}
+        assert dossier_incomplet_pour("changement", "CAB", donnees) == [
+            "le plan de retour arrière"
+        ]
+
+    def test_le_plan_de_deploiement_n_est_pas_exige(self) -> None:
+        # Il est utile mais n'est pas une pièce d'instruction du comité (SI-12.04).
+        assert dossier_incomplet_pour("changement", "CAB", self._COMPLET) == []
+
+    def test_autres_transitions_non_concernees(self) -> None:
+        assert dossier_incomplet_pour("changement", "Planifié", {}) == []
+
+    def test_autres_modules_non_concernes(self) -> None:
+        assert dossier_incomplet_pour("demande", "CAB", {}) == []
