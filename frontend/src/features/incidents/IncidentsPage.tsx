@@ -113,6 +113,7 @@ export function IncidentsPage(): JSX.Element {
 
       {selection.size > 0 && (
         <DispatchBar
+          module="incidents"
           count={selection.size}
           onEffacer={() => setSelection(new Set())}
           onAssigner={async (resp) => {

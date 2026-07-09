@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, XCircle } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
+import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { GestionActeurs } from '@/common/GestionActeurs';
@@ -13,17 +14,11 @@ import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from '@/common/statuts';
 import { cx } from '@/common/cx';
-import { api, ErreurApi } from '@/lib/api';
+import { ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ChangementPage.module.css';
 import { changementsApi, type Categorie, type ChangementDetail } from './changementsApi';
-
-interface Agent {
-  id: string;
-  nom: string;
-  profil: string;
-}
 
 const TYPE_COULEUR: Record<string, string> = {
   STANDARD: 'var(--status-ok)',
@@ -111,7 +106,7 @@ export function ChangementPage(): JSX.Element {
     void charger();
   }, [charger]);
   useEffect(() => {
-    void api.get<Agent[]>('/referentiels/agents').then(setAgents);
+    void chargerAgents('changements').then(setAgents);
     void changementsApi.categories().then(setCategories);
   }, []);
 

@@ -1,31 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Users, X } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
-import { api } from '@/lib/api';
 import { SelecteurListe } from './SelecteurListe';
+import { chargerAgents, type Agent } from './agentsApi';
 import styles from './DispatchBar.module.css';
-
-interface Agent {
-  id: string;
-  nom: string;
-  profil: string;
-}
 
 interface Props {
   count: number;
   onAssigner: (responsableId: string | null) => Promise<void>;
   onEffacer: () => void;
+  /** Clé d'accès du module : seuls ses agents peuvent recevoir ces tickets. */
+  module: string;
 }
 
 /** Barre de dispatch en lot : assigne les tickets sélectionnés à un gestionnaire DSI. */
-export function DispatchBar({ count, onAssigner, onEffacer }: Props): JSX.Element {
+export function DispatchBar({ count, onAssigner, onEffacer, module }: Props): JSX.Element {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agent, setAgent] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
   useEffect(() => {
-    void api.get<Agent[]>('/referentiels/agents').then(setAgents);
-  }, []);
+    void chargerAgents(module).then(setAgents);
+  }, [module]);
 
   const assigner = async (): Promise<void> => {
     setEnvoi(true);

@@ -5,6 +5,7 @@ import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { BoutonEscalade } from '@/common/BoutonEscalade';
+import { chargerAgents, moduleDeLaBase, type Agent } from '@/common/agentsApi';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
@@ -18,11 +19,6 @@ import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
 import styles from './FicheTransition.module.css';
 
-interface Agent {
-  id: string;
-  nom: string;
-  profil: string;
-}
 
 interface Detail {
   reference: string;
@@ -212,8 +208,11 @@ export function FicheTransition({
   };
 
   useEffect(() => {
-    if (assignable && agents.length === 0) void api.get<Agent[]>('/referentiels/agents').then(setAgents);
-  }, [assignable, agents.length]);
+    // Seuls les agents ayant accès à ce module sont désignables : le serveur refuserait les autres.
+    if (assignable && agents.length === 0) {
+      void chargerAgents(moduleDeLaBase(base)).then(setAgents);
+    }
+  }, [assignable, agents.length, base]);
 
   const assigner = async (responsableId: string | null): Promise<void> => {
     if (id === null) return;

@@ -1,31 +1,26 @@
 import { useEffect, useState } from 'react';
 import { SelecteurListe } from './SelecteurListe';
-import { api } from '@/lib/api';
+import { chargerAgents, type Agent } from './agentsApi';
 import styles from './SelecteurGestionnaire.module.css';
-
-interface Agent {
-  id: string;
-  nom: string;
-  profil: string;
-}
 
 interface Props {
   valeur: string | null;
   onChange: (id: string | null) => void;
+  /** Clé d'accès du module : n'affiche que les agents qui peuvent ouvrir cette activité. */
+  module?: string | undefined;
 }
 
 /** Champ « Gestionnaire » (responsable DSI) autonome : libellé + sélecteur d'agents. Se masque
  *  s'il n'y a pas d'agents (ou pas d'accès). Partagé entre création et édition pour un comportement
  *  identique partout. */
-export function SelecteurGestionnaire({ valeur, onChange }: Props): JSX.Element | null {
+export function SelecteurGestionnaire({ valeur, onChange, module }: Props): JSX.Element | null {
   const [agents, setAgents] = useState<Agent[]>([]);
 
   useEffect(() => {
-    void api
-      .get<Agent[]>('/referentiels/agents')
+    void chargerAgents(module)
       .then(setAgents)
       .catch(() => setAgents([]));
-  }, []);
+  }, [module]);
 
   if (agents.length === 0) return null;
   return (

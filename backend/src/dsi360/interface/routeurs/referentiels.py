@@ -19,12 +19,18 @@ _CATEGORIES = text(
     "WHERE module = :module ORDER BY libelle"
 )
 
-# Agents DSI assignables (gestionnaires de tickets).
+# Agents désignables. Avec `module` (clé d'accès, ex. « changements ») : seuls les comptes actifs
+# dont le profil a cet accès — on ne désigne pas quelqu'un à qui l'écran resterait fermé.
+# Sans `module` : tous les actifs, pour l'autocomplétion des mentions @.
+#
+# Le filtre passe par core.acces_role, jamais par une liste de codes de profils : ceux-ci se créent
+# et se suppriment depuis l'administration (ADR-0003).
 _AGENTS = text(
     "SELECT u.id::text AS id, (u.prenom || ' ' || u.nom) AS nom, p.code AS profil "
     "FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
-    "WHERE u.actif AND p.code IN "
-    "('ADMIN','DSI','CHEF_SERVICE','CHEF_PROJET','TECHNICIEN') "
+    "WHERE u.actif AND (cast(:module as text) IS NULL OR EXISTS ("
+    "    SELECT 1 FROM core.acces_role ar "
+    "    WHERE ar.profil_code = p.code AND ar.acces = :module)) "
     "ORDER BY u.prenom, u.nom"
 )
 
@@ -43,8 +49,10 @@ async def categories(
 async def agents(
     session: Annotated[AsyncSession, Depends(session_scope)],
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+    module: Annotated[str | None, Query()] = None,
 ) -> list[dict[str, Any]]:
-    resultat = await session.execute(_AGENTS)
+    """Comptes désignables. `module` = clé d'accès (« incidents », « projets »…)."""
+    resultat = await session.execute(_AGENTS, {"module": module})
     return [dict(ligne) for ligne in resultat.mappings().all()]
 
 

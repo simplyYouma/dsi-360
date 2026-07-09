@@ -102,6 +102,7 @@ export function DemandesPage(): JSX.Element {
 
       {selection.size > 0 && (
         <DispatchBar
+          module="demandes"
           count={selection.size}
           onEffacer={() => setSelection(new Set())}
           onAssigner={async (resp) => {

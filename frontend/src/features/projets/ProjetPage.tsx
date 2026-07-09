@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
+import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
@@ -11,7 +12,7 @@ import { SelecteurDate } from '@/common/SelecteurDate';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgeStatut, couleurStatut } from '@/common/statuts';
 import { cx } from '@/common/cx';
-import { api, ErreurApi } from '@/lib/api';
+import { ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ProjetPage.module.css';
@@ -201,11 +202,6 @@ function EtatEcheanceProjet({
   return null;
 }
 
-interface Agent {
-  id: string;
-  nom: string;
-  profil: string;
-}
 
 // Transitions qui exigent une note de justification (enregistrée au journal de bord).
 const TRANSITIONS_JUSTIFIEES = new Set(['Suspendu', 'Clôturé']);
@@ -250,7 +246,7 @@ export function ProjetPage(): JSX.Element {
     void charger();
   }, [charger]);
   useEffect(() => {
-    void api.get<Agent[]>('/referentiels/agents').then(setAgents);
+    void chargerAgents('projets').then(setAgents);
   }, []);
 
   const optionsAgents = agents.map((a) => ({ valeur: a.id, libelle: a.nom }));
