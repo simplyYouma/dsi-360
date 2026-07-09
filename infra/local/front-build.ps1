@@ -1,4 +1,4 @@
-# Build de production du frontend → frontend/dist.
+﻿# Build de production du frontend → frontend/dist.
 # En prod, l'API FastAPI sert ce dossier (DSI360_SERVIR_FRONTEND=true).
 $ErrorActionPreference = 'Stop'
 $racine = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path

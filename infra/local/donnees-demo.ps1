@@ -1,4 +1,4 @@
-# Recrée un jeu de données de démonstration réaliste — DÉVELOPPEMENT UNIQUEMENT.
+﻿# Recrée un jeu de données de démonstration réaliste — DÉVELOPPEMENT UNIQUEMENT.
 # Remet à zéro les activités/tâches/documents/commentaires + utilisateurs de démo, puis régénère.
 # Refuse de tourner hors environnement 'dev'. Le compte admin et les référentiels ne sont pas touchés.
 . "$PSScriptRoot\env.ps1"

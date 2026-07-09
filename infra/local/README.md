@@ -43,6 +43,15 @@ Décision tracée : [ADR-0002](../../docs/adr/0002-execution-native-sans-docker.
    infra\local\donnees-demo.ps1
    ```
 
+## Encodage des scripts (à ne pas casser)
+
+Les `.ps1` de ce dossier sont en **UTF-8 avec BOM**, et doivent le rester. Un double-clic ouvre
+**Windows PowerShell 5.1**, qui lit un `.ps1` sans BOM comme du Windows-1252 : les accents
+deviennent du charabia et le script ne compile plus. `demarrer-dev.ps1` se relance de lui-même
+sous **pwsh 7** ; il doit d'abord pouvoir être lu par 5.1 pour y parvenir.
+
+Corollaire : **jamais d'accent dans un nom de variable** PowerShell.
+
 ## Lancer en développement
 
 **Une seule commande** (démarre l'API + le frontend dans le même terminal, Ctrl+C arrête les deux) :

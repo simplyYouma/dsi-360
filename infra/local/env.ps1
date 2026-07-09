@@ -1,4 +1,4 @@
-# Charge la configuration native dans l'environnement du process courant.
+﻿# Charge la configuration native dans l'environnement du process courant.
 # À dot-sourcer :  . .\env.ps1
 $ErrorActionPreference = 'Stop'
 

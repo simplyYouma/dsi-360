@@ -1,4 +1,4 @@
-# Serveur de développement du frontend SEUL (Vite, HMR) sur http://localhost:5290.
+﻿# Serveur de développement du frontend SEUL (Vite, HMR) sur http://localhost:5290.
 # Proxifie /api vers l'API uvicorn (127.0.0.1:8011), qu'il faut donc démarrer à côté (api.ps1).
 #
 # `npm run web` = Vite seul. Surtout pas `npm run dev`, qui démarre aussi une API et ferait
