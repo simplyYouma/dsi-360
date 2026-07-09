@@ -8,6 +8,8 @@ __pycache__/
 # Build
 dist/
 build/
+# Cache incrémental de tsc : change à chaque compilation, ne dit rien du code
+*.tsbuildinfo
 
 # Secrets / env (jamais commités)
 infra/env/.env
