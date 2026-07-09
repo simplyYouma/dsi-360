@@ -8,7 +8,7 @@
 
 - Scaffolding monorepo + Docker + qualité (lint/format/types/tests).
 - Schéma DB (core / audit), migrations versionnées.
-- Auth **OIDC (Entra ID) / LDAP** + JWT + **RBAC 7 profils** + cloisonnement.
+- Auth **OIDC (Entra ID) / LDAP** + JWT + **RBAC par profil métier** + cloisonnement.
 - Entité **Activité** + machines à états + **moteur SLA** (priorité P1–P5, échéances) + ordonnanceur.
 - **Audit append-only**, **notifications** (e-mail + interne), **design system maison** (tokens + primitives).
 

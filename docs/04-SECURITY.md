@@ -14,14 +14,19 @@
 - **MFA** : délégué à Entra ID / M365 (conforme au cahier, module Cybersécurité).
 - **Préparation** : `source_auth` (LDAP / OIDC / LOCAL) porté par le compte, pour basculer sans refonte.
 
-## 2. Autorisation — RBAC (7 profils) + cloisonnement
+## 2. Autorisation — RBAC (profils métier) + cloisonnement
 
-- **7 profils** (cf. domaine §5) : Administrateur, DSI, Chef de Service, Chef de Projet, Technicien,
-  Métier, Direction Générale.
+- **Profils métier paramétrables** (cf. domaine §5 et [ADR-0003](adr/0003-profils-metier-et-perimetre-dsi.md)) :
+  Administrateur, IT Support Applicatif et HelpDesk, Réseau télécom, Système et Réseau télécom,
+  IT Support Applicatif. Créables/renommables/supprimables depuis l'administration.
+  - Deux garde-fous **côté serveur** : un profil porté par des comptes ne se supprime pas, et
+    `ADMIN` ne se supprime pas et reste transverse (anti-verrouillage).
+  - Un profil créé n'ouvre **aucun** module tant qu'on ne lui en donne pas (sécurité par défaut).
 - **Deux niveaux** :
-  1. **Accès aux pages/modules** : matrice **profil → modules**, **paramétrable** (comme DORIS).
-  2. **Cloisonnement par périmètre** : un Chef de Service ne voit que **son service** ; un Technicien
-     que **ses activités assignées** ; un Métier que **ses demandes** ; la DG en **consultation**.
+  1. **Accès aux modules et aux actions** : matrice **profil → module → action**, **paramétrable**.
+  2. **Cloisonnement par direction** : un profil non transverse ne voit que les activités de sa
+     direction (ou celles sans direction). La plateforme ne servant que la DSI, ce cloisonnement
+     est neutre aujourd'hui ; le mécanisme et ses tests restent en place.
 - **Actions sensibles gardées en dur** (séparation des tâches, non paramétrable) : validation
   **CAB/ECAB**, clôture d'activité, validation de clôture d'audit, paramétrage, gestion des comptes.
 - Vérification **systématiquement côté API** (dépendances de garde), jamais seulement dans l'UI.

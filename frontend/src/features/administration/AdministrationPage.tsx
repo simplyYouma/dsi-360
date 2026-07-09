@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, Mail, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { BoutonSupprimer } from '@/common/BoutonSupprimer';
+import { ChampInline } from '@/common/ChampInline';
 import { MenuActions } from '@/common/MenuActions';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -783,11 +785,167 @@ function OngletCategories(): JSX.Element {
   );
 }
 
+// ---------------------------------------------------------------- Profils
+
+/** Le profil administrateur est protégé côté serveur : ni suppression, ni perte du transverse.
+ *  L'écran le reflète — un bouton qui déclenche un refus est un bouton de trop. */
+const PROFIL_ADMIN = 'ADMIN';
+
+function OngletProfils(): JSX.Element {
+  const { notifier } = useToast();
+  const [profils, setProfils] = useState<Profil[]>([]);
+  const [nouveau, setNouveau] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+
+  const charger = useCallback((): void => {
+    void adminApi.profils().then(setProfils);
+  }, []);
+  useEffect(() => {
+    charger();
+  }, [charger]);
+
+  const echouer = (e: unknown, repli: string): void =>
+    notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
+
+  const ajouter = async (): Promise<void> => {
+    const libelle = nouveau.trim();
+    if (libelle === '') return;
+    setEnvoi(true);
+    try {
+      await adminApi.creerProfil(libelle, false);
+      setNouveau('');
+      charger();
+      notifier('Profil créé — ouvrez-lui des modules dans l’onglet Accès', 'succes');
+    } catch (e) {
+      echouer(e, 'Création impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const modifier = async (p: Profil, libelle: string, transverse: boolean): Promise<void> => {
+    if (libelle.trim() === '' || (libelle === p.libelle && transverse === p.transverse)) return;
+    setEnvoi(true);
+    try {
+      await adminApi.modifierProfil(p.code, libelle.trim(), transverse);
+      charger();
+      notifier('Profil modifié', 'succes');
+    } catch (e) {
+      echouer(e, 'Modification impossible.');
+      charger(); // le refus serveur fait foi : on réaffiche l'état réel
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const supprimer = async (p: Profil): Promise<void> => {
+    setEnvoi(true);
+    try {
+      await adminApi.supprimerProfil(p.code);
+      charger();
+      notifier('Profil supprimé', 'succes');
+    } catch (e) {
+      echouer(e, 'Suppression impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
+      <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
+        Profils métier de la DSI. Le code technique est dérivé du libellé et ne change jamais : il
+        est référencé par les comptes et par la matrice d’accès. Un profil porté par des comptes ne
+        peut pas être supprimé. Un nouveau profil n’ouvre aucun module tant que vous ne lui en
+        donnez pas dans l’onglet Accès.
+      </p>
+      <table className={a.matrice}>
+        <thead>
+          <tr>
+            <th>Libellé</th>
+            <th>Code</th>
+            <th style={{ width: 190 }}>Périmètre</th>
+            <th style={{ width: 60, textAlign: 'right' }} />
+          </tr>
+        </thead>
+        <tbody>
+          {profils.map((p) => {
+            const protege = p.code === PROFIL_ADMIN;
+            return (
+              <tr key={p.code}>
+                <td>
+                  <ChampInline
+                    valeur={p.libelle}
+                    onValider={(v) => void modifier(p, v, p.transverse)}
+                    aria-label={`Renommer ${p.libelle}`}
+                  />
+                </td>
+                <td style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {p.code}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className={a.caseLigne}
+                    disabled={envoi || protege}
+                    title={
+                      protege
+                        ? 'L’administrateur reste transverse'
+                        : 'Voit les activités de toutes les directions'
+                    }
+                    onClick={() => void modifier(p, p.libelle, !p.transverse)}
+                  >
+                    <span className={cx(a.case, p.transverse && a.caseOn)}>
+                      {p.transverse && <Check size={13} />}
+                    </span>
+                    Transverse
+                  </button>
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                  {!protege && (
+                    <BoutonSupprimer
+                      cible={`le profil « ${p.libelle} »`}
+                      onSupprimer={() => supprimer(p)}
+                      className={a.supprCat}
+                    />
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div
+        style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-4)', maxWidth: 420 }}
+      >
+        <input
+          className={a.slaInput}
+          style={{ flex: 1, textAlign: 'left' }}
+          value={nouveau}
+          placeholder="Nouveau profil"
+          aria-label="Libellé du nouveau profil"
+          onChange={(e) => setNouveau(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void ajouter();
+            }
+          }}
+        />
+        <Button onClick={() => void ajouter()} disabled={envoi || nouveau.trim() === ''}>
+          <Plus size={16} />
+          Ajouter
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AdministrationPage(): JSX.Element {
   const [onglet, setOnglet] = useState<
-    'utilisateurs' | 'acces' | 'journal' | 'sla' | 'categories'
+    'utilisateurs' | 'profils' | 'acces' | 'journal' | 'sla' | 'categories'
   >('utilisateurs');
   const [signalCreation, setSignalCreation] = useState(0);
 
@@ -796,7 +954,9 @@ export function AdministrationPage(): JSX.Element {
       <header className={styles.entete}>
         <div>
           <h1 className={styles.titre}>Administration</h1>
-          <p className={styles.sous}>Utilisateurs, accès, catégories, SLA et journal d’audit.</p>
+          <p className={styles.sous}>
+            Utilisateurs, profils, accès, catégories, SLA et journal d’audit.
+          </p>
         </div>
       </header>
 
@@ -807,6 +967,13 @@ export function AdministrationPage(): JSX.Element {
             onClick={() => setOnglet('utilisateurs')}
           >
             Utilisateurs
+          </button>
+          {/* Profils avant Accès : on crée un profil, puis on lui ouvre des modules. */}
+          <button
+            className={onglet === 'profils' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('profils')}
+          >
+            Profils
           </button>
           <button className={onglet === 'acces' ? a.tabActif : a.tab} onClick={() => setOnglet('acces')}>
             Accès
@@ -838,6 +1005,7 @@ export function AdministrationPage(): JSX.Element {
       </div>
 
       {onglet === 'utilisateurs' && <OngletUtilisateurs signalCreation={signalCreation} />}
+      {onglet === 'profils' && <OngletProfils />}
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}
       {onglet === 'sla' && <OngletSla />}

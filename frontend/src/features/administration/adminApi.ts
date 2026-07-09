@@ -16,6 +16,8 @@ export interface Utilisateur {
 export interface Profil {
   code: string;
   libelle: string;
+  /** Voit au-delà de son périmètre de direction. */
+  transverse: boolean;
 }
 export interface Direction {
   code: string;
@@ -65,6 +67,12 @@ export interface SlaRegle {
 
 export const adminApi = {
   profils: (): Promise<Profil[]> => api.get('/admin/profils'),
+  /** Le code technique est dérivé du libellé côté serveur : on nomme, on ne code pas. */
+  creerProfil: (libelle: string, transverse: boolean): Promise<Profil> =>
+    api.post('/admin/profils', { libelle, transverse }),
+  modifierProfil: (code: string, libelle: string, transverse: boolean): Promise<Profil> =>
+    api.patch(`/admin/profils/${code}`, { libelle, transverse }),
+  supprimerProfil: (code: string): Promise<void> => api.del(`/admin/profils/${code}`),
   modulesSla: (): Promise<string[]> => api.get('/admin/sla/modules'),
   sla: (module: string): Promise<SlaRegle[]> => api.get(`/admin/sla?module=${module}`),
   definirSla: (module: string, regles: SlaRegle[]): Promise<void> =>

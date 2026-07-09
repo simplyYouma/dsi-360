@@ -9,7 +9,7 @@ Guide de lecture. La **source de vérité unique** est [`/CLAUDE.md`](../CLAUDE.
 4. [`02-DOMAIN-MODEL.md`](02-DOMAIN-MODEL.md) — modèle de domaine (Activité, SLA, cycles de vie, profils). ✅
 5. [`05-DESIGN-SYSTEM.md`](05-DESIGN-SYSTEM.md) — tokens, composants maison, charte (cf. images d'inspi). ✅
 6. [`03-API-CONTRACTS.md`](03-API-CONTRACTS.md) — conventions REST, endpoints, format d'erreur, versioning. ✅
-7. [`04-SECURITY.md`](04-SECURITY.md) — auth AD/LDAP/M365, RBAC (7 profils), cloisonnement, audit. ✅
+7. [`04-SECURITY.md`](04-SECURITY.md) — auth AD/LDAP/M365, RBAC (profils métier paramétrables), cloisonnement, audit. ✅
 8. [`07-ROADMAP.md`](07-ROADMAP.md) — socle transverse + phases 1/2/3, jalons. ✅
 
 > Doc de conception **complète**. Prochaine étape : vérifier l'exécution du squelette, puis lot P1-0.

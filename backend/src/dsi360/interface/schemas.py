@@ -453,6 +453,20 @@ class DemandeurMaj(BaseModel):
 class ProfilItem(BaseModel):
     code: str
     libelle: str
+    # Voit au-delà de son périmètre de direction (cf. activites_communs._visible).
+    transverse: bool = False
+
+
+class CreationProfil(BaseModel):
+    # Le code technique est dérivé du libellé : l'administrateur nomme, il ne code pas.
+    libelle: str = Field(min_length=1, max_length=80)
+    transverse: bool = False
+
+
+class MajProfil(BaseModel):
+    libelle: str = Field(min_length=1, max_length=80)
+    # Omis = inchangé. Retirer le transverse à ADMIN est refusé (anti-verrouillage).
+    transverse: bool | None = None
 
 
 class DirectionItem(BaseModel):

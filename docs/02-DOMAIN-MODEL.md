@@ -81,21 +81,27 @@ Aucune de ces valeurs n'est codée en dur : on les édite depuis l'administratio
 - **Profils & permissions** (RBAC, §5) et **matrice d'escalade** (N1/N2/N3).
 - **Sources d'audit**, **types de changement**, **directions / services**.
 
-## 5. Acteurs & droits (RBAC — 7 profils)
+## 5. Acteurs & droits (RBAC — profils métier paramétrables)
 
-| Profil | Portée |
-|---|---|
-| **Administrateur** | accès complet, paramétrage |
-| **DSI** | pilotage global, toutes activités |
-| **Chef de Service** | gestion de **son périmètre** |
-| **Chef de Projet** | gestion **des projets** |
-| **Technicien** | activités **qui lui sont assignées** |
-| **Métier** | **ses** demandes (création + suivi) |
-| **Direction Générale** | **consultation** des tableaux de bord stratégiques |
+Cf. [ADR-0003](adr/0003-profils-metier-et-perimetre-dsi.md). Les profils décrivent les **métiers de
+la DSI**, pas une hiérarchie. Ils s'ajoutent, se renomment et se suppriment depuis l'administration.
 
-Cloisonnement vérifié **côté serveur** : chacun ne voit/agit que dans son périmètre. Comme pour les
-accès aux pages, la correspondance profil → droits est **paramétrable**, mais les actions sensibles
-(validation CAB/ECAB, clôture, paramétrage) restent gardées en dur (séparation des tâches).
+| Profil (défaut) | Transverse | Portée |
+|---|---|---|
+| **Administrateur** | oui | accès complet, paramétrage |
+| **IT Support Applicatif et HelpDesk** | non | opérationnel, sa direction |
+| **Réseau télécom** | non | opérationnel, sa direction |
+| **Système et Réseau télécom** | non | opérationnel, sa direction |
+| **IT Support Applicatif** | non | opérationnel, sa direction |
+
+`ADMIN` est **protégé** : il ne se supprime pas et reste transverse — sinon plus personne
+n'administre la plateforme. Aucun code ne dépend d'une liste figée de profils.
+
+Cloisonnement vérifié **côté serveur** : chacun ne voit/agit que dans son périmètre. La plateforme
+ne servant que la DSI (direction unique), il est aujourd'hui neutre ; le mécanisme et ses tests
+restent en place. La correspondance profil → droits est **paramétrable**, par module et par action ;
+les actions sensibles (validation CAB/ECAB, clôture, paramétrage) restent gardées en dur
+(séparation des tâches).
 
 ## 6. Traçabilité (audit append-only)
 

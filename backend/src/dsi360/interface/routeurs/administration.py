@@ -1,6 +1,7 @@
 """Administration (§9) : utilisateurs, matrice d'accès, journal d'audit."""
 
 import re
+import unicodedata
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.auth import envoyer_lien_mot_de_passe
 from dsi360.config import get_settings
-from dsi360.config.acces import MODULES
+from dsi360.config.acces import MODULES, PROFIL_ADMIN
 from dsi360.domain.sla import MODULES_SLA
 from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure import audit, email, email_modeles
@@ -19,10 +20,12 @@ from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.interface.schemas import (
     CategorieItem,
     CreationCategorie,
+    CreationProfil,
     CreationReponse,
     CreationUtilisateur,
     DirectionItem,
     MajAcces,
+    MajProfil,
     MajSlaRegles,
     MajUtilisateur,
     MatriceAcces,
@@ -45,8 +48,157 @@ _TAILLE = 15
 
 @routeur.get("/profils", response_model=list[ProfilItem])
 async def profils(courant: Courant, session: Session) -> list[dict[str, Any]]:
-    r = await session.execute(text("SELECT code, libelle FROM core.profil ORDER BY libelle"))
+    r = await session.execute(
+        text("SELECT code, libelle, transverse FROM core.profil ORDER BY libelle")
+    )
     return [dict(x) for x in r.mappings().all()]
+
+
+# --- Profils (paramétrage, cf. ADR-0003 §1) ---
+#
+# Les profils sont un paramétrage, pas un vocabulaire figé : on en ajoute, on en renomme, on en
+# supprime. Deux garde-fous, tous deux côté serveur :
+#   - un profil auquel des comptes sont rattachés ne se supprime pas (on perdrait leurs droits) ;
+#   - ADMIN ne se supprime pas et reste transverse — sinon plus personne n'administre la
+#     plateforme, et aucun écran ne permettrait de revenir en arrière.
+
+
+async def _profil_ou_404(session: AsyncSession, code: str) -> dict[str, Any]:
+    ligne = (
+        await session.execute(
+            text("SELECT code, libelle, transverse FROM core.profil WHERE code = :c"), {"c": code}
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profil introuvable.")
+    return dict(ligne)
+
+
+async def _exiger_profil_unique(
+    session: AsyncSession, *, code: str, libelle: str, sauf: str | None = None
+) -> None:
+    """Refuse un code ou un libellé déjà pris.
+
+    Le libellé compte autant que le code : « Administrateur » donnerait le code ADMINISTRATEUR,
+    distinct d'ADMIN, et la liste afficherait deux profils au nom identique.
+    """
+    conflit = await session.scalar(
+        text(
+            "SELECT code FROM core.profil "
+            "WHERE (code = :code OR lower(libelle) = lower(:libelle)) "
+            "AND (cast(:sauf as text) IS NULL OR code <> :sauf) LIMIT 1"
+        ),
+        {"code": code, "libelle": libelle, "sauf": sauf},
+    )
+    if conflit is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Ce profil existe déjà."
+        )
+
+
+@routeur.post("/profils", response_model=ProfilItem, status_code=status.HTTP_201_CREATED)
+async def creer_profil(corps: CreationProfil, courant: Courant, session: Session) -> dict[str, Any]:
+    libelle = corps.libelle.strip()
+    code = _code_technique(libelle, "profil")
+    await _exiger_profil_unique(session, code=code, libelle=libelle)
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.profil (code, libelle, transverse) VALUES (:c, :l, :t) "
+                "RETURNING code, libelle, transverse"
+            ),
+            {"c": code, "l": libelle, "t": corps.transverse},
+        )
+    ).mappings().one()
+    # Aucun accès n'est accordé : sécurité par défaut, l'administrateur ouvre ensuite les modules.
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="profil",
+        cible_id=code,
+        nouvelle={"code": code, "libelle": libelle, "transverse": corps.transverse},
+    )
+    await session.commit()
+    return dict(ligne)
+
+
+@routeur.patch("/profils/{code}", response_model=ProfilItem)
+async def modifier_profil(
+    code: str, corps: MajProfil, courant: Courant, session: Session
+) -> dict[str, Any]:
+    avant = await _profil_ou_404(session, code)
+    libelle = corps.libelle.strip()
+    # Le code technique ne bouge pas avec le libellé : il est référencé par core.acces_role et par
+    # les comptes. Renommer « Réseau télécom » n'en fait pas un autre profil.
+    await _exiger_profil_unique(session, code=code, libelle=libelle, sauf=code)
+    transverse = avant["transverse"] if corps.transverse is None else corps.transverse
+    if code == PROFIL_ADMIN and not transverse:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="L'administrateur doit rester transverse.",
+        )
+    ligne = (
+        await session.execute(
+            text(
+                "UPDATE core.profil SET libelle = :l, transverse = :t WHERE code = :c "
+                "RETURNING code, libelle, transverse"
+            ),
+            {"c": code, "l": libelle, "t": transverse},
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="profil",
+        cible_id=code,
+        ancienne=avant,
+        nouvelle={"code": code, "libelle": libelle, "transverse": transverse},
+    )
+    await session.commit()
+    return dict(ligne)
+
+
+@routeur.delete("/profils/{code}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_profil(code: str, courant: Courant, session: Session) -> None:
+    avant = await _profil_ou_404(session, code)
+    if code == PROFIL_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Le profil administrateur ne peut pas être supprimé.",
+        )
+    rattaches = await session.scalar(
+        text(
+            "SELECT count(*) FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+            "WHERE p.code = :c"
+        ),
+        {"c": code},
+    )
+    if rattaches:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{rattaches} compte(s) portent ce profil — réaffectez-les avant de le supprimer."
+            ),
+        )
+    # core.acces_role référence profil_code avec ON DELETE CASCADE : aucun accès orphelin ne reste.
+    await session.execute(text("DELETE FROM core.profil WHERE code = :c"), {"c": code})
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="profil",
+        cible_id=code,
+        ancienne=avant,
+    )
+    await session.commit()
 
 
 @routeur.get("/directions", response_model=list[DirectionItem])
@@ -63,15 +215,24 @@ async def directions(courant: Courant, session: Session) -> list[dict[str, Any]]
 _MODULES_CATEGORIE_VERROUILLES: frozenset[str] = frozenset({"changement"})
 
 
-def _code_categorie(libelle: str) -> str:
-    """Code technique stable dérivé du libellé (MAJUSCULES, alphanumérique, séparé par '_')."""
-    code = re.sub(r"[^A-Z0-9]+", "_", libelle.upper()).strip("_")
+def _code_technique(libelle: str, quoi: str) -> str:
+    """Code stable dérivé du libellé (MAJUSCULES, alphanumérique, séparé par '_').
+
+    Les accents sont dépliés d'abord : « Réseau télécom » donne RESEAU_TELECOM, et non
+    R_SEAU_T_L_COM.
+    """
+    sans_accent = unicodedata.normalize("NFKD", libelle).encode("ascii", "ignore").decode()
+    code = re.sub(r"[^A-Z0-9]+", "_", sans_accent.upper()).strip("_")
     if not code:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Libellé de catégorie invalide.",
+            detail=f"Libellé de {quoi} invalide.",
         )
     return code
+
+
+def _code_categorie(libelle: str) -> str:
+    return _code_technique(libelle, "catégorie")
 
 
 @routeur.post("/categories", response_model=CategorieItem, status_code=status.HTTP_201_CREATED)

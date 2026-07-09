@@ -40,7 +40,7 @@ Navigateur (SPA React + design system maison)
 
 ## 4. Sécurité (cf. `docs/04-SECURITY.md` à venir)
 
-Auth **AD/LDAP/M365** (OIDC) → JWT court + refresh ; **RBAC 7 profils** + cloisonnement par
+Auth **AD/LDAP/M365** (OIDC) → JWT court + refresh ; **RBAC par profil métier et par action** + cloisonnement par
 périmètre, vérifié **côté serveur** ; audit append-only (ancienne/nouvelle valeur, IP) ; secrets
 hors du code ; TLS partout.
 
