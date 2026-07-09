@@ -71,9 +71,26 @@ Derrière un reverse-proxy (IIS/Nginx) pour le TLS. Aucune image ni conteneur re
 
 ## Vérifications qualité
 
+Les commandes se lancent **depuis `backend\`** : c'est là que vit `pyproject.toml`, donc la
+configuration de ruff, mypy (mode strict) et pytest. Lancées depuis la racine, mypy et pytest ne
+trouvent aucune configuration et vérifient bien moins qu'il n'y paraît.
+
 ```powershell
 . infra\local\env.ps1
-& $DSI360_PY -m ruff check backend\src
-& $DSI360_PY -m mypy backend\src\dsi360
-& $DSI360_PY -m pytest backend\tests -q
+Set-Location backend
+& $DSI360_PY -m ruff check src tests
+& $DSI360_PY -m mypy src\dsi360 tests
+& $DSI360_PY -m pytest tests -q
 ```
+
+### Base de test (une seule fois)
+
+Les tests d'intégration tournent sur une base dédiée `dsi360_test`, jamais sur celle de
+développement. La créer une fois, en superuser :
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\provisionner-db-test.sql
+```
+
+Ensuite `pytest tests` s'en occupe seul : migrations, seed, puis chaque test dans une transaction
+annulée à la fin. Les tests unitaires (`pytest tests\unit`) ne demandent aucune base.

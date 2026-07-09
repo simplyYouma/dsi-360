@@ -3,8 +3,12 @@
 -- ticket ; si le niveau cible n'existe pas ou est vide dans cette direction, on monte jusqu'au N3.
 -- Un ticket sans gestionnaire est considéré d'office au niveau 3.
 
--- La direction DBS (le libellé exact reste ajustable dans le référentiel).
-INSERT INTO core.direction (code, libelle) VALUES ('DBS', 'Direction DBS')
+-- Les directions référencées ci-dessous sont créées si elles manquent : une migration ne peut pas
+-- dépendre du seed, qui s'exécute APRÈS elle. Sur une base neuve, core.direction est encore vide,
+-- et sans la ligne DSI l'UPDATE plus bas laisserait direction_id à NULL (violation du NOT NULL).
+INSERT INTO core.direction (code, libelle) VALUES
+    ('DSI', 'Direction des Systèmes d''Information'),
+    ('DBS', 'Direction DBS')  -- le libellé exact reste ajustable dans le référentiel
 ON CONFLICT (code) DO NOTHING;
 
 ALTER TABLE core.groupe_support ADD COLUMN direction_id uuid REFERENCES core.direction(id);
