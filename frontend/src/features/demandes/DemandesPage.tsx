@@ -155,6 +155,9 @@ export function DemandesPage(): JSX.Element {
         moduleCategorie="demande"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
+        onVu={(aid) =>
+          setDemandes((liste) => liste.map((d) => (d.id === aid ? { ...d, nb_non_vus: 0 } : d)))
+        }
       />
     </div>
   );

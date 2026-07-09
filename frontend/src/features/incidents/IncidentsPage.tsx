@@ -167,6 +167,11 @@ export function IncidentsPage(): JSX.Element {
         moduleCategorie="incident"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
+        onVu={(aid) =>
+          setIncidents((liste) =>
+            liste.map((i) => (i.id === aid ? { ...i, nb_non_vus: 0 } : i)),
+          )
+        }
       />
     </div>
   );

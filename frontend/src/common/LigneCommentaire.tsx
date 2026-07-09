@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Eye, Pencil, X } from 'lucide-react';
+import { Check, CheckCheck, Pencil, X } from 'lucide-react';
 import { Button, Modale } from '@/design-system/primitives';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { cx } from '@/common/cx';
@@ -33,6 +33,7 @@ export function LigneCommentaire({
   const editRef = useRef<HTMLDivElement>(null);
   const estAuteur = moiId !== null && c.auteur_id === moiId;
   const nonVu = !estAuteur && !c.vu;
+  const lu = c.nb_vues > 0;
 
   // À l'ouverture de l'édition, on amène le formulaire (et ses boutons) dans la vue.
   useEffect(() => {
@@ -74,6 +75,23 @@ export function LigneCommentaire({
           })}
           {c.edite && <span className={styles.modifie}> · modifié</span>}
         </span>
+        {/* Accusé de lecture (façon messagerie) : une coche = envoyé, deux coches colorées = lu. */}
+        {estAuteur && !edition && (
+          <button
+            type="button"
+            className={cx(styles.accuse, lu && styles.accuseLu)}
+            onClick={ouvrirLecteurs}
+            title={
+              lu
+                ? `Vu par ${c.nb_vues} personne${c.nb_vues > 1 ? 's' : ''}`
+                : 'Envoyé — pas encore lu'
+            }
+            aria-label={lu ? 'Voir qui a lu ce message' : 'Message pas encore lu'}
+          >
+            {lu ? <CheckCheck size={15} /> : <Check size={15} />}
+            {lu && <span className={styles.accuseNb}>{c.nb_vues}</span>}
+          </button>
+        )}
         {estAuteur && !edition && (
           <span className={styles.actions}>
             <button
@@ -133,13 +151,6 @@ export function LigneCommentaire({
         <p className={fiche.commTexte}>
           <TexteMentions texte={c.texte} agents={agents} />
         </p>
-      )}
-      {/* Vues : sur ses propres messages, discret, cliquable pour voir qui a lu. */}
-      {estAuteur && !edition && c.nb_vues > 0 && (
-        <button type="button" className={styles.vues} onClick={ouvrirLecteurs} title="Voir les vues">
-          <Eye size={12} />
-          {c.nb_vues}
-        </button>
       )}
       <Modale
         ouverte={lecteurs !== null}

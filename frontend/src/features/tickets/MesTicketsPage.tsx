@@ -362,6 +362,9 @@ export function MesTicketsPage(): JSX.Element {
         {...(fiche ? (CAPACITES_MODULE[fiche.module] ?? {}) : {})}
         onFermer={() => setFiche(null)}
         onChange={charger}
+        onVu={(aid) =>
+          setItems((liste) => liste.map((t) => (t.id === aid ? { ...t, nb_non_vus: 0 } : t)))
+        }
       />
     </div>
   );

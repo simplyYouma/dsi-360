@@ -57,6 +57,9 @@ interface FicheTransitionProps {
   id: string | null;
   onFermer: () => void;
   onChange: () => void;
+  /** Appelé dès que le fil est marqué lu : permet à la liste de retirer la marque
+   *  « nouveaux messages » immédiatement, sans rechargement. */
+  onVu?: (activiteId: string) => void;
   /** Active l'assignation du gestionnaire DSI (modules ticketing : factory d'activités). */
   assignable?: boolean;
   /** Libellé du champ catégorie selon le module (ex. « Type » pour les changements). */
@@ -86,6 +89,7 @@ export function FicheTransition({
   id,
   onFermer,
   onChange,
+  onVu,
   assignable = false,
   labelCategorie = 'Catégorie',
   moduleCategorie,
@@ -156,6 +160,10 @@ export function FicheTransition({
     if (liste !== null) liste.scrollTop = liste.scrollHeight;
   }, [detail]);
 
+  // `onVu` est souvent une lambda : on la garde dans une ref pour ne pas relancer l'effet.
+  const onVuRef = useRef(onVu);
+  onVuRef.current = onVu;
+
   // Charge le fil de discussion à l'ouverture, puis le marque comme lu.
   useEffect(() => {
     if (id === null) {
@@ -165,7 +173,7 @@ export function FicheTransition({
     }
     void commentairesApi.lister(id).then((liste) => {
       setCommentaires(liste);
-      void commentairesApi.marquerVues(id);
+      void commentairesApi.marquerVues(id).then(() => onVuRef.current?.(id));
     });
   }, [id]);
 
