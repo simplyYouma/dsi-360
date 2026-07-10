@@ -113,6 +113,55 @@ const MODULE_META: Record<string, { nom: string; couleur: string }> = {
   risque: { nom: 'Risques', couleur: '#2fa363' },
 };
 
+/** Un signal : le chiffre, sa couleur, et — quand un dénominateur existe — la part qu'il pèse. */
+function Signal({
+  valeur,
+  ton,
+  libelle,
+  part,
+  ensemble,
+  legende,
+}: {
+  valeur: number;
+  ton: Ton;
+  libelle: string;
+  part?: number;
+  ensemble?: number;
+  legende?: string;
+}): JSX.Element {
+  const pct =
+    part !== undefined && ensemble !== undefined && ensemble > 0
+      ? Math.min(100, Math.round((100 * part) / ensemble))
+      : null;
+  const couleur =
+    ton === 'danger'
+      ? 'var(--status-danger)'
+      : ton === 'warn'
+        ? 'var(--status-warn)'
+        : 'var(--status-ok)';
+  return (
+    <li className={styles.signal}>
+      <span className={styles.signalValeur} data-ton={ton}>
+        {valeur}
+      </span>
+      <span className={styles.signalCorps}>
+        <span className={styles.signalLibelle}>{libelle}</span>
+        {pct !== null && (
+          <span className={styles.signalJauge} title={`${pct} % — ${legende ?? ''}`}>
+            <span className={styles.signalTrack}>
+              <span
+                className={styles.signalPlein}
+                style={{ width: `${Math.max(2, pct)}%`, background: couleur }}
+              />
+            </span>
+            <span className={styles.signalPct}>{pct} %</span>
+          </span>
+        )}
+      </span>
+    </li>
+  );
+}
+
 /** Miniature de tendance : huit semaines de créations, tracées sans axes — le geste suffit. */
 function Sparkline({ points, couleur }: { points: number[]; couleur: string }): JSX.Element | null {
   if (points.length < 2 || points.every((v) => v === 0)) return null;
@@ -275,6 +324,11 @@ export function DashboardPage(): JSX.Element {
         couleur: MODULE_META[r.module]?.couleur ?? '#94a3b8',
       }))
     : [];
+  const ticketsOuverts = tableau
+    ? tableau.repartition
+        .filter((r) => r.module === 'incident' || r.module === 'demande')
+        .reduce((s, r) => s + r.valeur, 0)
+    : 0;
   const sla: Segment[] = tableau
     ? [
         { nom: "À l'heure", valeur: tableau.sla.a_lheure, couleur: '#1f9d55' },
@@ -408,39 +462,32 @@ export function DashboardPage(): JSX.Element {
               <Skeleton hauteur="180px" radius="var(--radius-md)" />
             ) : (
               <ul className={styles.signaux}>
-                <li className={styles.signal}>
-                  <span
-                    className={styles.signalValeur}
-                    data-ton={tableau.dbs_ouverts > 0 ? 'warn' : 'ok'}
-                  >
-                    {tableau.dbs_ouverts}
-                  </span>
-                  <span className={styles.signalLibelle}>
-                    ticket(s) chez DBS
-                    {tableau.dbs_age_jours !== null &&
-                      ` — ${Math.round(tableau.dbs_age_jours)} j en moyenne`}
-                  </span>
-                </li>
-                <li className={styles.signal}>
-                  <span
-                    className={styles.signalValeur}
-                    data-ton={tableau.rouverts_30j > 0 ? 'warn' : 'ok'}
-                  >
-                    {tableau.rouverts_30j}
-                  </span>
-                  <span className={styles.signalLibelle}>
-                    réouverture(s) sur 30 jours — une résolution qui n'a pas tenu
-                  </span>
-                </li>
-                <li className={styles.signal}>
-                  <span
-                    className={styles.signalValeur}
-                    data-ton={tableau.sla.depasse > 0 ? 'danger' : 'ok'}
-                  >
-                    {tableau.sla.depasse}
-                  </span>
-                  <span className={styles.signalLibelle}>échéance(s) SLA dépassée(s)</span>
-                </li>
+                <Signal
+                  valeur={tableau.dbs_ouverts}
+                  ton={tableau.dbs_ouverts > 0 ? 'warn' : 'ok'}
+                  libelle={
+                    'ticket(s) chez DBS' +
+                    (tableau.dbs_age_jours !== null
+                      ? ` — ${Math.round(tableau.dbs_age_jours)} j en moyenne`
+                      : '')
+                  }
+                  part={tableau.dbs_ouverts}
+                  ensemble={ticketsOuverts}
+                  legende="part des tickets ouverts"
+                />
+                <Signal
+                  valeur={tableau.rouverts_30j}
+                  ton={tableau.rouverts_30j > 0 ? 'warn' : 'ok'}
+                  libelle="réouverture(s) sur 30 jours — une résolution qui n'a pas tenu"
+                />
+                <Signal
+                  valeur={tableau.sla.depasse}
+                  ton={tableau.sla.depasse > 0 ? 'danger' : 'ok'}
+                  libelle="échéance(s) SLA dépassée(s)"
+                  part={tableau.sla.depasse}
+                  ensemble={tableau.sla.a_lheure + tableau.sla.approche + tableau.sla.depasse}
+                  legende="part des échéances en cours"
+                />
               </ul>
             )}
           </Card>

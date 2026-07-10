@@ -2,8 +2,11 @@
 
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from dsi360.domain.activite import PREFIXE_REFERENCE
+from dsi360.domain.etats import etats_terminaux
 
 _CARTES = """
 SELECT
@@ -68,8 +71,12 @@ SELECT a.module, a.id::text AS id, a.reference, a.titre, a.priorite, a.statut,
        a.sla_resolution_le
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.cloture_le IS NULL AND a.sla_resolution_le IS NOT NULL
+WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL AND a.sla_resolution_le IS NOT NULL
+  AND a.statut NOT IN :terminaux
 """
+
+# Un ticket résolu, clôturé, rejeté ou annulé n'attend plus personne : il ne se traite pas.
+_TERMINAUX = sorted({e for m in PREFIXE_REFERENCE for e in etats_terminaux(m)})
 
 # Créations hebdomadaires des tickets importés : la respiration du flux, en miniature.
 _CREATIONS_HEBDO = """
@@ -137,12 +144,11 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
         .all()
     )
 
+    requete_a_traiter = text(
+        _A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"
+    ).bindparams(bindparam("terminaux", expanding=True))
     a_traiter = (
-        (
-            await session.execute(
-                text(_A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"), params
-            )
-        )
+        (await session.execute(requete_a_traiter, {**params, "terminaux": _TERMINAUX}))
         .mappings()
         .all()
     )

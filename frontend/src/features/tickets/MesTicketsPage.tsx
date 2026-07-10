@@ -151,6 +151,10 @@ export function MesTicketsPage(): JSX.Element {
   const [onglet, setOnglet] = useState<'tickets' | 'taches' | 'analyse'>('tickets');
   const [taches, setTaches] = useState<MaTache[]>([]);
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [pageTaches, setPageTaches] = useState(1);
+  const [totalTaches, setTotalTaches] = useState(0);
   const analyseRef = useRef<HTMLDivElement>(null);
   const { notifier } = useToast();
   const navigate = useNavigate();
@@ -160,14 +164,17 @@ export function MesTicketsPage(): JSX.Element {
     (silencieux = false): void => {
       if (!silencieux) setChargement(true);
       void mesTicketsApi
-        .lister(segment)
-        .then(setItems)
+        .lister(segment, page)
+        .then((p) => {
+          setItems(p.elements);
+          setTotal(p.total);
+        })
         .finally(() => {
           if (!silencieux) setChargement(false);
         });
       void mesTicketsApi.stats().then(setStats);
     },
-    [segment],
+    [segment, page],
   );
 
   const baseDe = useCallback(
@@ -230,8 +237,12 @@ export function MesTicketsPage(): JSX.Element {
   useRafraichissement(() => charger(true));
 
   useEffect(() => {
-    if (onglet === 'taches') void mesTicketsApi.taches().then(setTaches);
-  }, [onglet]);
+    if (onglet !== 'taches') return;
+    void mesTicketsApi.taches(false, pageTaches).then((p) => {
+      setTaches(p.elements);
+      setTotalTaches(p.total);
+    });
+  }, [onglet, pageTaches]);
 
   // Kanban : une colonne par statut présent (ordre d'apparition : déjà trié priorité/SLA).
   const statutsPresents = [...new Set(items.map((t) => t.statut))];
@@ -328,6 +339,7 @@ export function MesTicketsPage(): JSX.Element {
           cleLigne={(t) => t.id}
           vide="Aucune tâche ne vous est assignée pour le moment."
           onLigne={(t) => navigate(`${ROUTE_MODULE[t.module] ?? ''}/${t.activite_id}`)}
+          pagination={{ page: pageTaches, total: totalTaches, taille: 15, onPage: setPageTaches }}
         />
       ) : (
         <>
@@ -341,7 +353,10 @@ export function MesTicketsPage(): JSX.Element {
                   role="tab"
                   aria-selected={segment === s.cle}
                   className={cx(local.onglet, segment === s.cle && local.ongletOn)}
-                  onClick={() => setSegment(s.cle)}
+                  onClick={() => {
+                    setSegment(s.cle);
+                    setPage(1);
+                  }}
                 >
                   {s.libelle}
                 </button>
@@ -393,6 +408,7 @@ export function MesTicketsPage(): JSX.Element {
               vide="Aucun ticket assigné."
               onLigne={(t) => ouvrir(t.id)}
               classeLigne={(t) => (t.statut_sla === 'depasse' ? 'ligne-sla-depasse' : undefined)}
+              pagination={{ page, total, taille: 15, onPage: setPage }}
             />
           )}
         </>

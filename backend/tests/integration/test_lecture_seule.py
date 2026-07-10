@@ -138,7 +138,7 @@ async def test_l_admin_designe_un_contributeur_sur_un_ticket_importe(
     assert not r.json()["permissions"]["peut_travailler"], "suivre n'est pas agir"
 
     files = await client.get("/mes-tickets", headers=entetes(agent))
-    assert any(x["id"] == ident for x in files.json()), "le ticket entre dans sa file"
+    assert any(x["id"] == ident for x in files.json()["elements"]), "le ticket entre dans sa file"
 
 
 @pytest.mark.parametrize("module", MODULES)

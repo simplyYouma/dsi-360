@@ -387,3 +387,58 @@ async def test_seul_l_administrateur_change_la_categorie_d_un_risque(
             json={"categorie_id": None},
         )
         assert r.status_code == attendu, r.text
+
+
+async def test_designer_un_second_contributeur_remplace_le_premier(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un seul contributeur par activité : nommer quelqu'un d'autre est une réaffectation."""
+    admin = await creer_utilisateur(session, email="admin.unique@afgbank.ml", profil="ADMIN")
+    premier = await creer_utilisateur(session, email="premier.unique@afgbank.ml")
+    second = await creer_utilisateur(session, email="second.unique@afgbank.ml")
+    changement = await creer_activite(session, module="changement", reference="CHG-UNQ-1")
+
+    for uid in (premier, second):
+        r = await client.post(
+            f"/changements/{changement}/contributeurs",
+            headers=entetes(admin),
+            json={"utilisateur_id": uid},
+        )
+        assert r.status_code == 200, r.text
+
+    contributeurs = r.json()["contributeurs"]
+    assert len(contributeurs) == 1, "le second remplace le premier"
+    assert contributeurs[0]["email"] == "second.unique@afgbank.ml"
+
+
+async def test_reaffecter_le_valideur_efface_sa_decision(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """L'avis du prédécesseur n'engage pas le nouveau valideur."""
+    admin = await creer_utilisateur(session, email="admin.reval@afgbank.ml", profil="ADMIN")
+    premier = await creer_utilisateur(session, email="premier.reval@afgbank.ml")
+    second = await creer_utilisateur(session, email="second.reval@afgbank.ml")
+    changement = await creer_activite(session, module="changement", reference="CHG-UNQ-2")
+
+    await client.post(
+        f"/changements/{changement}/valideurs",
+        headers=entetes(admin),
+        json={"utilisateur_id": premier},
+    )
+    r = await client.post(
+        f"/changements/{changement}/decision",
+        headers=entetes(premier),
+        json={"decision": "APPROUVE"},
+    )
+    assert r.status_code == 200, r.text
+
+    r = await client.post(
+        f"/changements/{changement}/valideurs",
+        headers=entetes(admin),
+        json={"utilisateur_id": second},
+    )
+
+    valideurs = r.json()["valideurs"]
+    assert len(valideurs) == 1
+    assert valideurs[0]["email"] == "second.reval@afgbank.ml"
+    assert valideurs[0]["decision"] is None, "la décision repart à zéro"

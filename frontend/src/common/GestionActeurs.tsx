@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Repeat2, X } from 'lucide-react';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import styles from './GestionActeurs.module.css';
 
@@ -31,8 +31,8 @@ interface Props {
   lectureSeule?: boolean;
 }
 
-/** Acteurs secondaires d'une activité (contributeurs, valideurs) : puces + ajout à la demande.
- *  Le sélecteur n'apparaît qu'au clic sur « + », pour ne pas encombrer la fiche. */
+/** Acteur secondaire d'une activité (contributeur, valideur) : un seul titulaire par rôle.
+ *  Vide, le « + » désigne ; occupé, l'icône devient une réaffectation — nommer remplace. */
 export function GestionActeurs({
   acteurs,
   agents,
@@ -82,10 +82,10 @@ export function GestionActeurs({
               className={styles.ajouter}
               disabled={disabled || options.length === 0}
               onClick={() => setAjout(true)}
-              title={placeholder}
-              aria-label={placeholder}
+              title={acteurs.length > 0 ? 'Réaffecter' : placeholder}
+              aria-label={acteurs.length > 0 ? 'Réaffecter' : placeholder}
             >
-              <Plus size={14} />
+              {acteurs.length > 0 ? <Repeat2 size={14} /> : <Plus size={14} />}
             </button>
           </li>
         )}

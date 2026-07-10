@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     login_echecs_max: int = 5
     login_verrou_minutes: int = 15
 
+    # E-mails automatiques (notifications d'activité, échéances SLA). Les e-mails de compte
+    # (activation, réinitialisation) ne sont pas concernés : sans eux, personne n'entre.
+    notif_email_active: bool = True
+
     max_upload_mb: int = 20
     # Applique les migrations SQL en attente au démarrage de l'API (idempotent). Désactivable en
     # prod si l'on préfère un déploiement manuel des migrations.

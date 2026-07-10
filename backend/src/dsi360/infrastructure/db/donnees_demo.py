@@ -436,13 +436,13 @@ async def _acteurs(
     for uid in autres[:2]:
         await conn.execute(
             "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
-            "VALUES ($1,$2,'CONTRIBUTEUR') ON CONFLICT DO NOTHING",
+            "VALUES ($1,$2,'CONTRIBUTEUR') ON CONFLICT (activite_id, role) DO NOTHING",
             activite_id, uid,
         )
     if len(autres) > 2:
         await conn.execute(
             "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role, decision) "
-            "VALUES ($1,$2,'VALIDEUR',$3) ON CONFLICT DO NOTHING",
+            "VALUES ($1,$2,'VALIDEUR',$3) ON CONFLICT (activite_id, role) DO NOTHING",
             activite_id, autres[2], _decision_valideur(module, statut),
         )
 

@@ -240,10 +240,17 @@ async def definir_decision(
 async def ajouter_acteur(
     session: AsyncSession, identifiant: str, utilisateur_id: str, role: str
 ) -> None:
+    """Désigne l'acteur du rôle. Un seul par rôle : nommer quelqu'un d'autre le remplace.
+
+    La décision repart à zéro avec le nouveau valideur — l'avis de son prédécesseur
+    ne l'engage pas.
+    """
     await session.execute(
         text(
             "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
-            "VALUES (cast(:aid as uuid), cast(:uid as uuid), :role) ON CONFLICT DO NOTHING"
+            "VALUES (cast(:aid as uuid), cast(:uid as uuid), :role) "
+            "ON CONFLICT (activite_id, role) DO UPDATE "
+            "SET utilisateur_id = excluded.utilisateur_id, decision = NULL"
         ),
         {"aid": identifiant, "uid": utilisateur_id, "role": role},
     )

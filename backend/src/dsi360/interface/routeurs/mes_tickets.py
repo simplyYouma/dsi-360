@@ -16,7 +16,7 @@ from dsi360.domain.etats import etats_terminaux
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import tache as tache_repo
-from dsi360.interface.schemas import MaTache, MesStats, MonTicket
+from dsi360.interface.schemas import MesStats, PageMesTaches, PageMesTickets
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/mes-tickets", tags=["mes-tickets"])
@@ -63,7 +63,8 @@ def _requete_liste(segment: str) -> Any:
         "                     AND v.utilisateur_id = cast(:id as uuid))) AS nb_non_vus "
         "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
         f"WHERE {_A_MOI} AND a.module IN {_MODULES} AND {cond} "
-        "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST LIMIT 200"
+        "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST "
+        "LIMIT :taille OFFSET :decalage"
     )
     requete = text(sql)
     if ":term" in cond:
@@ -71,25 +72,44 @@ def _requete_liste(segment: str) -> Any:
     return requete
 
 
-@routeur.get("", response_model=list[MonTicket])
+_TAILLE_PAGE = 15
+
+
+def _requete_total(segment: str) -> Any:
+    cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"])
+    requete = text(f"SELECT count(*) FROM core.activite a WHERE {_A_MOI} "
+                   f"AND a.module IN {_MODULES} AND {cond}")
+    if ":term" in cond:
+        requete = requete.bindparams(bindparam("term", expanding=True))
+    return requete
+
+
+@routeur.get("", response_model=PageMesTickets)
 async def mes_tickets(
     courant: Courant,
     session: Session,
     segment: Annotated[str, Query()] = "actifs",
-) -> list[dict[str, Any]]:
+    page: Annotated[int, Query(ge=1)] = 1,
+) -> dict[str, Any]:
     if segment not in _SEGMENTS:
         segment = "actifs"
     params: dict[str, Any] = {"id": courant["id"]}
     if segment != "tout":
         params["term"] = _TERMINAUX
-    lignes = (await session.execute(_requete_liste(segment), params)).mappings().all()
+    total = await session.scalar(_requete_total(segment), params) or 0
+    lignes = (
+        await session.execute(
+            _requete_liste(segment),
+            {**params, "taille": _TAILLE_PAGE, "decalage": (page - 1) * _TAILLE_PAGE},
+        )
+    ).mappings().all()
     maintenant = datetime.now(UTC)
-    resultat: list[dict[str, Any]] = []
+    elements: list[dict[str, Any]] = []
     for r in lignes:
         echeance = r["sla_resolution_le"]
         etat = statut_sla(echeance, maintenant, _FENETRE) if echeance is not None else "a_lheure"
-        resultat.append({**dict(r), "statut_sla": etat})
-    return resultat
+        elements.append({**dict(r), "statut_sla": etat})
+    return {"elements": elements, "total": total}
 
 
 _OUVERTS = text(
@@ -110,17 +130,22 @@ def _comptes(valeurs: list[Any]) -> list[dict[str, Any]]:
     return [{"libelle": k, "valeur": n} for k, n in compte.most_common()]
 
 
-@routeur.get("/taches", response_model=list[MaTache])
+@routeur.get("/taches", response_model=PageMesTaches)
 async def mes_taches(
     courant: Courant,
     session: Session,
     inclure_terminees: Annotated[bool, Query()] = False,
-) -> list[dict[str, Any]]:
+    page: Annotated[int, Query(ge=1)] = 1,
+) -> dict[str, Any]:
     """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
     lignes = await tache_repo.lister_pour_utilisateur(
         session, courant["id"], inclure_terminees=inclure_terminees
     )
-    return [dict(r) for r in lignes]
+    debut = (page - 1) * _TAILLE_PAGE
+    return {
+        "elements": [dict(r) for r in lignes[debut : debut + _TAILLE_PAGE]],
+        "total": len(lignes),
+    }
 
 
 @routeur.get("/stats", response_model=MesStats)

@@ -266,3 +266,26 @@ async def test_a_traiter_met_le_plus_urgent_en_tete(
     assert a_traiter, "au moins une activité attendue"
     assert a_traiter[0]["reference"] == "CHG-FLX-9B", "la plus dépassée d'abord"
     assert {"module", "id", "reference", "titre", "statut"} <= set(a_traiter[0])
+
+
+async def test_un_ticket_resolu_n_est_plus_a_traiter(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Une demande « Résolue » à l'échéance dépassée n'attend plus personne."""
+    admin = await _admin(session, "admin.flux10@afgbank.ml")
+    resolu = await creer_activite(
+        session, module="demande", reference="DEM-FLX-10", statut="Résolue"
+    )
+    ouvert = await creer_activite(session, module="demande", reference="DEM-FLX-10B")
+    maj = (
+        "UPDATE core.activite SET sla_resolution_le = now() - interval '1 day'"
+        "{extra} WHERE id = cast(:a as uuid)"
+    )
+    await session.execute(text(maj.format(extra=", resolu_le = now()")), {"a": resolu})
+    await session.execute(text(maj.format(extra="")), {"a": ouvert})
+
+    r = await client.get("/tableau-de-bord", headers=entetes(admin))
+    references = [x["reference"] for x in r.json()["a_traiter"]]
+
+    assert "DEM-FLX-10B" in references
+    assert "DEM-FLX-10" not in references

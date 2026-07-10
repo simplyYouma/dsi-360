@@ -42,6 +42,16 @@ export interface MesStats {
 
 export type SegmentTicket = 'actifs' | 'resolus' | 'termines' | 'tout';
 
+export interface PageMesTickets {
+  elements: MonTicket[];
+  total: number;
+}
+
+export interface PageMesTaches {
+  elements: MaTache[];
+  total: number;
+}
+
 export interface MaTache {
   id: string;
   titre: string;
@@ -54,9 +64,9 @@ export interface MaTache {
 }
 
 export const mesTicketsApi = {
-  lister: (segment: SegmentTicket = 'actifs'): Promise<MonTicket[]> =>
-    api.get(`/mes-tickets?segment=${segment}`),
+  lister: (segment: SegmentTicket = 'actifs', page = 1): Promise<PageMesTickets> =>
+    api.get(`/mes-tickets?segment=${segment}&page=${page}`),
   stats: (): Promise<MesStats> => api.get('/mes-tickets/stats'),
-  taches: (inclureTerminees = false): Promise<MaTache[]> =>
-    api.get(`/mes-tickets/taches?inclure_terminees=${inclureTerminees}`),
+  taches: (inclureTerminees = false, page = 1): Promise<PageMesTaches> =>
+    api.get(`/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}`),
 };

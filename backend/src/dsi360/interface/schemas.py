@@ -311,6 +311,16 @@ class AgentBref(BaseModel):
     direction: str | None
 
 
+class PageMesTickets(BaseModel):
+    elements: list[MonTicket]
+    total: int
+
+
+class PageMesTaches(BaseModel):
+    elements: list[MaTache]
+    total: int
+
+
 class MesStats(BaseModel):
     """Tableau de bord personnel de l'agent connecté."""
 

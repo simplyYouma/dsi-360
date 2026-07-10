@@ -47,7 +47,7 @@ async def notifier(
             {"d": destinataire_id},
         )
     ).mappings().first()
-    if ligne and ligne["envoyer_email"] and ligne["email"]:
+    if get_settings().notif_email_active and ligne and ligne["envoyer_email"] and ligne["email"]:
         sujet, texte, html = email_modeles.notification_activite(
             titre, message, get_settings().url_app
         )
@@ -123,7 +123,7 @@ async def scanner_echeances(fenetre_heures: int = 2) -> dict[str, int]:
             )
             if resultat.endswith(" 1"):
                 crees += 1
-                if r["destinataire_email"]:
+                if get_settings().notif_email_active and r["destinataire_email"]:
                     envoyer(r["destinataire_email"], titre, message)
     finally:
         await conn.close()

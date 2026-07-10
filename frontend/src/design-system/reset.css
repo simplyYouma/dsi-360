@@ -63,6 +63,3 @@ a {
 tr.ligne-sla-depasse td {
   background: color-mix(in srgb, var(--status-danger) 8%, transparent);
 }
-tr.ligne-sla-depasse td:first-child {
-  box-shadow: inset 3px 0 0 var(--status-danger);
-}
