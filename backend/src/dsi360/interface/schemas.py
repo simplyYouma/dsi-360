@@ -138,6 +138,20 @@ class ActiviteResume(BaseModel):
     nb_non_vus: int = 0
 
 
+class PermissionsActivite(BaseModel):
+    """Ce que l'appelant peut faire sur *cette* activité, calculé par le serveur.
+
+    L'écran obéit à ces booléens plutôt que de rejouer la règle : sinon elle vit à deux endroits
+    et finit par diverger (cf. application/autorisations.py et docs/adr/0003).
+    """
+
+    peut_assigner: bool = False  # gestionnaire, chef de projet
+    peut_evaluer: bool = False  # impact/urgence, Type du changement
+    peut_gerer_acteurs: bool = False  # contributeurs, valideurs
+    peut_travailler: bool = False  # transitions, tâches, notes, documents, liens
+    peut_decider: bool = False  # approuver / rejeter
+
+
 class ActiviteDetail(ActiviteResume):
     description: str | None
     categorie_id: str | None = None
@@ -158,6 +172,7 @@ class ActiviteDetail(ActiviteResume):
     # Transféré à DBS (niveau 3) : plus personne à la DSI ne le traite. Le gestionnaire reste
     # référent du suivi, et le SLA continue de courir (ADR-0003 §3).
     transfere_dbs: bool = False
+    permissions: PermissionsActivite = PermissionsActivite()
     # Champs RFC (changement, ITIL SI-12.04) — stockés dans donnees, None si non renseignés.
     analyse_impact: str | None = None
     analyse_risque: str | None = None
@@ -609,6 +624,7 @@ class ProjetDetail(ProjetResume):
     sponsor: str | None
     date_debut: str | None
     transitions_possibles: list[str]
+    permissions: PermissionsActivite = PermissionsActivite()
 
 
 class PageProjets(BaseModel):
@@ -722,6 +738,7 @@ class RisqueDetail(RisqueResume):
     periodicite: str | None = None
     prochaine_revue: date | None = None
     derniere_revue: date | None = None
+    permissions: PermissionsActivite = PermissionsActivite()
 
 
 class PageRisques(BaseModel):

@@ -24,7 +24,7 @@ from dsi360.application.activites import (
     reevaluer,
     transition,
 )
-from dsi360.application.autorisations import ACTEUR, ADMIN
+from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import ordre_etats, transition_reservee, transitions_possibles
@@ -350,13 +350,18 @@ def creer_routeur(
             headers={"Content-Disposition": f"attachment; filename={nom}"},
         )
 
-    async def detail_complet(r: RowMapping, session: AsyncSession) -> dict[str, Any]:
+    async def detail_complet(
+        r: RowMapping, session: AsyncSession, courant: dict[str, Any]
+    ) -> dict[str, Any]:
         base = _detail(module, r, datetime.now(UTC))
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
         base["contributeurs"] = [
             dict(c) for c in await repo.lister_contributeurs(session, r["id"])
         ]
         base["valideurs"] = [dict(c) for c in await repo.lister_valideurs(session, r["id"])]
+        # Le serveur calcule les capacités ; l'écran obéit. La règle ne vit qu'ici.
+        roles = await charger_roles(session, r, courant)
+        base["permissions"] = capacites(roles, travail_ouvert=import_uniquement)
         return base
 
     # Déclaré avant /{ident} pour éviter que "assignation-lot" soit pris pour un identifiant.
@@ -404,7 +409,7 @@ def creer_routeur(
     @routeur.get("/{ident}", response_model=ActiviteDetail)
     async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/transition", response_model=ActiviteDetail)
     async def transitionner(
@@ -439,7 +444,7 @@ def creer_routeur(
                 ),
             ) from exc
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/assignation", response_model=ActiviteDetail)
     async def assigner(
@@ -491,7 +496,7 @@ def creer_routeur(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/categorie", response_model=ActiviteDetail)
     async def changer_categorie(
@@ -528,7 +533,7 @@ def creer_routeur(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
     async def ajouter_contributeur(
@@ -565,7 +570,7 @@ def creer_routeur(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
     async def retirer_contributeur(
@@ -585,7 +590,7 @@ def creer_routeur(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/valideurs", response_model=ActiviteDetail)
     async def ajouter_valideur(
@@ -622,7 +627,7 @@ def creer_routeur(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.delete("/{ident}/valideurs/{utilisateur_id}", response_model=ActiviteDetail)
     async def retirer_valideur(
@@ -642,7 +647,7 @@ def creer_routeur(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/decision", response_model=ActiviteDetail)
     async def decider(
@@ -680,7 +685,7 @@ def creer_routeur(
         # Enchaîne le workflow : approbation unanime → validé ; un rejet → rejeté (ITIL CAB/ECAB).
         await appliquer_decisions(session, module, ident, courant)
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     if avec_revue:
 
@@ -710,7 +715,7 @@ def creer_routeur(
                 )
                 await session.commit()
             r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session)
+            return await detail_complet(r, session, courant)
 
         @routeur.post("/{ident}/revue/effectuee", response_model=ActiviteDetail)
         async def marquer_revue_effectuee(
@@ -760,7 +765,7 @@ def creer_routeur(
             )
             await session.commit()
             r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session)
+            return await detail_complet(r, session, courant)
 
     if avec_notes:
 
@@ -912,7 +917,7 @@ def creer_routeur(
             )
             await session.commit()
             r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session)
+            return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/evaluation", response_model=ActiviteDetail)
     async def evaluer(
@@ -933,7 +938,7 @@ def creer_routeur(
             ) from exc
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     if editable:
 
@@ -983,7 +988,7 @@ def creer_routeur(
                 )
                 await session.commit()
             r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session)
+            return await detail_complet(r, session, courant)
 
     # Lire reste ouvert à qui voit l'activité ; écrire est réservé aux acteurs de travail.
     if avec_taches:
@@ -1039,7 +1044,7 @@ def _enregistrer_taches(
     module: str,
     charger_visible: Callable[[AsyncSession, str, dict[str, Any]], Awaitable[RowMapping]],
     Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
-    detail_complet: Callable[[RowMapping, AsyncSession], Awaitable[dict[str, Any]]],
+    detail_complet: Callable[[RowMapping, AsyncSession, dict[str, Any]], Awaitable[dict[str, Any]]],
     CourantActeur: Any,  # noqa: N803
     CtxTache: Any,  # noqa: N803
     acces: str,
@@ -1096,7 +1101,7 @@ def _enregistrer_taches(
         )
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.patch("/{ident}/taches/{tache_id}", response_model=ActiviteDetail)
     async def maj_tache_activite(
@@ -1113,7 +1118,7 @@ def _enregistrer_taches(
         await maj_tache(session, dict(tache), module, champs, courant)
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.delete("/{ident}/taches/{tache_id}", response_model=ActiviteDetail)
     async def supprimer_tache_activite(
@@ -1123,7 +1128,7 @@ def _enregistrer_taches(
         await supprimer_tache(session, dict(tache), module, courant)
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)
 
     @routeur.patch("/{ident}/taches", response_model=ActiviteDetail)
     async def reordonner_taches_activite(
@@ -1133,4 +1138,4 @@ def _enregistrer_taches(
         await tache_repo.reordonner(session, ident, corps.ordre)
         await session.commit()
         r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session)
+        return await detail_complet(r, session, courant)

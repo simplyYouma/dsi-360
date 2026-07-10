@@ -8,7 +8,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
-from dsi360.application.autorisations import ACTEUR
+from dsi360.application.autorisations import ACTEUR, capacites, charger_roles
 from dsi360.application.projets import creer_projet, maj_projet
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import transitions_possibles
@@ -102,6 +102,15 @@ def _detail(r: RowMapping) -> dict[str, Any]:
     }
 
 
+async def _detail_complet(
+    session: AsyncSession, r: RowMapping, courant: dict[str, Any]
+) -> dict[str, Any]:
+    """Détail + capacités de l'appelant. Le serveur calcule, l'écran obéit."""
+    base = _detail(r)
+    base["permissions"] = capacites(await charger_roles(session, r, courant))
+    return base
+
+
 def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
     if courant["transverse"]:
         return True
@@ -185,7 +194,7 @@ async def modifier(
     if champs:
         await maj_projet(session, ident, champs, courant)
         await session.commit()
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 _ENTETES = ["Référence", "Projet", "Statut", "Chef de projet", "Avancement", "Échéance", "Créé le"]
@@ -231,7 +240,7 @@ async def exporter(
 
 @routeur.get("/{ident}", response_model=ProjetDetail)
 async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 # Transitions qui doivent être justifiées : la justification est enregistrée comme note.
@@ -271,7 +280,7 @@ async def transitionner(
             },
         )
         await session.commit()
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 # --- Journal de bord (notes) & liens utiles ---
@@ -398,7 +407,7 @@ async def creer_tache_projet(
         courant,
     )
     await session.commit()
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.patch("/{ident}/taches/{tache_id}", response_model=ProjetDetail)
@@ -415,7 +424,7 @@ async def maj_tache_projet(
         champs["titre"] = phrase_propre(champs["titre"])
     await maj_tache(session, dict(tache), MODULE, champs, courant)
     await session.commit()
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.delete("/{ident}/taches/{tache_id}", response_model=ProjetDetail)
@@ -425,7 +434,7 @@ async def supprimer_tache_projet(
     tache = await _charger_tache(session, ident, tache_id, courant)
     await supprimer_tache(session, dict(tache), MODULE, courant)
     await session.commit()
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.patch("/{ident}/taches", response_model=ProjetDetail)
@@ -435,7 +444,7 @@ async def reordonner_taches_projet(
     await _charger(session, ident, courant)
     await tache_repo.reordonner(session, ident, corps.ordre)
     await session.commit()
-    return _detail(await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 # --- Jalons (dates clés du projet) ---

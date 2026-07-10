@@ -68,13 +68,17 @@ class RolesActivite:
         )
 
 
-def capacites(roles: RolesActivite) -> dict[str, bool]:
-    """Ce que l'utilisateur peut faire. Source unique : gardes serveur **et** affichage."""
+def capacites(roles: RolesActivite, *, travail_ouvert: bool = False) -> dict[str, bool]:
+    """Ce que l'utilisateur peut faire. Source unique : gardes serveur **et** affichage.
+
+    ``travail_ouvert`` : modules alimentés par l'import (incidents, demandes), où l'accès au module
+    suffit à travailler — un ticket sans gestionnaire rapproché n'aurait sinon aucun acteur.
+    """
     return {
         "peut_assigner": roles.est_admin,
         "peut_evaluer": roles.est_admin,
         "peut_gerer_acteurs": roles.est_admin,
-        "peut_travailler": roles.est_acteur_travail,
+        "peut_travailler": roles.est_acteur_travail or travail_ouvert,
         "peut_decider": roles.est_valideur,
     }
 

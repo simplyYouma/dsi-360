@@ -83,6 +83,14 @@ def test_un_admin_valideur_peut_decider() -> None:
     assert capacites(RolesActivite(est_admin=True, est_valideur=True))["peut_decider"]
 
 
+def test_sur_un_module_importe_le_lecteur_travaille() -> None:
+    """Incidents et demandes : un ticket sans gestionnaire n'aurait sinon aucun acteur."""
+    c = capacites(LECTEUR, travail_ouvert=True)
+
+    assert c["peut_travailler"]
+    assert not c["peut_assigner"], "assigner reste à l'admin, même sur un ticket importé"
+
+
 # --- Satisfaction d'une exigence -----------------------------------------------------------------
 
 

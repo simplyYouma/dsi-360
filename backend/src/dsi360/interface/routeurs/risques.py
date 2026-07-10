@@ -9,7 +9,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
-from dsi360.application.autorisations import ADMIN
+from dsi360.application.autorisations import ADMIN, capacites, charger_roles
 from dsi360.application.risques import creer_risque
 from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.revue import prochaine_revue
@@ -153,15 +153,19 @@ async def creer(corps: RisqueCreation, courant: Courant, session: Session) -> di
     return {"id": ident}
 
 
-async def _detail_complet(session: AsyncSession, r: RowMapping) -> dict[str, Any]:
+async def _detail_complet(
+    session: AsyncSession, r: RowMapping, courant: dict[str, Any]
+) -> dict[str, Any]:
     base = _detail(r)
     base["historique"] = await audit.historique_statuts(session, MODULE, r["reference"])
+    # Le serveur calcule les capacités de l'appelant ; l'écran obéit.
+    base["permissions"] = capacites(await charger_roles(session, r, courant))
     return base
 
 
 @routeur.get("/{ident}", response_model=RisqueDetail)
 async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
-    return await _detail_complet(session, await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.post("/{ident}/transition", response_model=RisqueDetail)
@@ -177,7 +181,7 @@ async def transitionner(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
         ) from exc
-    return await _detail_complet(session, await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.post("/{ident}/assignation", response_model=RisqueDetail)
@@ -200,7 +204,7 @@ async def assigner(
         nouvelle={"responsable_id": corps.responsable_id},
     )
     await session.commit()
-    return await _detail_complet(session, await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.post("/{ident}/categorie", response_model=RisqueDetail)
@@ -236,7 +240,7 @@ async def changer_categorie(
         nouvelle={"categorie_id": corps.categorie_id},
     )
     await session.commit()
-    return await _detail_complet(session, await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.post("/{ident}/revue", response_model=RisqueDetail)
@@ -265,7 +269,7 @@ async def planifier_revue(
             nouvelle=fragment,
         )
         await session.commit()
-    return await _detail_complet(session, await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
 @routeur.post("/{ident}/revue/effectuee", response_model=RisqueDetail)
@@ -312,4 +316,4 @@ async def marquer_revue_effectuee(
         nouvelle=fragment,
     )
     await session.commit()
-    return await _detail_complet(session, await _charger(session, ident, courant))
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
