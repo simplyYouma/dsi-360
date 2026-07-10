@@ -16,7 +16,9 @@ SELECT
   count(*) FILTER (WHERE a.module='projet' AND a.cloture_le IS NULL
     AND (a.donnees->>'date_fin') IS NOT NULL AND (a.donnees->>'date_fin')::date < current_date)
     AS projets_en_retard,
-  count(*) FILTER (WHERE a.module='risque' AND a.cloture_le IS NULL) AS risques_critiques,
+  count(*) FILTER (WHERE a.module='risque' AND a.cloture_le IS NULL
+    AND nullif(a.donnees->>'criticite','')::int >= 4) AS risques_critiques,
+  count(*) FILTER (WHERE a.module='risque' AND a.cloture_le IS NULL) AS risques_ouverts,
   count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL) AS sla_total,
   count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
     AND a.sla_resolution_le >= now()) AS sla_ok,
@@ -103,6 +105,7 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
             "demandes_en_cours": ligne["demandes_en_cours"],
             "projets_en_retard": ligne["projets_en_retard"],
             "risques_critiques": ligne["risques_critiques"],
+            "risques_ouverts": ligne["risques_ouverts"],
         },
         "sla": {
             "a_lheure": ligne["sla_a_lheure"],

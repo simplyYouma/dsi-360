@@ -23,8 +23,9 @@ import asyncpg
 
 from dsi360.config import get_settings
 from dsi360.domain.activite import PREFIXE_REFERENCE, calculer_criticite, calculer_priorite
-from dsi360.domain.etats import GATES_VALIDATION
+from dsi360.domain.etats import GATES_VALIDATION, ordre_etats, transitions_possibles
 from dsi360.domain.sla import CiblesSla, echeances
+from dsi360.infrastructure.audit import _empreinte, _serialiser
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 random.seed(42)
@@ -84,6 +85,14 @@ TITRES: dict[str, list[str]] = {
 
 # Modules dont les tickets proviennent de l'import (incidents/demandes = import-only).
 MODULES_IMPORTES = {"incident", "demande"}
+
+# Gestionnaires du rapport quotidien qui ne sont pas des nôtres : leurs tickets sont chez DBS.
+GESTIONNAIRES_DBS = ["Issa Konaté", "Awa Camara", "Prestataire DBS", "Cheick Oumar Sissoko"]
+# Agents de la banque qui ouvrent les tickets (rapprochés dans core.demandeur, sans compte).
+DEMANDEURS_DEMO = [
+    "Mariam Doumbia", "Sékou Touré", "Rokia Sangaré", "Boubacar Cissé", "Nana Kouyaté",
+    "Adama Dembélé", "Fatou Diakité", "Modibo Keïta", "Assitan Traoré", "Youssouf Maïga",
+]
 # Modules « fiche » à statuts génériques.
 STATUTS: dict[str, list[str]] = {
     "incident": ["Nouveau", "Ouvert", "Ouvert", "Résolu", "Clôturé", "Réouvert"],
@@ -209,12 +218,88 @@ async def _matrice(conn: asyncpg.Connection, module: str) -> dict[int, CiblesSla
     }
 
 
+def _chemin_vers(module: str, statut: str) -> list[str]:
+    """Plus court chemin de l'état initial vers `statut`, sur la machine à états réelle."""
+    depart = ordre_etats(module)[0]
+    if statut == depart:
+        return [depart]
+    file, vus = [[depart]], {depart}
+    while file:
+        chemin = file.pop(0)
+        for suivant in transitions_possibles(module, chemin[-1]):
+            if suivant in vus:
+                continue
+            if suivant == statut:
+                return [*chemin, suivant]
+            vus.add(suivant)
+            file.append([*chemin, suivant])
+    return [statut]  # état hors machine : on le pose tel quel
+
+
+async def _journal_cycle_de_vie(
+    conn: asyncpg.Connection,
+    module: str,
+    reference: str,
+    statut: str,
+    debut: datetime,
+    fin: datetime | None,
+) -> None:
+    """Écrit dans le journal le parcours qui mène l'activité à son statut courant.
+
+    Sans lui, les fiches de démo n'ont aucun cycle de vie et les analyses de flux (durée par
+    statut, réouvertures) n'ont rien à lire. La chaîne d'empreintes est respectée : ces entrées
+    sont indistinguables de vraies.
+    """
+    chemin = _chemin_vers(module, statut)
+    # Une résolution sur six ne tient pas : le ticket rebondit par « Réouvert ». C'est cette
+    # trace que mesure le taux de réouverture — sans elle, l'indicateur semblerait mort.
+    if "Résolu" in chemin and "Réouvert" in transitions_possibles(module, "Résolu"):
+        if random.random() < 0.18:
+            i = chemin.index("Résolu")
+            chemin = [*chemin[: i + 1], "Réouvert", *chemin[i:]]
+    borne = fin or datetime.now(UTC)
+    duree = max((borne - debut).total_seconds(), 3600 * len(chemin))
+    horodatage = debut
+    for i, etat in enumerate(chemin):
+        precedent = await conn.fetchval(
+            "SELECT hash_courant FROM audit.journal ORDER BY id DESC LIMIT 1"
+        )
+        action = "CREATION" if i == 0 else "TRANSITION"
+        ancienne = None if i == 0 else {"statut": chemin[i - 1]}
+        nouvelle = {"statut": etat, "source": "IMPORT_SD"}
+        av, nv = _serialiser(ancienne), _serialiser(nouvelle)
+        hash_courant = _empreinte(
+            [precedent or "", horodatage.isoformat(), "demo@afgbank.ml", module, action,
+             module, reference, av or "", nv or "", ""]
+        )
+        await conn.execute(
+            "INSERT INTO audit.journal (horodatage, acteur_email, module, action, cible_type, "
+            " cible_id, ancienne_valeur, nouvelle_valeur, hash_precedent, hash_courant) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10)",
+            horodatage, "demo@afgbank.ml", module, action, module, reference,
+            av, nv, precedent, hash_courant,
+        )
+        # Séjours vraisemblables : parts inégales du parcours, jamais nulles.
+        horodatage = horodatage + timedelta(
+            seconds=duree / len(chemin) * random.uniform(0.4, 1.6)
+        )
+
+
 async def _reset(conn: asyncpg.Connection) -> None:
     """Vide toutes les données transactionnelles + utilisateurs de démo (dev only)."""
     await conn.execute("DELETE FROM core.activite")  # cascade : tache, document, commentaire, acteur
     await conn.execute("DELETE FROM core.notification")
     await conn.execute("DELETE FROM core.demandeur")
     await conn.execute("DELETE FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO)
+    # Le journal réel est append-only (déclencheur) ; les entrées de démo, elles, se régénèrent
+    # avec le reste — on suspend le déclencheur le temps de la purge, ce que seul cet outil de
+    # dev se permet. La chaîne d'empreintes garde alors des trous — assumé : base de dev, la
+    # démo est la seule à écrire sous cet acteur.
+    await conn.execute("ALTER TABLE audit.journal DISABLE TRIGGER trg_journal_pas_de_delete")
+    try:
+        await conn.execute("DELETE FROM audit.journal WHERE acteur_email = 'demo@afgbank.ml'")
+    finally:
+        await conn.execute("ALTER TABLE audit.journal ENABLE TRIGGER trg_journal_pas_de_delete")
 
 
 async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
@@ -398,7 +483,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                 impact = random.randint(1, 5)
                 urgence = random.randint(1, 5)
                 cree_le = maintenant - timedelta(days=random.randint(0, 55), hours=random.randint(0, 23))
-                responsable = random.choice(utilisateurs)
+                responsable: str | None = random.choice(utilisateurs)
                 donnees: dict[str, Any] = {}
                 priorite: int | None = None
                 sla_pc: datetime | None = None
@@ -440,14 +525,36 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     statut = random.choice(STATUTS[module])
                     priorite = calculer_priorite(impact, urgence)
 
-                # Incidents/Demandes : simulés « importés » (source SD) avec TTR mesuré.
+                demandeur_id = None
+                # Incidents/Demandes : simulés « importés » (source SD), TTR et prise en
+                # charge mesurés. Un ticket sur quatre est chez DBS : son gestionnaire du
+                # rapport n'est personne chez nous (ADR-0005).
                 if module in MODULES_IMPORTES:
                     source = "IMPORT_SD"
                     source_id = f"{seq:06d}"
-                    cible = matrice.get(priorite or 3, CiblesSla(30, 480)).resolution_minutes
-                    ttr = int(cible * random.choice([0.4, 0.7, 0.9, 1.3, 1.8]))  # sous/dépassement
-                    donnees.update({"ttr_minutes": ttr, "gestionnaire": "Support DSI",
-                                    "demandeur": "Agent AFG"})
+                    cibles = matrice.get(priorite or 3, CiblesSla(30, 480))
+                    ttr = int(cibles.resolution_minutes * random.choice([0.4, 0.7, 0.9, 1.3, 1.8]))
+                    trep = int(
+                        cibles.prise_en_charge_minutes * random.choice([0.3, 0.6, 0.9, 1.4, 2.0])
+                    )
+                    demandeur_nom = random.choice(DEMANDEURS_DEMO)
+                    if random.random() < 0.25:
+                        responsable = None  # chez DBS : hors de nos comptes
+                        gestionnaire_nom = random.choice(GESTIONNAIRES_DBS)
+                    else:
+                        gestionnaire_nom = "Support DSI"
+                    donnees.update({
+                        "ttr_minutes": ttr,
+                        "ttrespond_minutes": trep,
+                        "gestionnaire": gestionnaire_nom,
+                        "demandeur": demandeur_nom,
+                    })
+                    demandeur_id = await conn.fetchval(
+                        "INSERT INTO core.demandeur (nom_complet) VALUES ($1) "
+                        "ON CONFLICT (lower(nom_complet)) DO UPDATE SET maj_le = now() "
+                        "RETURNING id",
+                        demandeur_nom,
+                    )
                     if statut in TERMINAUX:
                         resolu = cree_le + timedelta(minutes=ttr)
                         cloture = resolu if statut.startswith("Clôtur") else None
@@ -471,21 +578,30 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                 activite_id = await conn.fetchval(
                     "INSERT INTO core.activite"
                     "(reference, module, titre, description, direction_id, categorie_id, "
-                    " responsable_id, impact, urgence, priorite, statut, source, source_id, "
-                    " sla_prise_en_charge_le, sla_resolution_le, cree_le, resolu_le, cloture_le, donnees)"
+                    " responsable_id, demandeur_externe_id, impact, urgence, priorite, statut, "
+                    " source, source_id, sla_prise_en_charge_le, sla_resolution_le, cree_le, "
+                    " resolu_le, cloture_le, donnees)"
                     " VALUES ($1,$2,$3,$4,"
                     " (SELECT id FROM core.direction WHERE code=$5),"
-                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb) RETURNING id",
+                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb) "
+                    "RETURNING id",
                     reference, module, titre, "Donnée de démonstration.",
                     random.choice(directions),
                     random.choice(cats) if cats and module != "projet" else None,
-                    responsable,
+                    responsable, demandeur_id,
                     impact if module != "projet" else None,
                     urgence if module != "projet" else None,
                     priorite, statut, source, source_id,
                     sla_pc, sla_res, cree_le, resolu, cloture, json.dumps(donnees),
                 )
                 total += 1
+
+                # Le journal raconte le parcours du ticket : sans lui, la fiche n'a pas de
+                # cycle de vie et les analyses de flux n'ont rien à lire.
+                if module in MODULES_IMPORTES:
+                    await _journal_cycle_de_vie(
+                        conn, module, reference, statut, cree_le, resolu or cloture
+                    )
 
                 # Tâches (projets & changements) → avancement + acteurs/docs/commentaires.
                 if module in ("projet", "changement") and statut not in ("Cadrage", "Brouillon", "Soumis"):
@@ -508,7 +624,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     await _commentaires(
                         conn, activite_id, utilisateurs, cree_le, random.randint(1, 3), module
                     )
-                if random.random() < 0.5:
+                if responsable is not None and random.random() < 0.5:
                     await _acteurs(conn, activite_id, utilisateurs, responsable, statut, module)
 
         # Quelques notifications pour peupler la cloche.

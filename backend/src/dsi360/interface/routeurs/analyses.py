@@ -8,7 +8,7 @@ retards), répartitions (module, priorité, direction, charge), matrice des risq
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.infrastructure.db import session_scope
@@ -41,6 +41,98 @@ _RESOLUS = (
     f"{_JOINTURE} JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module "
     f"WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL AND {_TTR} > 0"
 )
+
+
+# Temps moyen passé dans chaque statut : séjours *terminés*, reconstitués du journal d'audit.
+# Un séjour encore ouvert n'est pas compté — il gonflerait la moyenne à mesure qu'on la regarde.
+_DUREES_STATUTS = """
+WITH pas AS (
+  SELECT j.module, j.cible_id, j.nouvelle_valeur->>'statut' AS statut, j.horodatage,
+         lead(j.horodatage) OVER (PARTITION BY j.module, j.cible_id ORDER BY j.id) AS fin
+  FROM audit.journal j
+  WHERE j.action IN ('CREATION','TRANSITION') AND j.nouvelle_valeur->>'statut' IS NOT NULL
+)
+SELECT p.module, p.statut,
+       round((avg(extract(epoch FROM (p.fin - p.horodatage)) / 86400))::numeric, 1) AS jours,
+       count(*) AS passages
+FROM pas p WHERE p.fin IS NOT NULL{periode}
+GROUP BY p.module, p.statut HAVING count(*) > 0
+"""
+
+# Réouvertures lues dans le journal : le statut courant oublie un ticket rouvert puis résolu.
+_ROUVERTS = """
+SELECT j.module AS libelle, count(DISTINCT j.cible_id) AS rouverts
+FROM audit.journal j
+WHERE j.action = 'TRANSITION' AND j.nouvelle_valeur->>'statut' = 'Réouvert'{periode}
+GROUP BY j.module
+"""
+
+_RESOLUS_PAR_MODULE = """
+SELECT a.module AS libelle, count(*) AS resolus
+FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE (a.resolu_le IS NOT NULL OR a.cloture_le IS NOT NULL){cond}
+GROUP BY a.module
+"""
+
+# Vieillissement du stock ouvert : instantané, la période ne s'y applique pas.
+_VIEILLISSEMENT = """
+SELECT b.libelle, count(a.id) AS valeur
+FROM (VALUES ('≤ 7 j', 0, 7), ('8–30 j', 7, 30), ('31–90 j', 30, 90), ('> 90 j', 90, 100000))
+     AS b(libelle, de, jusqu_a)
+LEFT JOIN core.activite a ON a.cloture_le IS NULL AND a.cree_le IS NOT NULL
+  AND extract(epoch FROM now() - a.cree_le) / 86400 > b.de
+  AND extract(epoch FROM now() - a.cree_le) / 86400 <= b.jusqu_a
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE TRUE{cond_dir}
+GROUP BY b.libelle, b.de ORDER BY b.de
+"""
+
+# DSI vs DBS (tickets importés) : sans responsable chez nous = chez DBS (ADR-0005).
+_DBS = """
+SELECT count(*) FILTER (WHERE a.responsable_id IS NOT NULL) AS dsi,
+       count(*) FILTER (WHERE a.responsable_id IS NULL) AS dbs,
+       count(*) FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL) AS dbs_ouverts,
+       round((avg(extract(epoch FROM now() - a.cree_le) / 86400)
+         FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL))::numeric, 1)
+         AS dbs_age_jours
+FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD'{cond}
+"""
+
+# Pareto des catégories : ce qui casse le plus, en volume et en part cumulée.
+_PARETO = """
+SELECT c.libelle, count(*) AS valeur
+FROM core.activite a
+JOIN core.categorie c ON c.id = a.categorie_id
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE TRUE{cond}
+GROUP BY c.libelle ORDER BY valeur DESC, c.libelle
+"""
+
+_TREP = "nullif(a.donnees->>'ttrespond_minutes', '')::numeric"
+
+# Prise en charge : la première moitié de l'engagement SLA, jamais mesurée jusqu'ici.
+_PEC_PRIORITE = """
+SELECT a.priorite AS niveau, count(*) AS total,
+       count(*) FILTER (WHERE {trep} <= sr.prise_en_charge_minutes) AS dans_delai
+FROM core.activite a
+JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL AND {trep} > 0{cond}
+GROUP BY a.priorite ORDER BY a.priorite
+"""
+
+# Activités suivies comme contributeur : elles entrent dans la file de l'agent (ADR-0005 §5).
+_SUIVIS = """
+SELECT aa.utilisateur_id::text AS id, count(*) AS suivis
+FROM core.activite_acteur aa JOIN core.activite a ON a.id = aa.activite_id
+WHERE aa.role = 'CONTRIBUTEUR'{periode}
+GROUP BY aa.utilisateur_id
+"""
+
+
+def _taux(part: int, total: int) -> int:
+    return round(part * 100 / total) if total else 0
 
 
 async def _lignes(
@@ -190,6 +282,61 @@ async def analyses(
         params,
     )
 
+    periode_journal = (
+        " AND j.horodatage >= now() - make_interval(days => :jours)" if jours is not None else ""
+    )
+    durees_statuts = await _lignes(
+        session, _DUREES_STATUTS.format(periode=periode_journal), params
+    )
+
+    rouverts = {
+        r["libelle"]: r["rouverts"]
+        for r in await _lignes(session, _ROUVERTS.format(periode=periode_journal), params)
+    }
+    resolus_mod = await _lignes(session, _RESOLUS_PAR_MODULE.format(cond=cond), params)
+    reouvertures = [
+        {
+            "libelle": r["libelle"],
+            "rouverts": rouverts.get(r["libelle"], 0),
+            "resolus": r["resolus"],
+            "taux": _taux(rouverts.get(r["libelle"], 0), r["resolus"]),
+        }
+        for r in resolus_mod
+        if r["resolus"] > 0 or rouverts.get(r["libelle"], 0) > 0
+    ]
+
+    vieillissement = await _lignes(session, _VIEILLISSEMENT.format(cond_dir=cond_dir), params)
+
+    ligne_dbs = (await session.execute(text(_DBS.format(cond=cond)), params)).mappings().one()
+    dbs = {
+        "dsi": ligne_dbs["dsi"],
+        "dbs": ligne_dbs["dbs"],
+        "dbs_ouverts": ligne_dbs["dbs_ouverts"],
+        "dbs_age_jours": float(ligne_dbs["dbs_age_jours"])
+        if ligne_dbs["dbs_age_jours"] is not None
+        else None,
+    }
+
+    categories = await _lignes(session, _PARETO.format(cond=cond), params)
+    total_cat = sum(c["valeur"] for c in categories)
+    pareto, cumul = [], 0
+    for c in categories[:8]:
+        cumul += c["valeur"]
+        pareto.append(
+            {"libelle": c["libelle"], "valeur": c["valeur"], "cumul_pct": _taux(cumul, total_cat)}
+        )
+
+    pec = await _lignes(session, _PEC_PRIORITE.format(trep=_TREP, cond=cond), params)
+    pec_par_priorite = [
+        {
+            "priorite": f"P{x['niveau']}",
+            "dans_delai": x["dans_delai"],
+            "total": x["total"],
+            "taux": _taux(x["dans_delai"], x["total"]),
+        }
+        for x in pec
+    ]
+
     avec_sla = sla["a_lheure"] + sla["approche"] + sla["depasse"]
     # Respect réel prioritaire (durées mesurées) ; repli sur les échéances en cours sinon.
     if reel_total > 0:
@@ -221,6 +368,12 @@ async def analyses(
         "matrice_risques": matrice_risques,
         "tendance": tendance,
         "activite": activite,
+        "durees_statuts": durees_statuts,
+        "reouvertures": reouvertures,
+        "vieillissement": vieillissement,
+        "dbs": dbs,
+        "pareto_categories": pareto,
+        "pec_par_priorite": pec_par_priorite,
     }
 
 
@@ -275,7 +428,38 @@ async def evaluation_gestionnaires(
     )
     params = {"jours": jours} if jours is not None else {}
     lignes = (await session.execute(text(requete), params)).mappings().all()
-    return [_eval_dict(r) for r in lignes]
+    evaluations = [_eval_dict(r) for r in lignes]
+
+    # Les activités suivies comme contributeur comptent dans les statistiques de l'agent —
+    # y compris pour un agent qui ne gère rien : il apparaît alors avec un volume nul.
+    suivis = {
+        r["id"]: r["suivis"]
+        for r in await _lignes(session, _SUIVIS.format(periode=_periode(jours)), params)
+    }
+    for e in evaluations:
+        e["suivis"] = suivis.pop(e["id"], 0)
+    if suivis:
+        requete_noms = text(
+            "SELECT id::text AS id, (prenom || ' ' || nom) AS gestionnaire "
+            "FROM core.utilisateur WHERE id::text IN :ids"
+        ).bindparams(bindparam("ids", expanding=True))
+        noms = (
+            (await session.execute(requete_noms, {"ids": list(suivis)})).mappings().all()
+        )
+        evaluations.extend(
+            {
+                "id": n["id"],
+                "gestionnaire": n["gestionnaire"],
+                "volume": 0,
+                "charge": 0,
+                "resolus": 0,
+                "mttr_jours": None,
+                "prise_en_charge_h": None,
+                "suivis": suivis[n["id"]],
+            }
+            for n in noms
+        )
+    return evaluations
 
 
 @routeur.get("/gestionnaire/{ident}", response_model=GestionnaireDetail)
@@ -302,6 +486,18 @@ async def gestionnaire_detail(
         f"AND a.cree_le IS NOT NULL{_periode(jours)} GROUP BY 1, 2",
         params,
     )
+    nb_suivis = (
+        await session.scalar(
+            text(
+                "SELECT count(*) FROM core.activite_acteur aa "
+                "JOIN core.activite a ON a.id = aa.activite_id "
+                "WHERE aa.role = 'CONTRIBUTEUR' AND aa.utilisateur_id = cast(:id as uuid)"
+                + _periode(jours)
+            ),
+            params,
+        )
+        or 0
+    )
     if ligne is None:
         nom = await session.scalar(
             text("SELECT (prenom || ' ' || nom) FROM core.utilisateur WHERE id::text = :id"),
@@ -315,6 +511,7 @@ async def gestionnaire_detail(
             "resolus": 0,
             "mttr_jours": None,
             "prise_en_charge_h": None,
+            "suivis": nb_suivis,
             "activite": activite,
         }
-    return {**_eval_dict({**ligne, "id": ident}), "activite": activite}
+    return {**_eval_dict({**ligne, "id": ident}), "suivis": nb_suivis, "activite": activite}

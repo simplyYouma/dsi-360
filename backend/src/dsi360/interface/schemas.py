@@ -769,6 +769,7 @@ class CartesBord(BaseModel):
     demandes_en_cours: int
     projets_en_retard: int
     risques_critiques: int
+    risques_ouverts: int
 
 
 class SlaBuckets(BaseModel):
@@ -848,10 +849,46 @@ class GestionnaireEval(BaseModel):
     resolus: int
     mttr_jours: float | None
     prise_en_charge_h: float | None
+    # Activités que l'agent suit comme contributeur : elles comptent dans sa file, pas dans
+    # son volume traité — suivre n'est pas résoudre.
+    suivis: int = 0
 
 
 class GestionnaireDetail(GestionnaireEval):
     activite: list[PointActivite]
+
+
+class DureeStatut(BaseModel):
+    """Temps moyen passé dans un statut (séjours terminés, reconstitués du journal)."""
+
+    module: str
+    statut: str
+    jours: float
+    passages: int
+
+
+class ReouvertureItem(BaseModel):
+    """Un ticket rouvert est une résolution qui n'a pas tenu."""
+
+    libelle: str
+    rouverts: int
+    resolus: int
+    taux: int
+
+
+class DbsSynthese(BaseModel):
+    """Part des tickets importés restée à la DSI vs partie chez DBS (ADR-0005)."""
+
+    dsi: int
+    dbs: int
+    dbs_ouverts: int
+    dbs_age_jours: float | None
+
+
+class ParetoItem(BaseModel):
+    libelle: str
+    valeur: int
+    cumul_pct: int
 
 
 class AnalysesReponse(BaseModel):
@@ -867,3 +904,9 @@ class AnalysesReponse(BaseModel):
     matrice_risques: list[CaseRisque]
     tendance: list[PointTendance]
     activite: list[PointActivite]
+    durees_statuts: list[DureeStatut]
+    reouvertures: list[ReouvertureItem]
+    vieillissement: list[AnalyseItem]
+    dbs: DbsSynthese
+    pareto_categories: list[ParetoItem]
+    pec_par_priorite: list[SlaPrioriteItem]
