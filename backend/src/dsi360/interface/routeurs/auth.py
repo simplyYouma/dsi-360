@@ -25,13 +25,14 @@ from dsi360.infrastructure.securite import (
 from dsi360.interface.schemas import (
     ChangementMotDePasse,
     Connexion,
+    Incarnation,
     Jetons,
     MoiReponse,
     MotDePasseOublie,
     Rafraichissement,
     Reinitialisation,
 )
-from dsi360.interface.securite import UtilisateurCourant
+from dsi360.interface.securite import UtilisateurCourant, exiger_admin
 
 routeur = APIRouter(tags=["authentification"])
 
@@ -90,7 +91,51 @@ async def logout() -> None:
 
 @routeur.get("/moi", response_model=MoiReponse)
 async def moi(courant: UtilisateurCourant) -> dict[str, Any]:
-    return courant
+    # L'environnement vient du serveur : le front ne peut pas le deviner, et `import.meta.env.DEV`
+    # mentirait sur un build de production servi depuis un poste de développement.
+    return {**courant, "environnement": get_settings().environnement}
+
+
+@routeur.post(
+    "/auth/incarner",
+    response_model=Jetons,
+    # Absente du contrat publié hors développement : on ne documente pas une porte qu'on n'ouvre
+    # pas. La garde à l'exécution reste la vraie protection, ceci n'en est que la discrétion.
+    include_in_schema=get_settings().environnement == "dev",
+)
+async def incarner(
+    corps: Incarnation, courant: UtilisateurCourant, requete: Request, session: Session
+) -> Jetons:
+    """Prendre l'identité d'un compte, pour éprouver les vues par profil. **Développement seul.**
+
+    Le serveur répond ensuite comme au compte incarné : c'est tout l'intérêt — on éprouve les
+    gardes réelles, pas seulement l'affichage.
+
+    Trois verrous. Hors `dev`, la route répond 404 : on ne révèle pas l'existence d'une porte qu'on
+    n'ouvre pas. Seul un administrateur peut l'emprunter. Et chaque passage est journalisé, avec le
+    nom de celui qui a pris l'identité d'un autre.
+    """
+    if get_settings().environnement != "dev":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+    exiger_admin(courant)
+
+    cible = await repo.par_id(session, corps.utilisateur_id)
+    if cible is None or not compte_actif(cible):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Compte introuvable ou inactif."
+        )
+    await consigner(
+        session,
+        action="INCARNATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="authentification",
+        cible_type="utilisateur",
+        cible_id=cible["email"],
+        adresse_ip=requete.client.host if requete.client else None,
+    )
+    await session.commit()
+    return _jetons_pour(str(cible["id"]))
 
 
 @routeur.post("/auth/mot-de-passe", status_code=status.HTTP_204_NO_CONTENT)

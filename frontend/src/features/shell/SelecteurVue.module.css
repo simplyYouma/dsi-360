@@ -1,0 +1,107 @@
+.icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.icone:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+/* Bandeau permanent : on ne doit jamais oublier qu'on regarde par les yeux d'un autre. */
+.bandeau {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--status-warn) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--status-warn) 12%, transparent);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.retour {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.retour:hover {
+  border-color: var(--text-muted);
+}
+.retour:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.avertissement {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+}
+
+.groupe {
+  margin-bottom: var(--space-4);
+}
+.groupeTitre {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.comptes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.compte {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.compte:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.compte:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.soi {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

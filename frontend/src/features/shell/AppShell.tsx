@@ -10,6 +10,7 @@ import logoSombre from '@/assets/brand/logo1-blanc.svg';
 import { SECTIONS, cleAcces } from './navigation';
 import { FilAriane } from './FilAriane';
 import { Notifications } from './Notifications';
+import { BandeauIncarnation, SelecteurVue } from './SelecteurVue';
 import { RechercheGlobale } from './RechercheGlobale';
 import styles from './AppShell.module.css';
 
@@ -128,6 +129,8 @@ export function AppShell(): JSX.Element | null {
           <RechercheGlobale />
 
           <div className={styles.actions}>
+            {/* Ne s'affiche qu'en développement : l'environnement vient du serveur. */}
+            <SelecteurVue />
             <button className={styles.iconeBtn} onClick={basculer} aria-label="Changer de thème">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
@@ -137,6 +140,8 @@ export function AppShell(): JSX.Element | null {
         </header>
 
         <main className={styles.contenu}>
+          {/* Rappel permanent : on ne doit jamais oublier qu'on regarde par les yeux d'un autre. */}
+          <BandeauIncarnation />
           <FilAriane />
           <Outlet />
         </main>

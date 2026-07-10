@@ -35,6 +35,12 @@ class Jetons(BaseModel):
     type_jeton: str = "bearer"
 
 
+class Incarnation(BaseModel):
+    """Compte dont on prend l'identité pour éprouver sa vue (développement seulement)."""
+
+    utilisateur_id: str
+
+
 class MoiReponse(BaseModel):
     id: str
     email: str
@@ -46,6 +52,9 @@ class MoiReponse(BaseModel):
     direction: str | None
     doit_changer_mdp: bool
     acces: list[str]
+    # « dev » | « recette » | « prod ». Le front ne peut pas le deviner : un build de production
+    # servi depuis un poste de développement mentirait.
+    environnement: str = "prod"
 
 
 # --- Activités / Incidents ---

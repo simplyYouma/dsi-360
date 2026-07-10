@@ -81,6 +81,41 @@ Un profil peut ainsi lire les changements sans les valider. Chaque route déclar
 exige ; le contrôle reste **côté serveur** (CLAUDE.md §6.3), la matrice reste **paramétrable**
 (§6.2) et toute modification est **auditée** (§6.4).
 
+### 5. Rôles sur une activité, distincts de l'accès au module
+
+L'accès au module (`core.acces_role`) dit quelles **pages** un profil voit. Le rôle sur une
+activité dit ce qu'on peut y **faire**. Il découle de qui est responsable, contributeur, valideur,
+ou assigné d'une de ses tâches.
+
+L'administrateur distribue le travail — assigner le gestionnaire, fixer impact et urgence, désigner
+contributeurs et valideurs. Le gestionnaire et les contributeurs l'exécutent. Le valideur ne fait
+que décider ; l'administrateur ne décide pas à sa place (séparation des tâches). L'assigné d'une
+tâche n'en change que le statut : il rend compte, il ne se redistribue pas le travail.
+
+On ne désigne qu'un compte **actif dont le profil a l'accès au module** : nommer quelqu'un à qui
+l'écran resterait fermé n'aurait aucun sens.
+
+Le serveur calcule les capacités (`peut_assigner`, `peut_travailler`…) et les expose dans le détail
+de l'activité. **L'écran obéit, il ne rejoue pas la règle** — sinon elle vit à deux endroits et
+finit par diverger. Source unique : `application/autorisations.capacites`.
+
+**Exception des tickets importés** : incidents et demandes viennent du rapport quotidien. Un ticket
+sans gestionnaire rapproché n'aurait aucun acteur — plus personne ne pourrait l'escalader ni le
+clore. Pour ces deux modules, l'accès au module suffit encore à travailler. Leur cas se traite dans
+un lot dédié.
+
+### 6. Incarnation d'un compte — développement seulement
+
+`POST /auth/incarner` délivre un jeton d'un autre compte, pour éprouver les vues par profil. Le
+serveur répond ensuite comme au compte incarné : on éprouve les gardes réelles, pas seulement
+l'affichage.
+
+C'est une porte dérobée, donc trois verrous : hors `dev` la route répond **404** et n'apparaît pas
+dans le contrat OpenAPI (on ne documente pas une porte qu'on n'ouvre pas) ; seul un administrateur
+peut l'emprunter ; chaque passage est **journalisé**. Côté écran, un bandeau permanent rappelle
+qu'on regarde par les yeux d'un autre, et `/moi` expose l'environnement — le navigateur ne peut pas
+le deviner, un build de production servi depuis un poste de développement mentirait.
+
 ## Conséquences
 
 - ➕ Les profils reflètent enfin les métiers de la DSI, et l'administration peut les faire évoluer

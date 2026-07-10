@@ -3,6 +3,10 @@
 const BASE = '/api/v1';
 const CLE_ACCES = 'dsi360.acces';
 const CLE_REFRESH = 'dsi360.refresh';
+// Jetons réels mis de côté pendant qu'on incarne un autre compte (développement seulement).
+// Conservés au même endroit que les autres : on doit pouvoir revenir à soi après un F5.
+const CLE_ACCES_REEL = 'dsi360.reel.acces';
+const CLE_REFRESH_REEL = 'dsi360.reel.refresh';
 
 let acces: string | null = localStorage.getItem(CLE_ACCES);
 let refresh: string | null = localStorage.getItem(CLE_REFRESH);
@@ -19,10 +23,34 @@ export function effacerJetons(): void {
   refresh = null;
   localStorage.removeItem(CLE_ACCES);
   localStorage.removeItem(CLE_REFRESH);
+  localStorage.removeItem(CLE_ACCES_REEL);
+  localStorage.removeItem(CLE_REFRESH_REEL);
 }
 
 export function aUnJeton(): boolean {
   return acces !== null;
+}
+
+/** Met ses propres jetons de côté et prend ceux du compte incarné. */
+export function commencerIncarnation(a: string, r: string): void {
+  if (acces !== null && refresh !== null && !incarneUnCompte()) {
+    localStorage.setItem(CLE_ACCES_REEL, acces);
+    localStorage.setItem(CLE_REFRESH_REEL, refresh);
+  }
+  definirJetons(a, r);
+}
+
+/** Reprend ses jetons. Sans effet si l'on n'incarnait personne. */
+export function cesserIncarnation(): void {
+  const a = localStorage.getItem(CLE_ACCES_REEL);
+  const r = localStorage.getItem(CLE_REFRESH_REEL);
+  localStorage.removeItem(CLE_ACCES_REEL);
+  localStorage.removeItem(CLE_REFRESH_REEL);
+  if (a !== null && r !== null) definirJetons(a, r);
+}
+
+export function incarneUnCompte(): boolean {
+  return localStorage.getItem(CLE_ACCES_REEL) !== null;
 }
 
 export class ErreurApi extends Error {
