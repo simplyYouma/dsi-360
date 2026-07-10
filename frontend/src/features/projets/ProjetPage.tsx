@@ -504,10 +504,7 @@ export function ProjetPage(): JSX.Element {
 
               <section className={styles.carte}>
                 <span className={styles.carteTitre}>Liens utiles</span>
-                <p className={styles.note}>
-                  Espace documentaire, wiki, dossiers réseau… Les pièces jointes se déposent sur
-                  les tâches.
-                </p>
+                <p className={styles.note}>Espace documentaire, wiki, dossiers réseau…</p>
                 {id !== undefined && (
                   <LiensActivite
                     charger={() => projetsApi.liens(id)}
