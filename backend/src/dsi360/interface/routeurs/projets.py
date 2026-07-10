@@ -8,6 +8,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
+from dsi360.application.autorisations import ACTEUR
 from dsi360.application.projets import creer_projet, maj_projet
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import transitions_possibles
@@ -37,7 +38,12 @@ from dsi360.interface.schemas import (
     TacheMaj,
     TransitionDemande,
 )
-from dsi360.interface.securite import exiger_acces, exiger_admin, exiger_agent_designable
+from dsi360.interface.securite import (
+    exiger_acces,
+    exiger_admin,
+    exiger_agent_designable,
+    exiger_role_activite_courant,
+)
 
 MODULE = "projet"
 _ACCES = "projets"
@@ -46,6 +52,8 @@ _TAILLE = 15
 routeur = APIRouter(prefix="/projets", tags=["projets"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
+# Faire avancer le projet : administrateur, chef de projet et contributeurs. Lire reste ouvert.
+Acteur = Annotated[dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -160,7 +168,7 @@ async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> di
 
 @routeur.patch("/{ident}", response_model=ProjetDetail)
 async def modifier(
-    ident: str, corps: ProjetMaj, courant: Courant, session: Session
+    ident: str, corps: ProjetMaj, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
     champs = corps.model_dump(exclude_unset=True)
@@ -227,7 +235,7 @@ _TRANSITIONS_JUSTIFIEES = frozenset({"Suspendu", "Clôturé"})
 
 @routeur.post("/{ident}/transition", response_model=ProjetDetail)
 async def transitionner(
-    ident: str, corps: TransitionDemande, courant: Courant, session: Session
+    ident: str, corps: TransitionDemande, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
     if corps.vers in _TRANSITIONS_JUSTIFIEES and not (corps.note or "").strip():
@@ -282,7 +290,7 @@ async def lister_notes(ident: str, courant: Courant, session: Session) -> list[d
 
 @routeur.post("/{ident}/notes", response_model=NoteItem, status_code=status.HTTP_201_CREATED)
 async def creer_note(
-    ident: str, corps: NoteCreation, courant: Courant, session: Session
+    ident: str, corps: NoteCreation, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     projet = await _charger(session, ident, courant)
     ligne = (
@@ -310,7 +318,14 @@ async def creer_note(
 
 
 # Liens utiles (projet + tâches) : logique partagée avec les changements.
-enregistrer_liens(routeur, module=MODULE, charger=_charger, Courant=Courant, Session=Session)
+enregistrer_liens(
+    routeur,
+    module=MODULE,
+    charger=_charger,
+    Courant=Courant,
+    Session=Session,
+    CourantEcriture=Acteur,
+)
 
 
 # --- Tâches (l'avancement et le passage « En cours » se déduisent d'elles) ---
@@ -360,7 +375,7 @@ async def lister_taches(
 
 @routeur.post("/{ident}/taches", response_model=ProjetDetail, status_code=status.HTTP_201_CREATED)
 async def creer_tache_projet(
-    ident: str, corps: TacheCreation, courant: Courant, session: Session
+    ident: str, corps: TacheCreation, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
     if corps.assigne_id is not None:
@@ -413,7 +428,7 @@ async def maj_tache_projet(
 
 @routeur.delete("/{ident}/taches/{tache_id}", response_model=ProjetDetail)
 async def supprimer_tache_projet(
-    ident: str, tache_id: str, courant: Courant, session: Session
+    ident: str, tache_id: str, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     tache = await _charger_tache(session, ident, tache_id, courant)
     await supprimer_tache(session, dict(tache), MODULE, courant)
@@ -423,7 +438,7 @@ async def supprimer_tache_projet(
 
 @routeur.patch("/{ident}/taches", response_model=ProjetDetail)
 async def reordonner_taches_projet(
-    ident: str, corps: ReordreTaches, courant: Courant, session: Session
+    ident: str, corps: ReordreTaches, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
     await tache_repo.reordonner(session, ident, corps.ordre)
@@ -468,7 +483,7 @@ async def lister_jalons(ident: str, courant: Courant, session: Session) -> list[
 
 @routeur.post("/{ident}/jalons", response_model=JalonItem, status_code=status.HTTP_201_CREATED)
 async def creer_jalon(
-    ident: str, corps: JalonCreation, courant: Courant, session: Session
+    ident: str, corps: JalonCreation, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
     ligne = await jalon_repo.creer(
@@ -483,7 +498,7 @@ async def creer_jalon(
 
 @routeur.patch("/{ident}/jalons/{jalon_id}", response_model=JalonItem)
 async def maj_jalon(
-    ident: str, jalon_id: str, corps: JalonMaj, courant: Courant, session: Session
+    ident: str, jalon_id: str, corps: JalonMaj, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger_jalon(session, ident, jalon_id, courant)
     champs = corps.model_dump(exclude_unset=True)
@@ -498,7 +513,7 @@ async def maj_jalon(
 
 @routeur.delete("/{ident}/jalons/{jalon_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def supprimer_jalon(
-    ident: str, jalon_id: str, courant: Courant, session: Session
+    ident: str, jalon_id: str, courant: Acteur, session: Session
 ) -> None:
     jalon = await _charger_jalon(session, ident, jalon_id, courant)
     await jalon_repo.supprimer(session, jalon_id)
@@ -507,4 +522,6 @@ async def supprimer_jalon(
 
 
 # Pièces jointes (activité + tâches) : logique partagée avec les autres modules.
-enregistrer_documents(routeur, module=MODULE, charger=_charger, Courant=Courant)
+enregistrer_documents(
+    routeur, module=MODULE, charger=_charger, Courant=Courant, CourantEcriture=Acteur
+)

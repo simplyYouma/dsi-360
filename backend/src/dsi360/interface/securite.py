@@ -137,3 +137,19 @@ def exiger_role_activite(
         return ContexteActivite(activite=r, roles=roles, courant=courant)
 
     return _verifier
+
+
+def exiger_role_activite_courant(
+    module: str, acces: str, requis: set[str] | None = None
+) -> Callable[..., Awaitable[dict[str, Any]]]:
+    """Même garde, mais renvoie l'utilisateur courant.
+
+    Les registrars (documents, liens, tâches) attendent une dépendance ``Courant`` : on leur en
+    fournit une qui vérifie en plus le rôle sur l'activité, sans changer leur signature.
+    """
+    garde = exiger_role_activite(module, acces, requis)
+
+    async def _verifier(ctx: Annotated[ContexteActivite, Depends(garde)]) -> dict[str, Any]:
+        return ctx.courant
+
+    return _verifier

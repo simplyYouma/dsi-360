@@ -24,7 +24,7 @@ from dsi360.application.activites import (
     reevaluer,
     transition,
 )
-from dsi360.application.autorisations import ADMIN
+from dsi360.application.autorisations import ACTEUR, ADMIN
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import ordre_etats, transition_reservee, transitions_possibles
@@ -67,6 +67,7 @@ from dsi360.interface.securite import (
     exiger_admin,
     exiger_agent_designable,
     exiger_role_activite,
+    exiger_role_activite_courant,
 )
 
 _TAILLE = 15
@@ -243,6 +244,19 @@ def creer_routeur(
         ContexteActivite, Depends(exiger_role_activite(module, acces, {ADMIN}))
     ]
 
+    # Faire avancer le sujet revient à l'administrateur, au gestionnaire et aux contributeurs.
+    #
+    # Incidents et demandes font exception : ils viennent de l'import quotidien, et un ticket sans
+    # gestionnaire rapproché n'aurait aucun acteur — plus personne ne pourrait l'escalader ni le
+    # clore. Pour eux, l'accès au module suffit encore. Leur cas se traite dans un lot dédié.
+    requis_travail: set[str] = set() if import_uniquement else {ACTEUR}
+    CtxActeur = Annotated[  # noqa: N806
+        ContexteActivite, Depends(exiger_role_activite(module, acces, requis_travail))
+    ]
+    CourantActeur = Annotated[  # noqa: N806
+        dict[str, Any], Depends(exiger_role_activite_courant(module, acces, requis_travail))
+    ]
+
     async def charger_visible(
         session: AsyncSession, ident: str, courant: dict[str, Any]
     ) -> RowMapping:
@@ -387,9 +401,10 @@ def creer_routeur(
 
     @routeur.post("/{ident}/transition", response_model=ActiviteDetail)
     async def transitionner(
-        ident: str, corps: TransitionDemande, courant: Courant, session: Session
+        ident: str, corps: TransitionDemande, ctx: CtxActeur, session: Session
     ) -> dict[str, Any]:
-        await charger_visible(session, ident, courant)
+        """Faire avancer le sujet : gestionnaire, contributeurs et administrateur."""
+        courant = ctx.courant
         try:
             await transition(session, module, ident, corps.vers, courant)
         except ActiviteIntrouvable as exc:
@@ -764,9 +779,9 @@ def creer_routeur(
             "/{ident}/notes", response_model=NoteItem, status_code=status.HTTP_201_CREATED
         )
         async def creer_note(
-            ident: str, corps: NoteCreation, courant: Courant, session: Session
+            ident: str, corps: NoteCreation, ctx: CtxActeur, session: Session
         ) -> dict[str, Any]:
-            avant = await charger_visible(session, ident, courant)
+            courant, avant = ctx.courant, ctx.activite
             ligne = (
                 await session.execute(
                     text(
@@ -793,7 +808,7 @@ def creer_routeur(
     if avec_escalade:
 
         @routeur.post("/{ident}/escalader", response_model=ActiviteDetail)
-        async def escalader(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
+        async def escalader(ident: str, ctx: CtxActeur, session: Session) -> dict[str, Any]:
             """Monte le ticket d'un niveau de support.
 
             La DSI tient N1 et N2 ; le N3 est DBS, qui n'a aucun compte ici (ADR-0003 §3).
@@ -801,7 +816,7 @@ def creer_routeur(
             DBS » et **garde son gestionnaire**, désormais référent du suivi et de la relance. Le
             SLA continue de courir — le demandeur ignore quelle équipe traite son ticket.
             """
-            avant = await charger_visible(session, ident, courant)
+            courant, avant = ctx.courant, ctx.activite
             resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
             courant_niveau = _niveau_support(avant)
             if courant_niveau >= NIVEAU_DBS:
@@ -963,14 +978,28 @@ def creer_routeur(
             r = await charger_visible(session, ident, courant)
             return await detail_complet(r, session)
 
+    # Lire reste ouvert à qui voit l'activité ; écrire est réservé aux acteurs de travail.
     if avec_taches:
-        _enregistrer_taches(routeur, module, charger_visible, Courant, detail_complet)
+        _enregistrer_taches(
+            routeur, module, charger_visible, Courant, detail_complet, CourantActeur
+        )
         # Les modules à tâches ont aussi les liens utiles (au niveau tâche, ex. changements).
         enregistrer_liens(
-            routeur, module=module, charger=charger_visible, Courant=Courant, Session=Session
+            routeur,
+            module=module,
+            charger=charger_visible,
+            Courant=Courant,
+            Session=Session,
+            CourantEcriture=CourantActeur,
         )
     if avec_documents:
-        enregistrer_documents(routeur, module=module, charger=charger_visible, Courant=Courant)
+        enregistrer_documents(
+            routeur,
+            module=module,
+            charger=charger_visible,
+            Courant=Courant,
+            CourantEcriture=CourantActeur,
+        )
 
     return routeur
 
@@ -1003,8 +1032,14 @@ def _enregistrer_taches(
     charger_visible: Callable[[AsyncSession, str, dict[str, Any]], Awaitable[RowMapping]],
     Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
     detail_complet: Callable[[RowMapping, AsyncSession], Awaitable[dict[str, Any]]],
+    CourantActeur: Any,  # noqa: N803
 ) -> None:
-    """Endpoints de tâches d'un module d'activités (avancement + cycle de vie dérivés)."""
+    """Endpoints de tâches d'un module d'activités (avancement + cycle de vie dérivés).
+
+    Créer, supprimer et réordonner sont réservés aux acteurs de travail. La mise à jour reste
+    ouverte au périmètre : c'est le contrôle champ par champ qui y tranche (l'assigné d'une tâche
+    n'en change que le statut).
+    """
 
     async def _charger_tache(
         session: AsyncSession, ident: str, tache_id: str, courant: dict[str, Any]
@@ -1039,7 +1074,7 @@ def _enregistrer_taches(
         "/{ident}/taches", response_model=ActiviteDetail, status_code=status.HTTP_201_CREATED
     )
     async def creer_tache_activite(
-        ident: str, corps: TacheCreation, courant: Courant, session: Session
+        ident: str, corps: TacheCreation, courant: CourantActeur, session: Session
     ) -> dict[str, Any]:
         await charger_visible(session, ident, courant)
         await _verifier_agent(session, corps.assigne_id)
@@ -1076,7 +1111,7 @@ def _enregistrer_taches(
 
     @routeur.delete("/{ident}/taches/{tache_id}", response_model=ActiviteDetail)
     async def supprimer_tache_activite(
-        ident: str, tache_id: str, courant: Courant, session: Session
+        ident: str, tache_id: str, courant: CourantActeur, session: Session
     ) -> dict[str, Any]:
         tache = await _charger_tache(session, ident, tache_id, courant)
         await supprimer_tache(session, dict(tache), module, courant)
@@ -1086,7 +1121,7 @@ def _enregistrer_taches(
 
     @routeur.patch("/{ident}/taches", response_model=ActiviteDetail)
     async def reordonner_taches_activite(
-        ident: str, corps: ReordreTaches, courant: Courant, session: Session
+        ident: str, corps: ReordreTaches, courant: CourantActeur, session: Session
     ) -> dict[str, Any]:
         await charger_visible(session, ident, courant)
         await tache_repo.reordonner(session, ident, corps.ordre)

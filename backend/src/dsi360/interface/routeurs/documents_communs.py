@@ -110,10 +110,14 @@ def enregistrer_documents(
     module: str,
     charger: Callable[[AsyncSession, str, dict[str, Any]], Awaitable[RowMapping]],
     Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
+    CourantEcriture: Any,  # noqa: N803
 ) -> None:
     """Ajoute les endpoints de pièces jointes (activité + tâches) à un routeur d'activités.
 
     `charger(session, ident, courant)` doit renvoyer l'activité (avec `reference`) ou lever 404.
+
+    ``CourantEcriture`` garde le dépôt, le renommage et la suppression : consulter reste ouvert à
+    qui voit l'activité.
     """
 
     async def _charger_tache(
@@ -143,7 +147,7 @@ def enregistrer_documents(
         "/{ident}/documents", response_model=DocumentItem, status_code=status.HTTP_201_CREATED
     )
     async def deposer_document(
-        ident: str, fichier: UploadFile, courant: Courant, session: Session
+        ident: str, fichier: UploadFile, courant: CourantEcriture, session: Session
     ) -> dict[str, Any]:
         r = await charger(session, ident, courant)
         nom, contenu = await _lire_fichier_valide(fichier)
@@ -192,7 +196,11 @@ def enregistrer_documents(
 
     @routeur.patch("/{ident}/documents/{doc_id}", response_model=DocumentItem)
     async def renommer_document(
-        ident: str, doc_id: str, corps: DocumentRenommage, courant: Courant, session: Session
+        ident: str,
+        doc_id: str,
+        corps: DocumentRenommage,
+        courant: CourantEcriture,
+        session: Session,
     ) -> dict[str, Any]:
         r = await charger(session, ident, courant)
         nom = corps.nom.strip()
@@ -231,7 +239,7 @@ def enregistrer_documents(
 
     @routeur.delete("/{ident}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
     async def supprimer_document(
-        ident: str, doc_id: str, courant: Courant, session: Session
+        ident: str, doc_id: str, courant: CourantEcriture, session: Session
     ) -> None:
         r = await charger(session, ident, courant)
         ligne = (
@@ -272,7 +280,7 @@ def enregistrer_documents(
         status_code=status.HTTP_201_CREATED,
     )
     async def deposer_document_tache(
-        ident: str, tache_id: str, fichier: UploadFile, courant: Courant, session: Session
+        ident: str, tache_id: str, fichier: UploadFile, courant: CourantEcriture, session: Session
     ) -> dict[str, Any]:
         r = await charger(session, ident, courant)
         tache = await _charger_tache(session, ident, tache_id, courant)

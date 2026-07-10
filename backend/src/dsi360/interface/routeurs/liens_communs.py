@@ -23,10 +23,14 @@ def enregistrer_liens(
     charger: Callable[[AsyncSession, str, dict[str, Any]], Awaitable[RowMapping]],
     Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
     Session: Any,  # noqa: N803
+    CourantEcriture: Any,  # noqa: N803
 ) -> None:
     """Ajoute les endpoints de liens utiles (activité + tâches) à un routeur d'activités.
 
     ``charger(session, ident, courant)`` doit renvoyer l'activité (avec ``reference``) ou lever 404.
+
+    ``CourantEcriture`` garde les routes qui modifient : lire reste ouvert à qui voit l'activité,
+    écrire est réservé aux acteurs de travail.
     """
 
     async def _exiger_tache(session: AsyncSession, ident: str, tache: str | None) -> None:
@@ -72,7 +76,7 @@ def enregistrer_liens(
     async def creer_lien(
         ident: str,
         corps: LienCreation,
-        courant: Courant,
+        courant: CourantEcriture,
         session: Session,
         tache: Annotated[str | None, Query()] = None,
     ) -> dict[str, Any]:
@@ -111,7 +115,7 @@ def enregistrer_liens(
     async def supprimer_lien(
         ident: str,
         lien_id: str,
-        courant: Courant,
+        courant: CourantEcriture,
         session: Session,
     ) -> None:
         activite = await charger(session, ident, courant)
