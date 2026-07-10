@@ -104,6 +104,11 @@ Le serveur calcule les capacités (`peut_assigner`, `peut_travailler`…) et les
 de l'activité. **L'écran obéit, il ne rejoue pas la règle** — sinon elle vit à deux endroits et
 finit par diverger. Source unique : `application/autorisations.capacites`.
 
+Mais **l'écran n'est pas la garde** : chaque route d'écriture déclare son exigence. L'oubli est une
+faille silencieuse — les capacités renvoyées disaient « non », l'écran masquait la commande, et la
+route répondait quand même 200. Toute route qui écrit prend `CtxActeur` ou `CtxAdmin`, jamais le
+simple accès au module.
+
 **Cas des tickets importés** : incidents et demandes viennent du rapport quotidien.
 [ADR-0005](0005-incidents-et-demandes-en-lecture-seule.md) tranche : on ne les travaille pas ici,
 on les observe. Toutes leurs capacités sont à faux, pour tout le monde, l'administrateur compris.
@@ -146,8 +151,10 @@ d'activer son mot de passe : un agent créé par l'administration n'en a pas enc
 ## À confirmer / suites
 
 1. **Accès par défaut de chaque profil métier** : quels modules et quelles actions pour Réseau
-   télécom, Système et Réseau télécom, IT Support Applicatif ? Le seed pose un défaut prudent
-   (opérationnel en lecture/écriture, pas de validation) ; l'administration ajuste.
+   télécom, Système et Réseau télécom, IT Support Applicatif ? Le seed les ouvre aujourd'hui sur
+   **tous les modules** — un agent HelpDesk voit donc Projets, Changements et Gouvernance. Cela ne
+   lui donne aucun pouvoir (il n'y est acteur de rien), mais l'encombre. À restreindre depuis
+   l'administration, ou dans le seed.
 2. **Restitution DG** : par quel canal (rapport PDF planifié, compte en lecture seule, export) ?
 3. **Transfert DBS** : faut-il notifier DBS par e-mail au passage en N3, ou le transfert reste-t-il
    entièrement manuel hors plateforme ?

@@ -231,3 +231,128 @@ async def test_le_lecteur_ne_modifie_pas_le_cadrage_d_un_projet(
             f"/projets/{projet}", headers=entetes(gens["responsable"]), json={"sponsor": "La DG"}
         )
     ).status_code == 200
+
+
+# --- Édition en place : ce que l'écran cachait, la route l'autorisait ---------------------------
+
+
+@pytest.mark.parametrize("role", ACTEURS)
+async def test_les_acteurs_editent_le_changement(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    changement, gens = await _changement_dote(session, f"patch-{role}")
+
+    r = await client.patch(
+        f"/changements/{changement}",
+        headers=entetes(gens[role]),
+        json={"analyse_impact": "Impact modéré sur le cœur bancaire."},
+    )
+
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("role", NON_ACTEURS)
+async def test_un_tiers_n_edite_pas_le_changement(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    """Le titre et les analyses RFC sont du travail : ni le valideur, ni un lecteur n'y touchent."""
+    changement, gens = await _changement_dote(session, f"patchref-{role}")
+
+    r = await client.patch(
+        f"/changements/{changement}",
+        headers=entetes(gens[role]),
+        json={"titre": "Titre réécrit par un tiers"},
+    )
+
+    assert r.status_code == 403, r.text
+
+
+# --- Revue périodique d'un risque -----------------------------------------------------------------
+
+
+async def _risque_dote(session: AsyncSession, suffixe: str) -> tuple[str, dict[str, str]]:
+    gens = await _equipe(session, suffixe)
+    risque = await creer_activite(
+        session,
+        module="risque",
+        reference=f"RSQ-ACT-{suffixe}",
+        responsable_id=gens["responsable"],
+    )
+    await designer(
+        session, activite_id=risque, utilisateur_id=gens["contributeur"], role="CONTRIBUTEUR"
+    )
+    await designer(session, activite_id=risque, utilisateur_id=gens["valideur"], role="VALIDEUR")
+    return risque, gens
+
+
+@pytest.mark.parametrize("role", ACTEURS)
+async def test_les_acteurs_planifient_la_revue_d_un_risque(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    risque, gens = await _risque_dote(session, f"revue-{role}")
+
+    r = await client.post(
+        f"/risques/{risque}/revue",
+        headers=entetes(gens[role]),
+        json={"periodicite": "Trimestrielle"},
+    )
+
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("role", NON_ACTEURS)
+async def test_un_tiers_ne_planifie_pas_la_revue(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    risque, gens = await _risque_dote(session, f"revueref-{role}")
+
+    r = await client.post(
+        f"/risques/{risque}/revue",
+        headers=entetes(gens[role]),
+        json={"periodicite": "Trimestrielle"},
+    )
+
+    assert r.status_code == 403, r.text
+
+
+@pytest.mark.parametrize("role", NON_ACTEURS)
+async def test_un_tiers_ne_marque_pas_la_revue_effectuee(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    """Attester qu'une revue a eu lieu engage la DSI : ce n'est pas l'affaire d'un passant."""
+    risque, gens = await _risque_dote(session, f"revuefaite-{role}")
+    await client.post(
+        f"/risques/{risque}/revue",
+        headers=entetes(gens["admin"]),
+        json={"periodicite": "Trimestrielle"},
+    )
+
+    r = await client.post(f"/risques/{risque}/revue/effectuee", headers=entetes(gens[role]))
+
+    assert r.status_code == 403, r.text
+
+
+@pytest.mark.parametrize("role", ACTEURS)
+async def test_les_acteurs_font_avancer_le_risque(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    risque, gens = await _risque_dote(session, f"rsqtrans-{role}")
+
+    r = await client.post(
+        f"/risques/{risque}/transition", headers=entetes(gens[role]), json={"vers": "Évalué"}
+    )
+
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("role", NON_ACTEURS)
+async def test_un_tiers_ne_fait_pas_avancer_le_risque(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    risque, gens = await _risque_dote(session, f"rsqtransref-{role}")
+
+    r = await client.post(
+        f"/risques/{risque}/transition", headers=entetes(gens[role]), json={"vers": "Évalué"}
+    )
+
+    assert r.status_code == 403, r.text

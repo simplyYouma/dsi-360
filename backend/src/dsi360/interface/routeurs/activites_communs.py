@@ -711,8 +711,9 @@ def creer_routeur(
 
         @routeur.post("/{ident}/revue", response_model=ActiviteDetail)
         async def planifier_revue(
-            ident: str, corps: RevueDemande, courant: Courant, session: Session
+            ident: str, corps: RevueDemande, ctx: CtxActeur, session: Session
         ) -> dict[str, Any]:
+            courant = ctx.courant
             avant = await charger_visible(session, ident, courant)
             fragment = corps.model_dump(exclude_unset=True, mode="json")
             if fragment:
@@ -739,12 +740,14 @@ def creer_routeur(
 
         @routeur.post("/{ident}/revue/effectuee", response_model=ActiviteDetail)
         async def marquer_revue_effectuee(
-            ident: str, courant: Courant, session: Session
+            ident: str, ctx: CtxActeur, session: Session
         ) -> dict[str, Any]:
             """Enregistre la revue du jour et reporte l'échéance suivante selon la périodicité.
 
+            Attester qu'une revue a eu lieu engage la DSI : réservé aux acteurs du sujet.
             Sans périodicité, aucune cadence n'existe : on refuse plutôt que d'inventer une date.
             """
+            courant = ctx.courant
             avant = await charger_visible(session, ident, courant)
             periodicite = _donnees(avant).get("periodicite")
             if not periodicite:
@@ -871,8 +874,10 @@ def creer_routeur(
 
         @routeur.patch("/{ident}", response_model=ActiviteDetail)
         async def modifier(
-            ident: str, corps: ActiviteMaj, courant: Courant, session: Session
+            ident: str, corps: ActiviteMaj, ctx: CtxActeur, session: Session
         ) -> dict[str, Any]:
+            """Titre, description, analyses RFC : c'est du travail, pas de la lecture."""
+            courant = ctx.courant
             avant = await charger_visible(session, ident, courant)
             champs = corps.model_dump(exclude_unset=True)
             # Colonnes directes (titre, description).

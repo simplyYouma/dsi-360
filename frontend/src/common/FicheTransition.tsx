@@ -88,6 +88,9 @@ function formaterDate(iso: string | null): string {
   });
 }
 
+/** Pourquoi une commande est grisée. Le serveur refuserait de toute façon. */
+const TITRE_LECTURE = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
+
 /** Fiche d'une activité : détails présentés proprement + transitions d'état (couleurs sémantiques). */
 export function FicheTransition({
   base,
@@ -628,20 +631,26 @@ export function FicheTransition({
                     permettreVide
                     libelleVide="Non définie"
                     placeholder="Périodicité…"
+                    desactive={!permissions.peut_travailler}
+                    titreDesactive={TITRE_LECTURE}
                   />
                   <SelecteurDate
                     valeur={detail.prochaine_revue ?? null}
                     onChange={(v) => void planifierRevue('prochaine_revue', v)}
                     placeholder="Prochaine revue"
+                    desactive={!permissions.peut_travailler}
+                    titreDesactive={TITRE_LECTURE}
                   />
                   <Button
                     variante="secondaire"
                     onClick={() => void revueEffectuee()}
-                    disabled={envoi || !detail.periodicite}
+                    disabled={envoi || !detail.periodicite || !permissions.peut_travailler}
                     title={
-                      detail.periodicite
-                        ? 'Enregistre la revue du jour et reporte l’échéance selon la périodicité'
-                        : 'Définissez d’abord une périodicité'
+                      !permissions.peut_travailler
+                        ? TITRE_LECTURE
+                        : detail.periodicite
+                          ? 'Enregistre la revue du jour et reporte l’échéance selon la périodicité'
+                          : 'Définissez d’abord une périodicité'
                     }
                   >
                     <CheckCircle2 size={15} />

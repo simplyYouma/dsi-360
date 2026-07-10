@@ -368,3 +368,22 @@ async def test_seul_l_admin_assigne_un_risque(client: AsyncClient, session: Asyn
             f"/risques/{risque}/assignation", headers=entetes(gens["responsable"]), json=corps
         )
     ).status_code == 403
+
+
+async def test_seul_l_administrateur_change_la_categorie_d_un_risque(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """La catégorie d'un risque pèse sur sa criticité : elle ne s'improvise pas."""
+    admin = await creer_utilisateur(session, email="admin.rsqcat@afgbank.ml", profil="ADMIN")
+    responsable = await creer_utilisateur(session, email="resp.rsqcat@afgbank.ml")
+    risque = await creer_activite(
+        session, module="risque", reference="RSQ-CAT-1", responsable_id=responsable
+    )
+
+    for utilisateur, attendu in ((responsable, 403), (admin, 200)):
+        r = await client.post(
+            f"/risques/{risque}/categorie",
+            headers=entetes(utilisateur),
+            json={"categorie_id": None},
+        )
+        assert r.status_code == attendu, r.text

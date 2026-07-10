@@ -20,13 +20,20 @@
 .bandeau {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  /* Respire au-dessus du fil d'Ariane : le bandeau n'appartient pas à la navigation. */
+  margin-bottom: var(--space-4);
+  padding: var(--space-1) var(--space-3);
   border: 1px solid color-mix(in srgb, var(--status-warn) 45%, transparent);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--status-warn) 12%, transparent);
   color: var(--text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+}
+
+/* Le profil précise, il n'annonce pas : il s'efface derrière le nom. */
+.bandeauProfil {
+  color: var(--text-muted);
 }
 
 .retour {

@@ -25,13 +25,13 @@ export function BandeauIncarnation(): JSX.Element | null {
 
   return (
     <div className={styles.bandeau}>
-      <Eye size={15} />
+      <Eye size={14} />
       <span>
-        Vous voyez l’application comme{' '}
+        Vue de{' '}
         <strong>
           {moi.prenom} {moi.nom}
-        </strong>{' '}
-        — {moi.profil_libelle}
+        </strong>
+        <span className={styles.bandeauProfil}> — {moi.profil_libelle}</span>
       </span>
       <button
         type="button"

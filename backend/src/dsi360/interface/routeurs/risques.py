@@ -9,7 +9,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
-from dsi360.application.autorisations import ADMIN, capacites, charger_roles
+from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.risques import creer_risque
 from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.revue import prochaine_revue
@@ -42,6 +42,8 @@ Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 # Distribuer le travail revient à l'administrateur (ADR-0003).
 CtxAdmin = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, {ADMIN}))]
+# Faire avancer le risque : gestionnaire, contributeurs et administrateur.
+CtxActeur = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, {ACTEUR}))]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -170,8 +172,9 @@ async def detail(ident: str, courant: Courant, session: Session) -> dict[str, An
 
 @routeur.post("/{ident}/transition", response_model=RisqueDetail)
 async def transitionner(
-    ident: str, corps: TransitionDemande, courant: Courant, session: Session
+    ident: str, corps: TransitionDemande, ctx: CtxActeur, session: Session
 ) -> dict[str, Any]:
+    courant = ctx.courant
     await _charger(session, ident, courant)
     try:
         await transition(session, MODULE, ident, corps.vers, courant)
@@ -209,8 +212,10 @@ async def assigner(
 
 @routeur.post("/{ident}/categorie", response_model=RisqueDetail)
 async def changer_categorie(
-    ident: str, corps: CategorieDemande, courant: Courant, session: Session
+    ident: str, corps: CategorieDemande, ctx: CtxAdmin, session: Session
 ) -> dict[str, Any]:
+    """La catégorie pèse sur la criticité : seul l'administrateur la fixe."""
+    courant = ctx.courant
     avant = await _charger(session, ident, courant)
     if corps.categorie_id is not None:
         ok = await session.scalar(
@@ -245,9 +250,10 @@ async def changer_categorie(
 
 @routeur.post("/{ident}/revue", response_model=RisqueDetail)
 async def planifier_revue(
-    ident: str, corps: RevueDemande, courant: Courant, session: Session
+    ident: str, corps: RevueDemande, ctx: CtxActeur, session: Session
 ) -> dict[str, Any]:
     """Planifie la revue périodique du risque (périodicité + prochaine revue)."""
+    courant = ctx.courant
     avant = await _charger(session, ident, courant)
     fragment = corps.model_dump(exclude_unset=True, mode="json")
     if fragment:
@@ -273,13 +279,13 @@ async def planifier_revue(
 
 
 @routeur.post("/{ident}/revue/effectuee", response_model=RisqueDetail)
-async def marquer_revue_effectuee(
-    ident: str, courant: Courant, session: Session
-) -> dict[str, Any]:
+async def marquer_revue_effectuee(ident: str, ctx: CtxActeur, session: Session) -> dict[str, Any]:
     """Enregistre la revue du jour et reporte l'échéance suivante selon la périodicité.
 
+    Attester qu'une revue a eu lieu engage la DSI : réservé aux acteurs du risque.
     Sans périodicité, aucune cadence n'existe : on refuse plutôt que d'inventer une date.
     """
+    courant = ctx.courant
     avant = await _charger(session, ident, courant)
     periodicite = _donnees(avant).get("periodicite")
     if not periodicite:
