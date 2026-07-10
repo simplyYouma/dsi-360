@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "changez-moi-en-dev-uniquement"
     jwt_acces_minutes: int = 15
 
+    # Frein sur les tentatives de connexion. Le verrou est temporaire : définitif, il donnerait à un
+    # attaquant le pouvoir d'exclure n'importe quel agent en se trompant exprès à sa place.
+    login_echecs_max: int = 5
+    login_verrou_minutes: int = 15
+
     max_upload_mb: int = 20
     # Applique les migrations SQL en attente au démarrage de l'API (idempotent). Désactivable en
     # prod si l'on préfère un déploiement manuel des migrations.

@@ -18,6 +18,14 @@ const STYLE_FOND = {
   backgroundPosition: 'center',
 };
 
+/** Le serveur dit combien de temps la porte reste close (429) : ne pas avaler son message. */
+function messageDeConnexion(err: unknown): string {
+  if (!(err instanceof ErreurApi)) return 'Connexion impossible. Réessayez.';
+  if (err.statut === 401) return 'Identifiants invalides.';
+  if (err.statut === 429) return err.message;
+  return 'Connexion impossible. Réessayez.';
+}
+
 /** Écran de connexion (mode LOCAL ; l'OIDC Entra ID s'ajoutera ici). */
 export function LoginPage(): JSX.Element {
   const { connecter } = useAuth();
@@ -38,11 +46,7 @@ export function LoginPage(): JSX.Element {
     try {
       await connecter(email.trim(), motDePasse);
     } catch (err) {
-      setErreur(
-        err instanceof ErreurApi && err.statut === 401
-          ? 'Identifiants invalides.'
-          : 'Connexion impossible. Réessayez.',
-      );
+      setErreur(messageDeConnexion(err));
       setEnvoi(false);
     }
   };

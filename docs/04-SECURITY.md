@@ -14,6 +14,12 @@ n'est **pas** la source d'identité : cette plomberie n'existe pas, et le besoin
 - **Mot de passe** : haché en **argon2**. Jamais transmis par un tiers, jamais stocké en clair.
 - **Mot de passe oublié** : réponse identique que le compte existe ou non — aucune énumération de
   comptes possible. Même mécanisme de jeton haché, à usage unique.
+- **Frein sur les tentatives** : après `login_echecs_max` échecs consécutifs (5 par défaut), le
+  compte est verrouillé `login_verrou_minutes` (15 par défaut). Le verrou **prime sur le mot de
+  passe** — sinon un attaquant saurait, en tombant juste, qu'il a trouvé le bon. Réponse **429** avec
+  `Retry-After`. Le verrou est **temporaire** : définitif, il permettrait d'exclure n'importe quel
+  agent du système en se trompant exprès à sa place. Un e-mail inconnu ne fait rien écrire, et reçoit
+  le même 401 générique. Chaque tentative est journalisée (`CONNEXION_ECHOUEE`, `CONNEXION_BLOQUEE`).
 - **Session** : **JWT d'accès court** (15 min) + refresh. Déconnexion = oubli des jetons côté client.
 - **Compte coupé immédiatement** : `actif` et `expire_le` sont vérifiés **à chaque requête** — un
   jeton encore valide ne survit pas au blocage.
@@ -22,8 +28,15 @@ n'est **pas** la source d'identité : cette plomberie n'existe pas, et le besoin
   laquelle une source externe entrerait un jour, sans prétendre qu'elle existe.
 
 **Limite assumée** : un mot de passe de plus pour chaque agent, hors du référentiel de la banque —
-donc pas de MFA ni de révocation centralisée au départ d'un collaborateur. Le blocage et
-l'expiration de compte restent le levier, et ils sont manuels.
+donc pas de révocation centralisée au départ d'un collaborateur. Le blocage et l'expiration de
+compte restent le levier, et ils sont manuels.
+
+**MFA — décidé, non implémenté.** DSI 360 n'a aujourd'hui **aucun second facteur**. Le MFA qui
+apparaît dans le module Cybersécurité est un *sujet suivi* (le déploiement MFA de la banque), pas un
+mécanisme d'authentification de la plateforme. Décision : un **TOTP réservé aux administrateurs**,
+qui créent les comptes, distribuent le travail et lisent le journal d'audit — c'est là qu'est le
+risque. À construire après le frein ci-dessus, qui le précède : un second facteur posé sur une porte
+qu'on peut marteler indéfiniment protégerait moins bien qu'un simple frein.
 
 ## 2. Autorisation — RBAC (profils métier) + cloisonnement
 

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.application.auth import authentifier, compte_actif
+from dsi360.application.auth import CompteVerrouille, authentifier, compte_actif
 from dsi360.config import get_settings
 from dsi360.infrastructure import email, email_modeles
 from dsi360.infrastructure.audit import consigner
@@ -52,18 +52,46 @@ def _jetons_pour(identifiant: str) -> Jetons:
 
 @routeur.post("/auth/login", response_model=Jetons)
 async def login(corps: Connexion, requete: Request, session: Session) -> Jetons:
-    u = await authentifier(session, corps.email, corps.mot_de_passe)
+    ip = requete.client.host if requete.client else None
+
+    # Chaque tentative est journalisée, et `consigner` valide la transaction : c'est ce qui rend
+    # durable le compteur d'échecs incrémenté par `authentifier`.
+    try:
+        u = await authentifier(session, corps.email, corps.mot_de_passe)
+    except CompteVerrouille as verrou:
+        await consigner(
+            session,
+            action="CONNEXION_BLOQUEE",
+            acteur_email=corps.email,
+            module="authentification",
+            adresse_ip=ip,
+        )
+        minutes = max(1, round(verrou.secondes / 60))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Trop de tentatives. Réessayez dans {minutes} minutes.",
+            headers={"Retry-After": str(verrou.secondes)},
+        ) from verrou
+
     if u is None:
+        await consigner(
+            session,
+            action="CONNEXION_ECHOUEE",
+            acteur_email=corps.email,
+            module="authentification",
+            adresse_ip=ip,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Identifiants invalides."
         )
+
     await consigner(
         session,
         action="CONNEXION",
         acteur_id=str(u["id"]),
         acteur_email=u["email"],
         module="authentification",
-        adresse_ip=requete.client.host if requete.client else None,
+        adresse_ip=ip,
     )
     return _jetons_pour(str(u["id"]))
 
