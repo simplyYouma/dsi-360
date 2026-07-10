@@ -1,14 +1,14 @@
 """Liens utiles (espace documentaire, wiki, dossier réseau…) — registrar partagé.
 
-Rattachés à une activité, ou à une **tâche** précise (paramètre ``tache``) : les liens de
-l'activité sont ceux sans tâche, chaque tâche a les siens. Réutilisé par les projets et la
-fabrique d'activités (changements).
+Rattachés à l'**activité**, jamais à une tâche : un lien sert le sujet, pas une étape de sa
+réalisation. Éparpillés sur les tâches, ils devenaient introuvables une fois la tâche terminée.
+Réutilisé par les projets et la fabrique d'activités (changements).
 """
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ def enregistrer_liens(
     Session: Any,  # noqa: N803
     CourantEcriture: Any,  # noqa: N803
 ) -> None:
-    """Ajoute les endpoints de liens utiles (activité + tâches) à un routeur d'activités.
+    """Ajoute les endpoints de liens utiles d'une activité à son routeur.
 
     ``charger(session, ident, courant)`` doit renvoyer l'activité (avec ``reference``) ou lever 404.
 
@@ -33,41 +33,20 @@ def enregistrer_liens(
     écrire est réservé aux acteurs de travail.
     """
 
-    async def _exiger_tache(session: AsyncSession, ident: str, tache: str | None) -> None:
-        if tache is None:
-            return
-        existe = await session.scalar(
-            text(
-                "SELECT 1 FROM core.tache "
-                "WHERE id::text = :tid AND activite_id = cast(:aid as uuid)"
-            ),
-            {"tid": tache, "aid": ident},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tâche introuvable sur cette activité.",
-            )
-
     @routeur.get("/{ident}/liens", response_model=list[LienItem])
     async def lister_liens(
         ident: str,
         courant: Courant,
         session: Session,
-        tache: Annotated[str | None, Query()] = None,
     ) -> list[dict[str, Any]]:
         await charger(session, ident, courant)
-        await _exiger_tache(session, ident, tache)
         lignes = (
             await session.execute(
                 text(
                     "SELECT id::text AS id, libelle, url, cree_le FROM core.lien "
-                    "WHERE activite_id = cast(:id as uuid) "
-                    "AND (cast(:tache as text) IS NULL AND tache_id IS NULL "
-                    "     OR tache_id::text = :tache) "
-                    "ORDER BY cree_le"
+                    "WHERE activite_id = cast(:id as uuid) ORDER BY cree_le"
                 ),
-                {"id": ident, "tache": tache},
+                {"id": ident},
             )
         ).mappings().all()
         return [dict(x) for x in lignes]
@@ -78,20 +57,17 @@ def enregistrer_liens(
         corps: LienCreation,
         courant: CourantEcriture,
         session: Session,
-        tache: Annotated[str | None, Query()] = None,
     ) -> dict[str, Any]:
         activite = await charger(session, ident, courant)
-        await _exiger_tache(session, ident, tache)
         ligne = (
             await session.execute(
                 text(
-                    "INSERT INTO core.lien (activite_id, tache_id, libelle, url, cree_par) "
-                    "VALUES (cast(:aid as uuid), cast(:tid as uuid), :libelle, :url, :email) "
+                    "INSERT INTO core.lien (activite_id, libelle, url, cree_par) "
+                    "VALUES (cast(:aid as uuid), :libelle, :url, :email) "
                     "RETURNING id::text AS id, libelle, url, cree_le"
                 ),
                 {
                     "aid": ident,
-                    "tid": tache,
                     "libelle": corps.libelle.strip(),
                     "url": corps.url.strip(),
                     "email": courant["email"],
@@ -129,9 +105,7 @@ def enregistrer_liens(
             )
         ).mappings().first()
         if ligne is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lien introuvable.")
         await audit.consigner(
             session,
             action="SUPPRESSION",

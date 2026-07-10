@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Flag, Link2, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Flag, Plus } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
-import { LiensTache } from '@/common/LiensTache';
+import { LiensActivite } from '@/common/LiensActivite';
 import { ListeTaches } from '@/common/ListeTaches';
 import { AUCUNE_PERMISSION } from '@/common/permissions';
 import { useAuth } from '@/lib/auth';
@@ -19,7 +19,7 @@ import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ProjetPage.module.css';
 import { JournalNotes } from '@/common/JournalNotes';
-import { projetsApi, type Jalon, type Lien, type ProjetDetail } from './projetsApi';
+import { projetsApi, type Jalon, type ProjetDetail } from './projetsApi';
 
 function formaterDateCourte(iso: string | null): string {
   if (!iso) return '';
@@ -93,87 +93,6 @@ function Jalons({ projetId }: { projetId: string }): JSX.Element {
         />
         <SelecteurDate valeur={echeance || null} onChange={(v) => setEcheance(v ?? '')} placeholder="Échéance" />
         <Button onClick={() => void ajouter()} disabled={titre.trim().length < 2}>
-          <Plus size={15} />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Liens utiles du projet (espace documentaire, wiki, dossier réseau…). */
-function Liens({ projetId }: { projetId: string }): JSX.Element {
-  const [liens, setLiens] = useState<Lien[]>([]);
-  const [libelle, setLibelle] = useState('');
-  const [url, setUrl] = useState('');
-  const { notifier } = useToast();
-
-  const charger = useCallback((): void => {
-    void projetsApi.liens(projetId).then(setLiens);
-  }, [projetId]);
-  useEffect(() => charger(), [charger]);
-
-  const ajouter = async (): Promise<void> => {
-    if (libelle.trim().length < 2 || url.trim().length < 8) return;
-    try {
-      await projetsApi.creerLien(projetId, libelle.trim(), url.trim());
-      setLibelle('');
-      setUrl('');
-      charger();
-    } catch (e) {
-      notifier(
-        e instanceof ErreurApi ? e.message : 'Ajout impossible — adresse http(s):// attendue.',
-        'erreur',
-      );
-    }
-  };
-  const retirer = async (id: string): Promise<void> => {
-    await projetsApi.supprimerLien(projetId, id);
-    charger();
-  };
-
-  return (
-    <div className={styles.jalons}>
-      {liens.length === 0 && <p className={styles.note}>Aucun lien pour le moment.</p>}
-      {liens.map((l) => (
-        <div key={l.id} className={styles.jalon}>
-          <Link2 size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <a
-            href={l.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.jalonTitre}
-            title={l.url}
-          >
-            {l.libelle}
-          </a>
-          <BoutonSupprimer
-            cible={`le lien « ${l.libelle} »`}
-            onSupprimer={() => retirer(l.id)}
-            className={styles.docAction}
-            taille={14}
-          />
-        </div>
-      ))}
-      <div className={styles.jalonAjout}>
-        <input
-          className={styles.jalonInput}
-          value={libelle}
-          onChange={(e) => setLibelle(e.target.value)}
-          placeholder="Libellé du lien…"
-        />
-        <input
-          className={styles.jalonInput}
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://…"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void ajouter();
-          }}
-        />
-        <Button
-          onClick={() => void ajouter()}
-          disabled={libelle.trim().length < 2 || url.trim().length < 8}
-        >
           <Plus size={15} />
         </Button>
       </div>
@@ -509,13 +428,6 @@ export function ProjetPage(): JSX.Element {
                     setDetail(await projetsApi.reordonnerTaches(id, ids));
                     chargerTaches();
                   }}
-                  renduSousTitre={(t) => (
-                    <LiensTache
-                      charger={() => projetsApi.liens(id, t.id)}
-                      creer={(libelle, url) => projetsApi.creerLien(id, libelle, url, t.id)}
-                      supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
-                    />
-                  )}
                   renduEnfant={(t) => (
                     <DiscussionTache
                       activiteId={id}
@@ -596,7 +508,14 @@ export function ProjetPage(): JSX.Element {
                   Espace documentaire, wiki, dossiers réseau… Les pièces jointes se déposent sur
                   les tâches.
                 </p>
-                {id !== undefined && <Liens projetId={id} />}
+                {id !== undefined && (
+                  <LiensActivite
+                    charger={() => projetsApi.liens(id)}
+                    creer={(libelle, url) => projetsApi.creerLien(id, libelle, url)}
+                    supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
+                    modifiable={permissions.peut_travailler}
+                  />
+                )}
               </section>
 
               <section className={styles.carte}>

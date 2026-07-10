@@ -9,7 +9,7 @@ import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { GestionActeurs } from '@/common/GestionActeurs';
 import { JournalNotes } from '@/common/JournalNotes';
-import { LiensTache } from '@/common/LiensTache';
+import { LiensActivite } from '@/common/LiensActivite';
 import { ListeTaches } from '@/common/ListeTaches';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -364,13 +364,6 @@ export function ChangementPage(): JSX.Element {
                   setDetail(await changementsApi.reordonnerTaches(id!, ids));
                   chargerTaches();
                 }}
-                renduSousTitre={(t) => (
-                  <LiensTache
-                    charger={() => changementsApi.liensTache(id!, t.id)}
-                    creer={(libelle, url) => changementsApi.creerLienTache(id!, t.id, libelle, url)}
-                    supprimer={(lienId) => changementsApi.supprimerLien(id!, lienId)}
-                  />
-                )}
                 renduEnfant={(t) => (
                   <>
                     <DiscussionTache
@@ -463,6 +456,16 @@ export function ChangementPage(): JSX.Element {
                   Les tâches font avancer l’implémentation ; le CAB/ECAB est tranché par les
                   valideurs.
                 </p>
+              </section>
+
+              <section className={styles.carte}>
+                <span className={styles.carteTitre}>Liens utiles</span>
+                <LiensActivite
+                  charger={() => changementsApi.liens(id!)}
+                  creer={(libelle, url) => changementsApi.creerLien(id!, libelle, url)}
+                  supprimer={(lienId) => changementsApi.supprimerLien(id!, lienId)}
+                  modifiable={permissions.peut_travailler}
+                />
               </section>
 
               <section className={styles.carte}>
