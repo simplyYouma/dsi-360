@@ -25,6 +25,10 @@ interface Props {
   gerable?: boolean;
   /** Recharge la liste des catégories après ajout/suppression. */
   onModifie?: () => void;
+  /** Grisé : la sélection reste lisible, on ne peut plus la changer. */
+  desactive?: boolean;
+  /** Raison du grisage, en infobulle. */
+  titreDesactive?: string;
 }
 
 /** Sélecteur de catégorie en pastilles (chips). Cliquer sélectionne / désélectionne (facultatif).
@@ -38,6 +42,8 @@ export function SelecteurCategorie({
   module,
   gerable,
   onModifie,
+  desactive = false,
+  titreDesactive,
 }: Props): JSX.Element | null {
   const { notifier } = useToast();
   const [ajout, setAjout] = useState(false);
@@ -103,6 +109,8 @@ export function SelecteurCategorie({
               )}
               style={style}
               onClick={() => onChange(actif ? null : c.id)}
+              disabled={desactive}
+              title={desactive ? titreDesactive : undefined}
             >
               {c.libelle}
             </button>

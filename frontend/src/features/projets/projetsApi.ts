@@ -1,6 +1,7 @@
 import { api, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { chaineFiltres, type FiltresListe } from '@/features/incidents/incidentsApi';
 import { STATUTS_TACHE } from '@/common/tacheTypes';
+import type { Permissions } from '@/common/permissions';
 import type { StatutTache, Tache, NouvelleTache, MajTache } from '@/common/tacheTypes';
 
 export interface Chef {
@@ -36,6 +37,8 @@ export interface ProjetDetail extends Projet {
   budget: number | null;
   date_debut: string | null;
   transitions_possibles: string[];
+  /** Ce que l'appelant peut faire ici, calculé par le serveur. */
+  permissions: Permissions;
 }
 
 export interface NouveauProjet {

@@ -7,6 +7,7 @@ import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { BoutonEscalade } from '@/common/BoutonEscalade';
 import { chargerAgents, moduleDeLaBase, type Agent } from '@/common/agentsApi';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
+import { AUCUNE_PERMISSION, type Permissions } from '@/common/permissions';
 import { PiecesJointes } from '@/common/PiecesJointes';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
 import { ComposeurDiscussion } from '@/common/ComposeurDiscussion';
@@ -47,6 +48,8 @@ interface Detail {
   niveau_support?: number;
   /** Transféré à DBS (N3) : traité hors plateforme, le gestionnaire reste référent du suivi. */
   transfere_dbs?: boolean;
+  /** Ce que l'appelant peut faire ici, calculé par le serveur. */
+  permissions?: Permissions;
   periodicite?: string | null;
   prochaine_revue?: string | null;
   derniere_revue?: string | null;
@@ -112,8 +115,12 @@ export function FicheTransition({
   const { notifier } = useToast();
   const { moi } = useAuth();
   const [categories, setCategories] = useState<OptionCategorie[]>([]);
-  const gerableCat =
-    (moi?.acces.includes('administration') ?? false) && moduleCategorie !== 'changement';
+
+  // Le serveur a calculé ce que l'utilisateur peut faire sur CETTE activité : on obéit. Aucune
+  // règle d'autorisation ici — la seule source est `permissions` (cf. common/permissions.ts).
+  const permissions = detail?.permissions ?? AUCUNE_PERMISSION;
+  // Le Type d'un changement est un vocabulaire fixe : il ne s'enrichit pas depuis la fiche.
+  const gerableCat = permissions.peut_evaluer && moduleCategorie !== 'changement';
 
   const chargerCategories = useCallback((): void => {
     if (moduleCategorie === undefined) return;
@@ -502,7 +509,7 @@ export function FicheTransition({
                 <dt>Gestionnaire (import)</dt>
                 <dd className={styles.valeur}>{detail.gestionnaire ?? '—'}</dd>
               </div>
-            ) : assignable ? (
+            ) : assignable && permissions.peut_assigner ? (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Gestionnaire</dt>
                 <dd>
@@ -516,6 +523,16 @@ export function FicheTransition({
                   />
                 </dd>
               </div>
+            ) : assignable ? (
+              // Seul l'administrateur distribue le travail : les autres lisent le gestionnaire.
+              <div className={styles.metaItem}>
+                <dt>Gestionnaire</dt>
+                <dd className={styles.valeur}>
+                  {detail.responsable
+                    ? `${detail.responsable.prenom} ${detail.responsable.nom}`
+                    : 'Non assigné'}
+                </dd>
+              </div>
             ) : detail.responsable !== undefined ? (
               <div className={styles.metaItem}>
                 <dt>Responsable</dt>
@@ -526,7 +543,7 @@ export function FicheTransition({
                 </dd>
               </div>
             ) : null}
-            {escaladable && id !== null ? (
+            {escaladable && permissions.peut_travailler && id !== null ? (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Support</dt>
                 <dd>
@@ -557,6 +574,7 @@ export function FicheTransition({
                       onRetirer={(v) => void retirerContributeur(v)}
                       placeholder="Ajouter un contributeur…"
                       disabled={envoi}
+                      lectureSeule={!permissions.peut_gerer_acteurs}
                     />
                   </dd>
                 </div>
@@ -572,8 +590,9 @@ export function FicheTransition({
                       placeholder="Ajouter un valideur…"
                       disabled={envoi}
                       avecDecision
+                      lectureSeule={!permissions.peut_gerer_acteurs}
                     />
-                    {moi !== null && (detail.valideurs ?? []).some((v) => v.id === moi.id) && (
+                    {permissions.peut_decider && (
                       <div className={styles.decision}>
                         <span className={styles.decisionLabel}>Votre décision :</span>
                         <Button variante="secondaire" onClick={() => void decider('APPROUVE')} disabled={envoi}>
@@ -588,7 +607,9 @@ export function FicheTransition({
                 </div>
               </>
             ) : null}
-            {assignable && detail.impact !== undefined && detail.priorite !== undefined && (
+            {permissions.peut_evaluer &&
+              detail.impact !== undefined &&
+              detail.priorite !== undefined && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Évaluation</dt>
                 <dd className={styles.evaluation}>
@@ -660,7 +681,9 @@ export function FicheTransition({
                 const visite = visites.has(etat);
                 const estCourant = etat === detail.statut;
                 const passe = visite && !estCourant;
-                const cliquable = detail.transitions_possibles.includes(etat);
+                // Faire avancer le sujet appartient aux acteurs : les autres lisent le parcours.
+                const cliquable =
+                  permissions.peut_travailler && detail.transitions_possibles.includes(etat);
                 const c = couleurStatut(etat);
                 if (cliquable && !estCourant) {
                   return (

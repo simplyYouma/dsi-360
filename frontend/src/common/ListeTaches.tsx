@@ -32,7 +32,14 @@ interface Props {
   renduEnfant?: (tache: Tache) => ReactNode;
   /** Contenu rattaché au titre, en tête de carte (ex. liens utiles). */
   renduSousTitre?: (tache: Tache) => ReactNode;
+  /** Acteur de travail (admin, gestionnaire, contributeur) : organise les tâches. */
+  peutTravailler?: boolean;
+  /** Identifiant de l'utilisateur : l'assigné d'une tâche en change le statut, rien d'autre. */
+  moiId?: string | null;
 }
+
+const RESERVE_AUX_ACTEURS =
+  'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
 
 /** Pastille d'état d'échéance d'une tâche non terminée : dépassée (rouge) / proche (ambre). */
 function EtatEcheance({ tache }: { tache: Tache }): JSX.Element | null {
@@ -56,6 +63,8 @@ export function ListeTaches({
   onReordonner,
   renduEnfant,
   renduSousTitre,
+  peutTravailler = true,
+  moiId = null,
 }: Props): JSX.Element {
   const [titre, setTitre] = useState('');
   const [assigne, setAssigne] = useState<string | null>(null);
@@ -102,7 +111,7 @@ export function ListeTaches({
     }
   };
 
-  const reordonnable = onReordonner !== undefined;
+  const reordonnable = onReordonner !== undefined && peutTravailler;
 
   return (
     <div className={styles.taches}>
@@ -149,19 +158,24 @@ export function ListeTaches({
               )}
             </div>
           </div>
-          <BoutonSupprimer
-            cible={`la tâche « ${t.titre} »`}
-            onSupprimer={() => onSupprimer(t.id)}
-            className={styles.tacheSuppr}
-          />
+          {peutTravailler && (
+            <BoutonSupprimer
+              cible={`la tâche « ${t.titre} »`}
+              onSupprimer={() => onSupprimer(t.id)}
+              className={styles.tacheSuppr}
+            />
+          )}
           <div className={styles.tacheChamps}>
             <div className={styles.tacheChamp}>
+              {/* Son porteur rend compte de l'avancement : c'est le seul champ qu'il change. */}
               <SelecteurListe
                 options={STATUTS_TACHE.map((s) => ({ valeur: s, libelle: s }))}
                 valeur={t.statut}
                 onChange={(v) => v !== null && void onMaj(t.id, { statut: v as StatutTache })}
                 placeholder="Statut"
                 couleurs={COULEUR_STATUT_TACHE}
+                desactive={!peutTravailler && t.assigne_id !== moiId}
+                titreDesactive="Seul l’assigné de cette tâche en change le statut."
               />
             </div>
             <div className={styles.tacheChamp}>
@@ -172,6 +186,8 @@ export function ListeTaches({
                 placeholder="Assigner…"
                 permettreVide
                 libelleVide="Non assigné"
+                desactive={!peutTravailler}
+                titreDesactive={RESERVE_AUX_ACTEURS}
               />
             </div>
             <div className={styles.tacheChamp}>
@@ -180,6 +196,8 @@ export function ListeTaches({
                 onChange={(v) => void onMaj(t.id, { echeance: v })}
                 placeholder="Échéance"
                 remplissageEcheance={t.statut !== 'Terminée'}
+                desactive={!peutTravailler}
+                titreDesactive={RESERVE_AUX_ACTEURS}
               />
             </div>
           </div>
@@ -187,37 +205,40 @@ export function ListeTaches({
         </div>
       ))}
 
-      <div className={styles.ajout}>
-        <input
-          className={styles.ajoutTitre}
-          value={titre}
-          onChange={(e) => setTitre(e.target.value)}
-          placeholder="Nouvelle tâche…"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void ajouter();
-          }}
-        />
-        <div className={styles.tacheChamp}>
-          <SelecteurListe
-            options={agents}
-            valeur={assigne}
-            onChange={setAssigne}
-            placeholder="Assigner…"
-            permettreVide
-            libelleVide="Non assigné"
+      {/* Créer une tâche, c'est distribuer du travail : réservé aux acteurs. */}
+      {peutTravailler && (
+        <div className={styles.ajout}>
+          <input
+            className={styles.ajoutTitre}
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Nouvelle tâche…"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void ajouter();
+            }}
           />
+          <div className={styles.tacheChamp}>
+            <SelecteurListe
+              options={agents}
+              valeur={assigne}
+              onChange={setAssigne}
+              placeholder="Assigner…"
+              permettreVide
+              libelleVide="Non assigné"
+            />
+          </div>
+          <div className={styles.tacheChamp}>
+            <SelecteurDate
+              valeur={echeance || null}
+              onChange={(v) => setEcheance(v ?? '')}
+              placeholder="Échéance"
+            />
+          </div>
+          <Button onClick={() => void ajouter()} disabled={envoi || titre.trim().length < 2}>
+            <Plus size={15} /> Ajouter
+          </Button>
         </div>
-        <div className={styles.tacheChamp}>
-          <SelecteurDate
-            valeur={echeance || null}
-            onChange={(v) => setEcheance(v ?? '')}
-            placeholder="Échéance"
-          />
-        </div>
-        <Button onClick={() => void ajouter()} disabled={envoi || titre.trim().length < 2}>
-          <Plus size={15} /> Ajouter
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

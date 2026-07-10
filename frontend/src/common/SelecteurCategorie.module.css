@@ -25,6 +25,16 @@
 .chip:hover {
   border-color: var(--text-muted);
 }
+/* Grisé : la sélection reste lisible, on ne peut plus la changer. */
+.chip:disabled {
+  cursor: default;
+}
+.chip:disabled:not(.chipActif) {
+  opacity: 0.55;
+}
+.chip:disabled:hover {
+  border-color: var(--border);
+}
 .chipActif {
   background: var(--accent);
   color: var(--on-accent);

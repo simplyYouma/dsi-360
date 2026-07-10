@@ -27,6 +27,8 @@ interface Props {
   disabled?: boolean;
   /** Acteurs qui tranchent (valideurs) : affiche « En attente » tant qu'ils n'ont pas décidé. */
   avecDecision?: boolean;
+  /** Seul l'administrateur désigne : les autres voient la liste, sans ajout ni retrait. */
+  lectureSeule?: boolean;
 }
 
 /** Acteurs secondaires d'une activité (contributeurs, valideurs) : puces + ajout à la demande.
@@ -40,6 +42,7 @@ export function GestionActeurs({
   placeholder,
   disabled = false,
   avecDecision = false,
+  lectureSeule = false,
 }: Props): JSX.Element {
   const [ajout, setAjout] = useState(false);
   const exclus = new Set([...exclureIds, ...acteurs.map((a) => a.id)]);
@@ -58,18 +61,21 @@ export function GestionActeurs({
             {a.decision === 'APPROUVE' && <span className={styles.approuve}>Approuvé</span>}
             {a.decision === 'REJETE' && <span className={styles.rejete}>Rejeté</span>}
             {avecDecision && !a.decision && <span className={styles.attente}>En attente</span>}
-            <button
-              type="button"
-              className={styles.retirer}
-              disabled={disabled}
-              onClick={() => onRetirer(a.id)}
-              aria-label={`Retirer ${a.prenom} ${a.nom}`}
-            >
-              <X size={13} />
-            </button>
+            {!lectureSeule && (
+              <button
+                type="button"
+                className={styles.retirer}
+                disabled={disabled}
+                onClick={() => onRetirer(a.id)}
+                aria-label={`Retirer ${a.prenom} ${a.nom}`}
+              >
+                <X size={13} />
+              </button>
+            )}
           </li>
         ))}
-        {!ajout && (
+        {acteurs.length === 0 && lectureSeule && <li className={styles.item}>—</li>}
+        {!ajout && !lectureSeule && (
           <li>
             <button
               type="button"

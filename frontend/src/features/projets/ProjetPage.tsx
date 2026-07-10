@@ -8,6 +8,8 @@ import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
 import { LiensTache } from '@/common/LiensTache';
 import { ListeTaches } from '@/common/ListeTaches';
+import { AUCUNE_PERMISSION } from '@/common/permissions';
+import { useAuth } from '@/lib/auth';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgeStatut, couleurStatut } from '@/common/statuts';
@@ -218,6 +220,10 @@ export function ProjetPage(): JSX.Element {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [introuvable, setIntrouvable] = useState(false);
   const [envoi, setEnvoi] = useState(false);
+  const { moi } = useAuth();
+
+  // Le serveur a calculé ce que l'utilisateur peut faire ici : l'écran obéit, il ne rejoue rien.
+  const permissions = detail?.permissions ?? AUCUNE_PERMISSION;
 
   // Brouillon utilisé en mode création (avant que le projet n'existe).
   const [titre, setTitre] = useState('');
@@ -494,6 +500,8 @@ export function ProjetPage(): JSX.Element {
                 <ListeTaches
                   taches={taches}
                   agents={optionsAgents}
+                  peutTravailler={permissions.peut_travailler}
+                  moiId={moi?.id ?? null}
                   onAjouter={ajouterTache}
                   onMaj={majTache}
                   onSupprimer={supprimerTache}

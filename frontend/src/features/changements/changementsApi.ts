@@ -1,6 +1,7 @@
 import { api, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
+import type { Permissions } from '@/common/permissions';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import type { NoteJournal } from '@/common/JournalNotes';
 import type { LienItem } from '@/common/LiensTache';
@@ -19,6 +20,8 @@ export interface Contributeur {
 }
 
 export interface ChangementDetail {
+  /** Ce que l'appelant peut faire ici, calculé par le serveur. */
+  permissions: Permissions;
   id: string;
   reference: string;
   titre: string;

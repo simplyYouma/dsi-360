@@ -18,6 +18,10 @@ interface Props {
   libelleVide?: string;
   /** Couleur sémantique par valeur : pastille dans la liste + badge teinté sur la sélection. */
   couleurs?: Record<string, string>;
+  /** Grisé : la valeur reste lisible, le choix est fermé (ex. champ réservé à l'administrateur). */
+  desactive?: boolean;
+  /** Raison du grisage, en infobulle : on n'interdit jamais sans dire pourquoi. */
+  titreDesactive?: string;
 }
 
 /** Liste déroulante maison (popover) — aucun composant natif navigateur. */
@@ -45,6 +49,8 @@ export function SelecteurListe({
   permettreVide = false,
   libelleVide = 'Aucune',
   couleurs,
+  desactive = false,
+  titreDesactive,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
@@ -150,11 +156,15 @@ export function SelecteurListe({
             : undefined
         }
         onClick={basculer}
+        disabled={desactive}
+        title={desactive ? titreDesactive : undefined}
       >
         <span className={courant ? styles.valeur : styles.placeholder}>
           {courant ? courant.libelle : placeholder}
         </span>
-        <ChevronDown size={16} className={cx(styles.fleche, ouvert && styles.flecheOuverte)} />
+        {!desactive && (
+          <ChevronDown size={16} className={cx(styles.fleche, ouvert && styles.flecheOuverte)} />
+        )}
       </button>
 
       {ouvert && pos !== null && createPortal(

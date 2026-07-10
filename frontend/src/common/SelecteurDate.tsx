@@ -12,6 +12,10 @@ interface Props {
   remplissageEcheance?: boolean;
   /** Date de départ (création) pour calculer la proportion. Sinon fenêtre de 14 jours. */
   depuis?: string | null;
+  /** Grisé : la date reste lisible, le calendrier ne s'ouvre pas. */
+  desactive?: boolean;
+  /** Raison du grisage, en infobulle. */
+  titreDesactive?: string;
 }
 
 /** Proportion 0→1 de « temps consommé » avant l'échéance (1 = atteinte ou dépassée). */
@@ -58,6 +62,8 @@ export function SelecteurDate({
   placeholder = 'Choisir une date',
   remplissageEcheance = false,
   depuis,
+  desactive = false,
+  titreDesactive,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<CSSProperties | null>(null);
@@ -119,6 +125,8 @@ export function SelecteurDate({
         type="button"
         className={cx(styles.champ, jauge !== null && styles.champJauge)}
         onClick={basculer}
+        disabled={desactive}
+        title={desactive ? titreDesactive : undefined}
       >
         {jauge !== null && (
           <span

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, XCircle } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
+import { AUCUNE_PERMISSION } from '@/common/permissions';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
@@ -81,6 +82,9 @@ export function ChangementPage(): JSX.Element {
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [introuvable, setIntrouvable] = useState(false);
   const [envoi, setEnvoi] = useState(false);
+
+  // Le serveur a calculé ce que l'utilisateur peut faire ici : l'écran obéit, il ne rejoue rien.
+  const permissions = detail?.permissions ?? AUCUNE_PERMISSION;
 
   // Brouillon (mode création)
   const [titre, setTitre] = useState('');
@@ -233,6 +237,8 @@ export function ChangementPage(): JSX.Element {
                       creation ? setCategorie(val) : void agir(() => changementsApi.changerType(id!, val), 'Type mis à jour')
                     }
                     couleurs={TYPE_COULEUR}
+                    desactive={!creation && !permissions.peut_evaluer}
+                    titreDesactive="Le Type pilote le circuit CAB : seul l’administrateur le change."
                   />
                 </dd>
               </div>
@@ -270,6 +276,8 @@ export function ChangementPage(): JSX.Element {
                     permettreVide
                     libelleVide="Non assigné"
                     placeholder="Assigner à un agent DSI…"
+                    desactive={!creation && !permissions.peut_assigner}
+                    titreDesactive="Seul l’administrateur assigne le gestionnaire."
                   />
                 </dd>
               </div>
@@ -286,6 +294,7 @@ export function ChangementPage(): JSX.Element {
                         onRetirer={(val) => void agir(() => changementsApi.retirerContributeur(id!, val))}
                         placeholder="Ajouter un contributeur…"
                         disabled={envoi}
+                        lectureSeule={!permissions.peut_gerer_acteurs}
                       />
                     </dd>
                   </div>
@@ -300,8 +309,9 @@ export function ChangementPage(): JSX.Element {
                         onRetirer={(val) => void agir(() => changementsApi.retirerValideur(id!, val))}
                         placeholder="Ajouter un valideur…"
                         disabled={envoi}
+                        lectureSeule={!permissions.peut_gerer_acteurs}
                       />
-                      {moi !== null && detail.valideurs.some((v) => v.id === moi.id) && (
+                      {permissions.peut_decider && (
                         <div className={styles.decision}>
                           <span className={styles.note}>Votre décision :</span>
                           <Button variante="secondaire" onClick={() => void agir(() => changementsApi.decider(id!, 'APPROUVE'), 'Approuvé')} disabled={envoi}>
@@ -345,6 +355,8 @@ export function ChangementPage(): JSX.Element {
               <ListeTaches
                 taches={taches}
                 agents={optionsAgents}
+                peutTravailler={permissions.peut_travailler}
+                moiId={moi?.id ?? null}
                 onAjouter={ajouterTache}
                 onMaj={majTache}
                 onSupprimer={supprimerTache}
@@ -429,7 +441,8 @@ export function ChangementPage(): JSX.Element {
                   >
                     {detail.statut}
                   </span>
-                  {detail.transitions_possibles.map((etat) => {
+                  {/* Faire avancer le sujet appartient aux acteurs : les autres lisent le parcours. */}
+                  {(permissions.peut_travailler ? detail.transitions_possibles : []).map((etat) => {
                     const c = couleurStatut(etat);
                     return (
                       <button
