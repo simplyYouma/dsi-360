@@ -23,6 +23,8 @@ export interface Moi {
   acces: string[];
   /** « dev » | « recette » | « prod » — donné par le serveur, jamais deviné. */
   environnement: string;
+  /** E-mail de l'administrateur qui incarne ce compte, sinon `null`. */
+  incarne_par: string | null;
 }
 
 type Statut = 'chargement' | 'pret';

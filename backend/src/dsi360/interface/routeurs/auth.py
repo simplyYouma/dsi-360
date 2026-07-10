@@ -43,10 +43,10 @@ _REFRESH_INVALIDE = HTTPException(
 )
 
 
-def _jetons_pour(identifiant: str) -> Jetons:
+def _jetons_pour(identifiant: str, incarne_par: str | None = None) -> Jetons:
     return Jetons(
-        acces=creer_jeton(identifiant, "acces"),
-        refresh=creer_jeton(identifiant, "refresh"),
+        acces=creer_jeton(identifiant, "acces", incarne_par),
+        refresh=creer_jeton(identifiant, "refresh", incarne_par),
     )
 
 
@@ -107,7 +107,10 @@ async def refresh(corps: Rafraichissement, session: Session) -> Jetons:
     u = await repo.par_id(session, str(charge.get("sub")))
     if u is None or not compte_actif(u):
         raise _REFRESH_INVALIDE
-    return _jetons_pour(str(u["id"]))
+    # Conserver l'incarnation : sinon, au bout de quinze minutes, l'administrateur redeviendrait
+    # lui-même sans s'en apercevoir, tout en gardant l'écran de l'autre.
+    incarne_par = charge.get("incarne_par")
+    return _jetons_pour(str(u["id"]), str(incarne_par) if incarne_par else None)
 
 
 @routeur.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -146,6 +149,12 @@ async def incarner(
     if get_settings().environnement != "dev":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     exiger_admin(courant)
+    if courant["incarne_par"] is not None:
+        # Enchaîner les incarnations ferait désigner le mauvais responsable dans le journal.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="On n'incarne pas depuis une incarnation.",
+        )
 
     cible = await repo.par_id(session, corps.utilisateur_id)
     if cible is None or not compte_actif(cible):
@@ -163,13 +172,19 @@ async def incarner(
         adresse_ip=requete.client.host if requete.client else None,
     )
     await session.commit()
-    return _jetons_pour(str(cible["id"]))
+    return _jetons_pour(str(cible["id"]), incarne_par=courant["email"])
 
 
 @routeur.post("/auth/mot-de-passe", status_code=status.HTTP_204_NO_CONTENT)
 async def changer_mot_de_passe(
     corps: ChangementMotDePasse, requete: Request, courant: UtilisateurCourant, session: Session
 ) -> None:
+    if courant["incarne_par"] is not None:
+        # Incarner un agent, c'est regarder ses écrans, pas disposer de ses secrets.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Impossible pendant une incarnation.",
+        )
     u = await repo.par_id(session, courant["id"])
     if (
         u is None

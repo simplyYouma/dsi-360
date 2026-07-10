@@ -55,6 +55,9 @@ class MoiReponse(BaseModel):
     # « dev » | « recette » | « prod ». Le front ne peut pas le deviner : un build de production
     # servi depuis un poste de développement mentirait.
     environnement: str = "prod"
+    # E-mail de l'administrateur qui incarne ce compte, sinon None. L'écran s'en sert pour ne pas
+    # réclamer à un visiteur le mot de passe de celui qu'il regarde.
+    incarne_par: str | None = None
 
 
 # --- Activités / Incidents ---

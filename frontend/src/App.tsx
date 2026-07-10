@@ -98,7 +98,9 @@ function Racine(): JSX.Element {
     );
   }
   if (moi === null) return <LoginPage />;
-  if (moi.doit_changer_mdp) return <ChangerMotDePasse />;
+  // Incarner un agent, c'est regarder ses écrans : on ne lui réclame pas d'activer son compte.
+  // Le serveur refuserait de toute façon (403).
+  if (moi.doit_changer_mdp && moi.incarne_par === null) return <ChangerMotDePasse />;
 
   return (
     <BrowserRouter>

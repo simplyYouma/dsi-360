@@ -120,6 +120,14 @@ peut l'emprunter ; chaque passage est **journalisé**. Côté écran, un bandeau
 qu'on regarde par les yeux d'un autre, et `/moi` expose l'environnement — le navigateur ne peut pas
 le deviner, un build de production servi depuis un poste de développement mentirait.
 
+**Incarner, c'est regarder ses écrans, pas devenir cette personne.** Le jeton délivré porte la
+marque `incarne_par` (l'e-mail de l'administrateur), que `/moi` restitue et que le rafraîchissement
+conserve — sans quoi, au bout de quinze minutes, l'administrateur redeviendrait lui-même sans s'en
+apercevoir. Deux gestes sont refusés au visiteur : **changer le mot de passe** du compte incarné
+(403 — on n'accède pas aux secrets d'autrui), et **enchaîner** une seconde incarnation (403 — le
+journal désignerait le mauvais responsable). L'écran, lui, ne réclame plus à un compte incarné
+d'activer son mot de passe : un agent créé par l'administration n'en a pas encore.
+
 ## Conséquences
 
 - ➕ Les profils reflètent enfin les métiers de la DSI, et l'administration peut les faire évoluer

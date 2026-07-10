@@ -27,7 +27,12 @@ def verifier_mot_de_passe(hash_stocke: str, clair: str) -> bool:
         return False
 
 
-def creer_jeton(sujet: str, type_jeton: TypeJeton) -> str:
+def creer_jeton(sujet: str, type_jeton: TypeJeton, incarne_par: str | None = None) -> str:
+    """`incarne_par` : e-mail de l'administrateur qui a pris cette identité (développement seul).
+
+    Le jeton porte la marque, sinon le serveur ne pourrait pas distinguer un agent d'un
+    administrateur déguisé — et refuser à ce dernier ce qui touche aux secrets de l'agent.
+    """
     settings = get_settings()
     maintenant = datetime.now(UTC)
     duree = (
@@ -36,6 +41,8 @@ def creer_jeton(sujet: str, type_jeton: TypeJeton) -> str:
         else timedelta(days=_JOURS_REFRESH)
     )
     charge = {"sub": sujet, "type": type_jeton, "iat": maintenant, "exp": maintenant + duree}
+    if incarne_par is not None:
+        charge["incarne_par"] = incarne_par
     return jwt.encode(charge, settings.jwt_secret_key, algorithm=_ALGO)
 
 

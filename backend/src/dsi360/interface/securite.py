@@ -57,7 +57,11 @@ async def utilisateur_courant(
     u = await repo.par_id(session, str(charge.get("sub")))
     if u is None or not compte_actif(u):
         raise _NON_AUTH
-    return await profil_complet(session, u)
+    incarne_par = charge.get("incarne_par")
+    return {
+        **await profil_complet(session, u),
+        "incarne_par": str(incarne_par) if incarne_par else None,
+    }
 
 
 UtilisateurCourant = Annotated[dict[str, Any], Depends(utilisateur_courant)]

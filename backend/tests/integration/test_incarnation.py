@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config import get_settings
-from tests.integration.conftest import creer_utilisateur, entetes
+from tests.integration.conftest import MOT_DE_PASSE, creer_utilisateur, entetes
 
 
 @pytest.fixture
@@ -106,3 +106,98 @@ async def test_moi_expose_l_environnement(client: AsyncClient, session: AsyncSes
 
     assert r.status_code == 200, r.text
     assert r.json()["environnement"] == "dev"
+
+
+# --- Incarner, c'est regarder ses écrans, pas devenir cette personne ------------------------------
+
+
+async def _incarner(client: AsyncClient, admin: str, cible: str) -> dict[str, str]:
+    r = await client.post("/auth/incarner", headers=entetes(admin), json={"utilisateur_id": cible})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['acces']}"}
+
+
+async def test_moi_dit_qui_incarne(client: AsyncClient, session: AsyncSession) -> None:
+    """Le front ne peut pas le deviner ; le serveur le dit."""
+    admin = await creer_utilisateur(session, email="admin.dit@afgbank.ml", profil="ADMIN")
+    agent = await creer_utilisateur(session, email="agent.dit@afgbank.ml")
+
+    h = await _incarner(client, admin, agent)
+    moi = (await client.get("/moi", headers=h)).json()
+
+    assert moi["incarne_par"] == "admin.dit@afgbank.ml"
+
+
+async def test_moi_sans_incarnation_ne_dit_personne(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    agent = await creer_utilisateur(session, email="agent.seul@afgbank.ml")
+
+    moi = (await client.get("/moi", headers=entetes(agent))).json()
+
+    assert moi["incarne_par"] is None
+
+
+async def test_on_ne_change_pas_le_mot_de_passe_de_celui_qu_on_incarne(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Éprouver les vues d'un agent ne donne aucun droit sur ses secrets."""
+    admin = await creer_utilisateur(session, email="admin.mdp@afgbank.ml", profil="ADMIN")
+    agent = await creer_utilisateur(session, email="agent.mdp@afgbank.ml")
+
+    h = await _incarner(client, admin, agent)
+    r = await client.post(
+        "/auth/mot-de-passe",
+        headers=h,
+        json={"ancien": MOT_DE_PASSE, "nouveau": "UnAutreMotDePasse1"},
+    )
+
+    assert r.status_code == 403, r.text
+
+
+async def test_on_ne_change_pas_son_mot_de_passe_en_incarnant(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un agent, lui, change bien le sien."""
+    agent = await creer_utilisateur(session, email="agent.sienmdp@afgbank.ml")
+
+    r = await client.post(
+        "/auth/mot-de-passe",
+        headers=entetes(agent),
+        json={"ancien": MOT_DE_PASSE, "nouveau": "UnAutreMotDePasse1"},
+    )
+
+    assert r.status_code == 204, r.text
+
+
+async def test_on_n_incarne_pas_depuis_une_incarnation(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Sinon la trace d'audit désignerait le mauvais responsable."""
+    admin = await creer_utilisateur(session, email="admin.chaine@afgbank.ml", profil="ADMIN")
+    autre = await creer_utilisateur(session, email="autre.chaine@afgbank.ml", profil="ADMIN")
+    cible = await creer_utilisateur(session, email="cible.chaine@afgbank.ml")
+
+    h = await _incarner(client, admin, autre)
+    r = await client.post("/auth/incarner", headers=h, json={"utilisateur_id": cible})
+
+    assert r.status_code == 403, r.text
+
+
+async def test_le_rafraichissement_conserve_l_incarnation(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Sinon, au bout de 15 minutes, l'admin redeviendrait lui-même sans le savoir."""
+    admin = await creer_utilisateur(session, email="admin.refr@afgbank.ml", profil="ADMIN")
+    agent = await creer_utilisateur(session, email="agent.refr@afgbank.ml")
+
+    r = await client.post("/auth/incarner", headers=entetes(admin), json={"utilisateur_id": agent})
+    refresh = r.json()["refresh"]
+
+    r = await client.post("/auth/refresh", json={"refresh": refresh})
+    assert r.status_code == 200, r.text
+    entete = {"Authorization": f"Bearer {r.json()['acces']}"}
+    moi = (await client.get("/moi", headers=entete)).json()
+
+    assert moi["email"] == "agent.refr@afgbank.ml"
+    assert moi["incarne_par"] == "admin.refr@afgbank.ml"
