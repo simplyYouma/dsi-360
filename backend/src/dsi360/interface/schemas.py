@@ -790,11 +790,29 @@ class SerieSlaItem(BaseModel):
     depasse: int
 
 
+class ATraiterItem(BaseModel):
+    """Une activité à traiter en premier : l'échéance la plus proche, ou la plus dépassée."""
+
+    module: str
+    id: str
+    reference: str
+    titre: str
+    priorite: int | None
+    statut: str
+    sla_resolution_le: datetime
+
+
 class TableauBord(BaseModel):
     cartes: CartesBord
     sla: SlaBuckets
     repartition: list[RepartitionItem]
     serie: list[SerieSlaItem]
+    a_traiter: list[ATraiterItem]
+    # Créations hebdomadaires (8 semaines) : la respiration du flux, en miniature sur les cartes.
+    creations_hebdo: dict[str, list[int]]
+    dbs_ouverts: int
+    dbs_age_jours: float | None
+    rouverts_30j: int
 
 
 class AnalyseItem(BaseModel):

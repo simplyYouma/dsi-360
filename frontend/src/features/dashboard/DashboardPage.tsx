@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -13,6 +14,10 @@ import {
   YAxis,
 } from 'recharts';
 import { Card, Skeleton } from '@/design-system/primitives';
+import { cx } from '@/common/cx';
+import { BadgePriorite, BadgeStatut } from '@/common/statuts';
+import { SablierSla } from '@/common/SablierSla';
+import { LIBELLE_MODULE, lienActivite } from '@/common/routesModule';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { infobulle } from '@/common/infobulle';
 import { dashboardApi, type TableauBord } from './dashboardApi';
@@ -28,6 +33,10 @@ interface MetaCarte {
   valeur: (c: Cartes) => string;
   note: (c: Cartes) => string;
   tonNote?: (c: Cartes) => Ton;
+  /** Un chiffre alarmant doit mener aux dossiers qui le composent. */
+  route: string;
+  /** Série hebdomadaire miniature (créations sur 8 semaines). */
+  spark?: (t: TableauBord) => number[];
 }
 
 interface Segment {
@@ -39,6 +48,8 @@ interface Segment {
 const META_CARTES: MetaCarte[] = [
   {
     libelle: 'Incidents ouverts',
+    route: '/incidents',
+    spark: (t) => t.creations_hebdo['incident'] ?? [],
     icone: TriangleAlert,
     couleur: 'var(--cat-1)',
     valeur: (c) => String(c.incidents_ouverts),
@@ -47,6 +58,7 @@ const META_CARTES: MetaCarte[] = [
   },
   {
     libelle: 'Incidents critiques',
+    route: '/incidents',
     icone: ShieldAlert,
     couleur: 'var(--cat-4)',
     valeur: (c) => String(c.incidents_critiques),
@@ -55,6 +67,7 @@ const META_CARTES: MetaCarte[] = [
   },
   {
     libelle: 'Respect SLA',
+    route: '/analyses',
     icone: Timer,
     couleur: 'var(--cat-2)',
     valeur: (c) => `${c.respect_sla} %`,
@@ -63,6 +76,8 @@ const META_CARTES: MetaCarte[] = [
   },
   {
     libelle: 'Demandes en cours',
+    route: '/demandes',
+    spark: (t) => t.creations_hebdo['demande'] ?? [],
     icone: Inbox,
     couleur: 'var(--cat-7)',
     valeur: (c) => String(c.demandes_en_cours),
@@ -70,6 +85,7 @@ const META_CARTES: MetaCarte[] = [
   },
   {
     libelle: 'Projets en retard',
+    route: '/projets',
     icone: FolderKanban,
     couleur: 'var(--cat-3)',
     valeur: (c) => String(c.projets_en_retard),
@@ -78,10 +94,12 @@ const META_CARTES: MetaCarte[] = [
   },
   {
     libelle: 'Risques critiques',
+    route: '/risques',
     icone: Flame,
     couleur: 'var(--cat-5)',
     valeur: (c) => String(c.risques_critiques),
-    note: () => 'Revue périodique',
+    note: (c) => `Sur ${c.risques_ouverts} ouvert(s)`,
+    tonNote: (c) => (c.risques_critiques > 0 ? 'danger' : 'ok'),
   },
 ];
 
@@ -93,6 +111,25 @@ const MODULE_META: Record<string, { nom: string; couleur: string }> = {
   audit: { nom: 'Audit', couleur: '#8a5cf6' },
   risque: { nom: 'Risques', couleur: '#2fa363' },
 };
+
+/** Miniature de tendance : huit semaines de créations, tracées sans axes — le geste suffit. */
+function Sparkline({ points, couleur }: { points: number[]; couleur: string }): JSX.Element | null {
+  if (points.length < 2 || points.every((v) => v === 0)) return null;
+  const max = Math.max(...points, 1);
+  const L = 84;
+  const H = 22;
+  const pas = L / (points.length - 1);
+  const y = (v: number): number => H - 2 - (v / max) * (H - 4);
+  const d = points.map(
+    (v, i) => `${i === 0 ? 'M' : 'L'}${(i * pas).toFixed(1)} ${y(v).toFixed(1)}`,
+  );
+  return (
+    <svg viewBox={`0 0 ${L} ${H}`} width={L} height={H} className={styles.spark} aria-hidden="true">
+      <path d={d.join(' ')} fill="none" stroke={couleur} strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx={L} cy={y(points[points.length - 1] ?? 0)} r="2" fill={couleur} />
+    </svg>
+  );
+}
 
 /** Donut épais à segments arrondis + total au centre + légende à mini-barres. */
 function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.Element {
@@ -219,6 +256,12 @@ function TendanceSla({
 export function DashboardPage(): JSX.Element {
   const [tableau, setTableau] = useState<TableauBord | null>(null);
   const contenuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const ouvrir = (module: string, id: string): void => {
+    const lien = lienActivite(module, id);
+    if (lien !== null) navigate(lien);
+  };
 
   useEffect(() => {
     void dashboardApi.charger().then(setTableau);
@@ -269,8 +312,16 @@ export function DashboardPage(): JSX.Element {
         <section className={styles.grille}>
           {META_CARTES.map((m) => {
             const Icone = m.icone;
+            const spark = tableau && m.spark ? m.spark(tableau) : [];
             return (
-              <Card key={m.libelle} className={styles.kpi}>
+              <Card
+                key={m.libelle}
+                className={cx(styles.kpi, styles.kpiCliquable)}
+                onClick={() => navigate(m.route)}
+                role="link"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && navigate(m.route)}
+              >
                 <div className={styles.kpiTete}>
                   <span className={styles.kpiIcone} style={{ color: m.couleur }}>
                     <Icone size={18} />
@@ -279,7 +330,10 @@ export function DashboardPage(): JSX.Element {
                 </div>
                 {tableau ? (
                   <>
-                    <div className={styles.kpiValeur}>{m.valeur(tableau.cartes)}</div>
+                    <div className={styles.kpiValeurLigne}>
+                      <span className={styles.kpiValeur}>{m.valeur(tableau.cartes)}</span>
+                      <Sparkline points={spark} couleur={m.couleur} />
+                    </div>
                     <div className={styles.kpiNote} data-ton={m.tonNote?.(tableau.cartes)}>
                       {m.note(tableau.cartes)}
                     </div>
@@ -293,6 +347,95 @@ export function DashboardPage(): JSX.Element {
               </Card>
             );
           })}
+        </section>
+
+        <section className={styles.rangee}>
+          <Card className={styles.aTraiter}>
+            <h2 className={styles.chartTitre}>À traiter en premier</h2>
+            <p className={styles.chartSous}>
+              Les échéances les plus proches — ou déjà dépassées. Cliquez pour ouvrir.
+            </p>
+            {tableau === null ? (
+              <Skeleton hauteur="180px" radius="var(--radius-md)" />
+            ) : tableau.a_traiter.length === 0 ? (
+              <p className={styles.vide}>Aucune échéance en cours : rien ne presse.</p>
+            ) : (
+              <ul className={styles.urgences}>
+                {tableau.a_traiter.map((u) => (
+                  <li key={u.id}>
+                    <button
+                      type="button"
+                      className={styles.urgence}
+                      onClick={() => ouvrir(u.module, u.id)}
+                    >
+                      <span className={styles.urgenceRef}>{u.reference}</span>
+                      <span className={styles.urgenceTitre} title={u.titre}>
+                        {u.titre}
+                      </span>
+                      <span className={styles.urgenceModule}>
+                        {LIBELLE_MODULE[u.module] ?? u.module}
+                      </span>
+                      {u.priorite !== null && <BadgePriorite priorite={u.priorite} />}
+                      <BadgeStatut statut={u.statut} />
+                      <SablierSla
+                        echeance={u.sla_resolution_le}
+                        debut={new Date().toISOString()}
+                        statut={
+                          new Date(u.sla_resolution_le).getTime() < Date.now()
+                            ? 'depasse'
+                            : 'approche'
+                        }
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card>
+            <h2 className={styles.chartTitre}>Signaux</h2>
+            <p className={styles.chartSous}>Ce qui mérite un œil, au-delà des volumes.</p>
+            {tableau === null ? (
+              <Skeleton hauteur="180px" radius="var(--radius-md)" />
+            ) : (
+              <ul className={styles.signaux}>
+                <li className={styles.signal}>
+                  <span
+                    className={styles.signalValeur}
+                    data-ton={tableau.dbs_ouverts > 0 ? 'warn' : 'ok'}
+                  >
+                    {tableau.dbs_ouverts}
+                  </span>
+                  <span className={styles.signalLibelle}>
+                    ticket(s) chez DBS
+                    {tableau.dbs_age_jours !== null &&
+                      ` — ${Math.round(tableau.dbs_age_jours)} j en moyenne`}
+                  </span>
+                </li>
+                <li className={styles.signal}>
+                  <span
+                    className={styles.signalValeur}
+                    data-ton={tableau.rouverts_30j > 0 ? 'warn' : 'ok'}
+                  >
+                    {tableau.rouverts_30j}
+                  </span>
+                  <span className={styles.signalLibelle}>
+                    réouverture(s) sur 30 jours — une résolution qui n'a pas tenu
+                  </span>
+                </li>
+                <li className={styles.signal}>
+                  <span
+                    className={styles.signalValeur}
+                    data-ton={tableau.sla.depasse > 0 ? 'danger' : 'ok'}
+                  >
+                    {tableau.sla.depasse}
+                  </span>
+                  <span className={styles.signalLibelle}>échéance(s) SLA dépassée(s)</span>
+                </li>
+              </ul>
+            )}
+          </Card>
         </section>
 
         <section className={styles.charts}>

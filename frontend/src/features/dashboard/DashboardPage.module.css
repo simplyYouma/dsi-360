@@ -213,3 +213,131 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+/* Valeur du KPI et sa miniature de tendance sur la même ligne : le geste, pas un second graphe. */
+.kpiValeurLigne {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.spark {
+  flex: none;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+
+/* Rangée « À traiter » (2/3) + « Signaux » (1/3). */
+.rangee {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-5);
+}
+@media (max-width: 980px) {
+  .rangee {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartSous {
+  margin: 2px 0 var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.urgences {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.urgence {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.urgence:hover {
+  background: var(--bg-subtle);
+}
+.urgences li:last-child .urgence {
+  border-bottom: 0;
+}
+.urgenceRef {
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.urgenceTitre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.urgenceModule {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.signaux {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.signal {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.signalValeur {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+}
+/* La couleur dit le sens : rien à signaler = vert, à surveiller = ambre, à agir = rouge. */
+.signalValeur[data-ton='ok'] {
+  color: var(--status-ok);
+}
+.signalValeur[data-ton='warn'] {
+  color: var(--status-warn);
+}
+.signalValeur[data-ton='danger'] {
+  color: var(--status-danger);
+}
+.signalLibelle {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.vide {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Une carte KPI mène aux dossiers qu'elle compte. */
+.kpiCliquable {
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.kpiCliquable:hover {
+  border-color: color-mix(in srgb, var(--secondary) 45%, var(--border));
+  transform: translateY(-1px);
+}

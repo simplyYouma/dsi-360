@@ -243,3 +243,26 @@ async def test_risques_critiques_ne_compte_que_les_critiques(
 
     assert cartes["risques_critiques"] == 1
     assert cartes["risques_ouverts"] == 2
+
+
+async def test_a_traiter_met_le_plus_urgent_en_tete(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le tableau de bord doit mener aux dossiers, pas seulement les compter."""
+    admin = await _admin(session, "admin.flux9@afgbank.ml")
+    tard = await creer_activite(session, module="changement", reference="CHG-FLX-9")
+    tot = await creer_activite(session, module="changement", reference="CHG-FLX-9B")
+    maj = (
+        "UPDATE core.activite SET sla_resolution_le = now() + make_interval(hours => :h) "
+        "WHERE id = cast(:a as uuid)"
+    )
+    await session.execute(text(maj), {"h": 48, "a": tard})
+    await session.execute(text(maj), {"h": -2, "a": tot})  # déjà dépassée
+
+    r = await client.get("/tableau-de-bord", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    a_traiter = r.json()["a_traiter"]
+
+    assert a_traiter, "au moins une activité attendue"
+    assert a_traiter[0]["reference"] == "CHG-FLX-9B", "la plus dépassée d'abord"
+    assert {"module", "id", "reference", "titre", "statut"} <= set(a_traiter[0])

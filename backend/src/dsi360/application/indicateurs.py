@@ -60,6 +60,46 @@ WHERE a.sla_resolution_le IS NOT NULL AND a.cree_le >= now() - interval '8 weeks
 """
 
 
+# Les activités à traiter en premier : échéance la plus proche (ou la plus dépassée) d'abord.
+# C'est la réponse à « alertes, activités en retard » du cahier — un chiffre alarmant doit mener
+# aux dossiers qui le composent.
+_A_TRAITER = """
+SELECT a.module, a.id::text AS id, a.reference, a.titre, a.priorite, a.statut,
+       a.sla_resolution_le
+FROM core.activite a
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.cloture_le IS NULL AND a.sla_resolution_le IS NOT NULL
+"""
+
+# Créations hebdomadaires des tickets importés : la respiration du flux, en miniature.
+_CREATIONS_HEBDO = """
+WITH semaines AS (
+  SELECT generate_series(date_trunc('week', now()) - interval '7 weeks',
+                         date_trunc('week', now()), interval '1 week') AS debut)
+SELECT s.debut, m.module,
+  (SELECT count(*) FROM core.activite a
+    WHERE a.module = m.module AND a.cree_le >= s.debut
+      AND a.cree_le < s.debut + interval '1 week') AS valeur
+FROM semaines s CROSS JOIN (VALUES ('incident'), ('demande')) AS m(module)
+ORDER BY s.debut
+"""
+
+_DBS_DASH = """
+SELECT count(*) FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL) AS dbs_ouverts,
+       round((avg(extract(epoch FROM now() - a.cree_le) / 86400)
+         FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL))::numeric, 1)
+         AS dbs_age_jours
+FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD'
+"""
+
+_ROUVERTS_30J = """
+SELECT count(DISTINCT j.cible_id) FROM audit.journal j
+WHERE j.action = 'TRANSITION' AND j.nouvelle_valeur->>'statut' = 'Réouvert'
+  AND j.horodatage >= now() - interval '30 days'
+"""
+
+
 async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[str, Any]:
     cond = " AND d.code = :dir" if direction is not None else ""
     params = {"dir": direction} if direction is not None else {}
@@ -97,7 +137,30 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
         .all()
     )
 
+    a_traiter = (
+        (
+            await session.execute(
+                text(_A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"), params
+            )
+        )
+        .mappings()
+        .all()
+    )
+
+    creations = (await session.execute(text(_CREATIONS_HEBDO))).mappings().all()
+    creations_hebdo: dict[str, list[int]] = {"incident": [], "demande": []}
+    for c in creations:
+        creations_hebdo[c["module"]].append(c["valeur"])
+
+    dbs = (await session.execute(text(_DBS_DASH + cond), params)).mappings().one()
+    rouverts = await session.scalar(text(_ROUVERTS_30J)) or 0
+
     return {
+        "a_traiter": [dict(x) for x in a_traiter],
+        "creations_hebdo": creations_hebdo,
+        "dbs_ouverts": dbs["dbs_ouverts"],
+        "dbs_age_jours": float(dbs["dbs_age_jours"]) if dbs["dbs_age_jours"] is not None else None,
+        "rouverts_30j": rouverts,
         "cartes": {
             "incidents_ouverts": ligne["incidents_ouverts"],
             "incidents_critiques": ligne["incidents_critiques"],
