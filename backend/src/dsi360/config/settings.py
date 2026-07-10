@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     # DSN PostgreSQL (asyncpg). Fournie par l'environnement (exécution native, cf. ADR-0002).
     database_url: str = "postgresql+asyncpg://dsi360:dsi360@postgres:5432/dsi360"
 
-    # Authentification : LOCAL (dev/bootstrap) | OIDC (Microsoft Entra ID) | LDAP.
-    auth_mode: Literal["local", "oidc", "ldap"] = "local"
+    # Authentification locale : chaque agent définit son mot de passe via le lien d'activation reçu
+    # par e-mail (ADR-0004). Pas d'annuaire AD/LDAP/M365 — la colonne core.utilisateur.source_auth
+    # garde la porte ouverte, sans prétendre que la plomberie existe.
     jwt_secret_key: str = "changez-moi-en-dev-uniquement"
     jwt_acces_minutes: int = 15
 

@@ -51,7 +51,7 @@ Toujours le même corps, avec un **identifiant de corrélation** pour le support
 
 - `GET /healthz`, `GET /readyz` — santé (hors auth).
 - `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout` — selon `auth_mode`
-  (LOCAL en dev ; OIDC Entra ID en cible).
+  (LOCAL : mot de passe défini par l'agent via lien d'activation, cf. ADR-0004).
 - `GET /api/v1/moi` — profil, droits effectifs, périmètre.
 - `GET /api/v1/referentiels/{type}` — profils, catégories, matrices SLA/priorité… (paramétrables).
 

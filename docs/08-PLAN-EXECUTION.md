@@ -14,8 +14,8 @@
 
 1. **Shell UI premium** — sidebar repliable + topbar. ✅
 2. **Backend opérationnel** — engine async, runner de migrations, `/healthz` + `/readyz` (DB), stack Docker qui tourne.
-3. **Référentiels & seed** — profils (7), directions, catégories, matrices priorité/SLA, compte admin (LOCAL).
-4. **Authentification** — mode LOCAL (argon2 + JWT) maintenant, **OIDC Entra ID** branché plus tard ; refresh + logout.
+3. **Référentiels & seed** — profils métier (ADR-0003), direction DSI, catégories, matrices priorité/SLA, compte admin (LOCAL).
+4. **Authentification** — locale : argon2 + JWT, mot de passe défini par l'agent via lien d'activation ([ADR-0004](adr/0004-authentification-locale.md)) ; refresh + logout.
 5. **RBAC & cloisonnement** — dépendances de garde côté API ; matrice profil→modules paramétrable ; garde de routes UI ; page login premium.
 6. **Audit append-only** — journal chaîné, acteur figé, middleware d'enregistrement.
 7. **Domaine Activité** — entité + machines à états + **moteur SLA** (priorité P1–P5, échéances) + ordonnanceur Celery (approche/dépassement).
@@ -44,5 +44,5 @@
 
 ## Décisions externes (n'arrêtent pas le chantier — paramétrage le moment venu)
 
-Stack validée DSI (info) · tenant **Entra ID** + comptes de service · hébergement/HA · **SLA réels**
-et catégories par module · exigences **RSSI** (rétention, recette).
+Stack validée DSI (info) · hébergement/HA · **SLA réels** et catégories par module · exigences
+**RSSI** (rétention, recette).

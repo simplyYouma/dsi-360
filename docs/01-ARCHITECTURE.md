@@ -14,7 +14,7 @@ Navigateur (SPA React + design system maison)
         │  tâches asynchrones
    Celery + Redis  ──►  SLA (échéances/dépassements), notifications, synthèses, exports lourds
         │
-   Annuaire AD / LDAP / Microsoft 365 (OIDC Entra ID) pour l'authentification
+   Serveur SMTP (liens d'activation et de réinitialisation de mot de passe)
 ```
 
 ## 2. Couches (backend)
@@ -40,7 +40,7 @@ Navigateur (SPA React + design system maison)
 
 ## 4. Sécurité (cf. `docs/04-SECURITY.md` à venir)
 
-Auth **AD/LDAP/M365** (OIDC) → JWT court + refresh ; **RBAC par profil métier et par action** + cloisonnement par
+Auth **locale** (mot de passe défini par l'agent, cf. ADR-0004) → JWT court + refresh ; **RBAC par profil métier et par action** + cloisonnement par
 périmètre, vérifié **côté serveur** ; audit append-only (ancienne/nouvelle valeur, IP) ; secrets
 hors du code ; TLS partout.
 

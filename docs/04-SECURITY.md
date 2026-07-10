@@ -3,16 +3,27 @@
 > Sécurité par défaut (CLAUDE.md §6). Toute entrée est hostile ; **tout accès est vérifié côté
 > serveur**, jamais seulement à l'écran. Réutilise les briques éprouvées de **DORIS**.
 
-## 1. Authentification — AD / LDAP / Microsoft 365
+## 1. Authentification — locale (cf. [ADR-0004](adr/0004-authentification-locale.md))
 
-- **Source d'identité** : annuaire de la banque via **OIDC (Microsoft Entra ID)** en priorité, LDAP/AD
-  en repli. L'application **ne stocke pas** les mots de passe des comptes annuaire.
-- **Flux** : connexion → jeton **OIDC** validé → création/rafraîchissement du profil applicatif →
-  **JWT d'accès court** + **refresh**. Déconnexion = révocation du refresh.
-- **Comptes locaux** : uniquement pour des cas techniques/exceptionnels (compte de service,
-  bootstrap), avec mot de passe **haché (argon2)** et changement imposé à la 1re connexion.
-- **MFA** : délégué à Entra ID / M365 (conforme au cahier, module Cybersécurité).
-- **Préparation** : `source_auth` (LDAP / OIDC / LOCAL) porté par le compte, pour basculer sans refonte.
+La plateforme gère ses propres identifiants. L'annuaire de la banque (AD / LDAP / Microsoft 365)
+n'est **pas** la source d'identité : cette plomberie n'existe pas, et le besoin n'est pas exprimé.
+
+- **Création d'un compte** : l'administrateur le crée, **sans y fixer de mot de passe**. Un e-mail
+  part avec un lien d'activation expirable (1 h), porteur d'un jeton **haché à usage unique**
+  (`core.reinitialisation_mdp`). L'agent définit son mot de passe ; le compte est inutilisable avant.
+- **Mot de passe** : haché en **argon2**. Jamais transmis par un tiers, jamais stocké en clair.
+- **Mot de passe oublié** : réponse identique que le compte existe ou non — aucune énumération de
+  comptes possible. Même mécanisme de jeton haché, à usage unique.
+- **Session** : **JWT d'accès court** (15 min) + refresh. Déconnexion = oubli des jetons côté client.
+- **Compte coupé immédiatement** : `actif` et `expire_le` sont vérifiés **à chaque requête** — un
+  jeton encore valide ne survit pas au blocage.
+- **Domaine e-mail** contrôlé à la création (`domaines_email_autorises`).
+- `core.utilisateur.source_auth` (`LOCAL` / `OIDC` / `LDAP`) est conservé : il marque la porte par
+  laquelle une source externe entrerait un jour, sans prétendre qu'elle existe.
+
+**Limite assumée** : un mot de passe de plus pour chaque agent, hors du référentiel de la banque —
+donc pas de MFA ni de révocation centralisée au départ d'un collaborateur. Le blocage et
+l'expiration de compte restent le levier, et ils sont manuels.
 
 ## 2. Autorisation — RBAC (profils métier) + cloisonnement
 

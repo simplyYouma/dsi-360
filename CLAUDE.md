@@ -62,8 +62,10 @@ Neuf modules, livrés par phases (cf. §7) :
   décrivaient pas le travail réel de la DSI. **Aucun code ne dépend d'une liste figée de profils.**
 - **Périmètre — la DSI seule** : une unique direction, `DSI`. Les niveaux de support sont **N1 et
   N2** ; escalader au-delà transfère le ticket à **DBS**, qui n'a aucun compte dans le système.
-- **Non fonctionnel** : multi-utilisateurs, **haute disponibilité (> 99 %)**, **respect SLA > 90 %**,
-  authentification **Active Directory / LDAP / Microsoft 365**.
+- **Non fonctionnel** : multi-utilisateurs, **haute disponibilité (> 99 %)**, **respect SLA > 90 %**.
+  **Authentification locale** ([ADR-0004](docs/adr/0004-authentification-locale.md)) : chaque agent
+  définit son mot de passe via le lien d'activation reçu par e-mail. L'annuaire AD/LDAP/M365 du
+  cahier n'est **pas** la source d'identité.
 
 ## 5. Stack technique — **figée** (cf. [ADR-0001](docs/adr/0001-choix-de-la-stack.md))
 
@@ -77,7 +79,7 @@ sécurité réutilisés). La stack du cahier (Laravel/MySQL/Blade/AdminLTE) n'es
 | File / tâches | **Différé** (échéances & dépassements SLA, notifications) — sans Celery/Redis ; réintroduit via APScheduler in-process ou tâche planifiée (cf. [ADR-0002](docs/adr/0002-execution-native-sans-docker.md)) |
 | Frontend | **React 18 + TypeScript strict + Vite** + **design system maison** (tokens, zéro composant natif) |
 | Graphiques | bibliothèque maîtrisée (ex. Recharts) — pas de template |
-| Authentification | **AD / LDAP / Microsoft 365 (OIDC Entra ID)** + JWT court + RBAC (7 profils) |
+| Authentification | **Locale** : mot de passe défini par l'agent via lien d'activation ([ADR-0004](docs/adr/0004-authentification-locale.md)) + JWT court + RBAC par profil métier |
 | Exports | Excel (openpyxl), PDF (WeasyPrint/ReportLab), CSV |
 | Infra | **Exécution native, sans Docker** ([ADR-0002](docs/adr/0002-execution-native-sans-docker.md)) : PostgreSQL natif + venv/uvicorn + Vite (dev) / FastAPI-StaticFiles (prod) ; TLS par reverse-proxy (IIS/Nginx) en prod |
 
@@ -121,7 +123,7 @@ Détail et jalons : à formaliser dans `docs/07-ROADMAP.md` après validation de
 | `docs/01-ARCHITECTURE.md` | Vue d'ensemble, couches, flux, déploiement |
 | `docs/02-DOMAIN-MODEL.md` | Modèle de domaine (activité, SLA, profils, modules) |
 | `docs/03-API-CONTRACTS.md` | Conventions REST, endpoints, erreurs, versioning |
-| `docs/04-SECURITY.md` | Auth AD/LDAP/M365, RBAC, cloisonnement, audit |
+| `docs/04-SECURITY.md` | Auth locale, RBAC, cloisonnement, audit |
 | `docs/05-DESIGN-SYSTEM.md` | Tokens, composants, accessibilité, charte (inspi : `docs/_sources-conception/`) |
 | `docs/07-ROADMAP.md` | Phases, livrables, jalons |
 | `docs/adr/` | Décisions d'architecture (ADR) |
