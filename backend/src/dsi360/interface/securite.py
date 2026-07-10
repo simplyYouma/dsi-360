@@ -22,6 +22,7 @@ from dsi360.application.autorisations import (
     AgentIneligible,
     RolesActivite,
     charger_roles,
+    controler_champs_tache,
     exiger_designable,
     satisfait,
     visible,
@@ -97,6 +98,19 @@ async def exiger_agent_designable(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+
+
+def exiger_champs_tache(
+    roles: RolesActivite,
+    tache: RowMapping,
+    courant: dict[str, Any],
+    champs: dict[str, Any],
+) -> None:
+    """Traduit en 403 le contrôle champ par champ d'une tâche (cf. `controler_champs_tache`)."""
+    assigne = tache["assigne_id"] is not None and str(tache["assigne_id"]) == courant["id"]
+    motif = controler_champs_tache(roles, assigne_de_la_tache=assigne, champs=champs)
+    if motif is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=motif)
 
 
 @dataclass(frozen=True)

@@ -39,9 +39,12 @@ from dsi360.interface.schemas import (
     TransitionDemande,
 )
 from dsi360.interface.securite import (
+    ContexteActivite,
     exiger_acces,
     exiger_admin,
     exiger_agent_designable,
+    exiger_champs_tache,
+    exiger_role_activite,
     exiger_role_activite_courant,
 )
 
@@ -54,6 +57,8 @@ Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 # Faire avancer le projet : administrateur, chef de projet et contributeurs. Lire reste ouvert.
 Acteur = Annotated[dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))]
+# Aucun rôle exigé : il suffit de voir le projet. La route tranche ensuite champ par champ.
+CtxLecture = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES))]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -378,15 +383,7 @@ async def creer_tache_projet(
     ident: str, corps: TacheCreation, courant: Acteur, session: Session
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
-    if corps.assigne_id is not None:
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-            {"id": corps.assigne_id},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+    await exiger_agent_designable(session, corps.assigne_id, _ACCES)
     await creer_tache(
         session,
         ident,
@@ -406,19 +403,14 @@ async def creer_tache_projet(
 
 @routeur.patch("/{ident}/taches/{tache_id}", response_model=ProjetDetail)
 async def maj_tache_projet(
-    ident: str, tache_id: str, corps: TacheMaj, courant: Courant, session: Session
+    ident: str, tache_id: str, corps: TacheMaj, ctx: CtxLecture, session: Session
 ) -> dict[str, Any]:
+    """Les acteurs modifient tout ; l'assigné de cette tâche n'en change que le statut."""
+    courant = ctx.courant
     tache = await _charger_tache(session, ident, tache_id, courant)
     champs = corps.model_dump(exclude_unset=True)
-    if champs.get("assigne_id") is not None:
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-            {"id": champs["assigne_id"]},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+    exiger_champs_tache(ctx.roles, tache, courant, champs)
+    await exiger_agent_designable(session, champs.get("assigne_id"), _ACCES)
     if "titre" in champs and champs["titre"] is not None:
         champs["titre"] = phrase_propre(champs["titre"])
     await maj_tache(session, dict(tache), MODULE, champs, courant)

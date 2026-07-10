@@ -66,6 +66,7 @@ from dsi360.interface.securite import (
     exiger_acces,
     exiger_admin,
     exiger_agent_designable,
+    exiger_champs_tache,
     exiger_role_activite,
     exiger_role_activite_courant,
 )
@@ -255,6 +256,12 @@ def creer_routeur(
     ]
     CourantActeur = Annotated[  # noqa: N806
         dict[str, Any], Depends(exiger_role_activite_courant(module, acces, requis_travail))
+    ]
+
+    # Aucun rôle exigé : il suffit de voir l'activité. La route tranche ensuite elle-même — mettre
+    # à jour une tâche : tous les champs pour un acteur, le statut seul pour son assigné.
+    CtxLecture = Annotated[  # noqa: N806
+        ContexteActivite, Depends(exiger_role_activite(module, acces))
     ]
 
     async def charger_visible(
@@ -981,7 +988,8 @@ def creer_routeur(
     # Lire reste ouvert à qui voit l'activité ; écrire est réservé aux acteurs de travail.
     if avec_taches:
         _enregistrer_taches(
-            routeur, module, charger_visible, Courant, detail_complet, CourantActeur
+            routeur, module, charger_visible, Courant, detail_complet, CourantActeur,
+            CtxLecture, acces,
         )
         # Les modules à tâches ont aussi les liens utiles (au niveau tâche, ex. changements).
         enregistrer_liens(
@@ -1033,6 +1041,8 @@ def _enregistrer_taches(
     Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
     detail_complet: Callable[[RowMapping, AsyncSession], Awaitable[dict[str, Any]]],
     CourantActeur: Any,  # noqa: N803
+    CtxTache: Any,  # noqa: N803
+    acces: str,
 ) -> None:
     """Endpoints de tâches d'un module d'activités (avancement + cycle de vie dérivés).
 
@@ -1051,15 +1061,8 @@ def _enregistrer_taches(
         return t
 
     async def _verifier_agent(session: AsyncSession, agent_id: str | None) -> None:
-        if agent_id is None:
-            return
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"), {"id": agent_id}
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+        """On n'assigne une tâche qu'à un compte actif ayant l'accès au module (422 sinon)."""
+        await exiger_agent_designable(session, agent_id, acces)
 
     @routeur.get("/{ident}/taches", response_model=list[Tache])
     async def lister_taches(
@@ -1097,10 +1100,13 @@ def _enregistrer_taches(
 
     @routeur.patch("/{ident}/taches/{tache_id}", response_model=ActiviteDetail)
     async def maj_tache_activite(
-        ident: str, tache_id: str, corps: TacheMaj, courant: Courant, session: Session
+        ident: str, tache_id: str, corps: TacheMaj, ctx: CtxTache, session: Session
     ) -> dict[str, Any]:
+        """Les acteurs modifient tout ; l'assigné de cette tâche n'en change que le statut."""
+        courant = ctx.courant
         tache = await _charger_tache(session, ident, tache_id, courant)
         champs = corps.model_dump(exclude_unset=True)
+        exiger_champs_tache(ctx.roles, tache, courant, champs)
         await _verifier_agent(session, champs.get("assigne_id"))
         if champs.get("titre") is not None:
             champs["titre"] = phrase_propre(champs["titre"])

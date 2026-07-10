@@ -45,6 +45,18 @@ async def historique_statuts(
         for r in resultat.mappings().all()
     ]
 
+def _serialiser(valeurs: dict[str, Any] | None) -> str | None:
+    """Journalise une valeur quelle qu'elle soit.
+
+    ``default=str`` rend lisibles les dates et les UUID, que ``json.dumps`` refuse. Sans lui, poser
+    une échéance sur une tâche faisait échouer la requête entière : le journal ne doit jamais faire
+    tomber l'action qu'il enregistre.
+    """
+    if valeurs is None:
+        return None
+    return json.dumps(valeurs, ensure_ascii=False, sort_keys=True, default=str)
+
+
 _INSERT = text(
     "INSERT INTO audit.journal "
     "(horodatage, acteur_id, acteur_email, module, action, cible_type, cible_id, "
@@ -77,8 +89,8 @@ async def consigner(
         adresse_ip = _adresse_ip_courante.get()
     precedent = await session.scalar(_DERNIER)
     horodatage = datetime.now(UTC)
-    av = json.dumps(ancienne, ensure_ascii=False, sort_keys=True) if ancienne is not None else None
-    nv = json.dumps(nouvelle, ensure_ascii=False, sort_keys=True) if nouvelle is not None else None
+    av = _serialiser(ancienne)
+    nv = _serialiser(nouvelle)
     hash_courant = _empreinte(
         [
             precedent or "",
