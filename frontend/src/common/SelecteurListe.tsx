@@ -76,10 +76,7 @@ export function SelecteurListe({
     const versHaut = dessous < ESPACE_MINI && dessus > dessous;
     // Largeur au moins celle du champ, mais assez large pour lire les noms complets ; et on garde
     // le popover dans la fenêtre (jamais de débordement / scroll horizontal).
-    const largeur = Math.min(
-      Math.max(r.width, LARGEUR_MINI),
-      window.innerWidth - 2 * MARGE,
-    );
+    const largeur = Math.min(Math.max(r.width, LARGEUR_MINI), window.innerWidth - 2 * MARGE);
     const left = Math.max(MARGE, Math.min(r.left, window.innerWidth - largeur - MARGE));
     if (versHaut) {
       setPos({
@@ -167,75 +164,77 @@ export function SelecteurListe({
         )}
       </button>
 
-      {ouvert && pos !== null && createPortal(
-        <div
-          ref={popoverRef}
-          className={styles.popover}
-          style={{
-            position: 'fixed',
-            top: pos.top,
-            bottom: pos.bottom,
-            left: pos.left,
-            width: pos.width,
-            maxHeight: pos.maxHeight,
-          }}
-        >
-          {recherche && (
-            <div className={styles.rechercheZone}>
-              <Search size={15} className={styles.rechercheIcone} />
-              <input
-                autoFocus
-                className={styles.recherche}
-                value={filtre}
-                placeholder="Rechercher…"
-                onChange={(e) => setFiltre(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const premier = optionsFiltrees[0];
-                    if (premier) choisir(premier.valeur);
-                  } else if (e.key === 'Escape') {
-                    setOuvert(false);
-                  }
-                }}
-              />
-            </div>
-          )}
-          <ul className={styles.liste}>
-            {permettreVide && filtre.trim() === '' && (
-              <li>
-                <button type="button" className={styles.option} onClick={() => choisir(null)}>
-                  <span>{libelleVide}</span>
-                  {valeur === null && <Check size={15} />}
-                </button>
-              </li>
+      {ouvert &&
+        pos !== null &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className={styles.popover}
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              bottom: pos.bottom,
+              left: pos.left,
+              width: pos.width,
+              maxHeight: pos.maxHeight,
+            }}
+          >
+            {recherche && (
+              <div className={styles.rechercheZone}>
+                <Search size={15} className={styles.rechercheIcone} />
+                <input
+                  autoFocus
+                  className={styles.recherche}
+                  value={filtre}
+                  placeholder="Rechercher…"
+                  onChange={(e) => setFiltre(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const premier = optionsFiltrees[0];
+                      if (premier) choisir(premier.valeur);
+                    } else if (e.key === 'Escape') {
+                      setOuvert(false);
+                    }
+                  }}
+                />
+              </div>
             )}
-            {optionsFiltrees.map((o) => (
-              <li key={o.valeur}>
-                <button
-                  type="button"
-                  className={cx(styles.option, o.valeur === valeur && styles.optionActive)}
-                  onClick={() => choisir(o.valeur)}
-                >
-                  <span className={styles.optionLibelle}>
-                    {couleurs?.[o.valeur] && (
-                      <span
-                        className={styles.pastille}
-                        style={{ background: couleurs[o.valeur] }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    {o.libelle}
-                  </span>
-                  {o.valeur === valeur && <Check size={15} />}
-                </button>
-              </li>
-            ))}
-            {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
-          </ul>
-        </div>,
-        document.body,
-      )}
+            <ul className={styles.liste}>
+              {permettreVide && filtre.trim() === '' && (
+                <li>
+                  <button type="button" className={styles.option} onClick={() => choisir(null)}>
+                    <span>{libelleVide}</span>
+                    {valeur === null && <Check size={15} />}
+                  </button>
+                </li>
+              )}
+              {optionsFiltrees.map((o) => (
+                <li key={o.valeur}>
+                  <button
+                    type="button"
+                    className={cx(styles.option, o.valeur === valeur && styles.optionActive)}
+                    onClick={() => choisir(o.valeur)}
+                  >
+                    <span className={styles.optionLibelle}>
+                      {couleurs?.[o.valeur] && (
+                        <span
+                          className={styles.pastille}
+                          style={{ background: couleurs[o.valeur] }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      {o.libelle}
+                    </span>
+                    {o.valeur === valeur && <Check size={15} />}
+                  </button>
+                </li>
+              ))}
+              {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
+            </ul>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

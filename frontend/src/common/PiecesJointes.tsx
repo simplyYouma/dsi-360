@@ -131,7 +131,11 @@ export function PiecesJointes({
       <div
         role="button"
         tabIndex={0}
-        className={cx(styles.dropzone, surviole && styles.dropzoneActif, compact && styles.dropCompact)}
+        className={cx(
+          styles.dropzone,
+          surviole && styles.dropzoneActif,
+          compact && styles.dropCompact,
+        )}
         onClick={() => !envoi && input.current?.click()}
         onKeyDown={(e) => {
           if ((e.key === 'Enter' || e.key === ' ') && !envoi) {
@@ -151,7 +155,13 @@ export function PiecesJointes({
         }}
       >
         <Upload size={compact ? 15 : 20} />
-        <span>{envoi ? 'Dépôt…' : compact ? 'Ajouter une pièce jointe' : 'Glissez des fichiers ou cliquez'}</span>
+        <span>
+          {envoi
+            ? 'Dépôt…'
+            : compact
+              ? 'Ajouter une pièce jointe'
+              : 'Glissez des fichiers ou cliquez'}
+        </span>
       </div>
       {docs.map((d) => (
         <div key={d.id} className={styles.docLigne}>
@@ -172,10 +182,22 @@ export function PiecesJointes({
             />
           </div>
           <span className={styles.taille}>{formaterTaille(d.taille)}</span>
-          <button type="button" className={styles.docAction} aria-label="Aperçu" title="Aperçu" onClick={() => void visualiser(d)}>
+          <button
+            type="button"
+            className={styles.docAction}
+            aria-label="Aperçu"
+            title="Aperçu"
+            onClick={() => void visualiser(d)}
+          >
             <Eye size={14} />
           </button>
-          <button type="button" className={styles.docAction} aria-label="Télécharger" title="Télécharger" onClick={() => void telecharger(d.id)}>
+          <button
+            type="button"
+            className={styles.docAction}
+            aria-label="Télécharger"
+            title="Télécharger"
+            onClick={() => void telecharger(d.id)}
+          >
             <Download size={14} />
           </button>
           <BoutonSupprimer

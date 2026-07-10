@@ -97,7 +97,9 @@ export function ChampInline({
       autoFocus={!toujoursEdition}
       aria-label={ariaLabel}
       onChange={(e) =>
-        setBrouillon(inputMode === 'numeric' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value)
+        setBrouillon(
+          inputMode === 'numeric' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value,
+        )
       }
       onBlur={valider}
       onKeyDown={surTouche}

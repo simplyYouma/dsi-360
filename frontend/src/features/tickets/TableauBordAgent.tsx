@@ -1,5 +1,14 @@
 import { Inbox, AlertTriangle, CheckCircle2, Gauge, Timer } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, PieChart, Pie, Cell } from 'recharts';
+import {
+  AreaChart,
+  Area,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { infobulle } from '@/common/infobulle';
 import { LIBELLE_MODULE } from '@/common/routesModule';
@@ -23,7 +32,11 @@ const MODULE_COULEUR: Record<string, string> = {
 };
 
 function couleurTaux(taux: number): string {
-  return taux >= 90 ? 'var(--status-ok)' : taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
+  return taux >= 90
+    ? 'var(--status-ok)'
+    : taux >= 75
+      ? 'var(--status-warn)'
+      : 'var(--status-danger)';
 }
 
 /** Jauge circulaire (SVG) — % de respect SLA personnel. */
@@ -127,7 +140,10 @@ function Barres({
           <div className={styles.barreTrack}>
             <div
               className={styles.barrePlein}
-              style={{ width: `${(100 * d.valeur) / max}%`, background: couleurs[d.libelle] ?? 'var(--cat-1)' }}
+              style={{
+                width: `${(100 * d.valeur) / max}%`,
+                background: couleurs[d.libelle] ?? 'var(--cat-1)',
+              }}
             />
           </div>
           <span className={styles.barreVal}>{d.valeur}</span>
@@ -137,12 +153,44 @@ function Barres({
   );
 }
 
-const KPIS = (s: MesStats): { cle: string; icone: typeof Inbox; valeur: string; libelle: string; couleur: string }[] => [
-  { cle: 'ouverts', icone: Inbox, valeur: String(s.ouverts), libelle: 'À traiter', couleur: 'var(--text)' },
-  { cle: 'retard', icone: AlertTriangle, valeur: String(s.en_retard), libelle: 'SLA dépassé', couleur: 'var(--status-danger)' },
-  { cle: 'resolus', icone: CheckCircle2, valeur: String(s.resolus_7j), libelle: 'Résolus (7 j)', couleur: 'var(--status-ok)' },
-  { cle: 'sla', icone: Gauge, valeur: `${s.respect_sla} %`, libelle: 'Respect SLA', couleur: couleurTaux(s.respect_sla) },
-  { cle: 'mttr', icone: Timer, valeur: s.mttr_jours === null ? '—' : `${s.mttr_jours} j`, libelle: 'Délai moyen', couleur: 'var(--cat-4)' },
+const KPIS = (
+  s: MesStats,
+): { cle: string; icone: typeof Inbox; valeur: string; libelle: string; couleur: string }[] => [
+  {
+    cle: 'ouverts',
+    icone: Inbox,
+    valeur: String(s.ouverts),
+    libelle: 'À traiter',
+    couleur: 'var(--text)',
+  },
+  {
+    cle: 'retard',
+    icone: AlertTriangle,
+    valeur: String(s.en_retard),
+    libelle: 'SLA dépassé',
+    couleur: 'var(--status-danger)',
+  },
+  {
+    cle: 'resolus',
+    icone: CheckCircle2,
+    valeur: String(s.resolus_7j),
+    libelle: 'Résolus (7 j)',
+    couleur: 'var(--status-ok)',
+  },
+  {
+    cle: 'sla',
+    icone: Gauge,
+    valeur: `${s.respect_sla} %`,
+    libelle: 'Respect SLA',
+    couleur: couleurTaux(s.respect_sla),
+  },
+  {
+    cle: 'mttr',
+    icone: Timer,
+    valeur: s.mttr_jours === null ? '—' : `${s.mttr_jours} j`,
+    libelle: 'Délai moyen',
+    couleur: 'var(--cat-4)',
+  },
 ];
 
 export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {

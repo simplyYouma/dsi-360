@@ -21,7 +21,11 @@ const PRIORITE_COULEUR: Record<number, string> = {
 };
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const COLONNES: Colonne<Incident>[] = [
@@ -34,7 +38,13 @@ const COLONNES: Colonne<Incident>[] = [
       <CelluleReference reference={i.reference} nombre={i.nb_commentaires} nonVus={i.nb_non_vus} />
     ),
   },
-  { cle: 'titre', entete: 'Titre', tronque: true, rendu: (i) => <strong title={i.titre}>{i.titre}</strong>, valeur: (i) => i.titre },
+  {
+    cle: 'titre',
+    entete: 'Titre',
+    tronque: true,
+    rendu: (i) => <strong title={i.titre}>{i.titre}</strong>,
+    valeur: (i) => i.titre,
+  },
   {
     cle: 'priorite',
     entete: 'Priorité',
@@ -51,12 +61,16 @@ const COLONNES: Colonne<Incident>[] = [
     cle: 'niveau',
     entete: 'Niveau',
     largeur: '90px',
-    rendu: (i) => <NiveauSupport niveau={i.niveau_support} transfereDbs={i.transfere_dbs} compact />,
+    rendu: (i) => (
+      <NiveauSupport niveau={i.niveau_support} transfereDbs={i.transfere_dbs} compact />
+    ),
   },
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (i) => <SablierSla echeance={i.sla_resolution_le} debut={i.cree_le} statut={i.statut_sla} />,
+    rendu: (i) => (
+      <SablierSla echeance={i.sla_resolution_le} debut={i.cree_le} statut={i.statut_sla} />
+    ),
   },
   {
     cle: 'gestionnaire',
@@ -68,7 +82,12 @@ const COLONNES: Colonne<Incident>[] = [
         <span style={{ color: 'var(--text-muted)' }}>Non assigné</span>
       ),
   },
-  { cle: 'cree_le', entete: 'Créé le', valeur: (i) => i.cree_le, rendu: (i) => formaterDate(i.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Créé le',
+    valeur: (i) => i.cree_le,
+    rendu: (i) => formaterDate(i.cree_le),
+  },
 ];
 
 export function IncidentsPage(): JSX.Element {
@@ -122,7 +141,6 @@ export function IncidentsPage(): JSX.Element {
         }}
       />
 
-
       <Table
         colonnes={COLONNES}
         lignes={incidents}
@@ -136,7 +154,7 @@ export function IncidentsPage(): JSX.Element {
           total,
           taille: 15,
           onPage: (p) => {
-              setPage(p);
+            setPage(p);
           },
         }}
       />
@@ -150,9 +168,7 @@ export function IncidentsPage(): JSX.Element {
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
         onVu={(aid) =>
-          setIncidents((liste) =>
-            liste.map((i) => (i.id === aid ? { ...i, nb_non_vus: 0 } : i)),
-          )
+          setIncidents((liste) => liste.map((i) => (i.id === aid ? { ...i, nb_non_vus: 0 } : i)))
         }
       />
     </div>

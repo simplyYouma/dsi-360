@@ -41,7 +41,7 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
     { valeur: NON_ASSIGNE, libelle: 'Non assignés' },
     ...agents.map((a) => ({ valeur: a.id, libelle: a.nom })),
   ];
-  const gestValeur = valeur.non_assigne ? NON_ASSIGNE : valeur.responsable_id ?? null;
+  const gestValeur = valeur.non_assigne ? NON_ASSIGNE : (valeur.responsable_id ?? null);
   const vue = valeur.etat ?? 'tous';
   const actif = Boolean(
     valeur.statut || valeur.responsable_id || valeur.non_assigne || (valeur.q && valeur.q !== ''),

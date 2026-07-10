@@ -6,7 +6,11 @@ import { ImagesCommentaire } from '@/common/ImagesCommentaire';
 import { cx } from '@/common/cx';
 import { ChampMention } from '@/common/ChampMention';
 import { TexteMentions } from '@/common/TexteMentions';
-import { commentairesApi, type Commentaire, type LecteurCommentaire } from '@/common/commentairesApi';
+import {
+  commentairesApi,
+  type Commentaire,
+  type LecteurCommentaire,
+} from '@/common/commentairesApi';
 import type { AgentRef } from '@/common/useAgents';
 import fiche from './FicheTransition.module.css';
 import styles from './LigneCommentaire.module.css';

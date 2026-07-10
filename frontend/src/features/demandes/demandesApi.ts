@@ -1,5 +1,9 @@
 import { api } from '@/lib/api';
-import { chaineFiltres, type FiltresListe, type PageIncidents } from '@/features/incidents/incidentsApi';
+import {
+  chaineFiltres,
+  type FiltresListe,
+  type PageIncidents,
+} from '@/features/incidents/incidentsApi';
 
 // Une demande partage la même forme de données qu'un incident (entité Activité commune).
 export type Demande = PageIncidents['elements'][number];

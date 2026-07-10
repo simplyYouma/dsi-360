@@ -7,7 +7,7 @@ export const STATUTS_TACHE: StatutTache[] = ['À faire', 'En cours', 'Terminée'
 export const COULEUR_STATUT_TACHE: Record<StatutTache, string> = {
   'À faire': 'var(--text-muted)',
   'En cours': 'var(--status-warn)',
-  'Terminée': 'var(--status-ok)',
+  Terminée: 'var(--status-ok)',
 };
 
 export interface Chef {

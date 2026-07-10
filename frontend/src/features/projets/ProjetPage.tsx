@@ -23,7 +23,11 @@ import { projetsApi, type Jalon, type ProjetDetail } from './projetsApi';
 
 function formaterDateCourte(iso: string | null): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
 }
 
 /** Pourquoi une commande est figée. Le serveur refuserait de toute façon (403). */
@@ -129,9 +133,7 @@ function EtatEcheanceProjet({
   statut: string;
 }): JSX.Element | null {
   if (statut === 'Clôturé') return null;
-  const jours = Math.ceil(
-    (new Date(dateFin).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000,
-  );
+  const jours = Math.ceil((new Date(dateFin).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000);
   if (jours < 0) return <span className={styles.pilRetard}>Échéance dépassée</span>;
   if (jours <= 7) {
     return (
@@ -142,7 +144,6 @@ function EtatEcheanceProjet({
   }
   return null;
 }
-
 
 // Transitions qui exigent une note de justification (enregistrée au journal de bord).
 const TRANSITIONS_JUSTIFIEES = new Set(['Suspendu', 'Clôturé']);
@@ -341,7 +342,9 @@ export function ProjetPage(): JSX.Element {
                   <SelecteurListe
                     options={optionsAgents}
                     valeur={v.chef}
-                    onChange={(val) => (creation ? setChef(val) : void patch({ responsable_id: val }))}
+                    onChange={(val) =>
+                      creation ? setChef(val) : void patch({ responsable_id: val })
+                    }
                     permettreVide
                     libelleVide="Non désigné"
                     placeholder="Désigner un chef de projet"
@@ -366,7 +369,9 @@ export function ProjetPage(): JSX.Element {
                   <ChampInline
                     valeur={v.budget}
                     onValider={(val) =>
-                      creation ? setBudget(val) : void patch({ budget: val === '' ? null : Number(val) })
+                      creation
+                        ? setBudget(val)
+                        : void patch({ budget: val === '' ? null : Number(val) })
                     }
                     toujoursEdition={creation}
                     inputMode="numeric"
@@ -397,7 +402,9 @@ export function ProjetPage(): JSX.Element {
                 <dd>
                   <SelecteurDate
                     valeur={v.dateFin || null}
-                    onChange={(val) => (creation ? setDateFin(val ?? '') : void patch({ date_fin: val }))}
+                    onChange={(val) =>
+                      creation ? setDateFin(val ?? '') : void patch({ date_fin: val })
+                    }
                     placeholder="jj/mm/aaaa"
                     remplissageEcheance={!creation && detail?.statut !== 'Clôturé'}
                     depuis={v.dateDebut || null}
@@ -499,7 +506,10 @@ export function ProjetPage(): JSX.Element {
                 <div className={fiche.etapes}>
                   <span
                     className={cx(fiche.chip, fiche.chipActuel)}
-                    style={{ color: couleurStatut(detail.statut), borderColor: couleurStatut(detail.statut) }}
+                    style={{
+                      color: couleurStatut(detail.statut),
+                      borderColor: couleurStatut(detail.statut),
+                    }}
                   >
                     {detail.statut}
                   </span>
@@ -510,7 +520,10 @@ export function ProjetPage(): JSX.Element {
                         key={etat}
                         type="button"
                         className={fiche.chip}
-                        style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+                        style={{
+                          color: c,
+                          background: `color-mix(in srgb, ${c} 14%, transparent)`,
+                        }}
                         disabled={envoi}
                         onClick={() => void transitionner(etat)}
                       >
@@ -551,10 +564,14 @@ export function ProjetPage(): JSX.Element {
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Liens & notes</span>
               <p className={styles.note}>
-                Disponibles après la création : liens utiles, journal de bord, et pièces jointes
-                sur chaque tâche.
+                Disponibles après la création : liens utiles, journal de bord, et pièces jointes sur
+                chaque tâche.
               </p>
-              <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3} pleineLargeur>
+              <Button
+                onClick={() => void creer()}
+                disabled={envoi || titre.trim().length < 3}
+                pleineLargeur
+              >
                 <Plus size={15} /> {envoi ? 'Création…' : 'Créer le projet'}
               </Button>
             </section>
@@ -572,7 +589,9 @@ export function ProjetPage(): JSX.Element {
               Annuler
             </Button>
             <Button
-              onClick={() => justifPour !== null && void executerTransition(justifPour, justif.trim())}
+              onClick={() =>
+                justifPour !== null && void executerTransition(justifPour, justif.trim())
+              }
               disabled={envoi || justif.trim().length < 3}
             >
               {envoi ? 'En cours…' : 'Confirmer'}

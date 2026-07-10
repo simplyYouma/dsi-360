@@ -25,7 +25,8 @@ export function ApercuDocument({ url, type, nom, onFermer, onTelecharger }: Prop
   // On s'appuie sur le type MIME ET sur l'extension (certains fichiers arrivent en
   // « application/octet-stream » — l'extension permet quand même l'aperçu).
   const ext = nom.includes('.') ? nom.split('.').pop()!.toLowerCase() : '';
-  const estImage = type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+  const estImage =
+    type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
   const estPdf = type === 'application/pdf' || ext === 'pdf';
   // Le navigateur sait afficher texte brut, CSV, JSON… directement dans un cadre.
   const estTexte =

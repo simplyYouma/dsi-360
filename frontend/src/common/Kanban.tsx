@@ -78,7 +78,13 @@ function BarreSlaColonne({ cartes }: { cartes: CarteKanban[] }): JSX.Element | n
 
 /** Tableau Kanban présentationnel : colonnes par statut, cartes cliquables, zoom,
  *  glisser-déposer, colonnes repliables et en-têtes collants. */
-export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides, cleStockage = 'defaut' }: Props): JSX.Element {
+export function Kanban({
+  colonnes,
+  onOuvrir,
+  onDeplacer,
+  ciblesValides,
+  cleStockage = 'defaut',
+}: Props): JSX.Element {
   const [niveau, setNiveau] = useState(1);
   const zoom = ZOOMS[niveau] ?? 1;
   const [drag, setDrag] = useState<string | null>(null); // id de la carte tirée
@@ -207,7 +213,10 @@ export function Kanban({ colonnes, onOuvrir, onDeplacer, ciblesValides, cleStock
                     </span>
                     {c.etiquette && (
                       <span className={styles.carteEtiquette}>
-                        <span className={styles.etiquettePoint} style={{ background: c.etiquette.couleur }} />
+                        <span
+                          className={styles.etiquettePoint}
+                          style={{ background: c.etiquette.couleur }}
+                        />
                         {c.etiquette.texte}
                       </span>
                     )}

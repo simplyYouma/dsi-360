@@ -26,21 +26,30 @@ function proportionEcheance(echeance: string, depuis?: string | null): number {
   const maintenant = Date.now();
   if (maintenant >= finMs) return 1;
   const depuisMs =
-    depuis != null && depuis !== ''
-      ? new Date(depuis).getTime()
-      : finMs - 14 * 86_400_000; // fenêtre par défaut : 14 jours
+    depuis != null && depuis !== '' ? new Date(depuis).getTime() : finMs - 14 * 86_400_000; // fenêtre par défaut : 14 jours
   if (maintenant <= depuisMs || finMs <= depuisMs) return 0;
   return (maintenant - depuisMs) / (finMs - depuisMs);
 }
 
 const MOIS = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
 ];
 const JOURS = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
 
 const deuxChiffres = (n: number): string => String(n).padStart(2, '0');
-const enIso = (d: Date): string => `${d.getFullYear()}-${deuxChiffres(d.getMonth() + 1)}-${deuxChiffres(d.getDate())}`;
+const enIso = (d: Date): string =>
+  `${d.getFullYear()}-${deuxChiffres(d.getMonth() + 1)}-${deuxChiffres(d.getDate())}`;
 
 function depuisIso(s: string | null): Date | null {
   if (s === null || s === '') return null;
@@ -76,7 +85,8 @@ export function SelecteurDate({
     // Le calendrier est rendu en portal (hors `ref`) : on l'inclut dans le test de clic intérieur.
     const surClic = (e: MouseEvent): void => {
       const n = e.target as Node;
-      const dedans = (ref.current?.contains(n) ?? false) || (popoverRef.current?.contains(n) ?? false);
+      const dedans =
+        (ref.current?.contains(n) ?? false) || (popoverRef.current?.contains(n) ?? false);
       if (!dedans) setOuvert(false);
     };
     document.addEventListener('mousedown', surClic);
@@ -141,57 +151,75 @@ export function SelecteurDate({
         </span>
       </button>
 
-      {ouvert && pos !== null && createPortal(
-        <div ref={popoverRef} className={styles.popover} style={pos}>
-          <div className={styles.tete}>
-            <button type="button" className={styles.nav} onClick={() => setCurseur(new Date(annee, mois - 1, 1))} aria-label="Mois précédent">
-              <ChevronLeft size={16} />
-            </button>
-            <span className={styles.moisTitre}>
-              {MOIS[mois]} {annee}
-            </span>
-            <button type="button" className={styles.nav} onClick={() => setCurseur(new Date(annee, mois + 1, 1))} aria-label="Mois suivant">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-          <div className={styles.semaine}>
-            {JOURS.map((j) => (
-              <span key={j} className={styles.jourEntete}>{j}</span>
-            ))}
-          </div>
-          <div className={styles.grille}>
-            {cellules.map((j, idx) => {
-              if (j === null) return <span key={`v-${idx}`} />;
-              const dIso = enIso(new Date(annee, mois, j));
-              const estSel = valeur === dIso;
-              const estAuj = aujourdhui === dIso;
-              return (
-                <button
-                  key={dIso}
-                  type="button"
-                  className={cx(styles.jour, estSel && styles.jourSel, !estSel && estAuj && styles.jourAuj)}
-                  onClick={() => choisir(j)}
-                >
+      {ouvert &&
+        pos !== null &&
+        createPortal(
+          <div ref={popoverRef} className={styles.popover} style={pos}>
+            <div className={styles.tete}>
+              <button
+                type="button"
+                className={styles.nav}
+                onClick={() => setCurseur(new Date(annee, mois - 1, 1))}
+                aria-label="Mois précédent"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className={styles.moisTitre}>
+                {MOIS[mois]} {annee}
+              </span>
+              <button
+                type="button"
+                className={styles.nav}
+                onClick={() => setCurseur(new Date(annee, mois + 1, 1))}
+                aria-label="Mois suivant"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className={styles.semaine}>
+              {JOURS.map((j) => (
+                <span key={j} className={styles.jourEntete}>
                   {j}
-                </button>
-              );
-            })}
-          </div>
-          {valeur && (
-            <button
-              type="button"
-              className={styles.effacer}
-              onClick={() => {
-                onChange(null);
-                setOuvert(false);
-              }}
-            >
-              Effacer
-            </button>
-          )}
-        </div>,
-        document.body,
-      )}
+                </span>
+              ))}
+            </div>
+            <div className={styles.grille}>
+              {cellules.map((j, idx) => {
+                if (j === null) return <span key={`v-${idx}`} />;
+                const dIso = enIso(new Date(annee, mois, j));
+                const estSel = valeur === dIso;
+                const estAuj = aujourdhui === dIso;
+                return (
+                  <button
+                    key={dIso}
+                    type="button"
+                    className={cx(
+                      styles.jour,
+                      estSel && styles.jourSel,
+                      !estSel && estAuj && styles.jourAuj,
+                    )}
+                    onClick={() => choisir(j)}
+                  >
+                    {j}
+                  </button>
+                );
+              })}
+            </div>
+            {valeur && (
+              <button
+                type="button"
+                className={styles.effacer}
+                onClick={() => {
+                  onChange(null);
+                  setOuvert(false);
+                }}
+              >
+                Effacer
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

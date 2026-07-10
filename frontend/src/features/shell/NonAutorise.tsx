@@ -21,7 +21,8 @@ export function NonAutorise(): JSX.Element {
         Accès non autorisé
       </h1>
       <p style={{ maxWidth: '44ch' }}>
-        Votre profil ne donne pas accès à ce module. Si c'est une erreur, contactez un administrateur.
+        Votre profil ne donne pas accès à ce module. Si c'est une erreur, contactez un
+        administrateur.
       </p>
       <Link to="/" style={{ color: 'var(--accent)', fontWeight: 500 }}>
         Retour au tableau de bord

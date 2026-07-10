@@ -12,7 +12,12 @@ interface Props {
 }
 
 /** Suppression JAMAIS automatique : icône corbeille -> confirmation explicite avant d'agir. */
-export function BoutonSupprimer({ cible, onSupprimer, className, taille = 15 }: Props): JSX.Element {
+export function BoutonSupprimer({
+  cible,
+  onSupprimer,
+  className,
+  taille = 15,
+}: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [envoi, setEnvoi] = useState(false);
 

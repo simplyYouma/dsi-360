@@ -17,7 +17,11 @@ import styles from '@/features/incidents/IncidentsPage.module.css';
 import { risquesApi, type Risque } from './risquesApi';
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const COLONNES: Colonne<Risque>[] = [
@@ -30,17 +34,45 @@ const COLONNES: Colonne<Risque>[] = [
       <CelluleReference reference={r.reference} nombre={r.nb_commentaires} nonVus={r.nb_non_vus} />
     ),
   },
-  { cle: 'titre', entete: 'Risque', tronque: true, rendu: (r) => <strong title={r.titre}>{r.titre}</strong>, valeur: (r) => r.titre },
-  { cle: 'probabilite', entete: 'Probabilité', aligne: 'centre', valeur: (r) => r.probabilite, rendu: (r) => r.probabilite },
-  { cle: 'impact', entete: 'Impact', aligne: 'centre', valeur: (r) => r.impact, rendu: (r) => r.impact },
-  { cle: 'criticite', entete: 'Criticité', valeur: (r) => r.criticite, rendu: (r) => <BadgeCriticite niveau={r.criticite} /> },
+  {
+    cle: 'titre',
+    entete: 'Risque',
+    tronque: true,
+    rendu: (r) => <strong title={r.titre}>{r.titre}</strong>,
+    valeur: (r) => r.titre,
+  },
+  {
+    cle: 'probabilite',
+    entete: 'Probabilité',
+    aligne: 'centre',
+    valeur: (r) => r.probabilite,
+    rendu: (r) => r.probabilite,
+  },
+  {
+    cle: 'impact',
+    entete: 'Impact',
+    aligne: 'centre',
+    valeur: (r) => r.impact,
+    rendu: (r) => r.impact,
+  },
+  {
+    cle: 'criticite',
+    entete: 'Criticité',
+    valeur: (r) => r.criticite,
+    rendu: (r) => <BadgeCriticite niveau={r.criticite} />,
+  },
   { cle: 'statut', entete: 'Statut', rendu: (r) => <BadgeStatut statut={r.statut} /> },
   {
     cle: 'responsable',
     entete: 'Responsable',
     rendu: (r) => (r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : '—'),
   },
-  { cle: 'cree_le', entete: 'Identifié le', valeur: (r) => r.cree_le, rendu: (r) => formaterDate(r.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Identifié le',
+    valeur: (r) => r.cree_le,
+    rendu: (r) => formaterDate(r.cree_le),
+  },
 ];
 
 export function RisquesPage(): JSX.Element {
@@ -126,7 +158,9 @@ export function RisquesPage(): JSX.Element {
       <header className={styles.entete}>
         <div>
           <h1 className={styles.titre}>Risques IT</h1>
-          <p className={styles.sous}>Identification et traitement des risques (criticité = probabilité × impact).</p>
+          <p className={styles.sous}>
+            Identification et traitement des risques (criticité = probabilité × impact).
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
           <BoutonsExport base="/risques" />
@@ -186,7 +220,11 @@ export function RisquesPage(): JSX.Element {
       >
         <label className={styles.champ}>
           <span>Intitulé du risque</span>
-          <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. Indisponibilité du datacenter" />
+          <input
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Ex. Indisponibilité du datacenter"
+          />
         </label>
         <label className={styles.champ}>
           <span>Description</span>

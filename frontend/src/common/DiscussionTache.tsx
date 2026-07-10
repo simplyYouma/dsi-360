@@ -63,7 +63,13 @@ export function DiscussionTache({
     try {
       const mentions = extraireMentions(texte, agents);
       if (images.length > 0) {
-        await commentairesApi.ajouterAvecImages(activiteId, texte.trim(), images, tacheId, mentions);
+        await commentairesApi.ajouterAvecImages(
+          activiteId,
+          texte.trim(),
+          images,
+          tacheId,
+          mentions,
+        );
       } else {
         await commentairesApi.ajouter(activiteId, texte.trim(), tacheId, mentions);
       }

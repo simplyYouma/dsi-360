@@ -38,8 +38,7 @@ interface Props {
   moiId?: string | null;
 }
 
-const RESERVE_AUX_ACTEURS =
-  'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
+const RESERVE_AUX_ACTEURS = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
 
 /** Pastille d'état d'échéance d'une tâche non terminée : dépassée (rouge) / proche (ambre). */
 function EtatEcheance({ tache }: { tache: Tache }): JSX.Element | null {
@@ -153,9 +152,7 @@ export function ListeTaches({
                 {t.titre}
                 <EtatEcheance tache={t} />
               </span>
-              {renduSousTitre && (
-                <div className={styles.tacheSousTitre}>{renduSousTitre(t)}</div>
-              )}
+              {renduSousTitre && <div className={styles.tacheSousTitre}>{renduSousTitre(t)}</div>}
             </div>
           </div>
           {peutTravailler && (

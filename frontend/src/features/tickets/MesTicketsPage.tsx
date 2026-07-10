@@ -8,7 +8,12 @@ import { CelluleReference } from '@/common/CelluleReference';
 import { Kanban, type ColonneKanban } from '@/common/Kanban';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useNavigate } from 'react-router-dom';
-import { CAPACITES_MODULE, LIBELLE_MODULE, MODULES_PAGE_DEDIEE, ROUTE_MODULE } from '@/common/routesModule';
+import {
+  CAPACITES_MODULE,
+  LIBELLE_MODULE,
+  MODULES_PAGE_DEDIEE,
+  ROUTE_MODULE,
+} from '@/common/routesModule';
 import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import { TableauBordAgent } from './TableauBordAgent';
@@ -42,7 +47,11 @@ const MODULE_COULEUR: Record<string, string> = {
 };
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const COLONNES: Colonne<MonTicket>[] = [
@@ -65,7 +74,13 @@ const COLONNES: Colonne<MonTicket>[] = [
       <CelluleReference reference={t.reference} nombre={t.nb_commentaires} nonVus={t.nb_non_vus} />
     ),
   },
-  { cle: 'titre', entete: 'Objet', tronque: true, rendu: (t) => <strong title={t.titre}>{t.titre}</strong>, valeur: (t) => t.titre },
+  {
+    cle: 'titre',
+    entete: 'Objet',
+    tronque: true,
+    rendu: (t) => <strong title={t.titre}>{t.titre}</strong>,
+    valeur: (t) => t.titre,
+  },
   {
     cle: 'priorite',
     entete: 'Priorité',
@@ -75,10 +90,17 @@ const COLONNES: Colonne<MonTicket>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (t) => <SablierSla echeance={t.sla_resolution_le} debut={t.cree_le} statut={t.statut_sla} />,
+    rendu: (t) => (
+      <SablierSla echeance={t.sla_resolution_le} debut={t.cree_le} statut={t.statut_sla} />
+    ),
   },
   { cle: 'statut', entete: 'Statut', rendu: (t) => <BadgeStatut statut={t.statut} /> },
-  { cle: 'cree_le', entete: 'Reçu le', valeur: (t) => t.cree_le, rendu: (t) => formaterDate(t.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Reçu le',
+    valeur: (t) => t.cree_le,
+    rendu: (t) => formaterDate(t.cree_le),
+  },
 ];
 
 const COLONNES_TACHE: Colonne<MaTache>[] = [
@@ -92,7 +114,13 @@ const COLONNES_TACHE: Colonne<MaTache>[] = [
       </StatusBadge>
     ),
   },
-  { cle: 'titre', entete: 'Tâche', tronque: true, rendu: (t) => <strong title={t.titre}>{t.titre}</strong>, valeur: (t) => t.titre },
+  {
+    cle: 'titre',
+    entete: 'Tâche',
+    tronque: true,
+    rendu: (t) => <strong title={t.titre}>{t.titre}</strong>,
+    valeur: (t) => t.titre,
+  },
   {
     cle: 'activite',
     entete: 'Rattachée à',

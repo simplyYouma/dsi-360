@@ -27,7 +27,8 @@ export function ImportPage(): JSX.Element {
         'succes',
       );
     } catch (err) {
-      const msg = err instanceof ErreurApi ? err.message : 'Import impossible : vérifiez le fichier.';
+      const msg =
+        err instanceof ErreurApi ? err.message : 'Import impossible : vérifiez le fichier.';
       setErreur(msg);
       notifier(`Échec de l’import : ${msg}`, 'erreur');
     } finally {

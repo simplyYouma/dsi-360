@@ -74,6 +74,5 @@ export const incidentsApi = {
   lister: (page: number, f?: FiltresListe): Promise<PageIncidents> =>
     api.get(`/incidents?${chaineFiltres(page, f)}`),
   creer: (corps: NouvelIncident): Promise<{ id: string }> => api.post('/incidents', corps),
-  categories: (): Promise<CategorieRef[]> =>
-    api.get('/referentiels/categories?module=incident'),
+  categories: (): Promise<CategorieRef[]> => api.get('/referentiels/categories?module=incident'),
 };

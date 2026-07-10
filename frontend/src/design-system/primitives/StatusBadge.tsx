@@ -13,7 +13,11 @@ interface StatusBadgeProps {
 }
 
 /** Étiquette de statut/catégorie. Tons sémantiques OU palette catégorielle (var(--cat-n)). */
-export function StatusBadge({ children, statut = 'neutre', couleur }: StatusBadgeProps): JSX.Element {
+export function StatusBadge({
+  children,
+  statut = 'neutre',
+  couleur,
+}: StatusBadgeProps): JSX.Element {
   const styleCategoriel =
     couleur !== undefined
       ? {

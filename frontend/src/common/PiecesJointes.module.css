@@ -14,7 +14,9 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
   cursor: pointer;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
 }
 .dropzone:hover {
   border-color: var(--secondary);

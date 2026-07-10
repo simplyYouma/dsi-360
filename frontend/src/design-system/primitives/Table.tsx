@@ -11,7 +11,13 @@ export interface SelectionTable {
   onTout: (ids: string[], tout: boolean) => void;
 }
 
-function Case({ coche, onClick }: { coche: boolean; onClick: (e: MouseEvent) => void }): JSX.Element {
+function Case({
+  coche,
+  onClick,
+}: {
+  coche: boolean;
+  onClick: (e: MouseEvent) => void;
+}): JSX.Element {
   return (
     <button
       type="button"
@@ -111,7 +117,9 @@ export function Table<T>({
   const nbPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.taille)) : 1;
   const idsPage = lignesTriees.map(cleLigne);
   const toutCoche =
-    selection !== undefined && idsPage.length > 0 && idsPage.every((id) => selection.selectionnes.has(id));
+    selection !== undefined &&
+    idsPage.length > 0 &&
+    idsPage.every((id) => selection.selectionnes.has(id));
   const nbColonnes = colonnes.length + (selection ? 1 : 0);
 
   return (
@@ -177,39 +185,41 @@ export function Table<T>({
                 const id = cleLigne(ligne);
                 const coche = selection?.selectionnes.has(id) ?? false;
                 return (
-                <tr
-                  key={id}
-                  className={cx(
-                    onLigne && styles.cliquable,
-                    coche && styles.ligneCochee,
-                    classeLigne?.(ligne),
-                  )}
-                  onClick={onLigne ? () => onLigne(ligne) : undefined}
-                >
-                  {selection && (
-                    <td className={styles.selCol}>
-                      <Case
-                        coche={coche}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          selection.onBasculer(id);
-                        }}
-                      />
-                    </td>
-                  )}
-                  {colonnes.map((c) => (
-                    <td
-                      key={c.cle}
-                      className={cx(
-                        c.aligne === 'droite' && styles.droite,
-                        c.aligne === 'centre' && styles.centre,
-                        c.tronque && styles.tronque,
-                      )}
-                    >
-                      {c.rendu ? c.rendu(ligne) : String((ligne as Record<string, unknown>)[c.cle] ?? '')}
-                    </td>
-                  ))}
-                </tr>
+                  <tr
+                    key={id}
+                    className={cx(
+                      onLigne && styles.cliquable,
+                      coche && styles.ligneCochee,
+                      classeLigne?.(ligne),
+                    )}
+                    onClick={onLigne ? () => onLigne(ligne) : undefined}
+                  >
+                    {selection && (
+                      <td className={styles.selCol}>
+                        <Case
+                          coche={coche}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selection.onBasculer(id);
+                          }}
+                        />
+                      </td>
+                    )}
+                    {colonnes.map((c) => (
+                      <td
+                        key={c.cle}
+                        className={cx(
+                          c.aligne === 'droite' && styles.droite,
+                          c.aligne === 'centre' && styles.centre,
+                          c.tronque && styles.tronque,
+                        )}
+                      >
+                        {c.rendu
+                          ? c.rendu(ligne)
+                          : String((ligne as Record<string, unknown>)[c.cle] ?? '')}
+                      </td>
+                    ))}
+                  </tr>
                 );
               })
             )}

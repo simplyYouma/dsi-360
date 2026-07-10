@@ -40,13 +40,10 @@ export function ReinitialiserPage(): JSX.Element {
       await authApi.reinitialiser(jeton, nouveau);
       setFait(true);
     } catch (err) {
-      const base = err instanceof ErreurApi ? err.message : 'Réinitialisation impossible. Réessayez.';
+      const base =
+        err instanceof ErreurApi ? err.message : 'Réinitialisation impossible. Réessayez.';
       const expire = /expir|invalide/i.test(base);
-      setErreur(
-        expire
-          ? `${base} Demandez un nouveau lien à votre administrateur.`
-          : base,
-      );
+      setErreur(expire ? `${base} Demandez un nouveau lien à votre administrateur.` : base);
     } finally {
       setEnvoi(false);
     }
@@ -60,7 +57,9 @@ export function ReinitialiserPage(): JSX.Element {
           <>
             <ShieldCheck size={34} style={{ color: 'var(--status-ok)' }} />
             <h1 className={styles.titre}>Mot de passe modifié</h1>
-            <p className={styles.sous}>Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.</p>
+            <p className={styles.sous}>
+              Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
+            </p>
             <Button type="button" pleineLargeur onClick={() => (window.location.href = '/')}>
               Se connecter
             </Button>

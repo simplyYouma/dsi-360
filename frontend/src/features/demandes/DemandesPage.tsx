@@ -14,7 +14,11 @@ import { demandesApi, type Demande } from './demandesApi';
 import { useRafraichissement } from '@/common/useRafraichissement';
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const COLONNES: Colonne<Demande>[] = [
@@ -27,7 +31,13 @@ const COLONNES: Colonne<Demande>[] = [
       <CelluleReference reference={d.reference} nombre={d.nb_commentaires} nonVus={d.nb_non_vus} />
     ),
   },
-  { cle: 'titre', entete: 'Objet', tronque: true, rendu: (d) => <strong title={d.titre}>{d.titre}</strong>, valeur: (d) => d.titre },
+  {
+    cle: 'titre',
+    entete: 'Objet',
+    tronque: true,
+    rendu: (d) => <strong title={d.titre}>{d.titre}</strong>,
+    valeur: (d) => d.titre,
+  },
   {
     cle: 'categorie',
     entete: 'Catégorie',
@@ -40,12 +50,16 @@ const COLONNES: Colonne<Demande>[] = [
     cle: 'niveau',
     entete: 'Niveau',
     largeur: '90px',
-    rendu: (d) => <NiveauSupport niveau={d.niveau_support} transfereDbs={d.transfere_dbs} compact />,
+    rendu: (d) => (
+      <NiveauSupport niveau={d.niveau_support} transfereDbs={d.transfere_dbs} compact />
+    ),
   },
   {
     cle: 'sla',
     entete: 'SLA',
-    rendu: (d) => <SablierSla echeance={d.sla_resolution_le} debut={d.cree_le} statut={d.statut_sla} />,
+    rendu: (d) => (
+      <SablierSla echeance={d.sla_resolution_le} debut={d.cree_le} statut={d.statut_sla} />
+    ),
   },
   {
     cle: 'gestionnaire',
@@ -57,7 +71,12 @@ const COLONNES: Colonne<Demande>[] = [
         <span style={{ color: 'var(--text-muted)' }}>Non assigné</span>
       ),
   },
-  { cle: 'cree_le', entete: 'Créée le', valeur: (d) => d.cree_le, rendu: (d) => formaterDate(d.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Créée le',
+    valeur: (d) => d.cree_le,
+    rendu: (d) => formaterDate(d.cree_le),
+  },
 ];
 
 export function DemandesPage(): JSX.Element {
@@ -97,7 +116,9 @@ export function DemandesPage(): JSX.Element {
       <header className={styles.entete}>
         <div>
           <h1 className={styles.titre}>Demandes de service</h1>
-          <p className={styles.sous}>Comptes, habilitations, logiciels, VPN, matériel, assistance.</p>
+          <p className={styles.sous}>
+            Comptes, habilitations, logiciels, VPN, matériel, assistance.
+          </p>
         </div>
         <BoutonsExport base="/demandes" />
       </header>
@@ -110,7 +131,6 @@ export function DemandesPage(): JSX.Element {
           setFiltres(f);
         }}
       />
-
 
       <Table
         colonnes={COLONNES}
@@ -125,7 +145,7 @@ export function DemandesPage(): JSX.Element {
           total,
           taille: 15,
           onPage: (p) => {
-              setPage(p);
+            setPage(p);
           },
         }}
       />

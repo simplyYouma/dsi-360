@@ -3,6 +3,7 @@
 Dépose ici les fichiers de logo. Deux usages :
 
 ## 1. Logos importés dans l'interface (recommandé : **SVG**)
+
 Place-les dans **ce dossier** (`frontend/src/assets/brand/`). Noms attendus :
 
 - `logo-dsi360.svg` — logo complet (symbole + texte), pour la sidebar dépliée.
@@ -10,12 +11,14 @@ Place-les dans **ce dossier** (`frontend/src/assets/brand/`). Noms attendus :
 - `logo-dsi360.png` — version PNG (fallback / e-mails / exports), idéalement ≥ 512 px.
 
 Ils s'importent ensuite dans un composant :
+
 ```tsx
 import logo from '@/assets/brand/logo-dsi360.svg';
-<img src={logo} alt="DSI 360" />
+<img src={logo} alt="DSI 360" />;
 ```
 
 ## 2. Fichiers statiques bruts (favicon, partage)
+
 Pour le `favicon` et les images servies telles quelles, utilise **`frontend/public/`**
 (ex. `public/favicon.svg`) — elles sont servies à la racine sans import.
 

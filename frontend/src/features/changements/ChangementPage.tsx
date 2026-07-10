@@ -44,11 +44,7 @@ const CHAMPS_RFC = [
     "Analyse d'impact",
     'Systèmes, services et utilisateurs touchés ; interruption prévue.',
   ],
-  [
-    'analyse_risque',
-    'Analyse de risque',
-    'Risques identifiés, probabilité, mesures de réduction.',
-  ],
+  ['analyse_risque', 'Analyse de risque', 'Risques identifiés, probabilité, mesures de réduction.'],
   [
     'plan_deploiement',
     'Plan de déploiement',
@@ -68,7 +64,11 @@ const CHAMPS_RFC = [
 
 function formaterDate(iso: string | null): string {
   if (iso === null || iso === '') return '—';
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 /** Page changement unifiée : même vue pour la création et le détail ; champs éditables au clic. */
@@ -208,7 +208,11 @@ export function ChangementPage(): JSX.Element {
           {!creation && <div className={styles.reference}>{detail?.reference}</div>}
           <ChampInline
             valeur={v.titre}
-            onValider={(val) => (creation ? setTitre(val) : void agir(() => changementsApi.modifier(id!, { titre: val })))}
+            onValider={(val) =>
+              creation
+                ? setTitre(val)
+                : void agir(() => changementsApi.modifier(id!, { titre: val }))
+            }
             toujoursEdition={creation}
             titre
             placeholder="Objet du changement"
@@ -237,7 +241,9 @@ export function ChangementPage(): JSX.Element {
                     categories={categories}
                     valeur={v.type}
                     onChange={(val) =>
-                      creation ? setCategorie(val) : void agir(() => changementsApi.changerType(id!, val), 'Type mis à jour')
+                      creation
+                        ? setCategorie(val)
+                        : void agir(() => changementsApi.changerType(id!, val), 'Type mis à jour')
                     }
                     couleurs={TYPE_COULEUR}
                     desactive={!creation && !permissions.peut_evaluer}
@@ -274,7 +280,12 @@ export function ChangementPage(): JSX.Element {
                     options={optionsAgents}
                     valeur={v.gestionnaire}
                     onChange={(val) =>
-                      creation ? setGestionnaire(val) : void agir(() => changementsApi.assigner(id!, val), 'Gestionnaire mis à jour')
+                      creation
+                        ? setGestionnaire(val)
+                        : void agir(
+                            () => changementsApi.assigner(id!, val),
+                            'Gestionnaire mis à jour',
+                          )
                     }
                     permettreVide
                     libelleVide="Non assigné"
@@ -293,8 +304,12 @@ export function ChangementPage(): JSX.Element {
                         acteurs={detail.contributeurs}
                         agents={agents}
                         exclureIds={[detail.responsable_id ?? '']}
-                        onAjouter={(val) => void agir(() => changementsApi.ajouterContributeur(id!, val))}
-                        onRetirer={(val) => void agir(() => changementsApi.retirerContributeur(id!, val))}
+                        onAjouter={(val) =>
+                          void agir(() => changementsApi.ajouterContributeur(id!, val))
+                        }
+                        onRetirer={(val) =>
+                          void agir(() => changementsApi.retirerContributeur(id!, val))
+                        }
                         placeholder="Ajouter un contributeur…"
                         disabled={envoi}
                         lectureSeule={!permissions.peut_gerer_acteurs}
@@ -308,8 +323,12 @@ export function ChangementPage(): JSX.Element {
                         acteurs={detail.valideurs}
                         agents={agents}
                         exclureIds={[detail.responsable_id ?? '']}
-                        onAjouter={(val) => void agir(() => changementsApi.ajouterValideur(id!, val))}
-                        onRetirer={(val) => void agir(() => changementsApi.retirerValideur(id!, val))}
+                        onAjouter={(val) =>
+                          void agir(() => changementsApi.ajouterValideur(id!, val))
+                        }
+                        onRetirer={(val) =>
+                          void agir(() => changementsApi.retirerValideur(id!, val))
+                        }
                         placeholder="Ajouter un valideur…"
                         disabled={envoi}
                         lectureSeule={!permissions.peut_gerer_acteurs}
@@ -317,10 +336,22 @@ export function ChangementPage(): JSX.Element {
                       {permissions.peut_decider && (
                         <div className={styles.decision}>
                           <span className={styles.note}>Votre décision :</span>
-                          <Button variante="secondaire" onClick={() => void agir(() => changementsApi.decider(id!, 'APPROUVE'), 'Approuvé')} disabled={envoi}>
+                          <Button
+                            variante="secondaire"
+                            onClick={() =>
+                              void agir(() => changementsApi.decider(id!, 'APPROUVE'), 'Approuvé')
+                            }
+                            disabled={envoi}
+                          >
                             <Check size={15} /> Approuver
                           </Button>
-                          <Button variante="secondaire" onClick={() => void agir(() => changementsApi.decider(id!, 'REJETE'), 'Rejeté')} disabled={envoi}>
+                          <Button
+                            variante="secondaire"
+                            onClick={() =>
+                              void agir(() => changementsApi.decider(id!, 'REJETE'), 'Rejeté')
+                            }
+                            disabled={envoi}
+                          >
                             <XCircle size={15} /> Rejeter
                           </Button>
                         </div>
@@ -334,7 +365,11 @@ export function ChangementPage(): JSX.Element {
               <span className={styles.carteTitre}>Description / plan</span>
               <ChampInline
                 valeur={v.description}
-                onValider={(val) => (creation ? setDescription(val) : void agir(() => changementsApi.modifier(id!, { description: val })))}
+                onValider={(val) =>
+                  creation
+                    ? setDescription(val)
+                    : void agir(() => changementsApi.modifier(id!, { description: val }))
+                }
                 toujoursEdition={creation}
                 multiligne
                 placeholder="Analyse d'impact, plan de déploiement, retour arrière…"
@@ -420,7 +455,6 @@ export function ChangementPage(): JSX.Element {
               </div>
             </section>
           )}
-
         </div>
 
         <div className={styles.colonne}>
@@ -448,7 +482,10 @@ export function ChangementPage(): JSX.Element {
                 <div className={fiche.etapes}>
                   <span
                     className={cx(fiche.chip, fiche.chipActuel)}
-                    style={{ color: couleurStatut(detail.statut), borderColor: couleurStatut(detail.statut) }}
+                    style={{
+                      color: couleurStatut(detail.statut),
+                      borderColor: couleurStatut(detail.statut),
+                    }}
                   >
                     {detail.statut}
                   </span>
@@ -460,7 +497,10 @@ export function ChangementPage(): JSX.Element {
                         key={etat}
                         type="button"
                         className={fiche.chip}
-                        style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
+                        style={{
+                          color: c,
+                          background: `color-mix(in srgb, ${c} 14%, transparent)`,
+                        }}
                         disabled={envoi}
                         onClick={() => void agir(() => changementsApi.transition(id!, etat), etat)}
                       >
@@ -500,7 +540,11 @@ export function ChangementPage(): JSX.Element {
               <p className={styles.note}>
                 Après création : tâches, cycle de vie ITIL (CAB/ECAB), valideurs et notes.
               </p>
-              <Button onClick={() => void creer()} disabled={envoi || titre.trim().length < 3} pleineLargeur>
+              <Button
+                onClick={() => void creer()}
+                disabled={envoi || titre.trim().length < 3}
+                pleineLargeur
+              >
                 {envoi ? 'Création…' : 'Créer le changement'}
               </Button>
             </section>

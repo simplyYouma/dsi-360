@@ -26,7 +26,12 @@ const URL_MINI = 8; // « https:// »
  *
  *  Rattachés au sujet, jamais à une tâche : un lien survit à l'étape qui l'a fait naître.
  *  Partagé par les projets et les changements. */
-export function LiensActivite({ charger, creer, supprimer, modifiable = true }: Props): JSX.Element {
+export function LiensActivite({
+  charger,
+  creer,
+  supprimer,
+  modifiable = true,
+}: Props): JSX.Element {
   const [liens, setLiens] = useState<LienItem[]>([]);
   const [libelle, setLibelle] = useState('');
   const [url, setUrl] = useState('');

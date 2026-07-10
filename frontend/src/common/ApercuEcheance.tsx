@@ -19,9 +19,15 @@ interface Props {
 
 // Matrice de priorité ITIL (SI-12.01) — miroir exact du backend (domain/activite.py).
 const MATRICE_PRIORITE: Record<string, number> = {
-  '3,3': 1, '3,2': 2, '3,1': 3,
-  '2,3': 2, '2,2': 3, '2,1': 4,
-  '1,3': 3, '1,2': 4, '1,1': 5,
+  '3,3': 1,
+  '3,2': 2,
+  '3,1': 3,
+  '2,3': 2,
+  '2,2': 3,
+  '2,1': 4,
+  '1,3': 3,
+  '1,2': 4,
+  '1,1': 5,
 };
 const bande = (n: number): number => (n >= 4 ? 3 : n === 3 ? 2 : 1);
 
@@ -70,7 +76,9 @@ export function ApercuEcheance({ impact, urgence, module }: Props): JSX.Element 
     <div className={styles.apercu}>
       <div className={styles.tete}>
         <Clock size={14} className={styles.icone} />
-        <span className={styles.label}>Priorité &amp; échéances SLA (calculées automatiquement)</span>
+        <span className={styles.label}>
+          Priorité &amp; échéances SLA (calculées automatiquement)
+        </span>
         <BadgePriorite priorite={priorite} />
       </div>
       {regle ? (
@@ -80,7 +88,10 @@ export function ApercuEcheance({ impact, urgence, module }: Props): JSX.Element 
           </span>
           <span>
             Résolution sous <strong>{formaterDuree(regle.resolution_minutes)}</strong>
-            <span className={styles.date}> · échéance ≈ {formaterEcheance(regle.resolution_minutes)}</span>
+            <span className={styles.date}>
+              {' '}
+              · échéance ≈ {formaterEcheance(regle.resolution_minutes)}
+            </span>
           </span>
         </div>
       ) : (

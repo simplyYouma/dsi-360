@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, Mail, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
-import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
+import {
+  Button,
+  Modale,
+  StatusBadge,
+  Table,
+  useToast,
+  type Colonne,
+} from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
@@ -111,7 +118,6 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   // Déclenché par le bouton "Nouvel utilisateur" remonté dans la barre d'onglets.
   useEffect(() => {
     if (signalCreation > 0) ouvrirCreation();
-     
   }, [signalCreation]);
   const ouvrirEdition = (u: Utilisateur): void => {
     setEmail(u.email);
@@ -217,7 +223,11 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     },
     { cle: 'email', entete: 'E-mail', valeur: (u) => u.email },
     { cle: 'nom', entete: 'Nom', rendu: (u) => <strong>{`${u.prenom} ${u.nom}`}</strong> },
-    { cle: 'profil', entete: 'Profil', rendu: (u) => <StatusBadge couleur="var(--cat-1)">{u.profil_libelle}</StatusBadge> },
+    {
+      cle: 'profil',
+      entete: 'Profil',
+      rendu: (u) => <StatusBadge couleur="var(--cat-1)">{u.profil_libelle}</StatusBadge>,
+    },
     { cle: 'direction', entete: 'Direction', rendu: (u) => u.direction ?? '—' },
     {
       cle: 'niveau',
@@ -300,7 +310,11 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
         {modale?.id === null && (
           <label className={styles.champ}>
             <span>E-mail</span>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom.nom@afgbank.ml" />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="prenom.nom@afgbank.ml"
+            />
           </label>
         )}
         <div className={styles.niveaux}>
@@ -389,8 +403,8 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
             <Mail size={15} />
             <span>
               Aucun mot de passe n’est saisi ici : à la création, l’utilisateur reçoit un e-mail
-              d’activation (valable 1 heure) pour définir lui-même son mot de passe. Passé ce
-              délai, renvoyez-lui un lien depuis le menu d’actions.
+              d’activation (valable 1 heure) pour définir lui-même son mot de passe. Passé ce délai,
+              renvoyez-lui un lien depuis le menu d’actions.
             </span>
           </p>
         ) : (
@@ -465,7 +479,9 @@ function OngletAcces(): JSX.Element {
               <td>
                 {r.libelle}
                 {enregistre === r.profil && (
-                  <span style={{ color: 'var(--status-ok)', fontSize: 'var(--text-xs)', marginLeft: 8 }}>
+                  <span
+                    style={{ color: 'var(--status-ok)', fontSize: 'var(--text-xs)', marginLeft: 8 }}
+                  >
                     enregistré
                   </span>
                 )}
@@ -512,10 +528,19 @@ function OngletJournal(): JSX.Element {
   }, [page]);
 
   const colonnes: Colonne<EntreeJournal>[] = [
-    { cle: 'horodatage', entete: 'Date', rendu: (e) => formaterDateHeure(e.horodatage), largeur: '170px' },
+    {
+      cle: 'horodatage',
+      entete: 'Date',
+      rendu: (e) => formaterDateHeure(e.horodatage),
+      largeur: '170px',
+    },
     { cle: 'acteur', entete: 'Acteur', rendu: (e) => e.acteur ?? '—' },
     { cle: 'module', entete: 'Module', rendu: (e) => e.module ?? '—' },
-    { cle: 'action', entete: 'Action', rendu: (e) => <StatusBadge couleur="var(--cat-7)">{e.action}</StatusBadge> },
+    {
+      cle: 'action',
+      entete: 'Action',
+      rendu: (e) => <StatusBadge couleur="var(--cat-7)">{e.action}</StatusBadge>,
+    },
     { cle: 'cible', entete: 'Cible', rendu: (e) => e.cible ?? '—' },
   ];
 
@@ -587,7 +612,14 @@ function OngletSla(): JSX.Element {
 
   return (
     <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
-      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-4)' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          flexWrap: 'wrap',
+          marginBottom: 'var(--space-4)',
+        }}
+      >
         {modules.map((m) => (
           <button
             key={m}
@@ -600,8 +632,8 @@ function OngletSla(): JSX.Element {
         ))}
       </div>
       <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-        Cibles propres à <strong>{LIBELLES_MODULE_SLA[moduleSel] ?? moduleSel}</strong>, par priorité,{' '}
-        <strong>en heures</strong> : <strong>prise en charge</strong> (démarrage) et{' '}
+        Cibles propres à <strong>{LIBELLES_MODULE_SLA[moduleSel] ?? moduleSel}</strong>, par
+        priorité, <strong>en heures</strong> : <strong>prise en charge</strong> (démarrage) et{' '}
         <strong>résolution</strong> (clôture). Un incident P1 peut différer d'une demande P1.
       </p>
       <table className={cx(a.matrice, a.matriceSla)}>
@@ -630,7 +662,9 @@ function OngletSla(): JSX.Element {
                       majHeures(r.priorite, 'prise_en_charge_minutes', e.target.value)
                     }
                   />
-                  <span className={a.slaEquiv}>= {formaterDureeSla(r.prise_en_charge_minutes)}</span>
+                  <span className={a.slaEquiv}>
+                    = {formaterDureeSla(r.prise_en_charge_minutes)}
+                  </span>
                 </div>
               </td>
               <td>
@@ -650,7 +684,14 @@ function OngletSla(): JSX.Element {
           ))}
         </tbody>
       </table>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          marginTop: 'var(--space-4)',
+        }}
+      >
         <Button onClick={() => void enregistrer()} disabled={envoi}>
           {envoi ? 'Enregistrement…' : 'Enregistrer les règles'}
         </Button>
@@ -688,9 +729,7 @@ function OngletCategories(): JSX.Element {
   const [envoi, setEnvoi] = useState(false);
 
   const charger = useCallback((): void => {
-    void api
-      .get<CategorieAdmin[]>(`/referentiels/categories?module=${module}`)
-      .then(setCategories);
+    void api.get<CategorieAdmin[]>(`/referentiels/categories?module=${module}`).then(setCategories);
   }, [module]);
   useEffect(() => {
     charger();
@@ -776,7 +815,14 @@ function OngletCategories(): JSX.Element {
           )}
         </tbody>
       </table>
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-4)', maxWidth: 420 }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          marginTop: 'var(--space-4)',
+          maxWidth: 420,
+        }}
+      >
         <input
           className={a.slaInput}
           style={{ flex: 1, textAlign: 'left' }}
@@ -930,7 +976,12 @@ function OngletProfils(): JSX.Element {
         </tbody>
       </table>
       <div
-        style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-4)', maxWidth: 420 }}
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          marginTop: 'var(--space-4)',
+          maxWidth: 420,
+        }}
       >
         <input
           className={a.slaInput}
@@ -989,7 +1040,10 @@ export function AdministrationPage(): JSX.Element {
           >
             Profils
           </button>
-          <button className={onglet === 'acces' ? a.tabActif : a.tab} onClick={() => setOnglet('acces')}>
+          <button
+            className={onglet === 'acces' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('acces')}
+          >
             Accès
           </button>
           <button
@@ -998,7 +1052,10 @@ export function AdministrationPage(): JSX.Element {
           >
             Catégories
           </button>
-          <button className={onglet === 'sla' ? a.tabActif : a.tab} onClick={() => setOnglet('sla')}>
+          <button
+            className={onglet === 'sla' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('sla')}
+          >
             SLA
           </button>
           <button

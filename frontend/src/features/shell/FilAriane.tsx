@@ -23,8 +23,7 @@ export function FilAriane(): JSX.Element {
     NAVIGATION.find((e) => e.chemin === pathname) ?? NAVIGATION.find((e) => e.chemin === base);
   const libelleModule = entree?.libelle ?? 'Page';
   // Sous-page éventuelle (création ou fiche détail).
-  const sousPage =
-    segments.length > 1 ? (segments[1] === 'nouveau' ? 'Nouveau' : 'Fiche') : null;
+  const sousPage = segments.length > 1 ? (segments[1] === 'nouveau' ? 'Nouveau' : 'Fiche') : null;
 
   return (
     <nav className={styles.fil} aria-label="Fil d'Ariane">

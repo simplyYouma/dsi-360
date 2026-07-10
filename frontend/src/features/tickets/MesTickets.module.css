@@ -39,7 +39,11 @@
   padding: var(--space-3) var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(120deg, var(--surface), color-mix(in srgb, var(--secondary) 5%, var(--surface)));
+  background: linear-gradient(
+    120deg,
+    var(--surface),
+    color-mix(in srgb, var(--secondary) 5%, var(--surface))
+  );
 }
 .bandeauProfil {
   display: flex;
@@ -112,7 +116,11 @@
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(120deg, var(--surface), color-mix(in srgb, var(--secondary) 5%, var(--surface)));
+  background: linear-gradient(
+    120deg,
+    var(--surface),
+    color-mix(in srgb, var(--secondary) 5%, var(--surface))
+  );
 }
 .profilTxt {
   display: flex;

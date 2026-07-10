@@ -9,7 +9,12 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /** Surface premium : fond, rayon, bordure légère, ombre douce. */
-export function Card({ children, sansPadding = false, className, ...rest }: CardProps): JSX.Element {
+export function Card({
+  children,
+  sansPadding = false,
+  className,
+  ...rest
+}: CardProps): JSX.Element {
   return (
     <div className={cx(styles.card, sansPadding && styles.sansPadding, className)} {...rest}>
       {children}

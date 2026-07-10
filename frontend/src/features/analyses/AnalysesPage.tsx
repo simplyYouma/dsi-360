@@ -89,10 +89,38 @@ interface MetaKpi {
   note: string;
 }
 const KPIS: MetaKpi[] = [
-  { cle: 'ouvertes', libelle: 'Activités ouvertes', icone: Activity, couleur: '#4f6bed', format: (v) => String(v), note: 'Hors clôturées' },
-  { cle: 'respect_sla', libelle: 'Respect du SLA', icone: Gauge, couleur: '#15a394', format: (v) => `${v} %`, note: 'Sur échéances en cours' },
-  { cle: 'mttr_jours', libelle: 'Délai moyen de résolution', icone: Timer, couleur: '#8a5cf6', format: (v) => `${v} j`, note: '90 derniers jours' },
-  { cle: 'en_retard', libelle: 'Échéances dépassées', icone: AlertTriangle, couleur: '#d64545', format: (v) => String(v), note: 'À traiter en priorité' },
+  {
+    cle: 'ouvertes',
+    libelle: 'Activités ouvertes',
+    icone: Activity,
+    couleur: '#4f6bed',
+    format: (v) => String(v),
+    note: 'Hors clôturées',
+  },
+  {
+    cle: 'respect_sla',
+    libelle: 'Respect du SLA',
+    icone: Gauge,
+    couleur: '#15a394',
+    format: (v) => `${v} %`,
+    note: 'Sur échéances en cours',
+  },
+  {
+    cle: 'mttr_jours',
+    libelle: 'Délai moyen de résolution',
+    icone: Timer,
+    couleur: '#8a5cf6',
+    format: (v) => `${v} j`,
+    note: '90 derniers jours',
+  },
+  {
+    cle: 'en_retard',
+    libelle: 'Échéances dépassées',
+    icone: AlertTriangle,
+    couleur: '#d64545',
+    format: (v) => String(v),
+    note: 'À traiter en priorité',
+  },
 ];
 
 // ---------------------------------------------------------------- Donut module
@@ -143,7 +171,10 @@ function DonutModules({ data }: { data: Segment[] }): JSX.Element {
                 <span className={styles.legendeVal}>{d.valeur}</span>
               </div>
               <div className={styles.track}>
-                <div className={styles.trackPlein} style={{ width: `${pct}%`, background: d.couleur }} />
+                <div
+                  className={styles.trackPlein}
+                  style={{ width: `${pct}%`, background: d.couleur }}
+                />
               </div>
             </li>
           );
@@ -184,9 +215,7 @@ function MatriceRisques({ cases }: { cases: Analyses['matrice_risques'] }): JSX.
                     className={styles.hmCell}
                     style={{
                       background:
-                        n > 0
-                          ? couleur
-                          : `color-mix(in srgb, ${couleur} 14%, transparent)`,
+                        n > 0 ? couleur : `color-mix(in srgb, ${couleur} 14%, transparent)`,
                       color: n > 0 ? '#fff' : 'transparent',
                     }}
                     title={`Probabilité ${p} × Impact ${i} — ${n} risque(s)`}
@@ -215,7 +244,11 @@ function MatriceRisques({ cases }: { cases: Analyses['matrice_risques'] }): JSX.
 // ---------------------------------------------------------------- Jauge circulaire (SVG)
 
 function couleurTaux(taux: number): string {
-  return taux >= 90 ? 'var(--status-ok)' : taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
+  return taux >= 90
+    ? 'var(--status-ok)'
+    : taux >= 75
+      ? 'var(--status-warn)'
+      : 'var(--status-danger)';
 }
 
 // Délai moyen de résolution : vert si rapide, ambre, rouge si lent.
@@ -252,7 +285,15 @@ function BulleTooltip({
   );
 }
 
-function Jauge({ taux, label, detail }: { taux: number; label: string; detail: string }): JSX.Element {
+function Jauge({
+  taux,
+  label,
+  detail,
+}: {
+  taux: number;
+  label: string;
+  detail: string;
+}): JSX.Element {
   const r = 32;
   const circ = 2 * Math.PI * r;
   const couleur = couleurTaux(taux);
@@ -304,7 +345,7 @@ function HeatmapActivite({ points }: { points: PointActivite[] }): JSX.Element {
           <div className={styles.heatCells}>
             {Array.from({ length: 24 }, (_, h) => {
               const v = carte.get(`${ji + 1}-${h}`) ?? 0;
-              const intensite = v === 0 ? 0 : Math.round((20 + 80 * (v / max)));
+              const intensite = v === 0 ? 0 : Math.round(20 + 80 * (v / max));
               return (
                 <span
                   key={h}
@@ -362,7 +403,6 @@ export function AnalysesPage(): JSX.Element {
     void analysesApi.gestionnaire(gestSel, jours).then(setGestDetail);
   }, [gestSel, jours]);
 
-
   const modules: Segment[] = (a?.par_module ?? []).map((m) => ({
     nom: MODULE_LABEL[m.libelle] ?? m.libelle,
     valeur: m.valeur,
@@ -388,7 +428,9 @@ export function AnalysesPage(): JSX.Element {
     couleur: couleurMttr(e.mttr_jours),
   }));
   const detailTaux =
-    gestDetail && gestDetail.volume > 0 ? Math.round((gestDetail.resolus * 100) / gestDetail.volume) : 0;
+    gestDetail && gestDetail.volume > 0
+      ? Math.round((gestDetail.resolus * 100) / gestDetail.volume)
+      : 0;
 
   return (
     <div className={incidents.page}>
@@ -411,292 +453,390 @@ export function AnalysesPage(): JSX.Element {
               </button>
             ))}
           </div>
-          <BoutonExportPdf cible={contenuRef} titre="Analyses DSI" nomFichier="dsi360-analyses.pdf" />
+          <BoutonExportPdf
+            cible={contenuRef}
+            titre="Analyses DSI"
+            nomFichier="dsi360-analyses.pdf"
+          />
         </div>
       </header>
 
-      <div ref={contenuRef} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <section className={styles.kpiRow}>
-        {KPIS.map((k) => {
-          const Icone = k.icone;
-          return (
-            <Card key={k.cle} className={styles.kpiCarte}>
-              <span className={styles.kpiIcone} style={{ color: k.couleur, background: `color-mix(in srgb, ${k.couleur} 14%, transparent)` }}>
-                <Icone size={20} />
-              </span>
-              <span className={styles.kpiValeur}>{a ? k.format(a.kpis[k.cle]) : '—'}</span>
-              <span className={styles.kpiLibelle}>{k.libelle}</span>
-              <span className={styles.kpiNote}>{k.note}</span>
+      <div
+        ref={contenuRef}
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}
+      >
+        <section className={styles.kpiRow}>
+          {KPIS.map((k) => {
+            const Icone = k.icone;
+            return (
+              <Card key={k.cle} className={styles.kpiCarte}>
+                <span
+                  className={styles.kpiIcone}
+                  style={{
+                    color: k.couleur,
+                    background: `color-mix(in srgb, ${k.couleur} 14%, transparent)`,
+                  }}
+                >
+                  <Icone size={20} />
+                </span>
+                <span className={styles.kpiValeur}>{a ? k.format(a.kpis[k.cle]) : '—'}</span>
+                <span className={styles.kpiLibelle}>{k.libelle}</span>
+                <span className={styles.kpiNote}>{k.note}</span>
+              </Card>
+            );
+          })}
+        </section>
+
+        <div className={styles.onglets}>
+          {ONGLETS.map((o) => (
+            <button
+              key={o.cle}
+              className={onglet === o.cle ? styles.ongletOn : styles.onglet}
+              onClick={() => setOnglet(o.cle)}
+            >
+              {o.libelle}
+            </button>
+          ))}
+        </div>
+
+        {onglet === 'apercu' && (
+          <section className={styles.grille}>
+            <Card className={styles.span2}>
+              <h2 className={styles.chartTitre}>Tendance — créations vs résolutions</h2>
+              <p className={styles.chartSous}>Volume hebdomadaire sur les 8 dernières semaines.</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <ComposedChart
+                  data={a?.tendance ?? []}
+                  margin={{ top: 10, right: 12, left: -20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="grad-crees" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4f6bed" stopOpacity={0.32} />
+                      <stop offset="100%" stopColor="#4f6bed" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="grad-resolus" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#1f9d55" stopOpacity={0.26} />
+                      <stop offset="100%" stopColor="#1f9d55" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="periode"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                  />
+                  <YAxis hide allowDecimals={false} />
+                  <Tooltip {...infobulle} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
+                  <Area
+                    type="monotone"
+                    dataKey="crees"
+                    name="Créées"
+                    stroke="#4f6bed"
+                    strokeWidth={2.5}
+                    fill="url(#grad-crees)"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="resolus"
+                    name="Résolues"
+                    stroke="#1f9d55"
+                    strokeWidth={2.5}
+                    fill="url(#grad-resolus)"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <ul className={styles.miniLegende}>
+                <li>
+                  <span className={styles.tiret} style={{ background: '#4f6bed' }} />
+                  Créées
+                </li>
+                <li>
+                  <span className={styles.tiret} style={{ background: '#1f9d55' }} />
+                  Résolues
+                </li>
+              </ul>
             </Card>
-          );
-        })}
-      </section>
 
-      <div className={styles.onglets}>
-        {ONGLETS.map((o) => (
-          <button
-            key={o.cle}
-            className={onglet === o.cle ? styles.ongletOn : styles.onglet}
-            onClick={() => setOnglet(o.cle)}
-          >
-            {o.libelle}
-          </button>
-        ))}
-      </div>
+            <Card>
+              <h2 className={styles.chartTitre}>Répartition par module</h2>
+              <DonutModules data={modules} />
+            </Card>
 
-      {onglet === 'apercu' && (
-        <section className={styles.grille}>
-        <Card className={styles.span2}>
-          <h2 className={styles.chartTitre}>Tendance — créations vs résolutions</h2>
-          <p className={styles.chartSous}>Volume hebdomadaire sur les 8 dernières semaines.</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={a?.tendance ?? []} margin={{ top: 10, right: 12, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="grad-crees" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4f6bed" stopOpacity={0.32} />
-                  <stop offset="100%" stopColor="#4f6bed" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="grad-resolus" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1f9d55" stopOpacity={0.26} />
-                  <stop offset="100%" stopColor="#1f9d55" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="var(--border)" />
-              <XAxis dataKey="periode" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
-              <YAxis hide allowDecimals={false} />
-              <Tooltip {...infobulle} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
-              <Area type="monotone" dataKey="crees" name="Créées" stroke="#4f6bed" strokeWidth={2.5} fill="url(#grad-crees)" dot={false} activeDot={{ r: 4 }} />
-              <Area type="monotone" dataKey="resolus" name="Résolues" stroke="#1f9d55" strokeWidth={2.5} fill="url(#grad-resolus)" dot={false} activeDot={{ r: 4 }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-          <ul className={styles.miniLegende}>
-            <li><span className={styles.tiret} style={{ background: '#4f6bed' }} />Créées</li>
-            <li><span className={styles.tiret} style={{ background: '#1f9d55' }} />Résolues</li>
-          </ul>
-        </Card>
+            <Card>
+              <h2 className={styles.chartTitre}>Performance SLA par module</h2>
+              <p className={styles.chartSous}>Répartition à l'heure · approche · dépassé.</p>
+              <ul className={styles.stack}>
+                {slaModules.map((m) => {
+                  const tot = Math.max(1, m.a_lheure + m.approche + m.depasse);
+                  return (
+                    <li key={m.nom} className={styles.stackLigne}>
+                      <span className={styles.stackNom}>{m.nom}</span>
+                      <div className={styles.stackBarre}>
+                        {SLA_SEGMENTS.map((s) => {
+                          const v = m[s.cle];
+                          if (v === 0) return null;
+                          return (
+                            <span
+                              key={s.cle}
+                              className={styles.stackSeg}
+                              title={`${s.nom} : ${v}`}
+                              style={{ width: `${(100 * v) / tot}%`, background: s.couleur }}
+                            />
+                          );
+                        })}
+                      </div>
+                      <span className={styles.stackTot}>{m.a_lheure + m.approche + m.depasse}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <ul className={styles.miniLegende}>
+                {SLA_SEGMENTS.map((s) => (
+                  <li key={s.cle}>
+                    <span className={styles.tiret} style={{ background: s.couleur }} />
+                    {s.nom}
+                  </li>
+                ))}
+              </ul>
+            </Card>
 
-        <Card>
-          <h2 className={styles.chartTitre}>Répartition par module</h2>
-          <DonutModules data={modules} />
-        </Card>
+            <Card className={styles.span2}>
+              <h2 className={styles.chartTitre}>Carte d'activité</h2>
+              <p className={styles.chartSous}>
+                Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
+              </p>
+              <HeatmapActivite points={a?.activite ?? []} />
+            </Card>
+          </section>
+        )}
 
-        <Card>
-          <h2 className={styles.chartTitre}>Performance SLA par module</h2>
-          <p className={styles.chartSous}>Répartition à l'heure · approche · dépassé.</p>
-          <ul className={styles.stack}>
-            {slaModules.map((m) => {
-              const tot = Math.max(1, m.a_lheure + m.approche + m.depasse);
-              return (
-                <li key={m.nom} className={styles.stackLigne}>
-                  <span className={styles.stackNom}>{m.nom}</span>
-                  <div className={styles.stackBarre}>
-                    {SLA_SEGMENTS.map((s) => {
-                      const v = m[s.cle];
-                      if (v === 0) return null;
-                      return (
-                        <span
-                          key={s.cle}
-                          className={styles.stackSeg}
-                          title={`${s.nom} : ${v}`}
-                          style={{ width: `${(100 * v) / tot}%`, background: s.couleur }}
-                        />
-                      );
-                    })}
-                  </div>
-                  <span className={styles.stackTot}>{m.a_lheure + m.approche + m.depasse}</span>
-                </li>
-              );
-            })}
-          </ul>
-          <ul className={styles.miniLegende}>
-            {SLA_SEGMENTS.map((s) => (
-              <li key={s.cle}><span className={styles.tiret} style={{ background: s.couleur }} />{s.nom}</li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card className={styles.span2}>
-          <h2 className={styles.chartTitre}>Carte d'activité</h2>
-          <p className={styles.chartSous}>
-            Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
-          </p>
-          <HeatmapActivite points={a?.activite ?? []} />
-        </Card>
-        </section>
-      )}
-
-      {onglet === 'priorites' && (
-        <section className={styles.grille}>
-        <Card>
-          <h2 className={styles.chartTitre}>Répartition par priorité</h2>
-          <p className={styles.chartSous}>Activités ouvertes par niveau de priorité (P1 critique → P5 faible).</p>
-          <div className={styles.radialBloc}>
-            <ResponsiveContainer width="100%" height={300}>
-              <RadialBarChart innerRadius="32%" outerRadius="100%" data={priorites} startAngle={90} endAngle={-270}>
-                <RadialBar dataKey="valeur" cornerRadius={6} background={{ fill: 'var(--bg-subtle)' }}>
+        {onglet === 'priorites' && (
+          <section className={styles.grille}>
+            <Card>
+              <h2 className={styles.chartTitre}>Répartition par priorité</h2>
+              <p className={styles.chartSous}>
+                Activités ouvertes par niveau de priorité (P1 critique → P5 faible).
+              </p>
+              <div className={styles.radialBloc}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadialBarChart
+                    innerRadius="32%"
+                    outerRadius="100%"
+                    data={priorites}
+                    startAngle={90}
+                    endAngle={-270}
+                  >
+                    <RadialBar
+                      dataKey="valeur"
+                      cornerRadius={6}
+                      background={{ fill: 'var(--bg-subtle)' }}
+                    >
+                      {priorites.map((p) => (
+                        <Cell key={p.name} fill={p.fill} />
+                      ))}
+                    </RadialBar>
+                    <Tooltip {...infobulle} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <ul className={styles.radialLegende}>
                   {priorites.map((p) => (
-                    <Cell key={p.name} fill={p.fill} />
+                    <li key={p.name}>
+                      <span className={styles.pastillePrio} style={{ background: p.fill }}>
+                        {p.name}
+                      </span>
+                      <span className={styles.legendeVal}>{p.valeur}</span>
+                    </li>
                   ))}
-                </RadialBar>
-                <Tooltip {...infobulle} />
-              </RadialBarChart>
-            </ResponsiveContainer>
-            <ul className={styles.radialLegende}>
-              {priorites.map((p) => (
-                <li key={p.name}>
-                  <span className={styles.pastillePrio} style={{ background: p.fill }}>{p.name}</span>
-                  <span className={styles.legendeVal}>{p.valeur}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-
-        <Card>
-          <h2 className={styles.chartTitre}>Matrice des risques</h2>
-          <p className={styles.chartSous}>Probabilité × impact — intensité = criticité.</p>
-          <MatriceRisques cases={a?.matrice_risques ?? []} />
-        </Card>
-
-        <Card className={styles.span2}>
-          <h2 className={styles.chartTitre}>Respect du SLA par priorité</h2>
-          <p className={styles.chartSous}>
-            Part des tickets résolus dans la cible (P1 4 h · P2 8 h · P3 24 h · P4 72 h · P5 120 h) —
-            durées réelles.
-          </p>
-          {(a?.sla_par_priorite ?? []).length === 0 ? (
-            <p className={styles.vide}>Aucune donnée de résolution.</p>
-          ) : (
-            <div className={styles.jauges}>
-              {(a?.sla_par_priorite ?? []).map((p) => (
-                <Jauge
-                  key={p.priorite}
-                  taux={p.taux}
-                  label={p.priorite}
-                  detail={`${p.dans_delai}/${p.total}`}
-                />
-              ))}
-            </div>
-          )}
-        </Card>
-        </section>
-      )}
-
-      {onglet === 'equipe' && (
-        <>
-          <div className={styles.barreGest}>
-            <span className={styles.barreGestLib}>Gestionnaire</span>
-            <div className={styles.barreGestSelect}>
-              <SelecteurListe
-                options={evals.map((e) => ({ valeur: e.id, libelle: e.gestionnaire }))}
-                valeur={gestSel}
-                onChange={setGestSel}
-                placeholder="Tous les gestionnaires"
-                permettreVide
-                libelleVide="Tous les gestionnaires"
-              />
-            </div>
-          </div>
-
-          {gestSel === null ? (
-            <section className={styles.grille}>
-              <Card className={styles.span2}>
-                <h2 className={styles.chartTitre}>Cartographie des gestionnaires</h2>
-                <p className={styles.chartSous}>
-                  Une bulle par agent — abscisse : volume traité · ordonnée : délai moyen (jours) ·
-                  taille : charge ouverte. Cliquez une bulle pour le détail.
-                </p>
-                {bulles.length === 0 ? (
-                  <p className={styles.vide}>Aucune donnée.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={360}>
-                    <ScatterChart margin={{ top: 12, right: 24, bottom: 24, left: 4 }}>
-                      <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
-                      <XAxis
-                        type="number"
-                        dataKey="x"
-                        name="Volume"
-                        tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
-                        axisLine={false}
-                        tickLine={false}
-                        label={{ value: 'Volume traité', position: 'insideBottom', offset: -10, fill: 'var(--text-muted)', fontSize: 12 }}
-                      />
-                      <YAxis
-                        type="number"
-                        dataKey="y"
-                        name="Délai (j)"
-                        tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
-                        axisLine={false}
-                        tickLine={false}
-                        label={{ value: 'Délai moyen (j)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 12 }}
-                      />
-                      <ZAxis type="number" dataKey="z" range={[120, 900]} name="Charge" />
-                      <Tooltip {...infobulle} cursor={{ strokeDasharray: '3 3' }} content={BulleTooltip} />
-                      <Scatter
-                        data={bulles}
-                        onClick={(e: unknown) => {
-                          const o = e as { id?: string; payload?: { id?: string } };
-                          const id = o.id ?? o.payload?.id;
-                          if (id !== undefined) setGestSel(id);
-                        }}
-                      >
-                        {bulles.map((b) => (
-                          <Cell key={b.id} fill={b.couleur} fillOpacity={0.75} stroke={b.couleur} />
-                        ))}
-                      </Scatter>
-                    </ScatterChart>
-                  </ResponsiveContainer>
-                )}
-                <ul className={styles.miniLegende}>
-                  <li><span className={styles.tiret} style={{ background: '#1f9d55' }} />≤ 5 j</li>
-                  <li><span className={styles.tiret} style={{ background: '#c77700' }} />≤ 20 j</li>
-                  <li><span className={styles.tiret} style={{ background: '#d64545' }} />&gt; 20 j</li>
                 </ul>
-              </Card>
-            </section>
-          ) : (
-            <section className={styles.grille}>
-              <Card className={styles.span2}>
-                <div className={styles.gestTete}>
-                  <AvatarPersonnage seed={gestDetail?.gestionnaire ?? gestSel} taille={44} />
-                  <div>
-                    <h2 className={styles.chartTitre}>{gestDetail?.gestionnaire ?? '…'}</h2>
-                    <p className={styles.chartSous}>État et charge du gestionnaire</p>
-                  </div>
-                </div>
-                <div className={styles.gestKpis}>
-                  <div className={styles.gestKpi}>
-                    <span className={styles.gestVal}>{gestDetail?.volume ?? '—'}</span>
-                    <span className={styles.gestLib}>Volume traité</span>
-                  </div>
-                  <div className={styles.gestKpi}>
-                    <span className={styles.gestVal} style={{ color: 'var(--cat-1)' }}>{gestDetail?.charge ?? '—'}</span>
-                    <span className={styles.gestLib}>Charge ouverte</span>
-                  </div>
-                  <div className={styles.gestKpi}>
-                    <span className={styles.gestVal} style={{ color: couleurMttr(gestDetail?.mttr_jours ?? null) }}>
-                      {gestDetail?.mttr_jours ?? '—'} j
-                    </span>
-                    <span className={styles.gestLib}>Délai moyen</span>
-                  </div>
-                  <div className={styles.gestKpi}>
-                    <span className={styles.gestVal} style={{ color: couleurTaux(detailTaux) }}>{detailTaux}%</span>
-                    <span className={styles.gestLib}>Taux résolution</span>
-                  </div>
-                </div>
-              </Card>
+              </div>
+            </Card>
 
-              <Card className={styles.span2}>
-                <h2 className={styles.chartTitre}>Charge horodatée</h2>
-                <p className={styles.chartSous}>
-                  Tickets pris en charge par jour de semaine et heure — rythme de travail de l'agent.
-                </p>
-                <HeatmapActivite points={gestDetail?.activite ?? []} />
-              </Card>
-            </section>
-          )}
-        </>
-      )}
+            <Card>
+              <h2 className={styles.chartTitre}>Matrice des risques</h2>
+              <p className={styles.chartSous}>Probabilité × impact — intensité = criticité.</p>
+              <MatriceRisques cases={a?.matrice_risques ?? []} />
+            </Card>
+
+            <Card className={styles.span2}>
+              <h2 className={styles.chartTitre}>Respect du SLA par priorité</h2>
+              <p className={styles.chartSous}>
+                Part des tickets résolus dans la cible (P1 4 h · P2 8 h · P3 24 h · P4 72 h · P5 120
+                h) — durées réelles.
+              </p>
+              {(a?.sla_par_priorite ?? []).length === 0 ? (
+                <p className={styles.vide}>Aucune donnée de résolution.</p>
+              ) : (
+                <div className={styles.jauges}>
+                  {(a?.sla_par_priorite ?? []).map((p) => (
+                    <Jauge
+                      key={p.priorite}
+                      taux={p.taux}
+                      label={p.priorite}
+                      detail={`${p.dans_delai}/${p.total}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </section>
+        )}
+
+        {onglet === 'equipe' && (
+          <>
+            <div className={styles.barreGest}>
+              <span className={styles.barreGestLib}>Gestionnaire</span>
+              <div className={styles.barreGestSelect}>
+                <SelecteurListe
+                  options={evals.map((e) => ({ valeur: e.id, libelle: e.gestionnaire }))}
+                  valeur={gestSel}
+                  onChange={setGestSel}
+                  placeholder="Tous les gestionnaires"
+                  permettreVide
+                  libelleVide="Tous les gestionnaires"
+                />
+              </div>
+            </div>
+
+            {gestSel === null ? (
+              <section className={styles.grille}>
+                <Card className={styles.span2}>
+                  <h2 className={styles.chartTitre}>Cartographie des gestionnaires</h2>
+                  <p className={styles.chartSous}>
+                    Une bulle par agent — abscisse : volume traité · ordonnée : délai moyen (jours)
+                    · taille : charge ouverte. Cliquez une bulle pour le détail.
+                  </p>
+                  {bulles.length === 0 ? (
+                    <p className={styles.vide}>Aucune donnée.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={360}>
+                      <ScatterChart margin={{ top: 12, right: 24, bottom: 24, left: 4 }}>
+                        <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" />
+                        <XAxis
+                          type="number"
+                          dataKey="x"
+                          name="Volume"
+                          tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                          axisLine={false}
+                          tickLine={false}
+                          label={{
+                            value: 'Volume traité',
+                            position: 'insideBottom',
+                            offset: -10,
+                            fill: 'var(--text-muted)',
+                            fontSize: 12,
+                          }}
+                        />
+                        <YAxis
+                          type="number"
+                          dataKey="y"
+                          name="Délai (j)"
+                          tick={{ fontSize: 12, fill: 'var(--text-muted)' }}
+                          axisLine={false}
+                          tickLine={false}
+                          label={{
+                            value: 'Délai moyen (j)',
+                            angle: -90,
+                            position: 'insideLeft',
+                            fill: 'var(--text-muted)',
+                            fontSize: 12,
+                          }}
+                        />
+                        <ZAxis type="number" dataKey="z" range={[120, 900]} name="Charge" />
+                        <Tooltip
+                          {...infobulle}
+                          cursor={{ strokeDasharray: '3 3' }}
+                          content={BulleTooltip}
+                        />
+                        <Scatter
+                          data={bulles}
+                          onClick={(e: unknown) => {
+                            const o = e as { id?: string; payload?: { id?: string } };
+                            const id = o.id ?? o.payload?.id;
+                            if (id !== undefined) setGestSel(id);
+                          }}
+                        >
+                          {bulles.map((b) => (
+                            <Cell
+                              key={b.id}
+                              fill={b.couleur}
+                              fillOpacity={0.75}
+                              stroke={b.couleur}
+                            />
+                          ))}
+                        </Scatter>
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  )}
+                  <ul className={styles.miniLegende}>
+                    <li>
+                      <span className={styles.tiret} style={{ background: '#1f9d55' }} />≤ 5 j
+                    </li>
+                    <li>
+                      <span className={styles.tiret} style={{ background: '#c77700' }} />≤ 20 j
+                    </li>
+                    <li>
+                      <span className={styles.tiret} style={{ background: '#d64545' }} />
+                      &gt; 20 j
+                    </li>
+                  </ul>
+                </Card>
+              </section>
+            ) : (
+              <section className={styles.grille}>
+                <Card className={styles.span2}>
+                  <div className={styles.gestTete}>
+                    <AvatarPersonnage seed={gestDetail?.gestionnaire ?? gestSel} taille={44} />
+                    <div>
+                      <h2 className={styles.chartTitre}>{gestDetail?.gestionnaire ?? '…'}</h2>
+                      <p className={styles.chartSous}>État et charge du gestionnaire</p>
+                    </div>
+                  </div>
+                  <div className={styles.gestKpis}>
+                    <div className={styles.gestKpi}>
+                      <span className={styles.gestVal}>{gestDetail?.volume ?? '—'}</span>
+                      <span className={styles.gestLib}>Volume traité</span>
+                    </div>
+                    <div className={styles.gestKpi}>
+                      <span className={styles.gestVal} style={{ color: 'var(--cat-1)' }}>
+                        {gestDetail?.charge ?? '—'}
+                      </span>
+                      <span className={styles.gestLib}>Charge ouverte</span>
+                    </div>
+                    <div className={styles.gestKpi}>
+                      <span
+                        className={styles.gestVal}
+                        style={{ color: couleurMttr(gestDetail?.mttr_jours ?? null) }}
+                      >
+                        {gestDetail?.mttr_jours ?? '—'} j
+                      </span>
+                      <span className={styles.gestLib}>Délai moyen</span>
+                    </div>
+                    <div className={styles.gestKpi}>
+                      <span className={styles.gestVal} style={{ color: couleurTaux(detailTaux) }}>
+                        {detailTaux}%
+                      </span>
+                      <span className={styles.gestLib}>Taux résolution</span>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className={styles.span2}>
+                  <h2 className={styles.chartTitre}>Charge horodatée</h2>
+                  <p className={styles.chartSous}>
+                    Tickets pris en charge par jour de semaine et heure — rythme de travail de
+                    l'agent.
+                  </p>
+                  <HeatmapActivite points={gestDetail?.activite ?? []} />
+                </Card>
+              </section>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

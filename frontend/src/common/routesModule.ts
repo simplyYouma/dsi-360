@@ -43,8 +43,18 @@ export const CAPACITES_MODULE: Record<string, CapacitesModule> = {
   changement: { avecDocuments: true, moduleCategorie: 'changement', labelCategorie: 'Type' },
   audit: { avecDocuments: true, moduleCategorie: 'audit', labelCategorie: 'Source' },
   risque: { avecRevue: true, moduleCategorie: 'risque' },
-  cybersecurite: { avecDocuments: true, avecRevue: true, moduleCategorie: 'cybersecurite', labelCategorie: 'Type' },
-  gouvernance: { avecDocuments: true, avecRevue: true, moduleCategorie: 'gouvernance', labelCategorie: 'Type' },
+  cybersecurite: {
+    avecDocuments: true,
+    avecRevue: true,
+    moduleCategorie: 'cybersecurite',
+    labelCategorie: 'Type',
+  },
+  gouvernance: {
+    avecDocuments: true,
+    avecRevue: true,
+    moduleCategorie: 'gouvernance',
+    labelCategorie: 'Type',
+  },
   projet: { avecDocuments: true },
 };
 

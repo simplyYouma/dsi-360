@@ -9,18 +9,31 @@ import styles from '@/features/incidents/IncidentsPage.module.css';
 import { projetsApi, type Projet } from './projetsApi';
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function formaterBudget(v: number | null): string {
   if (v === null) return '—';
-  return new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(v);
+  return new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(
+    v,
+  );
 }
 
 function Avancement({ valeur }: { valeur: number }): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 130 }}>
-      <div style={{ flex: 1, height: 6, background: 'var(--bg-subtle)', borderRadius: 'var(--radius-pill)' }}>
+      <div
+        style={{
+          flex: 1,
+          height: 6,
+          background: 'var(--bg-subtle)',
+          borderRadius: 'var(--radius-pill)',
+        }}
+      >
         <div
           style={{
             width: `${valeur}%`,
@@ -39,7 +52,13 @@ function Avancement({ valeur }: { valeur: number }): JSX.Element {
 
 const COLONNES: Colonne<Projet>[] = [
   { cle: 'reference', entete: 'Référence', valeur: (p) => p.reference, largeur: '150px' },
-  { cle: 'titre', entete: 'Projet', tronque: true, rendu: (p) => <strong title={p.titre}>{p.titre}</strong>, valeur: (p) => p.titre },
+  {
+    cle: 'titre',
+    entete: 'Projet',
+    tronque: true,
+    rendu: (p) => <strong title={p.titre}>{p.titre}</strong>,
+    valeur: (p) => p.titre,
+  },
   { cle: 'statut', entete: 'Statut', rendu: (p) => <StatusBadge>{p.statut}</StatusBadge> },
   {
     cle: 'chef',
@@ -60,7 +79,12 @@ const COLONNES: Colonne<Projet>[] = [
     rendu: (p) => <span className="tabular">{formaterBudget(p.budget)}</span>,
   },
   { cle: 'date_fin', entete: 'Échéance', rendu: (p) => p.date_fin ?? '—' },
-  { cle: 'cree_le', entete: 'Créé le', valeur: (p) => p.cree_le, rendu: (p) => formaterDate(p.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Créé le',
+    valeur: (p) => p.cree_le,
+    rendu: (p) => formaterDate(p.cree_le),
+  },
 ];
 
 export function ProjetsPage(): JSX.Element {

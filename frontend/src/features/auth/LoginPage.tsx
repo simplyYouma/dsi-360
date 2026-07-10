@@ -74,7 +74,12 @@ export function LoginPage(): JSX.Element {
 
   return (
     <div className={styles.page} style={STYLE_FOND}>
-      <button type="button" className={styles.theme} onClick={basculer} aria-label="Changer de thème">
+      <button
+        type="button"
+        className={styles.theme}
+        onClick={basculer}
+        aria-label="Changer de thème"
+      >
         {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
       </button>
 

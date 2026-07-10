@@ -84,21 +84,21 @@ export function AppShell(): JSX.Element | null {
             );
             if (entrees.length === 0) return null;
             return (
-            <div key={section.titre} className={styles.section}>
-              <span className={styles.sectionTitre}>{section.titre}</span>
-              {entrees.map(({ chemin, libelle, icone: Icone }) => (
-                <NavLink
-                  key={chemin}
-                  to={chemin}
-                  end={chemin === '/'}
-                  className={({ isActive }) => cx(styles.lien, isActive && styles.actif)}
-                  title={libelle}
-                >
-                  <Icone size={19} className={styles.lienIcone} aria-hidden="true" />
-                  <span className={styles.lienTexte}>{libelle}</span>
-                </NavLink>
-              ))}
-            </div>
+              <div key={section.titre} className={styles.section}>
+                <span className={styles.sectionTitre}>{section.titre}</span>
+                {entrees.map(({ chemin, libelle, icone: Icone }) => (
+                  <NavLink
+                    key={chemin}
+                    to={chemin}
+                    end={chemin === '/'}
+                    className={({ isActive }) => cx(styles.lien, isActive && styles.actif)}
+                    title={libelle}
+                  >
+                    <Icone size={19} className={styles.lienIcone} aria-hidden="true" />
+                    <span className={styles.lienTexte}>{libelle}</span>
+                  </NavLink>
+                ))}
+              </div>
             );
           })}
         </nav>

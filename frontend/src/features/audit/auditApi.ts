@@ -15,7 +15,10 @@ export interface NouvelleRecommandation {
 }
 
 export const auditApi = {
-  lister: (page: number, f?: FiltresListe): Promise<{ elements: Recommandation[]; total: number }> =>
+  lister: (
+    page: number,
+    f?: FiltresListe,
+  ): Promise<{ elements: Recommandation[]; total: number }> =>
     api.get(`/audit?${chaineFiltres(page, f)}`),
   creer: (corps: NouvelleRecommandation): Promise<{ id: string }> => api.post('/audit', corps),
   categories: (): Promise<Categorie[]> => api.get('/referentiels/categories?module=audit'),

@@ -114,7 +114,16 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, []);
 
   const valeur = useMemo(
-    () => ({ statut, moi, connecter, deconnecter, rafraichir, incarner, redevenirSoi, incarnation }),
+    () => ({
+      statut,
+      moi,
+      connecter,
+      deconnecter,
+      rafraichir,
+      incarner,
+      redevenirSoi,
+      incarnation,
+    }),
     [statut, moi, connecter, deconnecter, rafraichir, incarner, redevenirSoi, incarnation],
   );
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;

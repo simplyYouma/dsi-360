@@ -19,23 +19,36 @@ const PRIORITE_COULEUR: Record<number, string> = {
 };
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const COLONNES: Colonne<Changement>[] = [
   { cle: 'reference', entete: 'Référence', valeur: (c) => c.reference, largeur: '150px' },
-  { cle: 'titre', entete: 'Objet', tronque: true, rendu: (c) => <strong title={c.titre}>{c.titre}</strong>, valeur: (c) => c.titre },
+  {
+    cle: 'titre',
+    entete: 'Objet',
+    tronque: true,
+    rendu: (c) => <strong title={c.titre}>{c.titre}</strong>,
+    valeur: (c) => c.titre,
+  },
   {
     cle: 'categorie',
     entete: 'Type',
-    rendu: (c) => (c.categorie ? <StatusBadge couleur="var(--cat-5)">{c.categorie}</StatusBadge> : '—'),
+    rendu: (c) =>
+      c.categorie ? <StatusBadge couleur="var(--cat-5)">{c.categorie}</StatusBadge> : '—',
   },
   {
     cle: 'priorite',
     entete: 'Priorité',
     valeur: (c) => c.priorite,
     rendu: (c) => (
-      <StatusBadge couleur={PRIORITE_COULEUR[c.priorite] ?? 'var(--text-muted)'}>P{c.priorite}</StatusBadge>
+      <StatusBadge couleur={PRIORITE_COULEUR[c.priorite] ?? 'var(--text-muted)'}>
+        P{c.priorite}
+      </StatusBadge>
     ),
   },
   { cle: 'statut', entete: 'Statut', rendu: (c) => <BadgeStatut statut={c.statut} /> },
@@ -49,10 +62,19 @@ const COLONNES: Colonne<Changement>[] = [
     entete: 'Échéance SLA',
     valeur: (c) => c.sla_resolution_le ?? '',
     rendu: (c) => (
-      <SablierSla echeance={c.sla_resolution_le} debut={c.cree_le} statut={c.statut_sla ?? 'a_lheure'} />
+      <SablierSla
+        echeance={c.sla_resolution_le}
+        debut={c.cree_le}
+        statut={c.statut_sla ?? 'a_lheure'}
+      />
     ),
   },
-  { cle: 'cree_le', entete: 'Créé le', valeur: (c) => c.cree_le, rendu: (c) => formaterDate(c.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Créé le',
+    valeur: (c) => c.cree_le,
+    rendu: (c) => formaterDate(c.cree_le),
+  },
 ];
 
 export function ChangementsPage(): JSX.Element {

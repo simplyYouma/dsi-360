@@ -4,7 +4,11 @@ import styles from './MesTickets.module.css';
 import type { MesStats } from './mesTicketsApi';
 
 function couleurTaux(taux: number): string {
-  return taux >= 90 ? 'var(--status-ok)' : taux >= 75 ? 'var(--status-warn)' : 'var(--status-danger)';
+  return taux >= 90
+    ? 'var(--status-ok)'
+    : taux >= 75
+      ? 'var(--status-warn)'
+      : 'var(--status-danger)';
 }
 
 /** Petit anneau SVG (respect SLA), version compacte pour la bande. */
@@ -99,7 +103,11 @@ export function BandeauAgent({ stats }: { stats: MesStats }): JSX.Element {
       </div>
       <ul className={styles.bandeauStats}>
         {pastilles.map((p) => (
-          <li key={p.cle} className={styles.statPastille} data-attenue={p.attenue ? 'oui' : undefined}>
+          <li
+            key={p.cle}
+            className={styles.statPastille}
+            data-attenue={p.attenue ? 'oui' : undefined}
+          >
             <span className={styles.statIcone} style={{ color: p.couleur }}>
               {p.icone}
             </span>

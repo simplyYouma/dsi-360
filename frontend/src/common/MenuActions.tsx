@@ -38,10 +38,7 @@ export function MenuActions({ actions, etiquette = 'Actions' }: Props): JSX.Elem
     const hauteurEstimee = visibles.length * 40 + 12;
     const versHaut = dessous < hauteurEstimee && r.top > dessous;
     // Aligne le bord droit du menu sur le bord droit du déclencheur, sans déborder de la fenêtre.
-    const left = Math.max(
-      MARGE,
-      Math.min(r.right - LARGEUR, window.innerWidth - LARGEUR - MARGE),
-    );
+    const left = Math.max(MARGE, Math.min(r.right - LARGEUR, window.innerWidth - LARGEUR - MARGE));
     setPos(
       versHaut
         ? { bottom: window.innerHeight - r.top + MARGE, left }
@@ -94,7 +91,13 @@ export function MenuActions({ actions, etiquette = 'Actions' }: Props): JSX.Elem
             ref={popoverRef}
             className={styles.menu}
             role="menu"
-            style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, width: LARGEUR }}
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              bottom: pos.bottom,
+              left: pos.left,
+              width: LARGEUR,
+            }}
           >
             {visibles.map((a) => (
               <button

@@ -36,7 +36,13 @@ export const SECTIONS: SectionNav[] = [
   {
     titre: 'Mon espace',
     entrees: [
-      { chemin: '/mes-tickets', libelle: 'Mes tickets', icone: ListChecks, phase: 'P1', toujours: true },
+      {
+        chemin: '/mes-tickets',
+        libelle: 'Mes tickets',
+        icone: ListChecks,
+        phase: 'P1',
+        toujours: true,
+      },
     ],
   },
   {
@@ -70,7 +76,13 @@ export const SECTIONS: SectionNav[] = [
   {
     titre: 'Système',
     entrees: [
-      { chemin: '/import', libelle: 'Import quotidien', icone: UploadCloud, phase: 'P1', transverse: true },
+      {
+        chemin: '/import',
+        libelle: 'Import quotidien',
+        icone: UploadCloud,
+        phase: 'P1',
+        transverse: true,
+      },
       { chemin: '/administration', libelle: 'Administration', icone: Settings, phase: 'P1' },
     ],
   },

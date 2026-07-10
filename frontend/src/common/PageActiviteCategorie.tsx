@@ -31,7 +31,11 @@ interface Props {
 }
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 /** Page générique d'un module d'activité à catégorie (cybersécurité, gouvernance…). */
@@ -74,16 +78,32 @@ export function PageActiviteCategorie({
       valeur: (a) => a.reference,
       largeur: '190px',
       rendu: (a) => (
-        <CelluleReference reference={a.reference} nombre={a.nb_commentaires} nonVus={a.nb_non_vus} />
+        <CelluleReference
+          reference={a.reference}
+          nombre={a.nb_commentaires}
+          nonVus={a.nb_non_vus}
+        />
       ),
     },
-    { cle: 'titre', entete: labelObjet, tronque: true, rendu: (a) => <strong title={a.titre}>{a.titre}</strong>, valeur: (a) => a.titre },
+    {
+      cle: 'titre',
+      entete: labelObjet,
+      tronque: true,
+      rendu: (a) => <strong title={a.titre}>{a.titre}</strong>,
+      valeur: (a) => a.titre,
+    },
     {
       cle: 'categorie',
       entete: labelCategorie,
-      rendu: (a) => (a.categorie ? <StatusBadge couleur={couleurCategorie}>{a.categorie}</StatusBadge> : '—'),
+      rendu: (a) =>
+        a.categorie ? <StatusBadge couleur={couleurCategorie}>{a.categorie}</StatusBadge> : '—',
     },
-    { cle: 'priorite', entete: 'Priorité', valeur: (a) => a.priorite, rendu: (a) => <BadgePriorite priorite={a.priorite} /> },
+    {
+      cle: 'priorite',
+      entete: 'Priorité',
+      valeur: (a) => a.priorite,
+      rendu: (a) => <BadgePriorite priorite={a.priorite} />,
+    },
     { cle: 'statut', entete: 'Statut', rendu: (a) => <BadgeStatut statut={a.statut} /> },
     {
       cle: 'responsable',
@@ -95,10 +115,19 @@ export function PageActiviteCategorie({
       entete: 'Échéance SLA',
       valeur: (a) => a.sla_resolution_le ?? '',
       rendu: (a) => (
-        <SablierSla echeance={a.sla_resolution_le} debut={a.cree_le} statut={a.statut_sla ?? 'a_lheure'} />
+        <SablierSla
+          echeance={a.sla_resolution_le}
+          debut={a.cree_le}
+          statut={a.statut_sla ?? 'a_lheure'}
+        />
       ),
     },
-    { cle: 'cree_le', entete: 'Créé le', valeur: (a) => a.cree_le, rendu: (a) => formaterDate(a.cree_le) },
+    {
+      cle: 'cree_le',
+      entete: 'Créé le',
+      valeur: (a) => a.cree_le,
+      rendu: (a) => formaterDate(a.cree_le),
+    },
   ];
 
   const charger = useCallback(
@@ -246,7 +275,12 @@ export function PageActiviteCategorie({
         <SelecteurGestionnaire valeur={gestionnaire} onChange={setGestionnaire} />
         <label className={styles.champ}>
           <span>Description</span>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Détails…" />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Détails…"
+          />
         </label>
         <div className={styles.niveaux}>
           <div className={styles.champ}>

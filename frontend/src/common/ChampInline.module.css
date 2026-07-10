@@ -11,7 +11,9 @@
   cursor: text;
   color: inherit;
   font: inherit;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
 }
 .affichage:hover {
   background: var(--bg-subtle);
@@ -29,7 +31,9 @@
   color: inherit;
   font: inherit;
   outline: none;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
 }
 .input:focus {
   border-color: var(--secondary);

@@ -20,7 +20,6 @@ import { cx } from './cx';
 import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
 import styles from './FicheTransition.module.css';
 
-
 interface Detail {
   reference: string;
   titre: string;
@@ -227,9 +226,14 @@ export function FicheTransition({
     setEnvoi(true);
     setErreur(null);
     try {
-      setDetail(await api.post<Detail>(`${base}/${id}/assignation`, { responsable_id: responsableId }));
+      setDetail(
+        await api.post<Detail>(`${base}/${id}/assignation`, { responsable_id: responsableId }),
+      );
       onChange();
-      notifier(responsableId === null ? 'Gestionnaire retiré' : 'Gestionnaire mis à jour', 'succes');
+      notifier(
+        responsableId === null ? 'Gestionnaire retiré' : 'Gestionnaire mis à jour',
+        'succes',
+      );
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Assignation impossible.');
     } finally {
@@ -331,13 +335,14 @@ export function FicheTransition({
     }
   };
 
-
   const ajouterValideur = async (utilisateurId: string): Promise<void> => {
     if (id === null) return;
     setEnvoi(true);
     setErreur(null);
     try {
-      setDetail(await api.post<Detail>(`${base}/${id}/valideurs`, { utilisateur_id: utilisateurId }));
+      setDetail(
+        await api.post<Detail>(`${base}/${id}/valideurs`, { utilisateur_id: utilisateurId }),
+      );
       notifier('Valideur ajouté', 'succes');
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Ajout impossible.');
@@ -592,10 +597,18 @@ export function FicheTransition({
                     {permissions.peut_decider && (
                       <div className={styles.decision}>
                         <span className={styles.decisionLabel}>Votre décision :</span>
-                        <Button variante="secondaire" onClick={() => void decider('APPROUVE')} disabled={envoi}>
+                        <Button
+                          variante="secondaire"
+                          onClick={() => void decider('APPROUVE')}
+                          disabled={envoi}
+                        >
                           <Check size={15} /> Approuver
                         </Button>
-                        <Button variante="secondaire" onClick={() => void decider('REJETE')} disabled={envoi}>
+                        <Button
+                          variante="secondaire"
+                          onClick={() => void decider('REJETE')}
+                          disabled={envoi}
+                        >
                           <XCircle size={15} /> Rejeter
                         </Button>
                       </div>
@@ -607,32 +620,42 @@ export function FicheTransition({
             {permissions.peut_evaluer &&
               detail.impact !== undefined &&
               detail.priorite !== undefined && (
-              <div className={cx(styles.metaItem, styles.metaLarge)}>
-                <dt>Évaluation</dt>
-                <dd className={styles.evaluation}>
-                  <div className={styles.evalChamps}>
-                    <label className={styles.evalChamp}>
-                      <span className={styles.evalLabel}>Impact</span>
-                      <CurseurNiveau valeur={detail.impact ?? 3} onChange={(v) => void reevaluer('impact', v)} />
-                    </label>
-                    <span className={styles.evalOperateur} aria-hidden="true">×</span>
-                    <label className={styles.evalChamp}>
-                      <span className={styles.evalLabel}>Urgence</span>
-                      <CurseurNiveau valeur={detail.urgence ?? 3} onChange={(v) => void reevaluer('urgence', v)} />
-                    </label>
-                  </div>
-                </dd>
-              </div>
-            )}
+                <div className={cx(styles.metaItem, styles.metaLarge)}>
+                  <dt>Évaluation</dt>
+                  <dd className={styles.evaluation}>
+                    <div className={styles.evalChamps}>
+                      <label className={styles.evalChamp}>
+                        <span className={styles.evalLabel}>Impact</span>
+                        <CurseurNiveau
+                          valeur={detail.impact ?? 3}
+                          onChange={(v) => void reevaluer('impact', v)}
+                        />
+                      </label>
+                      <span className={styles.evalOperateur} aria-hidden="true">
+                        ×
+                      </span>
+                      <label className={styles.evalChamp}>
+                        <span className={styles.evalLabel}>Urgence</span>
+                        <CurseurNiveau
+                          valeur={detail.urgence ?? 3}
+                          onChange={(v) => void reevaluer('urgence', v)}
+                        />
+                      </label>
+                    </div>
+                  </dd>
+                </div>
+              )}
             {avecRevue && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Revue périodique</dt>
                 <dd className={styles.revue}>
                   <SelecteurListe
-                    options={['Mensuelle', 'Trimestrielle', 'Semestrielle', 'Annuelle'].map((p) => ({
-                      valeur: p,
-                      libelle: p,
-                    }))}
+                    options={['Mensuelle', 'Trimestrielle', 'Semestrielle', 'Annuelle'].map(
+                      (p) => ({
+                        valeur: p,
+                        libelle: p,
+                      }),
+                    )}
                     valeur={detail.periodicite ?? null}
                     onChange={(v) => void planifierRevue('periodicite', v)}
                     permettreVide
@@ -743,14 +766,19 @@ export function FicheTransition({
                   {detail.historique.map((h, i) => (
                     <li key={i} className={styles.histoItem}>
                       <span className={styles.histoDate}>{formaterDate(h.horodatage)}</span>
-                      <span className={styles.histoStatut} style={{ color: couleurStatut(h.statut) }}>
+                      <span
+                        className={styles.histoStatut}
+                        style={{ color: couleurStatut(h.statut) }}
+                      >
                         {h.statut}
                       </span>
                       {h.acteur !== null && <span className={styles.histoActeur}>{h.acteur}</span>}
                     </li>
                   ))}
                 </ol>
-                {detail.historique.length > 3 && <div className={styles.histoFondu} aria-hidden="true" />}
+                {detail.historique.length > 3 && (
+                  <div className={styles.histoFondu} aria-hidden="true" />
+                )}
               </div>
             </div>
           )}

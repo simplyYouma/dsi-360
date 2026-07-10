@@ -68,9 +68,7 @@ export function ChampMention({
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
 
   const suggestions = token
-    ? agents
-        .filter((a) => a.nom.toLowerCase().includes(token.requete.toLowerCase()))
-        .slice(0, 6)
+    ? agents.filter((a) => a.nom.toLowerCase().includes(token.requete.toLowerCase())).slice(0, 6)
     : [];
 
   const majToken = (): void => {
@@ -202,7 +200,9 @@ export function ChampMention({
         }}
         onBlur={() => window.setTimeout(() => setToken(null), 120)}
       />
-      {token && suggestions.length > 0 && pos !== null &&
+      {token &&
+        suggestions.length > 0 &&
+        pos !== null &&
         createPortal(
           <ul
             className={styles.menu}

@@ -19,7 +19,11 @@ import { SablierSla } from '@/common/SablierSla';
 import { auditApi, type Categorie, type Recommandation } from './auditApi';
 
 function formaterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 const COLONNES: Colonne<Recommandation>[] = [
@@ -32,13 +36,25 @@ const COLONNES: Colonne<Recommandation>[] = [
       <CelluleReference reference={r.reference} nombre={r.nb_commentaires} nonVus={r.nb_non_vus} />
     ),
   },
-  { cle: 'titre', entete: 'Recommandation', tronque: true, rendu: (r) => <strong title={r.titre}>{r.titre}</strong>, valeur: (r) => r.titre },
+  {
+    cle: 'titre',
+    entete: 'Recommandation',
+    tronque: true,
+    rendu: (r) => <strong title={r.titre}>{r.titre}</strong>,
+    valeur: (r) => r.titre,
+  },
   {
     cle: 'categorie',
     entete: 'Source',
-    rendu: (r) => (r.categorie ? <StatusBadge couleur="var(--cat-5)">{r.categorie}</StatusBadge> : '—'),
+    rendu: (r) =>
+      r.categorie ? <StatusBadge couleur="var(--cat-5)">{r.categorie}</StatusBadge> : '—',
   },
-  { cle: 'priorite', entete: 'Priorité', valeur: (r) => r.priorite, rendu: (r) => <BadgePriorite priorite={r.priorite} /> },
+  {
+    cle: 'priorite',
+    entete: 'Priorité',
+    valeur: (r) => r.priorite,
+    rendu: (r) => <BadgePriorite priorite={r.priorite} />,
+  },
   { cle: 'statut', entete: 'Statut', rendu: (r) => <BadgeStatut statut={r.statut} /> },
   {
     cle: 'responsable',
@@ -50,10 +66,19 @@ const COLONNES: Colonne<Recommandation>[] = [
     entete: 'Échéance SLA',
     valeur: (r) => r.sla_resolution_le ?? '',
     rendu: (r) => (
-      <SablierSla echeance={r.sla_resolution_le} debut={r.cree_le} statut={r.statut_sla ?? 'a_lheure'} />
+      <SablierSla
+        echeance={r.sla_resolution_le}
+        debut={r.cree_le}
+        statut={r.statut_sla ?? 'a_lheure'}
+      />
     ),
   },
-  { cle: 'cree_le', entete: 'Ouverte le', valeur: (r) => r.cree_le, rendu: (r) => formaterDate(r.cree_le) },
+  {
+    cle: 'cree_le',
+    entete: 'Ouverte le',
+    valeur: (r) => r.cree_le,
+    rendu: (r) => formaterDate(r.cree_le),
+  },
 ];
 
 export function AuditPage(): JSX.Element {
@@ -198,7 +223,11 @@ export function AuditPage(): JSX.Element {
       >
         <label className={styles.champ}>
           <span>Recommandation</span>
-          <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Intitulé de la recommandation" />
+          <input
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Intitulé de la recommandation"
+          />
         </label>
         {categories.length > 0 && (
           <div className={styles.champ}>

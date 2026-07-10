@@ -134,8 +134,20 @@ export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
           />
         )}
 
-        <path d={AMPOULE_HAUT} fill="none" stroke={couleur} strokeWidth="1.15" strokeLinejoin="round" />
-        <path d={AMPOULE_BAS} fill="none" stroke={couleur} strokeWidth="1.15" strokeLinejoin="round" />
+        <path
+          d={AMPOULE_HAUT}
+          fill="none"
+          stroke={couleur}
+          strokeWidth="1.15"
+          strokeLinejoin="round"
+        />
+        <path
+          d={AMPOULE_BAS}
+          fill="none"
+          stroke={couleur}
+          strokeWidth="1.15"
+          strokeLinejoin="round"
+        />
         <path
           d={`M5 ${HAUT_Y - 0.4} H19 M5 ${BAS_Y + 0.4} H19`}
           stroke={couleur}

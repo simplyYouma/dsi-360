@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { Card, Skeleton } from '@/design-system/primitives';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { infobulle } from '@/common/infobulle';
@@ -27,12 +37,52 @@ interface Segment {
 }
 
 const META_CARTES: MetaCarte[] = [
-  { libelle: 'Incidents ouverts', icone: TriangleAlert, couleur: 'var(--cat-1)', valeur: (c) => String(c.incidents_ouverts), note: (c) => `${c.incidents_critiques} critique(s)`, tonNote: (c) => (c.incidents_critiques > 0 ? 'danger' : undefined) },
-  { libelle: 'Incidents critiques', icone: ShieldAlert, couleur: 'var(--cat-4)', valeur: (c) => String(c.incidents_critiques), note: () => 'Priorité P1', tonNote: () => 'danger' },
-  { libelle: 'Respect SLA', icone: Timer, couleur: 'var(--cat-2)', valeur: (c) => `${c.respect_sla} %`, note: (c) => (c.respect_sla >= 90 ? 'Objectif tenu' : "Sous l'objectif"), tonNote: (c) => (c.respect_sla >= 90 ? 'ok' : 'warn') },
-  { libelle: 'Demandes en cours', icone: Inbox, couleur: 'var(--cat-7)', valeur: (c) => String(c.demandes_en_cours), note: () => 'À traiter' },
-  { libelle: 'Projets en retard', icone: FolderKanban, couleur: 'var(--cat-3)', valeur: (c) => String(c.projets_en_retard), note: (c) => (c.projets_en_retard > 0 ? 'À surveiller' : 'Dans les temps'), tonNote: (c) => (c.projets_en_retard > 0 ? 'warn' : 'ok') },
-  { libelle: 'Risques critiques', icone: Flame, couleur: 'var(--cat-5)', valeur: (c) => String(c.risques_critiques), note: () => 'Revue périodique' },
+  {
+    libelle: 'Incidents ouverts',
+    icone: TriangleAlert,
+    couleur: 'var(--cat-1)',
+    valeur: (c) => String(c.incidents_ouverts),
+    note: (c) => `${c.incidents_critiques} critique(s)`,
+    tonNote: (c) => (c.incidents_critiques > 0 ? 'danger' : undefined),
+  },
+  {
+    libelle: 'Incidents critiques',
+    icone: ShieldAlert,
+    couleur: 'var(--cat-4)',
+    valeur: (c) => String(c.incidents_critiques),
+    note: () => 'Priorité P1',
+    tonNote: () => 'danger',
+  },
+  {
+    libelle: 'Respect SLA',
+    icone: Timer,
+    couleur: 'var(--cat-2)',
+    valeur: (c) => `${c.respect_sla} %`,
+    note: (c) => (c.respect_sla >= 90 ? 'Objectif tenu' : "Sous l'objectif"),
+    tonNote: (c) => (c.respect_sla >= 90 ? 'ok' : 'warn'),
+  },
+  {
+    libelle: 'Demandes en cours',
+    icone: Inbox,
+    couleur: 'var(--cat-7)',
+    valeur: (c) => String(c.demandes_en_cours),
+    note: () => 'À traiter',
+  },
+  {
+    libelle: 'Projets en retard',
+    icone: FolderKanban,
+    couleur: 'var(--cat-3)',
+    valeur: (c) => String(c.projets_en_retard),
+    note: (c) => (c.projets_en_retard > 0 ? 'À surveiller' : 'Dans les temps'),
+    tonNote: (c) => (c.projets_en_retard > 0 ? 'warn' : 'ok'),
+  },
+  {
+    libelle: 'Risques critiques',
+    icone: Flame,
+    couleur: 'var(--cat-5)',
+    valeur: (c) => String(c.risques_critiques),
+    note: () => 'Revue périodique',
+  },
 ];
 
 const MODULE_META: Record<string, { nom: string; couleur: string }> = {
@@ -68,9 +118,7 @@ function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.E
                 <Cell key={i} fill={d.couleur} />
               ))}
             </Pie>
-            {total > 0 && (
-              <Tooltip {...infobulle} />
-            )}
+            {total > 0 && <Tooltip {...infobulle} />}
           </PieChart>
         </ResponsiveContainer>
         <div className={styles.donutCentre}>
@@ -89,7 +137,10 @@ function DonutAnneau({ data, unite }: { data: Segment[]; unite: string }): JSX.E
                 <span className={styles.legendeVal}>{d.valeur}</span>
               </div>
               <div className={styles.track}>
-                <div className={styles.trackPlein} style={{ width: `${pct}%`, background: d.couleur }} />
+                <div
+                  className={styles.trackPlein}
+                  style={{ width: `${pct}%`, background: d.couleur }}
+                />
               </div>
             </li>
           );
@@ -211,54 +262,57 @@ export function DashboardPage(): JSX.Element {
         />
       </header>
 
-      <div ref={contenuRef} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <section className={styles.grille}>
-        {META_CARTES.map((m) => {
-          const Icone = m.icone;
-          return (
-            <Card key={m.libelle} className={styles.kpi}>
-              <div className={styles.kpiTete}>
-                <span className={styles.kpiIcone} style={{ color: m.couleur }}>
-                  <Icone size={18} />
-                </span>
-                <span className={styles.kpiLibelle}>{m.libelle}</span>
-              </div>
-              {tableau ? (
-                <>
-                  <div className={styles.kpiValeur}>{m.valeur(tableau.cartes)}</div>
-                  <div className={styles.kpiNote} data-ton={m.tonNote?.(tableau.cartes)}>
-                    {m.note(tableau.cartes)}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Skeleton largeur="64px" hauteur="34px" />
-                  <Skeleton largeur="96px" hauteur="12px" />
-                </>
-              )}
-            </Card>
-          );
-        })}
-      </section>
+      <div
+        ref={contenuRef}
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}
+      >
+        <section className={styles.grille}>
+          {META_CARTES.map((m) => {
+            const Icone = m.icone;
+            return (
+              <Card key={m.libelle} className={styles.kpi}>
+                <div className={styles.kpiTete}>
+                  <span className={styles.kpiIcone} style={{ color: m.couleur }}>
+                    <Icone size={18} />
+                  </span>
+                  <span className={styles.kpiLibelle}>{m.libelle}</span>
+                </div>
+                {tableau ? (
+                  <>
+                    <div className={styles.kpiValeur}>{m.valeur(tableau.cartes)}</div>
+                    <div className={styles.kpiNote} data-ton={m.tonNote?.(tableau.cartes)}>
+                      {m.note(tableau.cartes)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Skeleton largeur="64px" hauteur="34px" />
+                    <Skeleton largeur="96px" hauteur="12px" />
+                  </>
+                )}
+              </Card>
+            );
+          })}
+        </section>
 
-      <section className={styles.charts}>
-        <Card>
-          <h2 className={styles.chartTitre}>Répartition des activités</h2>
-          {tableau ? (
-            <DonutAnneau data={repartition} unite="activités" />
-          ) : (
-            <Skeleton hauteur="196px" radius="var(--radius-md)" />
-          )}
-        </Card>
-        <Card>
-          <h2 className={styles.chartTitre}>Respect des échéances SLA</h2>
-          {tableau ? (
-            <TendanceSla serie={tableau.serie} courant={sla} />
-          ) : (
-            <Skeleton hauteur="210px" radius="var(--radius-md)" />
-          )}
-        </Card>
-      </section>
+        <section className={styles.charts}>
+          <Card>
+            <h2 className={styles.chartTitre}>Répartition des activités</h2>
+            {tableau ? (
+              <DonutAnneau data={repartition} unite="activités" />
+            ) : (
+              <Skeleton hauteur="196px" radius="var(--radius-md)" />
+            )}
+          </Card>
+          <Card>
+            <h2 className={styles.chartTitre}>Respect des échéances SLA</h2>
+            {tableau ? (
+              <TendanceSla serie={tableau.serie} courant={sla} />
+            ) : (
+              <Skeleton hauteur="210px" radius="var(--radius-md)" />
+            )}
+          </Card>
+        </section>
       </div>
     </div>
   );
