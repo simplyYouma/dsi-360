@@ -32,18 +32,23 @@ async def _equipe(session: AsyncSession, suffixe: str) -> dict[str, str]:
 
 
 async def _incident_dote(session: AsyncSession, suffixe: str) -> tuple[str, dict[str, str]]:
+    """Un changement doté de ses acteurs.
+
+    Les incidents et les demandes ne se pilotent plus depuis la plateforme (ADR-0005) : ces gardes
+    s'exercent donc sur un module que l'on pilote vraiment.
+    """
     gens = await _equipe(session, suffixe)
-    incident = await creer_activite(
+    activite = await creer_activite(
         session,
-        module="incident",
-        reference=f"INC-ADM-{suffixe}",
+        module="changement",
+        reference=f"CHG-ADM-{suffixe}",
         responsable_id=gens["responsable"],
     )
     await designer(
-        session, activite_id=incident, utilisateur_id=gens["contributeur"], role="CONTRIBUTEUR"
+        session, activite_id=activite, utilisateur_id=gens["contributeur"], role="CONTRIBUTEUR"
     )
-    await designer(session, activite_id=incident, utilisateur_id=gens["valideur"], role="VALIDEUR")
-    return incident, gens
+    await designer(session, activite_id=activite, utilisateur_id=gens["valideur"], role="VALIDEUR")
+    return activite, gens
 
 
 NON_ADMINS = ["responsable", "contributeur", "valideur", "lecteur"]
@@ -58,7 +63,7 @@ async def test_l_admin_assigne_le_gestionnaire(
     incident, gens = await _incident_dote(session, "assign1")
 
     r = await client.post(
-        f"/incidents/{incident}/assignation",
+        f"/changements/{incident}/assignation",
         headers=entetes(gens["admin"]),
         json={"responsable_id": gens["lecteur"]},
     )
@@ -74,7 +79,7 @@ async def test_personne_d_autre_n_assigne(
     incident, gens = await _incident_dote(session, f"assign-{role}")
 
     r = await client.post(
-        f"/incidents/{incident}/assignation",
+        f"/changements/{incident}/assignation",
         headers=entetes(gens[role]),
         json={"responsable_id": gens["lecteur"]},
     )
@@ -89,7 +94,7 @@ async def test_le_responsable_ne_peut_pas_se_debarrasser_du_ticket(
     incident, gens = await _incident_dote(session, "desassign")
 
     r = await client.post(
-        f"/incidents/{incident}/assignation",
+        f"/changements/{incident}/assignation",
         headers=entetes(gens["responsable"]),
         json={"responsable_id": None},
     )
@@ -107,7 +112,7 @@ async def test_on_ne_designe_pas_un_agent_sans_acces_au_module(
     await session.execute(
         text(
             "DELETE FROM core.acces_role "
-            "WHERE profil_code = 'SUPPORT_APP' AND acces = 'incidents'"
+            "WHERE profil_code = 'SUPPORT_APP' AND acces = 'changements'"
         )
     )
     await session.commit()
@@ -116,7 +121,7 @@ async def test_on_ne_designe_pas_un_agent_sans_acces_au_module(
     )
 
     r = await client.post(
-        f"/incidents/{incident}/assignation",
+        f"/changements/{incident}/assignation",
         headers=entetes(gens["admin"]),
         json={"responsable_id": sans_acces},
     )
@@ -131,7 +136,7 @@ async def test_on_ne_designe_pas_un_compte_inactif(
     inactif = await creer_utilisateur(session, email="inactif.inc@afgbank.ml", actif=False)
 
     r = await client.post(
-        f"/incidents/{incident}/assignation",
+        f"/changements/{incident}/assignation",
         headers=entetes(gens["admin"]),
         json={"responsable_id": inactif},
     )
@@ -147,11 +152,13 @@ async def test_seul_l_admin_assigne_en_lot(client: AsyncClient, session: AsyncSe
     corps = {"ids": [incident], "responsable_id": gens["lecteur"]}
 
     assert (
-        await client.post("/incidents/assignation-lot", headers=entetes(gens["admin"]), json=corps)
+        await client.post(
+            "/changements/assignation-lot", headers=entetes(gens["admin"]), json=corps
+        )
     ).status_code == 200
     assert (
         await client.post(
-            "/incidents/assignation-lot", headers=entetes(gens["responsable"]), json=corps
+            "/changements/assignation-lot", headers=entetes(gens["responsable"]), json=corps
         )
     ).status_code == 403
 
@@ -165,7 +172,7 @@ async def test_l_admin_reevalue_impact_et_urgence(
     incident, gens = await _incident_dote(session, "eval1")
 
     r = await client.post(
-        f"/incidents/{incident}/evaluation",
+        f"/changements/{incident}/evaluation",
         headers=entetes(gens["admin"]),
         json={"impact": 5, "urgence": 5},
     )
@@ -181,7 +188,7 @@ async def test_personne_d_autre_ne_reevalue(
     incident, gens = await _incident_dote(session, f"eval-{role}")
 
     r = await client.post(
-        f"/incidents/{incident}/evaluation",
+        f"/changements/{incident}/evaluation",
         headers=entetes(gens[role]),
         json={"impact": 5, "urgence": 5},
     )
@@ -252,18 +259,20 @@ async def test_l_admin_designe_contributeurs_et_valideurs(
 
     assert (
         await client.post(
-            f"/incidents/{incident}/contributeurs",
+            f"/changements/{incident}/contributeurs",
             headers=h,
             json={"utilisateur_id": gens["lecteur"]},
         )
     ).status_code == 200
     assert (
         await client.post(
-            f"/incidents/{incident}/valideurs", headers=h, json={"utilisateur_id": gens["lecteur"]}
+            f"/changements/{incident}/valideurs",
+            headers=h,
+            json={"utilisateur_id": gens["lecteur"]},
         )
     ).status_code == 200
     assert (
-        await client.delete(f"/incidents/{incident}/contributeurs/{gens['lecteur']}", headers=h)
+        await client.delete(f"/changements/{incident}/contributeurs/{gens['lecteur']}", headers=h)
     ).status_code == 200
 
 
@@ -274,7 +283,7 @@ async def test_personne_d_autre_ne_designe_d_acteurs(
     incident, gens = await _incident_dote(session, f"designe-{role}")
 
     r = await client.post(
-        f"/incidents/{incident}/contributeurs",
+        f"/changements/{incident}/contributeurs",
         headers=entetes(gens[role]),
         json={"utilisateur_id": gens["lecteur"]},
     )
@@ -289,7 +298,7 @@ async def test_un_agent_ne_peut_plus_se_designer_valideur(
     incident, gens = await _incident_dote(session, "autodesigne")
 
     r = await client.post(
-        f"/incidents/{incident}/valideurs",
+        f"/changements/{incident}/valideurs",
         headers=entetes(gens["contributeur"]),
         json={"utilisateur_id": gens["contributeur"]},
     )

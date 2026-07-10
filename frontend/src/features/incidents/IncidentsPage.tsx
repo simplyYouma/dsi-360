@@ -4,12 +4,11 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { FiltreTickets } from '@/common/FiltreTickets';
-import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
 import { CelluleReference } from '@/common/CelluleReference';
 import { NiveauSupport } from '@/common/NiveauSupport';
 import { BadgeStatut } from '@/common/statuts';
-import { incidentsApi, assignerLot, type Incident, type FiltresListe } from './incidentsApi';
+import { incidentsApi, type Incident, type FiltresListe } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
 import { useRafraichissement } from '@/common/useRafraichissement';
 
@@ -80,7 +79,6 @@ export function IncidentsPage(): JSX.Element {
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
   const [filtres, setFiltres] = useState<FiltresListe>({ etat: 'en_cours' });
-  const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const charger = useCallback(
     // `silencieux` : rafraîchissement de fond — pas de squelette, la table ne doit pas clignoter.
@@ -120,23 +118,10 @@ export function IncidentsPage(): JSX.Element {
         valeur={filtres}
         onChange={(f) => {
           setPage(1);
-          setSelection(new Set());
           setFiltres(f);
         }}
       />
 
-      {selection.size > 0 && (
-        <DispatchBar
-          module="incidents"
-          count={selection.size}
-          onEffacer={() => setSelection(new Set())}
-          onAssigner={async (resp) => {
-            await assignerLot('/incidents', [...selection], resp);
-            setSelection(new Set());
-            await charger(page);
-          }}
-        />
-      )}
 
       <Table
         colonnes={COLONNES}
@@ -151,36 +136,17 @@ export function IncidentsPage(): JSX.Element {
           total,
           taille: 15,
           onPage: (p) => {
-            setSelection(new Set());
-            setPage(p);
+              setPage(p);
           },
-        }}
-        selection={{
-          selectionnes: selection,
-          onBasculer: (id) =>
-            setSelection((s) => {
-              const n = new Set(s);
-              if (n.has(id)) n.delete(id);
-              else n.add(id);
-              return n;
-            }),
-          onTout: (ids, tout) =>
-            setSelection((s) => {
-              const n = new Set(s);
-              ids.forEach((i) => (tout ? n.add(i) : n.delete(i)));
-              return n;
-            }),
         }}
       />
 
       <FicheTransition
         base="/incidents"
         id={ficheId}
-        assignable
         avecDocuments
         gestionnaireFige
         avecNiveauSupport
-        moduleCategorie="incident"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
         onVu={(aid) =>

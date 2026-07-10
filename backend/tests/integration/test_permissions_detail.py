@@ -118,14 +118,14 @@ async def test_les_permissions_sont_exposees_sur_les_risques(
     assert not (await _permissions(client, "/risques", risque, lecteur))["peut_assigner"]
 
 
-async def test_un_incident_importe_laisse_travailler_tout_agent(
+async def test_un_incident_importe_n_offre_aucune_action(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """L'écran doit refléter l'exception des tickets importés, sinon il masquerait à tort."""
-    lecteur = await creer_utilisateur(session, email="lecteur.perminc@afgbank.ml")
+    """Même l'administrateur n'agit pas sur un ticket importé : l'écran ne doit rien proposer.
+
+    Sinon il laisserait cliquer là où le serveur répond 404 (ADR-0005).
+    """
+    admin = await creer_utilisateur(session, email="admin.perminc@afgbank.ml", profil="ADMIN")
     incident = await creer_activite(session, module="incident", reference="INC-PRM-1")
 
-    p = await _permissions(client, "/incidents", incident, lecteur)
-
-    assert p["peut_travailler"], "les tickets importés restent traitables par tout agent"
-    assert not p["peut_assigner"], "assigner reste à l'administrateur, même sur un import"
+    assert not any((await _permissions(client, "/incidents", incident, admin)).values())

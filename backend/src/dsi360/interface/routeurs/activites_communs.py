@@ -372,331 +372,340 @@ def creer_routeur(
         base["valideurs"] = [dict(c) for c in await repo.lister_valideurs(session, r["id"])]
         # Le serveur calcule les capacités ; l'écran obéit. La règle ne vit qu'ici.
         roles = await charger_roles(session, r, courant)
-        base["permissions"] = capacites(roles, travail_ouvert=import_uniquement)
+        base["permissions"] = capacites(roles, lecture_seule=import_uniquement)
         return base
 
-    # Déclaré avant /{ident} pour éviter que "assignation-lot" soit pris pour un identifiant.
-    @routeur.post("/assignation-lot", response_model=ResultatAssignationLot)
-    async def assigner_lot(
-        corps: AssignationLot, courant: Courant, session: Session
-    ) -> dict[str, int]:
-        # Cette route ne porte pas sur une activité : la garde de rôle ne s'applique pas,
-        # on exige l'administrateur directement. Le périmètre reste filtré ticket par ticket.
-        exiger_admin(courant)
-        await exiger_agent_designable(session, corps.responsable_id, acces)
-        assignes = 0
-        for ident in corps.ids:
-            r = await repo.par_id(session, module, ident, moi=courant["id"])
-            if r is None or not _visible(r, courant):
-                continue  # on ignore silencieusement hors périmètre / introuvable
-            await repo.assigner(session, ident, corps.responsable_id)
-            assignes += 1
-        if assignes > 0 and corps.responsable_id not in (None, courant["id"]):
-            await session.execute(
-                text(
-                    "INSERT INTO core.notification "
-                    "(destinataire_id, type, titre, message) "
-                    "VALUES (cast(:dest as uuid), 'ASSIGNATION', :titre, :msg)"
-                ),
-                {
-                    "dest": corps.responsable_id,
-                    "titre": f"{assignes} ticket(s) assigné(s)",
-                    "msg": f"{assignes} {tag.lower()} vous ont été affectés.",
-                },
+    # Incidents et demandes ne se pilotent pas ici : ils sont traités dans un autre système,
+    # et l'import du lendemain effacerait toute modification. On observe, on n'agit pas.
+    if not import_uniquement:
+        # Déclaré avant /{ident} pour éviter que "assignation-lot" soit pris pour un identifiant.
+        @routeur.post("/assignation-lot", response_model=ResultatAssignationLot)
+        async def assigner_lot(
+            corps: AssignationLot, courant: Courant, session: Session
+        ) -> dict[str, int]:
+            # Cette route ne porte pas sur une activité : la garde de rôle ne s'applique pas,
+            # on exige l'administrateur directement. Le périmètre reste filtré ticket par ticket.
+            exiger_admin(courant)
+            await exiger_agent_designable(session, corps.responsable_id, acces)
+            assignes = 0
+            for ident in corps.ids:
+                r = await repo.par_id(session, module, ident, moi=courant["id"])
+                if r is None or not _visible(r, courant):
+                    continue  # on ignore silencieusement hors périmètre / introuvable
+                await repo.assigner(session, ident, corps.responsable_id)
+                assignes += 1
+            if assignes > 0 and corps.responsable_id not in (None, courant["id"]):
+                await session.execute(
+                    text(
+                        "INSERT INTO core.notification "
+                        "(destinataire_id, type, titre, message) "
+                        "VALUES (cast(:dest as uuid), 'ASSIGNATION', :titre, :msg)"
+                    ),
+                    {
+                        "dest": corps.responsable_id,
+                        "titre": f"{assignes} ticket(s) assigné(s)",
+                        "msg": f"{assignes} {tag.lower()} vous ont été affectés.",
+                    },
+                )
+            await audit.consigner(
+                session,
+                action="ASSIGNATION_LOT",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=f"{assignes} tickets",
+                nouvelle={"responsable_id": corps.responsable_id, "assignes": assignes},
             )
-        await audit.consigner(
-            session,
-            action="ASSIGNATION_LOT",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=f"{assignes} tickets",
-            nouvelle={"responsable_id": corps.responsable_id, "assignes": assignes},
-        )
-        await session.commit()
-        return {"assignes": assignes}
+            await session.commit()
+            return {"assignes": assignes}
 
     @routeur.get("/{ident}", response_model=ActiviteDetail)
     async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session, courant)
 
-    @routeur.post("/{ident}/transition", response_model=ActiviteDetail)
-    async def transitionner(
-        ident: str, corps: TransitionDemande, ctx: CtxActeur, session: Session
-    ) -> dict[str, Any]:
-        """Faire avancer le sujet : gestionnaire, contributeurs et administrateur."""
-        courant = ctx.courant
-        try:
-            await transition(session, module, ident, corps.vers, courant)
-        except ActiviteIntrouvable as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Introuvable."
-            ) from exc
-        except TransitionInterdite as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
-            ) from exc
-        except DossierIncomplet as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Le comité ne peut pas délibérer sur un dossier incomplet. "
-                    f"Complétez d'abord : {', '.join(exc.manquantes)}."
-                ),
-            ) from exc
-        except TransitionReservee as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Cette étape se décide via les valideurs (approbation), "
-                    "pas par un changement d'état manuel."
-                ),
-            ) from exc
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.post("/{ident}/assignation", response_model=ActiviteDetail)
-    async def assigner(
-        ident: str, corps: AssignationDemande, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        """Confier l'activité à un gestionnaire. Seul l'administrateur distribue le travail."""
-        courant, avant = ctx.courant, ctx.activite
-        await exiger_agent_designable(session, corps.responsable_id, acces)
-        await repo.assigner(session, ident, corps.responsable_id)
-        # Notifie l'agent nouvellement assigné (sauf s'il s'assigne lui-même).
-        if (
-            corps.responsable_id is not None
-            and corps.responsable_id != avant["resp_id"]
-            and corps.responsable_id != courant["id"]
-        ):
-            await session.execute(
-                text(
-                    "INSERT INTO core.notification "
-                    "(destinataire_id, activite_id, type, titre, message) "
-                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', :titre, :msg)"
-                ),
-                {
-                    "dest": corps.responsable_id,
-                    "aid": avant["id"],
-                    "titre": f"Ticket assigné : {avant['reference']}",
-                    "msg": avant["titre"],
-                },
-            )
-        # Réaffectation : prévient aussi l'ancien responsable qu'il n'est plus en charge.
-        if avant["resp_id"] is not None and avant["resp_id"] != corps.responsable_id:
-            await notifier(
-                session,
-                destinataire_id=str(avant["resp_id"]),
-                activite_id=str(avant["id"]),
-                type_="ASSIGNATION",
-                titre=f"Ticket réaffecté : {avant['reference']}",
-                message=f"{avant['reference']} ne vous est plus assigné.",
-            )
-        await audit.consigner(
-            session,
-            action="ASSIGNATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            ancienne={"responsable_id": avant["resp_id"]},
-            nouvelle={"responsable_id": corps.responsable_id},
-        )
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.post("/{ident}/categorie", response_model=ActiviteDetail)
-    async def changer_categorie(
-        ident: str, corps: CategorieDemande, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        """Catégorie, ou Type d'un changement : il pilote le circuit CAB et dérive la priorité."""
-        courant, avant = ctx.courant, ctx.activite
-        if corps.categorie_id is not None:
-            ok = await session.scalar(
-                text("SELECT 1 FROM core.categorie WHERE id::text = :c AND module = :m"),
-                {"c": corps.categorie_id, "m": module},
-            )
-            if ok is None:
+    # Incidents et demandes ne se pilotent pas ici : ils sont traités dans un autre système,
+    # et l'import du lendemain effacerait toute modification. On observe, on n'agit pas.
+    if not import_uniquement:
+        @routeur.post("/{ident}/transition", response_model=ActiviteDetail)
+        async def transitionner(
+            ident: str, corps: TransitionDemande, ctx: CtxActeur, session: Session
+        ) -> dict[str, Any]:
+            """Faire avancer le sujet : gestionnaire, contributeurs et administrateur."""
+            courant = ctx.courant
+            try:
+                await transition(session, module, ident, corps.vers, courant)
+            except ActiviteIntrouvable as exc:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Catégorie inconnue pour ce module.",
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Introuvable."
+                ) from exc
+            except TransitionInterdite as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=f"Transition interdite : {exc}"
+                ) from exc
+            except DossierIncomplet as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "Le comité ne peut pas délibérer sur un dossier incomplet. "
+                        f"Complétez d'abord : {', '.join(exc.manquantes)}."
+                    ),
+                ) from exc
+            except TransitionReservee as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "Cette étape se décide via les valideurs (approbation), "
+                        "pas par un changement d'état manuel."
+                    ),
+                ) from exc
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.post("/{ident}/assignation", response_model=ActiviteDetail)
+        async def assigner(
+            ident: str, corps: AssignationDemande, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            """Confier l'activité à un gestionnaire. Seul l'administrateur distribue le travail."""
+            courant, avant = ctx.courant, ctx.activite
+            await exiger_agent_designable(session, corps.responsable_id, acces)
+            await repo.assigner(session, ident, corps.responsable_id)
+            # Notifie l'agent nouvellement assigné (sauf s'il s'assigne lui-même).
+            if (
+                corps.responsable_id is not None
+                and corps.responsable_id != avant["resp_id"]
+                and corps.responsable_id != courant["id"]
+            ):
+                await session.execute(
+                    text(
+                        "INSERT INTO core.notification "
+                        "(destinataire_id, activite_id, type, titre, message) "
+                        "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', "
+                        ":titre, :msg)"
+                    ),
+                    {
+                        "dest": corps.responsable_id,
+                        "aid": avant["id"],
+                        "titre": f"Ticket assigné : {avant['reference']}",
+                        "msg": avant["titre"],
+                    },
                 )
-        await session.execute(
-            text(
-                "UPDATE core.activite SET categorie_id = cast(:c as uuid) "
-                "WHERE id = cast(:id as uuid)"
-            ),
-            {"c": corps.categorie_id, "id": ident},
-        )
-        await audit.consigner(
-            session,
-            action="MODIFICATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            nouvelle={"categorie_id": corps.categorie_id},
-        )
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
-    async def ajouter_contributeur(
-        ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        """Un contributeur a les droits de travail du gestionnaire : seul l'admin le désigne."""
-        courant, avant = ctx.courant, ctx.activite
-        await exiger_agent_designable(session, corps.utilisateur_id, acces)
-        await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
-        # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
-        if corps.utilisateur_id != courant["id"]:
-            await session.execute(
-                text(
-                    "INSERT INTO core.notification "
-                    "(destinataire_id, activite_id, type, titre, message) "
-                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', :titre, :msg)"
-                ),
-                {
-                    "dest": corps.utilisateur_id,
-                    "aid": avant["id"],
-                    "titre": f"Contributeur : {avant['reference']}",
-                    "msg": avant["titre"],
-                },
-            )
-        await audit.consigner(
-            session,
-            action="MODIFICATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            nouvelle={"contributeur_ajoute": corps.utilisateur_id},
-        )
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
-    async def retirer_contributeur(
-        ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        courant, avant = ctx.courant, ctx.activite
-        await repo.retirer_contributeur(session, ident, utilisateur_id)
-        await audit.consigner(
-            session,
-            action="MODIFICATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            ancienne={"contributeur_retire": utilisateur_id},
-        )
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.post("/{ident}/valideurs", response_model=ActiviteDetail)
-    async def ajouter_valideur(
-        ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        """Seul l'admin désigne les valideurs : sinon on s'auto-désigne, puis on s'approuve."""
-        courant, avant = ctx.courant, ctx.activite
-        await exiger_agent_designable(session, corps.utilisateur_id, acces)
-        await repo.ajouter_valideur(session, ident, corps.utilisateur_id)
-        # Notifie le valideur désigné (sauf s'il se désigne lui-même).
-        if corps.utilisateur_id != courant["id"]:
-            await session.execute(
-                text(
-                    "INSERT INTO core.notification "
-                    "(destinataire_id, activite_id, type, titre, message) "
-                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'VALIDATION', :titre, :msg)"
-                ),
-                {
-                    "dest": corps.utilisateur_id,
-                    "aid": avant["id"],
-                    "titre": f"Validation demandée : {avant['reference']}",
-                    "msg": avant["titre"],
-                },
-            )
-        await audit.consigner(
-            session,
-            action="MODIFICATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            nouvelle={"valideur_ajoute": corps.utilisateur_id},
-        )
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.delete("/{ident}/valideurs/{utilisateur_id}", response_model=ActiviteDetail)
-    async def retirer_valideur(
-        ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        courant, avant = ctx.courant, ctx.activite
-        await repo.retirer_valideur(session, ident, utilisateur_id)
-        await audit.consigner(
-            session,
-            action="MODIFICATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            ancienne={"valideur_retire": utilisateur_id},
-        )
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
-
-    @routeur.post("/{ident}/decision", response_model=ActiviteDetail)
-    async def decider(
-        ident: str, corps: DecisionDemande, courant: Courant, session: Session
-    ) -> dict[str, Any]:
-        """Un valideur approuve ou rejette l'activité (approbation ITIL : CAB/ECAB, demandes)."""
-        avant = await charger_visible(session, ident, courant)
-        ok = await repo.definir_decision(session, ident, courant["id"], corps.decision)
-        if not ok:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Vous n'êtes pas valideur de cette activité.",
-            )
-        libelle = "approuvé" if corps.decision == "APPROUVE" else "rejeté"
-        if avant["resp_id"] is not None and str(avant["resp_id"]) != courant["id"]:
-            await notifier(
+            # Réaffectation : prévient aussi l'ancien responsable qu'il n'est plus en charge.
+            if avant["resp_id"] is not None and avant["resp_id"] != corps.responsable_id:
+                await notifier(
+                    session,
+                    destinataire_id=str(avant["resp_id"]),
+                    activite_id=str(avant["id"]),
+                    type_="ASSIGNATION",
+                    titre=f"Ticket réaffecté : {avant['reference']}",
+                    message=f"{avant['reference']} ne vous est plus assigné.",
+                )
+            await audit.consigner(
                 session,
-                destinataire_id=str(avant["resp_id"]),
-                activite_id=str(avant["id"]),
-                type_="VALIDATION",
-                titre=f"{avant['reference']} — {libelle} par un valideur",
-                message=f"{courant['email']} a {libelle} {avant['reference']}.",
+                action="ASSIGNATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                ancienne={"responsable_id": avant["resp_id"]},
+                nouvelle={"responsable_id": corps.responsable_id},
             )
-        await audit.consigner(
-            session,
-            action="MODIFICATION",
-            acteur_id=courant["id"],
-            acteur_email=courant["email"],
-            module=module,
-            cible_type=module,
-            cible_id=avant["reference"],
-            nouvelle={"decision": corps.decision},
-        )
-        await session.commit()
-        # Enchaîne le workflow : approbation unanime → validé ; un rejet → rejeté (ITIL CAB/ECAB).
-        await appliquer_decisions(session, module, ident, courant)
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.post("/{ident}/categorie", response_model=ActiviteDetail)
+        async def changer_categorie(
+            ident: str, corps: CategorieDemande, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            """Catégorie, ou Type d'un changement : il pilote le CAB et dérive la priorité."""
+            courant, avant = ctx.courant, ctx.activite
+            if corps.categorie_id is not None:
+                ok = await session.scalar(
+                    text("SELECT 1 FROM core.categorie WHERE id::text = :c AND module = :m"),
+                    {"c": corps.categorie_id, "m": module},
+                )
+                if ok is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Catégorie inconnue pour ce module.",
+                    )
+            await session.execute(
+                text(
+                    "UPDATE core.activite SET categorie_id = cast(:c as uuid) "
+                    "WHERE id = cast(:id as uuid)"
+                ),
+                {"c": corps.categorie_id, "id": ident},
+            )
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                nouvelle={"categorie_id": corps.categorie_id},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
+        async def ajouter_contributeur(
+            ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            """Un contributeur a les droits de travail du gestionnaire : seul l'admin le désigne."""
+            courant, avant = ctx.courant, ctx.activite
+            await exiger_agent_designable(session, corps.utilisateur_id, acces)
+            await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
+            # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
+            if corps.utilisateur_id != courant["id"]:
+                await session.execute(
+                    text(
+                        "INSERT INTO core.notification "
+                        "(destinataire_id, activite_id, type, titre, message) "
+                        "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', "
+                        ":titre, :msg)"
+                    ),
+                    {
+                        "dest": corps.utilisateur_id,
+                        "aid": avant["id"],
+                        "titre": f"Contributeur : {avant['reference']}",
+                        "msg": avant["titre"],
+                    },
+                )
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                nouvelle={"contributeur_ajoute": corps.utilisateur_id},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
+        async def retirer_contributeur(
+            ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            courant, avant = ctx.courant, ctx.activite
+            await repo.retirer_contributeur(session, ident, utilisateur_id)
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                ancienne={"contributeur_retire": utilisateur_id},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.post("/{ident}/valideurs", response_model=ActiviteDetail)
+        async def ajouter_valideur(
+            ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            """Seul l'admin désigne les valideurs : sinon on s'auto-désigne, puis on s'approuve."""
+            courant, avant = ctx.courant, ctx.activite
+            await exiger_agent_designable(session, corps.utilisateur_id, acces)
+            await repo.ajouter_valideur(session, ident, corps.utilisateur_id)
+            # Notifie le valideur désigné (sauf s'il se désigne lui-même).
+            if corps.utilisateur_id != courant["id"]:
+                await session.execute(
+                    text(
+                        "INSERT INTO core.notification "
+                        "(destinataire_id, activite_id, type, titre, message) "
+                        "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'VALIDATION', "
+                        ":titre, :msg)"
+                    ),
+                    {
+                        "dest": corps.utilisateur_id,
+                        "aid": avant["id"],
+                        "titre": f"Validation demandée : {avant['reference']}",
+                        "msg": avant["titre"],
+                    },
+                )
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                nouvelle={"valideur_ajoute": corps.utilisateur_id},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.delete("/{ident}/valideurs/{utilisateur_id}", response_model=ActiviteDetail)
+        async def retirer_valideur(
+            ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            courant, avant = ctx.courant, ctx.activite
+            await repo.retirer_valideur(session, ident, utilisateur_id)
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                ancienne={"valideur_retire": utilisateur_id},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
+
+        @routeur.post("/{ident}/decision", response_model=ActiviteDetail)
+        async def decider(
+            ident: str, corps: DecisionDemande, courant: Courant, session: Session
+        ) -> dict[str, Any]:
+            """Un valideur approuve ou rejette l'activité (ITIL : CAB/ECAB, demandes)."""
+            avant = await charger_visible(session, ident, courant)
+            ok = await repo.definir_decision(session, ident, courant["id"], corps.decision)
+            if not ok:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Vous n'êtes pas valideur de cette activité.",
+                )
+            libelle = "approuvé" if corps.decision == "APPROUVE" else "rejeté"
+            if avant["resp_id"] is not None and str(avant["resp_id"]) != courant["id"]:
+                await notifier(
+                    session,
+                    destinataire_id=str(avant["resp_id"]),
+                    activite_id=str(avant["id"]),
+                    type_="VALIDATION",
+                    titre=f"{avant['reference']} — {libelle} par un valideur",
+                    message=f"{courant['email']} a {libelle} {avant['reference']}.",
+                )
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                nouvelle={"decision": corps.decision},
+            )
+            await session.commit()
+            # Enchaîne le workflow : unanimité → validé ; un rejet → rejeté (ITIL CAB/ECAB).
+            await appliquer_decisions(session, module, ident, courant)
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
 
     if avec_revue:
 
@@ -829,26 +838,34 @@ def creer_routeur(
             return dict(ligne)
 
 
-    @routeur.post("/{ident}/evaluation", response_model=ActiviteDetail)
-    async def evaluer(
-        ident: str, corps: EvaluationDemande, ctx: CtxAdmin, session: Session
-    ) -> dict[str, Any]:
-        """Réévalue impact/urgence : recalcule la priorité et repositionne les échéances SLA.
+    # Incidents et demandes ne se pilotent pas ici : ils sont traités dans un autre système,
+    # et l'import du lendemain effacerait toute modification. On observe, on n'agit pas.
+    if not import_uniquement:
+        @routeur.post("/{ident}/evaluation", response_model=ActiviteDetail)
+        async def evaluer(
+            ident: str, corps: EvaluationDemande, ctx: CtxAdmin, session: Session
+        ) -> dict[str, Any]:
+            """Réévalue impact/urgence : recalcule la priorité et repositionne les échéances SLA.
 
-        Fixer la priorité, c'est fixer l'engagement pris envers le demandeur : réservé à l'admin.
-        """
-        courant = ctx.courant
-        try:
-            await reevaluer(
-                session, module, ident, impact=corps.impact, urgence=corps.urgence, acteur=courant
-            )
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-            ) from exc
-        await session.commit()
-        r = await charger_visible(session, ident, courant)
-        return await detail_complet(r, session, courant)
+            Fixer la priorité, c'est fixer l'engagement envers le demandeur : réservé à l'admin.
+            """
+            courant = ctx.courant
+            try:
+                await reevaluer(
+                    session,
+                    module,
+                    ident,
+                    impact=corps.impact,
+                    urgence=corps.urgence,
+                    acteur=courant,
+                )
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
 
     if editable:
 

@@ -3,10 +3,8 @@
 L'administrateur, le gestionnaire et les contributeurs transitionnent l'activité, créent des tâches,
 posent des notes et des liens. Le valideur ne travaille pas — il décide. Le lecteur regarde.
 
-**Exception des tickets importés** : incidents et demandes viennent du rapport quotidien. Un
-incident importé sans gestionnaire rapproché n'aurait aucun acteur : plus personne ne pourrait
-l'escalader ni le clore. Pour ces deux modules, l'accès au module suffit encore à travailler ;
-leur cas se traite dans un lot dédié.
+Les incidents et les demandes ne se pilotent pas depuis la plateforme (ADR-0005) : leurs gardes
+d'écriture sont couvertes par `test_lecture_seule.py`.
 """
 
 import pytest
@@ -233,37 +231,3 @@ async def test_le_lecteur_ne_modifie_pas_le_cadrage_d_un_projet(
             f"/projets/{projet}", headers=entetes(gens["responsable"]), json={"sponsor": "La DG"}
         )
     ).status_code == 200
-
-
-# --- Exception des tickets importés --------------------------------------------------------------
-
-
-async def test_un_incident_importe_reste_traitable_par_tout_agent(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    """Sans cette exception, un incident importé sans gestionnaire n'aurait aucun acteur."""
-    gens = await _equipe(session, "import-inc")
-    incident = await creer_activite(session, module="incident", reference="INC-ACT-1")
-
-    r = await client.post(
-        f"/incidents/{incident}/transition",
-        headers=entetes(gens["lecteur"]),
-        json={"vers": "Ouvert"},
-    )
-
-    assert r.status_code == 200, r.text
-
-
-async def test_une_demande_importee_reste_traitable_par_tout_agent(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    gens = await _equipe(session, "import-dem")
-    demande = await creer_activite(session, module="demande", reference="DEM-ACT-1")
-
-    r = await client.post(
-        f"/demandes/{demande}/transition",
-        headers=entetes(gens["lecteur"]),
-        json={"vers": "Qualifiée"},
-    )
-
-    assert r.status_code == 200, r.text
