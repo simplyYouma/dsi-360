@@ -37,7 +37,7 @@ from dsi360.interface.schemas import (
     TacheMaj,
     TransitionDemande,
 )
-from dsi360.interface.securite import exiger_acces
+from dsi360.interface.securite import exiger_acces, exiger_admin, exiger_agent_designable
 
 MODULE = "projet"
 _ACCES = "projets"
@@ -136,6 +136,13 @@ async def lister(
 
 @routeur.post("", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)
 async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> dict[str, str]:
+    """Ouvrir un projet est permis à tout profil du module ; en nommer le chef ne l'est pas.
+
+    Le créateur ne devient donc acteur que si l'administrateur le désigne — c'est lui qui distribue.
+    """
+    if corps.responsable_id is not None:
+        exiger_admin(courant)
+        await exiger_agent_designable(session, corps.responsable_id, _ACCES)
     ident = await creer_projet(
         session,
         titre=corps.titre,
@@ -157,15 +164,11 @@ async def modifier(
 ) -> dict[str, Any]:
     await _charger(session, ident, courant)
     champs = corps.model_dump(exclude_unset=True)
-    if champs.get("responsable_id") is not None:
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-            {"id": champs["responsable_id"]},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+    # Changer de chef de projet, c'est redistribuer le travail : réservé à l'administrateur.
+    # Le reste du cadrage (titre, sponsor, budget, dates) reste ouvert aux acteurs.
+    if "responsable_id" in champs:
+        exiger_admin(courant)
+        await exiger_agent_designable(session, champs["responsable_id"], _ACCES)
     if champs:
         await maj_projet(session, ident, champs, courant)
         await session.commit()

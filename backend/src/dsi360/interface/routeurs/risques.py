@@ -9,6 +9,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
+from dsi360.application.autorisations import ADMIN
 from dsi360.application.risques import creer_risque
 from dsi360.domain.etats import ordre_etats, transitions_possibles
 from dsi360.domain.revue import prochaine_revue
@@ -25,7 +26,12 @@ from dsi360.interface.schemas import (
     RisqueDetail,
     TransitionDemande,
 )
-from dsi360.interface.securite import exiger_acces
+from dsi360.interface.securite import (
+    ContexteActivite,
+    exiger_acces,
+    exiger_agent_designable,
+    exiger_role_activite,
+)
 
 MODULE = "risque"
 _ACCES = "risques"
@@ -34,6 +40,8 @@ _TAILLE = 15
 routeur = APIRouter(prefix="/risques", tags=["risques"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
+# Distribuer le travail revient à l'administrateur (ADR-0003).
+CtxAdmin = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, {ADMIN}))]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -174,18 +182,11 @@ async def transitionner(
 
 @routeur.post("/{ident}/assignation", response_model=RisqueDetail)
 async def assigner(
-    ident: str, corps: AssignationDemande, courant: Courant, session: Session
+    ident: str, corps: AssignationDemande, ctx: CtxAdmin, session: Session
 ) -> dict[str, Any]:
-    avant = await _charger(session, ident, courant)
-    if corps.responsable_id is not None:
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-            {"id": corps.responsable_id},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+    """Confier le risque à un responsable. Seul l'administrateur distribue le travail."""
+    courant, avant = ctx.courant, ctx.activite
+    await exiger_agent_designable(session, corps.responsable_id, _ACCES)
     await repo.assigner(session, ident, corps.responsable_id)
     await audit.consigner(
         session,

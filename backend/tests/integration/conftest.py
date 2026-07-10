@@ -199,3 +199,66 @@ async def creer_utilisateur(
 def entetes(utilisateur_id: str) -> dict[str, str]:
     """En-tête Authorization porteur d'un jeton d'accès valide pour cet utilisateur."""
     return {"Authorization": f"Bearer {creer_jeton(utilisateur_id, 'acces')}"}
+
+
+# Premier état du cycle de vie, par module (cf. domain/etats.TRANSITIONS).
+STATUT_INITIAL: dict[str, str] = {
+    "incident": "Nouveau",
+    "demande": "Nouvelle",
+    "changement": "Brouillon",
+    "projet": "Cadrage",
+    "risque": "Identifié",
+    "audit": "Ouverte",
+    "cybersecurite": "Ouvert",
+    "gouvernance": "À engager",
+}
+
+
+async def creer_activite(
+    session: AsyncSession,
+    *,
+    module: str,
+    reference: str,
+    responsable_id: str | None = None,
+    direction: str | None = "DSI",
+    statut: str | None = None,
+) -> str:
+    """Insère une activité directement en base : les routes de création sont gardées."""
+    from sqlalchemy import text
+
+    ident = await session.scalar(
+        text(
+            "INSERT INTO core.activite "
+            "(reference, module, titre, statut, priorite, impact, urgence, direction_id, "
+            " responsable_id, sla_resolution_le) "
+            "VALUES (:reference, :module, 'Activité de test', :statut, 3, 3, 3, "
+            "        (SELECT id FROM core.direction WHERE code = :direction), "
+            "        cast(:resp as uuid), now() + interval '2 days') "
+            "RETURNING id::text"
+        ),
+        {
+            "reference": reference,
+            "module": module,
+            "statut": statut or STATUT_INITIAL[module],
+            "direction": direction,
+            "resp": responsable_id,
+        },
+    )
+    await session.commit()
+    return str(ident)
+
+
+async def designer(
+    session: AsyncSession, *, activite_id: str, utilisateur_id: str, role: str
+) -> None:
+    """Désigne un CONTRIBUTEUR ou un VALIDEUR sans passer par l'API, qui est gardée."""
+    from sqlalchemy import text
+
+    await session.execute(
+        text(
+            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+            "VALUES (cast(:aid as uuid), cast(:uid as uuid), :role) ON CONFLICT DO NOTHING"
+        ),
+        {"aid": activite_id, "uid": utilisateur_id, "role": role},
+    )
+    await session.commit()

@@ -1,0 +1,361 @@
+"""Ce que seul l'administrateur peut faire : distribuer le travail.
+
+Assigner le gestionnaire, fixer l'impact et l'urgence (donc la priorité et le SLA), choisir le Type
+d'un changement, désigner contributeurs et valideurs. Ni le responsable ni les contributeurs n'y
+touchent : ils exécutent.
+
+Le contrôle est **côté serveur**. Masquer le bouton ne suffirait pas — et aujourd'hui n'importe
+quel agent pouvait se désigner valideur, puis approuver.
+"""
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from tests.integration.conftest import creer_activite, creer_utilisateur, designer, entetes
+
+
+async def _equipe(session: AsyncSession, suffixe: str) -> dict[str, str]:
+    """Un admin, un responsable, un contributeur, un valideur, un lecteur."""
+    roles = {}
+    for role, profil in (
+        ("admin", "ADMIN"),
+        ("responsable", "SUPPORT_APP_HELPDESK"),
+        ("contributeur", "SUPPORT_APP_HELPDESK"),
+        ("valideur", "SUPPORT_APP_HELPDESK"),
+        ("lecteur", "SUPPORT_APP_HELPDESK"),
+    ):
+        roles[role] = await creer_utilisateur(
+            session, email=f"{role}.{suffixe}@afgbank.ml", profil=profil
+        )
+    return roles
+
+
+async def _incident_dote(session: AsyncSession, suffixe: str) -> tuple[str, dict[str, str]]:
+    gens = await _equipe(session, suffixe)
+    incident = await creer_activite(
+        session,
+        module="incident",
+        reference=f"INC-ADM-{suffixe}",
+        responsable_id=gens["responsable"],
+    )
+    await designer(
+        session, activite_id=incident, utilisateur_id=gens["contributeur"], role="CONTRIBUTEUR"
+    )
+    await designer(session, activite_id=incident, utilisateur_id=gens["valideur"], role="VALIDEUR")
+    return incident, gens
+
+
+NON_ADMINS = ["responsable", "contributeur", "valideur", "lecteur"]
+
+
+# --- Assigner le gestionnaire --------------------------------------------------------------------
+
+
+async def test_l_admin_assigne_le_gestionnaire(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    incident, gens = await _incident_dote(session, "assign1")
+
+    r = await client.post(
+        f"/incidents/{incident}/assignation",
+        headers=entetes(gens["admin"]),
+        json={"responsable_id": gens["lecteur"]},
+    )
+
+    assert r.status_code == 200, r.text
+    assert r.json()["responsable_id"] == gens["lecteur"]
+
+
+@pytest.mark.parametrize("role", NON_ADMINS)
+async def test_personne_d_autre_n_assigne(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    incident, gens = await _incident_dote(session, f"assign-{role}")
+
+    r = await client.post(
+        f"/incidents/{incident}/assignation",
+        headers=entetes(gens[role]),
+        json={"responsable_id": gens["lecteur"]},
+    )
+
+    assert r.status_code == 403, f"{role} ne doit pas pouvoir assigner"
+
+
+async def test_le_responsable_ne_peut_pas_se_debarrasser_du_ticket(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Il ne se désassigne pas non plus : c'est l'admin qui redistribue."""
+    incident, gens = await _incident_dote(session, "desassign")
+
+    r = await client.post(
+        f"/incidents/{incident}/assignation",
+        headers=entetes(gens["responsable"]),
+        json={"responsable_id": None},
+    )
+
+    assert r.status_code == 403
+
+
+async def test_on_ne_designe_pas_un_agent_sans_acces_au_module(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Pour être gestionnaire, il faut pouvoir ouvrir la page."""
+    incident, gens = await _incident_dote(session, "ineligible")
+    from sqlalchemy import text
+
+    await session.execute(
+        text(
+            "DELETE FROM core.acces_role "
+            "WHERE profil_code = 'SUPPORT_APP' AND acces = 'incidents'"
+        )
+    )
+    await session.commit()
+    sans_acces = await creer_utilisateur(
+        session, email="sansacces.inc@afgbank.ml", profil="SUPPORT_APP"
+    )
+
+    r = await client.post(
+        f"/incidents/{incident}/assignation",
+        headers=entetes(gens["admin"]),
+        json={"responsable_id": sans_acces},
+    )
+
+    assert r.status_code == 422, r.text
+
+
+async def test_on_ne_designe_pas_un_compte_inactif(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    incident, gens = await _incident_dote(session, "inactif")
+    inactif = await creer_utilisateur(session, email="inactif.inc@afgbank.ml", actif=False)
+
+    r = await client.post(
+        f"/incidents/{incident}/assignation",
+        headers=entetes(gens["admin"]),
+        json={"responsable_id": inactif},
+    )
+
+    assert r.status_code == 422, r.text
+
+
+# --- Assignation en lot --------------------------------------------------------------------------
+
+
+async def test_seul_l_admin_assigne_en_lot(client: AsyncClient, session: AsyncSession) -> None:
+    incident, gens = await _incident_dote(session, "lot")
+    corps = {"ids": [incident], "responsable_id": gens["lecteur"]}
+
+    assert (
+        await client.post("/incidents/assignation-lot", headers=entetes(gens["admin"]), json=corps)
+    ).status_code == 200
+    assert (
+        await client.post(
+            "/incidents/assignation-lot", headers=entetes(gens["responsable"]), json=corps
+        )
+    ).status_code == 403
+
+
+# --- Impact et urgence (donc priorité et SLA) ----------------------------------------------------
+
+
+async def test_l_admin_reevalue_impact_et_urgence(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    incident, gens = await _incident_dote(session, "eval1")
+
+    r = await client.post(
+        f"/incidents/{incident}/evaluation",
+        headers=entetes(gens["admin"]),
+        json={"impact": 5, "urgence": 5},
+    )
+
+    assert r.status_code == 200, r.text
+    assert r.json()["priorite"] == 1
+
+
+@pytest.mark.parametrize("role", NON_ADMINS)
+async def test_personne_d_autre_ne_reevalue(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    incident, gens = await _incident_dote(session, f"eval-{role}")
+
+    r = await client.post(
+        f"/incidents/{incident}/evaluation",
+        headers=entetes(gens[role]),
+        json={"impact": 5, "urgence": 5},
+    )
+
+    assert r.status_code == 403, f"{role} ne fixe pas la priorité ni l'engagement SLA"
+
+
+# --- Type du changement --------------------------------------------------------------------------
+
+
+async def _changement_dote(session: AsyncSession, suffixe: str) -> tuple[str, dict[str, str], str]:
+    gens = await _equipe(session, suffixe)
+    changement = await creer_activite(
+        session,
+        module="changement",
+        reference=f"CHG-ADM-{suffixe}",
+        responsable_id=gens["responsable"],
+    )
+    await designer(
+        session, activite_id=changement, utilisateur_id=gens["contributeur"], role="CONTRIBUTEUR"
+    )
+    from sqlalchemy import text
+
+    urgent = await session.scalar(
+        text("SELECT id::text FROM core.categorie WHERE module = 'changement' AND code = 'URGENT'")
+    )
+    return changement, gens, str(urgent)
+
+
+async def test_l_admin_change_le_type_du_changement(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    changement, gens, urgent = await _changement_dote(session, "type1")
+
+    r = await client.post(
+        f"/changements/{changement}/categorie",
+        headers=entetes(gens["admin"]),
+        json={"categorie_id": urgent},
+    )
+
+    assert r.status_code == 200, r.text
+
+
+@pytest.mark.parametrize("role", ["responsable", "contributeur", "lecteur"])
+async def test_personne_d_autre_ne_change_le_type(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    """Le Type pilote le circuit CAB/ECAB et dérive la priorité : c'est de l'organisation."""
+    changement, gens, urgent = await _changement_dote(session, f"type-{role}")
+
+    r = await client.post(
+        f"/changements/{changement}/categorie",
+        headers=entetes(gens[role]),
+        json={"categorie_id": urgent},
+    )
+
+    assert r.status_code == 403
+
+
+# --- Désigner les acteurs ------------------------------------------------------------------------
+
+
+async def test_l_admin_designe_contributeurs_et_valideurs(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    incident, gens = await _incident_dote(session, "designe")
+    h = entetes(gens["admin"])
+
+    assert (
+        await client.post(
+            f"/incidents/{incident}/contributeurs",
+            headers=h,
+            json={"utilisateur_id": gens["lecteur"]},
+        )
+    ).status_code == 200
+    assert (
+        await client.post(
+            f"/incidents/{incident}/valideurs", headers=h, json={"utilisateur_id": gens["lecteur"]}
+        )
+    ).status_code == 200
+    assert (
+        await client.delete(f"/incidents/{incident}/contributeurs/{gens['lecteur']}", headers=h)
+    ).status_code == 200
+
+
+@pytest.mark.parametrize("role", NON_ADMINS)
+async def test_personne_d_autre_ne_designe_d_acteurs(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    incident, gens = await _incident_dote(session, f"designe-{role}")
+
+    r = await client.post(
+        f"/incidents/{incident}/contributeurs",
+        headers=entetes(gens[role]),
+        json={"utilisateur_id": gens["lecteur"]},
+    )
+
+    assert r.status_code == 403
+
+
+async def test_un_agent_ne_peut_plus_se_designer_valideur(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le trou béant d'avant : s'auto-désigner valideur, puis approuver."""
+    incident, gens = await _incident_dote(session, "autodesigne")
+
+    r = await client.post(
+        f"/incidents/{incident}/valideurs",
+        headers=entetes(gens["contributeur"]),
+        json={"utilisateur_id": gens["contributeur"]},
+    )
+
+    assert r.status_code == 403
+
+
+# --- Risques et projets --------------------------------------------------------------------------
+
+
+async def test_seul_l_admin_nomme_le_chef_de_projet(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    gens = await _equipe(session, "chef")
+    projet = await creer_activite(
+        session, module="projet", reference="PRJ-ADM-1", responsable_id=gens["responsable"]
+    )
+
+    r = await client.patch(
+        f"/projets/{projet}",
+        headers=entetes(gens["responsable"]),
+        json={"responsable_id": gens["lecteur"]},
+    )
+    assert r.status_code == 403, "le chef de projet ne se remplace pas lui-même"
+
+    r = await client.patch(
+        f"/projets/{projet}",
+        headers=entetes(gens["admin"]),
+        json={"responsable_id": gens["lecteur"]},
+    )
+    assert r.status_code == 200, r.text
+
+
+async def test_ouvrir_un_projet_sans_chef_est_permis_a_tous(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Créer est ouvert ; nommer le chef ne l'est pas. Le créateur n'est pas acteur d'office."""
+    gens = await _equipe(session, "creation")
+
+    r = await client.post(
+        "/projets", headers=entetes(gens["lecteur"]), json={"titre": "Projet ouvert par un lecteur"}
+    )
+    assert r.status_code == 201, r.text
+
+    r = await client.post(
+        "/projets",
+        headers=entetes(gens["lecteur"]),
+        json={"titre": "Projet avec chef", "responsable_id": gens["lecteur"]},
+    )
+    assert r.status_code == 403, "se nommer chef de projet soi-même n'est pas permis"
+
+
+async def test_seul_l_admin_assigne_un_risque(client: AsyncClient, session: AsyncSession) -> None:
+    gens = await _equipe(session, "risque")
+    risque = await creer_activite(
+        session, module="risque", reference="RSQ-ADM-1", responsable_id=gens["responsable"]
+    )
+    corps = {"responsable_id": gens["lecteur"]}
+
+    assert (
+        await client.post(
+            f"/risques/{risque}/assignation", headers=entetes(gens["admin"]), json=corps
+        )
+    ).status_code == 200
+    assert (
+        await client.post(
+            f"/risques/{risque}/assignation", headers=entetes(gens["responsable"]), json=corps
+        )
+    ).status_code == 403

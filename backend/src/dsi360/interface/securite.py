@@ -19,8 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.auth import compte_actif, profil_complet
 from dsi360.application.autorisations import (
+    AgentIneligible,
     RolesActivite,
     charger_roles,
+    exiger_designable,
     satisfait,
     visible,
 )
@@ -81,6 +83,20 @@ def exiger_admin(courant: dict[str, Any]) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Action réservée à l'administrateur.",
         )
+
+
+async def exiger_agent_designable(
+    session: AsyncSession, utilisateur_id: str | None, acces: str
+) -> None:
+    """Traduit la règle de désignation en réponse HTTP. ``None`` = désassignation, permise."""
+    if utilisateur_id is None:
+        return
+    try:
+        await exiger_designable(session, utilisateur_id, acces)
+    except AgentIneligible as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
 
 @dataclass(frozen=True)

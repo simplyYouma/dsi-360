@@ -24,6 +24,7 @@ from dsi360.application.activites import (
     reevaluer,
     transition,
 )
+from dsi360.application.autorisations import ADMIN
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import ordre_etats, transition_reservee, transitions_possibles
@@ -60,7 +61,13 @@ from dsi360.interface.schemas import (
     TacheMaj,
     TransitionDemande,
 )
-from dsi360.interface.securite import exiger_acces
+from dsi360.interface.securite import (
+    ContexteActivite,
+    exiger_acces,
+    exiger_admin,
+    exiger_agent_designable,
+    exiger_role_activite,
+)
 
 _TAILLE = 15
 _FENETRE_APPROCHE = timedelta(hours=2)
@@ -230,6 +237,12 @@ def creer_routeur(
     routeur = APIRouter(prefix=prefixe, tags=[tag])
     Courant = Annotated[dict[str, Any], Depends(exiger_acces(acces))]  # noqa: N806
 
+    # Distribuer le travail (assigner, évaluer, désigner) revient à l'administrateur ; l'activité
+    # est chargée une fois par la dépendance et voyage dans le contexte (cf. ADR-0003, docs/04).
+    CtxAdmin = Annotated[  # noqa: N806
+        ContexteActivite, Depends(exiger_role_activite(module, acces, {ADMIN}))
+    ]
+
     async def charger_visible(
         session: AsyncSession, ident: str, courant: dict[str, Any]
     ) -> RowMapping:
@@ -330,15 +343,10 @@ def creer_routeur(
     async def assigner_lot(
         corps: AssignationLot, courant: Courant, session: Session
     ) -> dict[str, int]:
-        if corps.responsable_id is not None:
-            existe = await session.scalar(
-                text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-                {"id": corps.responsable_id},
-            )
-            if existe is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-                )
+        # Cette route ne porte pas sur une activité : la garde de rôle ne s'applique pas,
+        # on exige l'administrateur directement. Le périmètre reste filtré ticket par ticket.
+        exiger_admin(courant)
+        await exiger_agent_designable(session, corps.responsable_id, acces)
         assignes = 0
         for ident in corps.ids:
             r = await repo.par_id(session, module, ident, moi=courant["id"])
@@ -413,18 +421,11 @@ def creer_routeur(
 
     @routeur.post("/{ident}/assignation", response_model=ActiviteDetail)
     async def assigner(
-        ident: str, corps: AssignationDemande, courant: Courant, session: Session
+        ident: str, corps: AssignationDemande, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        avant = await charger_visible(session, ident, courant)
-        if corps.responsable_id is not None:
-            existe = await session.scalar(
-                text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-                {"id": corps.responsable_id},
-            )
-            if existe is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-                )
+        """Confier l'activité à un gestionnaire. Seul l'administrateur distribue le travail."""
+        courant, avant = ctx.courant, ctx.activite
+        await exiger_agent_designable(session, corps.responsable_id, acces)
         await repo.assigner(session, ident, corps.responsable_id)
         # Notifie l'agent nouvellement assigné (sauf s'il s'assigne lui-même).
         if (
@@ -472,9 +473,10 @@ def creer_routeur(
 
     @routeur.post("/{ident}/categorie", response_model=ActiviteDetail)
     async def changer_categorie(
-        ident: str, corps: CategorieDemande, courant: Courant, session: Session
+        ident: str, corps: CategorieDemande, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        avant = await charger_visible(session, ident, courant)
+        """Catégorie, ou Type d'un changement : il pilote le circuit CAB et dérive la priorité."""
+        courant, avant = ctx.courant, ctx.activite
         if corps.categorie_id is not None:
             ok = await session.scalar(
                 text("SELECT 1 FROM core.categorie WHERE id::text = :c AND module = :m"),
@@ -508,17 +510,11 @@ def creer_routeur(
 
     @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
     async def ajouter_contributeur(
-        ident: str, corps: ContributeurDemande, courant: Courant, session: Session
+        ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        avant = await charger_visible(session, ident, courant)
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-            {"id": corps.utilisateur_id},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+        """Un contributeur a les droits de travail du gestionnaire : seul l'admin le désigne."""
+        courant, avant = ctx.courant, ctx.activite
+        await exiger_agent_designable(session, corps.utilisateur_id, acces)
         await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
         # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
         if corps.utilisateur_id != courant["id"]:
@@ -551,9 +547,9 @@ def creer_routeur(
 
     @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
     async def retirer_contributeur(
-        ident: str, utilisateur_id: str, courant: Courant, session: Session
+        ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        avant = await charger_visible(session, ident, courant)
+        courant, avant = ctx.courant, ctx.activite
         await repo.retirer_contributeur(session, ident, utilisateur_id)
         await audit.consigner(
             session,
@@ -571,17 +567,11 @@ def creer_routeur(
 
     @routeur.post("/{ident}/valideurs", response_model=ActiviteDetail)
     async def ajouter_valideur(
-        ident: str, corps: ContributeurDemande, courant: Courant, session: Session
+        ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        avant = await charger_visible(session, ident, courant)
-        existe = await session.scalar(
-            text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"),
-            {"id": corps.utilisateur_id},
-        )
-        if existe is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Agent introuvable ou inactif."
-            )
+        """Seul l'admin désigne les valideurs : sinon on s'auto-désigne, puis on s'approuve."""
+        courant, avant = ctx.courant, ctx.activite
+        await exiger_agent_designable(session, corps.utilisateur_id, acces)
         await repo.ajouter_valideur(session, ident, corps.utilisateur_id)
         # Notifie le valideur désigné (sauf s'il se désigne lui-même).
         if corps.utilisateur_id != courant["id"]:
@@ -614,9 +604,9 @@ def creer_routeur(
 
     @routeur.delete("/{ident}/valideurs/{utilisateur_id}", response_model=ActiviteDetail)
     async def retirer_valideur(
-        ident: str, utilisateur_id: str, courant: Courant, session: Session
+        ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        avant = await charger_visible(session, ident, courant)
+        courant, avant = ctx.courant, ctx.activite
         await repo.retirer_valideur(session, ident, utilisateur_id)
         await audit.consigner(
             session,
@@ -904,10 +894,13 @@ def creer_routeur(
 
     @routeur.post("/{ident}/evaluation", response_model=ActiviteDetail)
     async def evaluer(
-        ident: str, corps: EvaluationDemande, courant: Courant, session: Session
+        ident: str, corps: EvaluationDemande, ctx: CtxAdmin, session: Session
     ) -> dict[str, Any]:
-        """Réévalue impact/urgence : recalcule la priorité et repositionne les échéances SLA."""
-        await charger_visible(session, ident, courant)  # garde de périmètre
+        """Réévalue impact/urgence : recalcule la priorité et repositionne les échéances SLA.
+
+        Fixer la priorité, c'est fixer l'engagement pris envers le demandeur : réservé à l'admin.
+        """
+        courant = ctx.courant
         try:
             await reevaluer(
                 session, module, ident, impact=corps.impact, urgence=corps.urgence, acteur=courant
