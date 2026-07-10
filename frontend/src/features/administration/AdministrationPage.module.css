@@ -229,3 +229,11 @@
 .supprCat:disabled {
   opacity: 0.4;
 }
+
+/* Message d'aide sous un champ requis : on explique, on ne se contente pas d'interdire. */
+.aide {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

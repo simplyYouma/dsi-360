@@ -368,11 +368,27 @@ def _valider_domaine_email(email: str) -> None:
         )
 
 
+def _exiger_niveau_support(profil_code: str, niveau: int | None) -> None:
+    """Un agent qui traite des tickets doit déclarer son niveau (ADR-0005).
+
+    Le niveau d'un ticket importé se lit sur le compte de son gestionnaire. Sans niveau, le ticket
+    retomberait au N1 par défaut et la statistique mentirait en silence.
+
+    L'administrateur distribue le travail, il ne traite pas les tickets : il n'a pas de niveau.
+    """
+    if profil_code != PROFIL_ADMIN and niveau is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Niveau de support requis : un agent traite les tickets à un niveau (N1 ou N2).",
+        )
+
+
 @routeur.post("/utilisateurs", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)
 async def creer_utilisateur(
     corps: CreationUtilisateur, courant: Courant, session: Session
 ) -> dict[str, str]:
     _valider_domaine_email(corps.email)
+    _exiger_niveau_support(corps.profil_code, corps.niveau_support)
     if await session.scalar(
         text("SELECT 1 FROM core.utilisateur WHERE lower(email) = lower(:e)"), {"e": corps.email}
     ):
@@ -423,6 +439,7 @@ async def creer_utilisateur(
 async def modifier_utilisateur(
     ident: str, corps: MajUtilisateur, courant: Courant, session: Session
 ) -> None:
+    _exiger_niveau_support(corps.profil_code, corps.niveau_support)
     avant = (
         await session.execute(
             text("SELECT actif, email, prenom FROM core.utilisateur WHERE id::text = :id"),

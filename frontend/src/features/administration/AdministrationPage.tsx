@@ -70,6 +70,9 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [temporaire, setTemporaire] = useState(false);
   const [expiration, setExpiration] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+
+  // L'administrateur distribue le travail, il ne traite pas de tickets : lui seul est sans niveau.
+  const niveauRequis = profil !== 'ADMIN';
   const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(async (p: number): Promise<void> => {
@@ -135,7 +138,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           prenom: prenom.trim(),
           profil_code: profil,
           direction_code: direction,
-          niveau_support: niveau !== null ? Number(niveau) : null,
+          niveau_support: niveauRequis && niveau !== null ? Number(niveau) : null,
           expire_le: temporaire ? expiration : null,
         });
         notifier(`Compte créé — e-mail d’activation envoyé à ${email.trim()}.`, 'succes');
@@ -145,7 +148,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           prenom: prenom.trim(),
           profil_code: profil,
           direction_code: direction,
-          niveau_support: niveau !== null ? Number(niveau) : null,
+          niveau_support: niveauRequis && niveau !== null ? Number(niveau) : null,
           actif,
           expire_le: temporaire ? expiration : null,
         });
@@ -285,7 +288,10 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
             <Button variante="secondaire" onClick={() => setModale(null)}>
               Annuler
             </Button>
-            <Button onClick={() => void enregistrer()} disabled={envoi}>
+            <Button
+              onClick={() => void enregistrer()}
+              disabled={envoi || (niveauRequis && niveau === null)}
+            >
               {envoi ? 'Enregistrement…' : 'Enregistrer'}
             </Button>
           </>
@@ -330,9 +336,10 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           </div>
         </div>
         <div className={styles.champ}>
-          <span>Niveau de support (escalade)</span>
-          {/* La DSI n'a que N1 et N2 : le N3 désigne un transfert vers DBS, qui n'a pas de compte
-              ici. Escalader un ticket au-delà du N2 le transfère (cf. ADR-0003 §3). */}
+          <span>Niveau de support{niveauRequis ? '' : ' (sans objet)'}</span>
+          {/* Le niveau d'un ticket importé se lit sur le compte de son gestionnaire (ADR-0005) :
+              un agent sans niveau ferait retomber ses tickets au N1 sans qu'on le voie.
+              L'administrateur distribue le travail, il ne traite pas les tickets. */}
           <SelecteurListe
             options={[
               { valeur: '1', libelle: 'N1 — Service Desk' },
@@ -340,10 +347,17 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
             ]}
             valeur={niveau}
             onChange={setNiveau}
-            permettreVide
-            libelleVide="Aucun (pas un gestionnaire de support)"
+            permettreVide={!niveauRequis}
+            libelleVide="Aucun"
             placeholder="Choisir un niveau"
+            desactive={!niveauRequis}
+            titreDesactive="L’administrateur ne traite pas de tickets."
           />
+          {niveauRequis && niveau === null && (
+            <span className={a.aide}>
+              Requis : le niveau d’un ticket se déduit de celui de son gestionnaire.
+            </span>
+          )}
         </div>
         <div className={styles.champ}>
           <button
