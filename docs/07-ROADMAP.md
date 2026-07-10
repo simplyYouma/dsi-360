@@ -6,7 +6,7 @@
 
 ## Socle transverse (préalable à tout module)
 
-- Scaffolding monorepo + Docker + qualité (lint/format/types/tests).
+- Scaffolding monorepo + exécution native (ADR-0002) + qualité (lint/format/types/tests).
 - Schéma DB (core / audit), migrations versionnées.
 - Auth **locale** (mot de passe défini par l'agent, cf. ADR-0004) + JWT + **RBAC par profil métier** + cloisonnement.
 - Entité **Activité** + machines à états + **moteur SLA** (priorité P1–P5, échéances) + ordonnanceur.
@@ -17,7 +17,7 @@
 | Lot | Contenu | État |
 |---|---|---|
 | **P1-0** | Socle transverse (ci-dessus) | à faire |
-| **P1-1** | **Incidents** : cycle de vie, priorité/SLA, affectation, escalade, pièces jointes, clôture | à faire |
+| **P1-1** | **Incidents** : miroir de l'import quotidien — cycle de vie, priorité/SLA, niveau déduit, pièces jointes ([ADR-0005](adr/0005-incidents-et-demandes-en-lecture-seule.md)) | à faire |
 | **P1-2** | **Demandes de service** : catégories, workflow de validation, suivi SLA | à faire |
 | **P1-3** | **Projets** : planning, jalons, budget, % d'avancement, COPIL, documents | à faire |
 | **P1-4** | **Tableau de bord exécutif** : KPI temps réel, alertes, activités en retard, vue DG, exports PDF/Excel/CSV | à faire |
@@ -50,5 +50,5 @@ réduction des délais · reporting consolidé pour la DG.
 1. Validation de la **stack** (ADR-0001) pour information.
 2. ~~Modalités AD / Microsoft 365~~ — tranché : authentification locale ([ADR-0004](adr/0004-authentification-locale.md)).
 3. **Hébergement / haute disponibilité** (serveur, sauvegarde, supervision).
-4. **SLA réels** par type/priorité, **catégories** par module, **matrice d'escalade**.
+4. **SLA réels** par type/priorité et **catégories** par module.
 5. Exigences **RSSI** (journalisation, rétention, recette sécurité).

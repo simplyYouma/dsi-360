@@ -32,8 +32,13 @@ ni un ITSM générique du marché. C'est l'**outil de pilotage et de gouvernance
 Neuf modules, livrés par phases (cf. §7) :
 
 1. **Tableau de bord exécutif** — vue globale, KPI temps réel, alertes, activités en retard, SLA, vue DG.
-2. **Incidents** — création, classification, priorisation, affectation, escalade, historique, pièces jointes, clôture.
-3. **Demandes** (création de compte, habilitations, logiciels, assistance, VPN, matériel…) — workflow de validation, suivi SLA.
+2. **Incidents** — classification, priorisation, gestionnaire, niveau de support, historique, pièces jointes, clôture.
+3. **Demandes** (création de compte, habilitations, logiciels, assistance, VPN, matériel…) — catégories, suivi SLA.
+
+> **Incidents et demandes sont en lecture seule** ([ADR-0005](docs/adr/0005-incidents-et-demandes-en-lecture-seule.md)) :
+> ils sont traités dans un autre système et arrivent ici par **import quotidien**. DSI 360 en reflète
+> l'état pour en suivre l'évolution, en tirer les statistiques et évaluer les gestionnaires. On y
+> observe, on n'y agit pas — hormis la discussion interne et les pièces jointes.
 4. **Projets** — planning, budget, jalons, risques, COPIL, documents, % d'avancement.
 5. **Changements (ITIL)** — RFC, workflow **CAB / ECAB**, analyses d'impact et de risque, plans de déploiement et de retour arrière, post-implémentation. Types : standard / normal / urgent.
 6. **Audit & Recommandations** — sources (Audit Groupe, Interne, BCEAO, Contrôle Permanent, Risques, CAC), plan d'action, échéance, justificatifs, validation de clôture.
@@ -61,7 +66,10 @@ Neuf modules, livrés par phases (cf. §7) :
   hiérarchiques du cahier (Chef de Service, Chef de Projet, Technicien, Métier, DG), qui ne
   décrivaient pas le travail réel de la DSI. **Aucun code ne dépend d'une liste figée de profils.**
 - **Périmètre — la DSI seule** : une unique direction, `DSI`. Les niveaux de support sont **N1 et
-  N2** ; escalader au-delà transfère le ticket à **DBS**, qui n'a aucun compte dans le système.
+  N2** ; **N3 = DBS**, qui n'a aucun compte dans le système. Le niveau d'un ticket ne se décide pas :
+  il se **déduit** de son gestionnaire — celui que porte son compte, ou N3 si le gestionnaire n'est
+  pas des nôtres. **L'import ne crée jamais de compte** ni d'adresse e-mail ; les comptes sont créés
+  par l'administrateur, **niveau obligatoire** (sauf `ADMIN`, qui ne traite pas de tickets).
 - **Non fonctionnel** : multi-utilisateurs, **haute disponibilité (> 99 %)**, **respect SLA > 90 %**.
   **Authentification locale** ([ADR-0004](docs/adr/0004-authentification-locale.md)) : chaque agent
   définit son mot de passe via le lien d'activation reçu par e-mail. L'annuaire AD/LDAP/M365 du

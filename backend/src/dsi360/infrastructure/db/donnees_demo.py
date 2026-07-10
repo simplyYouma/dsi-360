@@ -357,9 +357,11 @@ async def _jalons(
 
 
 async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) -> None:
-    """Affecte un niveau de support (N1/N2) aux agents de démo, pour illustrer la réaffectation à
-    l'escalade (le niveau est porté par le gestionnaire)."""
-    # La DSI n'a pas de N3 : escalader au-delà du N2 transfère le ticket à DBS (ADR-0003 §3).
+    """Affecte un niveau de support (N1/N2) aux agents de démo.
+
+    Le niveau d'un ticket importé se lit sur son gestionnaire (ADR-0005) : sans niveau ici, les
+    tickets de démo retomberaient tous au N1."""
+    # La DSI n'a pas de N3 : un ticket sans gestionnaire de chez nous est chez DBS, donc N3.
     # Indices : m.diallo/f.keita N1, o.sanogo N2, k.coulibaly N2. L'administrateur n'a pas de niveau.
     niveaux = {1: 1, 2: 1, 3: 2, 4: 2}
     for i, niveau in niveaux.items():

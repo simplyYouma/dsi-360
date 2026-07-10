@@ -66,10 +66,12 @@ Toujours le même corps, avec un **identifiant de corrélation** pour le support
 - `PATCH /api/v1/activites/{id}` — modification partielle (journalisée).
 - `POST /api/v1/activites/{id}/transition` — changement de statut **validé par la machine à états**
   (ex. `Résolu`→`Clôturé`, `Soumis`→`CAB`). Action sensible → garde RBAC.
-- `POST /api/v1/activites/{id}/affectation`, `.../escalade`, `.../commentaires`, `.../pieces-jointes`.
+- `POST /api/v1/activites/{id}/assignation`, `.../commentaires`, `.../pieces-jointes`.
+- Sur **incidents** et **demandes**, les routes d'écriture n'existent pas : leur état vient du
+  rapport quotidien ([ADR-0005](adr/0005-incidents-et-demandes-en-lecture-seule.md)).
 
 ## 6. Tableau de bord & exports
 
 - `GET /api/v1/tableau-de-bord` — KPI agrégés (incidents ouverts/critiques, respect SLA, retards…),
   filtrables par période/direction selon le périmètre.
-- `GET /api/v1/exports/{rapport}?format=pdf|excel|csv` — génération (asynchrone si volumineux, via Celery).
+- `GET /api/v1/exports/{rapport}?format=pdf|excel|csv` — génération synchrone.

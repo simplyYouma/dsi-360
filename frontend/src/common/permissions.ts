@@ -11,7 +11,7 @@ export interface Permissions {
   peut_evaluer: boolean;
   /** Désigner contributeurs et valideurs. */
   peut_gerer_acteurs: boolean;
-  /** Faire avancer le sujet : transitions, tâches, notes, documents, liens, escalade. */
+  /** Faire avancer le sujet : transitions, tâches, notes, documents, liens. */
   peut_travailler: boolean;
   /** Approuver ou rejeter. */
   peut_decider: boolean;

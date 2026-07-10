@@ -40,10 +40,11 @@ changement, projet, recommandation, risque). Socle commun à toutes :
 - **SLA = (cible de prise en charge, cible de résolution)** paramétrée par **type × priorité ×
   criticité × catégorie**. Exemple du cahier : Critique 15 min / 4 h · Haute 30 min / 8 h · Moyenne
   2 h / 2 j · Faible 1 j / 5 j.
-- Les **échéances** sont calculées à la prise en charge ; un **ordonnanceur (Celery beat)** surveille
-  approche et **dépassement** de SLA → notifications.
-- **Escalade** : hiérarchique et fonctionnelle (**N1 Service Desk → N2 → N3**), selon une **matrice
-  d'escalade** paramétrable.
+- Les **échéances** sont calculées à la prise en charge ; un **ordonnanceur in-process** (asyncio,
+  cf. ADR-0002) surveille approche et **dépassement** de SLA → notifications.
+- **Niveau de support** : **N1 et N2 à la DSI, N3 = DBS**. Il n'est pas décidé, il se **déduit** du
+  gestionnaire : le niveau porté par son compte, ou N3 si le gestionnaire n'est pas des nôtres
+  ([ADR-0005](adr/0005-incidents-et-demandes-en-lecture-seule.md)).
 
 ## 3. Machines à états par module (cycles de vie ITIL)
 
@@ -78,7 +79,7 @@ Aucune de ces valeurs n'est codée en dur : on les édite depuis l'administratio
 - **Matrice de priorité** (impact × urgence → P1…P5).
 - **Matrice SLA** (type/priorité/criticité → prise en charge + résolution).
 - **Statuts** et transitions par module.
-- **Profils & permissions** (RBAC, §5) et **matrice d'escalade** (N1/N2/N3).
+- **Profils & permissions** (RBAC, §5) ; le **niveau de support** est porté par le compte agent.
 - **Sources d'audit**, **types de changement**, **directions / services**.
 
 ## 5. Acteurs & droits (RBAC — profils métier paramétrables)

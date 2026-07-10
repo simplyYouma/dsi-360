@@ -8,11 +8,11 @@
 ```
 Navigateur (SPA React + design system maison)
         │  HTTPS
-   Nginx (reverse proxy, TLS)
+   Reverse proxy IIS/Nginx (TLS) — en production
         │
-   API REST FastAPI  ──►  PostgreSQL 16 (données + audit)
-        │  tâches asynchrones
-   Celery + Redis  ──►  SLA (échéances/dépassements), notifications, synthèses, exports lourds
+   API REST FastAPI (uvicorn)  ──►  PostgreSQL 17 (données + audit)
+        │  ordonnanceur in-process (asyncio, cf. ADR-0002)
+        └──►  SLA (échéances, dépassements), notifications
         │
    Serveur SMTP (liens d'activation et de réinitialisation de mot de passe)
 ```
@@ -22,9 +22,10 @@ Navigateur (SPA React + design system maison)
 - **domain/** — règles métier pures, **zéro dépendance infra** : entité `Activité` et
   spécialisations, machines à états (transitions ITIL), calcul **priorité (impact × urgence)** et
   **statut SLA** (à l'heure / en approche / dépassé), criticité des risques.
-- **application/** — cas d'usage : créer/affecter/escalader/valider/clôturer une activité,
-  workflows CAB/ECAB, calcul des indicateurs, génération des exports.
-- **infrastructure/** — PostgreSQL (repositories), Redis/Celery, connecteur AD/M365, envoi e-mail,
+- **application/** — cas d'usage : créer/affecter/valider/clôturer une activité, **autorisations**
+  (rôles sur une activité), **ingestion** du rapport quotidien, workflows CAB/ECAB, calcul des
+  indicateurs, génération des exports.
+- **infrastructure/** — PostgreSQL (repositories), audit chaîné, envoi e-mail,
   fabrication PDF/Excel/CSV.
 - **interface/** — API REST v1, schémas d'entrée/sortie (Pydantic), middlewares (auth, RBAC, audit,
   corrélation d'erreurs).
@@ -33,7 +34,8 @@ Navigateur (SPA React + design system maison)
 
 1. Création (UI ou e-mail/Service Desk) → `Activité` en `Nouveau`, **référence** générée.
 2. Qualification : catégorie, impact, urgence → **priorité P1…P5** → **échéances SLA** calculées.
-3. Affectation (responsable / N1 → N2 → N3 selon matrice d'escalade).
+3. Affectation d'un responsable. Le **niveau de support** (N1, N2, ou N3 = DBS) se **déduit** du
+   gestionnaire ; pour les incidents et demandes, celui-ci vient du rapport quotidien (ADR-0005).
 4. L'**ordonnanceur** surveille les échéances → **notifications** (approche, dépassement).
 5. Résolution → validation → **clôture** ; chaque étape **journalisée** (audit append-only).
 6. Les indicateurs du **tableau de bord** se recalculent ; exports disponibles.
@@ -46,8 +48,9 @@ hors du code ; TLS partout.
 
 ## 5. Déploiement
 
-**Docker Compose** : nginx · api · worker (Celery) · scheduler (beat) · postgres · redis. TLS au
-reverse proxy. Haute disponibilité (> 99 %) par réplication applicative + sauvegardes (à cadrer avec
+**Exécution native, sans Docker** ([ADR-0002](adr/0002-execution-native-sans-docker.md)) :
+PostgreSQL natif · venv + uvicorn · Vite (dev) ou FastAPI-StaticFiles (prod). TLS au
+reverse proxy (IIS/Nginx). Haute disponibilité (> 99 %) par réplication applicative + sauvegardes (à cadrer avec
 la DSI). Migrations SQL versionnées `YYYYMMDDHHmmss_description.sql`.
 
 ## 6. Structure du dépôt (cible, monorepo)
@@ -61,7 +64,7 @@ DSI_360/
 │   └── src/dsi360/
 │       ├── domain/            ← Activité, états, SLA, priorité (pur)
 │       ├── application/       ← cas d'usage / workflows
-│       ├── infrastructure/    ← postgres, redis/celery, AD/M365, email, exports
+│       ├── infrastructure/    ← postgres, audit, email, exports
 │       └── interface/         ← API REST v1, schémas, middlewares
 │   └── tests/                 ← unit / integration / security / e2e
 ├── frontend/
@@ -71,7 +74,7 @@ DSI_360/
 │       ├── lib/               ← client API, auth, i18n
 │       └── common/            ← composants/logique partagés
 ├── db/migrations/
-└── infra/                     ← docker-compose, nginx, env/.env.example
+└── infra/local/               ← scripts de lancement natifs (PowerShell 7), env.ps1
 ```
 
 ## 7. Conventions

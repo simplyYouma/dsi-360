@@ -5,6 +5,9 @@
   sert **que la DSI**. Remplace le volet « 7 profils » de `CLAUDE.md` §4.
 - **Date** : 9 juillet 2026.
 - **Décideurs** : porteur du projet (DSI AFG Bank Mali).
+- **Partiellement remplacé** par [ADR-0005](0005-incidents-et-demandes-en-lecture-seule.md) :
+  l'escalade manuelle (§3) et l'exception des tickets importés (§5) n'existent plus. Le niveau d'un
+  ticket se déduit de son gestionnaire, et les incidents et demandes sont en lecture seule.
 
 ## Contexte
 
@@ -21,11 +24,11 @@ Trois faits tranchent le sujet :
 
 1. **Tous les utilisateurs de la plateforme sont de la DSI.** Les autres directions n'ont pas de
    compte : le demandeur d'un ticket n'accède pas au système.
-2. **DBS n'est pas un utilisateur.** C'est le destinataire des escalades de niveau 3. Ses agents
+2. **DBS n'est pas un utilisateur.** C'est le niveau 3, hors de la DSI. Ses agents
    travaillent hors de la plateforme ; ils apparaissent dans les fichiers importés mais n'ont ni
    compte, ni donnée persistée ici.
 3. **Le métier détermine l'action.** Un agent du HelpDesk et un agent Réseau télécom n'ont ni les
-   mêmes tickets, ni les mêmes gestes (valider, clôturer, escalader).
+   mêmes tickets, ni les mêmes gestes (valider, clôturer).
 
 ## Décision
 
@@ -60,9 +63,12 @@ autre entité du Groupe utilise la plateforme, le mécanisme est déjà là, et 
 
 `core.utilisateur.niveau_support` ne vaut plus que **1 ou 2** : la DSI n'a pas d'agent N3.
 
-Escalader un ticket déjà en N2 le fait passer en **N3 « transféré à DBS »** : il perd son
-gestionnaire, reste visible et tracé chez nous, et plus aucun agent DSI n'en est responsable. Le
-transfert effectif vers DBS a lieu hors du système ; le journal d'audit en garde la trace.
+Un ticket dont le gestionnaire n'est pas l'un des nôtres est **chez DBS, donc en N3** : il n'a pas
+de responsable ici, reste visible et tracé, et le traitement a lieu hors du système.
+
+> **Amendé par [ADR-0005](0005-incidents-et-demandes-en-lecture-seule.md).** Le geste manuel
+> « escalader » a été retiré : le niveau n'est pas décidé, il se **lit sur le gestionnaire** que
+> porte le rapport quotidien.
 
 ### 4. RBAC : accès par module **et par action**
 
@@ -75,7 +81,6 @@ transfert effectif vers DBS a lieu hors du système ; le journal d'audit en gard
 | `modifier` | éditer les champs, assigner, commenter |
 | `valider` | approuver / rejeter (CAB, ECAB, clôture d'audit) |
 | `cloturer` | clore une activité |
-| `escalader` | monter d'un niveau de support |
 
 Un profil peut ainsi lire les changements sans les valider. Chaque route déclare l'action qu'elle
 exige ; le contrôle reste **côté serveur** (CLAUDE.md §6.3), la matrice reste **paramétrable**
@@ -99,10 +104,9 @@ Le serveur calcule les capacités (`peut_assigner`, `peut_travailler`…) et les
 de l'activité. **L'écran obéit, il ne rejoue pas la règle** — sinon elle vit à deux endroits et
 finit par diverger. Source unique : `application/autorisations.capacites`.
 
-**Exception des tickets importés** : incidents et demandes viennent du rapport quotidien. Un ticket
-sans gestionnaire rapproché n'aurait aucun acteur — plus personne ne pourrait l'escalader ni le
-clore. Pour ces deux modules, l'accès au module suffit encore à travailler. Leur cas se traite dans
-un lot dédié.
+**Cas des tickets importés** : incidents et demandes viennent du rapport quotidien.
+[ADR-0005](0005-incidents-et-demandes-en-lecture-seule.md) tranche : on ne les travaille pas ici,
+on les observe. Toutes leurs capacités sont à faux, pour tout le monde, l'administrateur compris.
 
 ### 6. Incarnation d'un compte — développement seulement
 
