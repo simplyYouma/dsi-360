@@ -1,7 +1,7 @@
 import { useState, type RefObject } from 'react';
 import { FileDown } from 'lucide-react';
 import { Button, useToast } from '@/design-system/primitives';
-import { exporterVisuelsPdf } from './exportPdf';
+import { exporterVisuelsPdf } from './exportVisuels';
 
 interface Props {
   /** Élément dont on capture les visuels (mode clair forcé). */

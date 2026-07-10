@@ -1,0 +1,31 @@
+/* Discret : le bouton n'existe qu'au survol de son visuel, en haut à droite. */
+.btn {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+[data-visuel]:hover .btn,
+.btn:focus-visible {
+  opacity: 1;
+}
+.btn:hover {
+  color: var(--text);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

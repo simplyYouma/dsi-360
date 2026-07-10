@@ -23,6 +23,7 @@ import { Card } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
+import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
@@ -571,7 +572,12 @@ export function AnalysesPage(): JSX.Element {
         ref={contenuRef}
         style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}
       >
-        <section className={styles.kpiRow}>
+        <section
+          className={styles.kpiRow}
+          data-visuel="Indicateurs clés"
+          style={{ position: 'relative' }}
+        >
+          <BoutonExportPng nom="Indicateurs clés" />
           {KPIS.map((k) => {
             const Icone = k.icone;
             return (
@@ -607,7 +613,8 @@ export function AnalysesPage(): JSX.Element {
 
         {onglet === 'apercu' && (
           <section className={styles.grille}>
-            <Card className={styles.span2}>
+            <Card className={styles.span2} data-visuel="Tendance — créations vs résolutions">
+              <BoutonExportPng nom="Tendance — créations vs résolutions" />
               <h2 className={styles.chartTitre}>Tendance — créations vs résolutions</h2>
               <p className={styles.chartSous}>Volume hebdomadaire sur les 8 dernières semaines.</p>
               <ResponsiveContainer width="100%" height={240}>
@@ -668,12 +675,14 @@ export function AnalysesPage(): JSX.Element {
               </ul>
             </Card>
 
-            <Card>
+            <Card data-visuel="Répartition par module">
+              <BoutonExportPng nom="Répartition par module" />
               <h2 className={styles.chartTitre}>Répartition par module</h2>
               <DonutModules data={modules} />
             </Card>
 
-            <Card>
+            <Card data-visuel="Performance SLA par module">
+              <BoutonExportPng nom="Performance SLA par module" />
               <h2 className={styles.chartTitre}>Performance SLA par module</h2>
               <p className={styles.chartSous}>Répartition à l'heure · approche · dépassé.</p>
               <ul className={styles.stack}>
@@ -711,7 +720,8 @@ export function AnalysesPage(): JSX.Element {
               </ul>
             </Card>
 
-            <Card className={styles.span2}>
+            <Card className={styles.span2} data-visuel="Carte d'activité">
+              <BoutonExportPng nom="Carte d'activité" />
               <h2 className={styles.chartTitre}>Carte d'activité</h2>
               <p className={styles.chartSous}>
                 Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
@@ -723,7 +733,8 @@ export function AnalysesPage(): JSX.Element {
 
         {onglet === 'flux' && (
           <section className={styles.grille}>
-            <Card>
+            <Card data-visuel="Où le temps se perd">
+              <BoutonExportPng nom="Où le temps se perd" />
               <h2 className={styles.chartTitre}>Où le temps se perd</h2>
               <p className={styles.chartSous}>
                 Séjour moyen dans chaque statut, reconstitué du journal — les goulots se voient.
@@ -731,7 +742,8 @@ export function AnalysesPage(): JSX.Element {
               <DureesStatuts durees={a?.durees_statuts ?? []} />
             </Card>
 
-            <Card>
+            <Card data-visuel="Vieillissement du stock ouvert">
+              <BoutonExportPng nom="Vieillissement du stock ouvert" />
               <h2 className={styles.chartTitre}>Vieillissement du stock ouvert</h2>
               <p className={styles.chartSous}>
                 Ancienneté des activités non clôturées — le vieux stock est le plus coûteux.
@@ -739,7 +751,8 @@ export function AnalysesPage(): JSX.Element {
               <Vieillissement tranches={a?.vieillissement ?? []} />
             </Card>
 
-            <Card className={styles.span2}>
+            <Card className={styles.span2} data-visuel="Ce qui casse le plus">
+              <BoutonExportPng nom="Ce qui casse le plus" />
               <h2 className={styles.chartTitre}>Ce qui casse le plus</h2>
               <p className={styles.chartSous}>
                 Pareto des catégories : volumes décroissants, part cumulée en surimpression.
@@ -788,7 +801,8 @@ export function AnalysesPage(): JSX.Element {
               )}
             </Card>
 
-            <Card>
+            <Card data-visuel="Résolutions qui n'ont pas tenu">
+              <BoutonExportPng nom="Résolutions qui n'ont pas tenu" />
               <h2 className={styles.chartTitre}>Résolutions qui n'ont pas tenu</h2>
               <p className={styles.chartSous}>
                 Tickets rouverts après résolution — le taux dit la qualité, pas la vitesse.
@@ -817,7 +831,8 @@ export function AnalysesPage(): JSX.Element {
               </ul>
             </Card>
 
-            <Card>
+            <Card data-visuel="Tickets restés chez DBS">
+              <BoutonExportPng nom="Tickets restés chez DBS" />
               <h2 className={styles.chartTitre}>Tickets restés chez DBS</h2>
               <p className={styles.chartSous}>
                 Gestionnaire hors DSI = transféré (ADR-0005). Ce volume nous échappe.
@@ -825,7 +840,8 @@ export function AnalysesPage(): JSX.Element {
               <PartDbs dbs={a?.dbs ?? { dsi: 0, dbs: 0, dbs_ouverts: 0, dbs_age_jours: null }} />
             </Card>
 
-            <Card className={styles.span2}>
+            <Card className={styles.span2} data-visuel="Prise en charge — la première promesse">
+              <BoutonExportPng nom="Prise en charge — la première promesse" />
               <h2 className={styles.chartTitre}>Prise en charge — la première promesse</h2>
               <p className={styles.chartSous}>
                 Part des tickets pris en charge dans la cible de leur priorité (durées réelles).
@@ -850,7 +866,8 @@ export function AnalysesPage(): JSX.Element {
 
         {onglet === 'priorites' && (
           <section className={styles.grille}>
-            <Card>
+            <Card data-visuel="Répartition par priorité">
+              <BoutonExportPng nom="Répartition par priorité" />
               <h2 className={styles.chartTitre}>Répartition par priorité</h2>
               <p className={styles.chartSous}>
                 Activités ouvertes par niveau de priorité (P1 critique → P5 faible).
@@ -889,13 +906,15 @@ export function AnalysesPage(): JSX.Element {
               </div>
             </Card>
 
-            <Card>
+            <Card data-visuel="Matrice des risques">
+              <BoutonExportPng nom="Matrice des risques" />
               <h2 className={styles.chartTitre}>Matrice des risques</h2>
               <p className={styles.chartSous}>Probabilité × impact — intensité = criticité.</p>
               <MatriceRisques cases={a?.matrice_risques ?? []} />
             </Card>
 
-            <Card className={styles.span2}>
+            <Card className={styles.span2} data-visuel="Respect du SLA par priorité">
+              <BoutonExportPng nom="Respect du SLA par priorité" />
               <h2 className={styles.chartTitre}>Respect du SLA par priorité</h2>
               <p className={styles.chartSous}>
                 Part des tickets résolus dans la cible (P1 4 h · P2 8 h · P3 24 h · P4 72 h · P5 120
@@ -937,7 +956,8 @@ export function AnalysesPage(): JSX.Element {
 
             {gestSel === null ? (
               <section className={styles.grille}>
-                <Card className={styles.span2}>
+                <Card className={styles.span2} data-visuel="Cartographie des gestionnaires">
+                  <BoutonExportPng nom="Cartographie des gestionnaires" />
                   <h2 className={styles.chartTitre}>Cartographie des gestionnaires</h2>
                   <p className={styles.chartSous}>
                     Une bulle par agent — abscisse : volume traité · ordonnée : délai moyen (jours)
@@ -1062,7 +1082,8 @@ export function AnalysesPage(): JSX.Element {
                   </div>
                 </Card>
 
-                <Card className={styles.span2}>
+                <Card className={styles.span2} data-visuel="Charge horodatée">
+                  <BoutonExportPng nom="Charge horodatée" />
                   <h2 className={styles.chartTitre}>Charge horodatée</h2>
                   <p className={styles.chartSous}>
                     Tickets pris en charge par jour de semaine et heure — rythme de travail de

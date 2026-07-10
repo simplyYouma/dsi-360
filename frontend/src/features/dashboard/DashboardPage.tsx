@@ -19,6 +19,7 @@ import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { SablierSla } from '@/common/SablierSla';
 import { LIBELLE_MODULE, lienActivite } from '@/common/routesModule';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
+import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { infobulle } from '@/common/infobulle';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
@@ -309,7 +310,12 @@ export function DashboardPage(): JSX.Element {
         ref={contenuRef}
         style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}
       >
-        <section className={styles.grille}>
+        <section
+          className={styles.grille}
+          data-visuel="Indicateurs clés"
+          style={{ position: 'relative' }}
+        >
+          <BoutonExportPng nom="Indicateurs clés" />
           {META_CARTES.map((m) => {
             const Icone = m.icone;
             const spark = tableau && m.spark ? m.spark(tableau) : [];
@@ -350,7 +356,8 @@ export function DashboardPage(): JSX.Element {
         </section>
 
         <section className={styles.rangee}>
-          <Card className={styles.aTraiter}>
+          <Card className={styles.aTraiter} data-visuel="À traiter en premier">
+            <BoutonExportPng nom="À traiter en premier" />
             <h2 className={styles.chartTitre}>À traiter en premier</h2>
             <p className={styles.chartSous}>
               Les échéances les plus proches — ou déjà dépassées. Cliquez pour ouvrir.
@@ -393,7 +400,8 @@ export function DashboardPage(): JSX.Element {
             )}
           </Card>
 
-          <Card>
+          <Card data-visuel="Signaux">
+            <BoutonExportPng nom="Signaux" />
             <h2 className={styles.chartTitre}>Signaux</h2>
             <p className={styles.chartSous}>Ce qui mérite un œil, au-delà des volumes.</p>
             {tableau === null ? (
@@ -439,7 +447,8 @@ export function DashboardPage(): JSX.Element {
         </section>
 
         <section className={styles.charts}>
-          <Card>
+          <Card data-visuel="Répartition des activités">
+            <BoutonExportPng nom="Répartition des activités" />
             <h2 className={styles.chartTitre}>Répartition des activités</h2>
             {tableau ? (
               <DonutAnneau data={repartition} unite="activités" />
@@ -447,7 +456,8 @@ export function DashboardPage(): JSX.Element {
               <Skeleton hauteur="196px" radius="var(--radius-md)" />
             )}
           </Card>
-          <Card>
+          <Card data-visuel="Respect des échéances SLA">
+            <BoutonExportPng nom="Respect des échéances SLA" />
             <h2 className={styles.chartTitre}>Respect des échéances SLA</h2>
             {tableau ? (
               <TendanceSla serie={tableau.serie} courant={sla} />
