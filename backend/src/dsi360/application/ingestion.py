@@ -101,37 +101,51 @@ _UPSERT = text(
     " cast(:demandeur_externe_id as uuid), cast(:responsable_id as uuid), "
     " :priorite, :statut, :cree_le, :pris_en_charge_le, :resolu_le, :cloture_le, "
     " cast(:donnees as jsonb), 'IMPORT_SD', :source_id) "
-    # Ré-importation : on met à jour le cycle de vie (statut, priorité, échéances…) mais on NE
-    # TOUCHE PAS à l'état saisi dans l'app — responsable_id (gestionnaire assigné) est préservé,
-    # tout comme les commentaires et les contributeurs (tables séparées). Le gestionnaire du
-    # rapport source reste consultable dans donnees.gestionnaire.
+    # Ré-importation : le fichier fait autorité. Ces tickets sont traités dans un autre système ;
+    # DSI 360 en reflète l'état. Le gestionnaire suit donc le rapport — un compte DSI si le nom est
+    # rapproché, personne sinon (le ticket est chez DBS). Les commentaires, contributeurs et
+    # documents vivent dans des tables séparées : ils ne sont jamais touchés.
     "ON CONFLICT (module, source_id) WHERE source_id IS NOT NULL DO UPDATE SET "
     " titre = excluded.titre, categorie_id = excluded.categorie_id, "
     " demandeur_externe_id = excluded.demandeur_externe_id, "
+    " responsable_id = excluded.responsable_id, "
     " priorite = excluded.priorite, statut = excluded.statut, "
     " pris_en_charge_le = excluded.pris_en_charge_le, resolu_le = excluded.resolu_le, "
     " cloture_le = excluded.cloture_le, donnees = excluded.donnees "
     # On ne met à jour QUE si une donnée a réellement changé : sinon, ligne « inchangée ».
     " WHERE (core.activite.titre, core.activite.statut, core.activite.priorite, "
     "        core.activite.categorie_id, core.activite.demandeur_externe_id, "
-    "        core.activite.pris_en_charge_le, "
+    "        core.activite.responsable_id, core.activite.pris_en_charge_le, "
     "        core.activite.resolu_le, core.activite.cloture_le, core.activite.donnees) "
     " IS DISTINCT FROM "
     "       (excluded.titre, excluded.statut, excluded.priorite, excluded.categorie_id, "
-    "        excluded.demandeur_externe_id, excluded.pris_en_charge_le, "
+    "        excluded.demandeur_externe_id, excluded.responsable_id, excluded.pris_en_charge_le, "
     "        excluded.resolu_le, excluded.cloture_le, excluded.donnees) "
     # cree=True => insertion ; cree=False => mise à jour ; aucune ligne => inchangée.
     "RETURNING (xmax = 0) AS cree"
 )
+
+# État connu avant l'import, pour ne journaliser que ce qui bouge (le rapport est réimporté chaque
+# jour, l'écrasante majorité des lignes est identique).
+_ETATS_CONNUS = text(
+    "SELECT module, source_id, statut FROM core.activite "
+    "WHERE source = 'IMPORT_SD' AND source_id IS NOT NULL"
+)
+
+
+async def _statuts_avant(session: AsyncSession) -> dict[tuple[str, str], str]:
+    lignes = (await session.execute(_ETATS_CONNUS)).all()
+    return {(module, source_id): statut for module, source_id, statut in lignes}
 
 
 async def importer_tickets(
     session: AsyncSession, contenu: bytes, acteur: dict[str, Any]
 ) -> dict[str, Any]:
     tickets = analyser_classeur(contenu)
-    cache_gest = await _index_gestionnaires(session)  # comptes existants -> évite les doublons
+    cache_gest = await _index_gestionnaires(session)  # comptes existants -> jamais de création
     cache_dem: dict[str, str] = {}
     cache_cat: dict[str, str] = {}
+    statuts_avant = await _statuts_avant(session)
 
     crees = maj = inchanges = 0
     par_module = {"incident": 0, "demande": 0}
@@ -141,6 +155,8 @@ async def importer_tickets(
     for t in tickets:
         gest = t["gestionnaire"]
         responsable_id = _gestionnaire_id(cache_gest, gest)
+        reference = f"{PREFIXE_REFERENCE[t['module']]}-{t['source_id']}"
+        statut_avant = statuts_avant.get((t["module"], t["source_id"]))
 
         donnees = {
             "sous_categorie": t["sous_categorie"],
@@ -161,7 +177,7 @@ async def importer_tickets(
         cree = await session.scalar(
             _UPSERT,
             {
-                "reference": f"{PREFIXE_REFERENCE[t['module']]}-{t['source_id']}",
+                "reference": reference,
                 "module": t["module"],
                 "titre": phrase_propre(t["titre"]),
                 "categorie_id": await _categorie_id(session, cache_cat, t["module"], t["categorie"]),
@@ -184,6 +200,33 @@ async def importer_tickets(
         else:
             maj += 1
         par_module[t["module"]] += 1
+
+        # Le cycle de vie de ces tickets ne vient que du fichier : sans cette trace, l'historique
+        # d'une fiche resterait vide et aucune statistique de durée par statut ne serait possible.
+        # On ne consigne que ce qui bouge — le rapport est réimporté chaque jour à l'identique.
+        if cree:
+            await audit.consigner(
+                session,
+                action="CREATION",
+                acteur_id=acteur["id"],
+                acteur_email=acteur["email"],
+                module=t["module"],
+                cible_type=t["module"],
+                cible_id=reference,
+                nouvelle={"statut": t["statut"], "source": "IMPORT_SD"},
+            )
+        elif cree is False and statut_avant is not None and statut_avant != t["statut"]:
+            await audit.consigner(
+                session,
+                action="TRANSITION",
+                acteur_id=acteur["id"],
+                acteur_email=acteur["email"],
+                module=t["module"],
+                cible_type=t["module"],
+                cible_id=reference,
+                ancienne={"statut": statut_avant},
+                nouvelle={"statut": t["statut"], "source": "IMPORT_SD"},
+            )
 
     apres_dem = await session.scalar(text("SELECT count(*) FROM core.demandeur")) or 0
     apres_agents = await session.scalar(text("SELECT count(*) FROM core.utilisateur")) or 0
