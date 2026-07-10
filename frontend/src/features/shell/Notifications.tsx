@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Inbox, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { couleurStatut } from '@/common/statuts';
 import { lienActivite } from '@/common/routesModule';
+import { useRafraichissement } from '@/common/useRafraichissement';
 import { cx } from '@/common/cx';
 import styles from './Notifications.module.css';
 
@@ -46,6 +47,9 @@ export function Notifications(): JSX.Element {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  // La pastille se met à jour seule : sans cela, elle reste muette jusqu'au prochain rechargement.
+  useRafraichissement(() => void charger());
 
   const toutLu = async (): Promise<void> => {
     await api.post('/notifications/tout-lu');

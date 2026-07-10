@@ -16,6 +16,7 @@ import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BandeauAgent } from './BandeauAgent';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
+import { useRafraichissement } from '@/common/useRafraichissement';
 import {
   mesTicketsApi,
   type MonTicket,
@@ -126,14 +127,20 @@ export function MesTicketsPage(): JSX.Element {
   const { notifier } = useToast();
   const navigate = useNavigate();
 
-  const charger = useCallback((): void => {
-    setChargement(true);
-    void mesTicketsApi
-      .lister(segment)
-      .then(setItems)
-      .finally(() => setChargement(false));
-    void mesTicketsApi.stats().then(setStats);
-  }, [segment]);
+  const charger = useCallback(
+    // `silencieux` : rafraîchissement de fond — pas de squelette, la liste ne doit pas clignoter.
+    (silencieux = false): void => {
+      if (!silencieux) setChargement(true);
+      void mesTicketsApi
+        .lister(segment)
+        .then(setItems)
+        .finally(() => {
+          if (!silencieux) setChargement(false);
+        });
+      void mesTicketsApi.stats().then(setStats);
+    },
+    [segment],
+  );
 
   const baseDe = useCallback(
     (id: string): { base: string; ticket: MonTicket } | null => {
@@ -189,6 +196,10 @@ export function MesTicketsPage(): JSX.Element {
   useEffect(() => {
     charger();
   }, [charger]);
+
+  // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
+  // en pause quand l'onglet est masqué.
+  useRafraichissement(() => charger(true));
 
   useEffect(() => {
     if (onglet === 'taches') void mesTicketsApi.taches().then(setTaches);

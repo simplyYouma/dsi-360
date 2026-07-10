@@ -16,6 +16,7 @@ import { useAuth } from '@/lib/auth';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
+import { useRafraichissement } from '@/common/useRafraichissement';
 
 interface Props {
   titre: string;
@@ -92,8 +93,9 @@ export function PageActiviteCategorie({
   ];
 
   const charger = useCallback(
-    async (p: number): Promise<void> => {
-      setChargement(true);
+    // `silencieux` : rafraîchissement de fond — pas de squelette, la table ne doit pas clignoter.
+    async (p: number, silencieux = false): Promise<void> => {
+      if (!silencieux) setChargement(true);
       try {
         const data = await api.get<{ elements: Incident[]; total: number }>(
           `${base}?${chaineFiltres(p, filtres)}`,
@@ -101,7 +103,7 @@ export function PageActiviteCategorie({
         setItems(data.elements);
         setTotal(data.total);
       } finally {
-        setChargement(false);
+        if (!silencieux) setChargement(false);
       }
     },
     [base, filtres],
@@ -110,6 +112,10 @@ export function PageActiviteCategorie({
   useEffect(() => {
     void charger(page);
   }, [charger, page]);
+
+  // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
+  // en pause quand l'onglet est masqué.
+  useRafraichissement(() => void charger(page, true));
 
   const chargerCategories = useCallback((): void => {
     void api.get<Categorie[]>(`/referentiels/categories?module=${module}`).then(setCategories);

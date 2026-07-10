@@ -10,6 +10,7 @@ import { CelluleReference } from '@/common/CelluleReference';
 import { BadgeStatut } from '@/common/statuts';
 import { incidentsApi, assignerLot, type Incident, type FiltresListe } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
+import { useRafraichissement } from '@/common/useRafraichissement';
 
 const PRIORITE_COULEUR: Record<number, string> = {
   1: 'var(--status-danger)',
@@ -74,14 +75,15 @@ export function IncidentsPage(): JSX.Element {
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const charger = useCallback(
-    async (p: number): Promise<void> => {
-      setChargement(true);
+    // `silencieux` : rafraîchissement de fond — pas de squelette, la table ne doit pas clignoter.
+    async (p: number, silencieux = false): Promise<void> => {
+      if (!silencieux) setChargement(true);
       try {
         const data = await incidentsApi.lister(p, filtres);
         setIncidents(data.elements);
         setTotal(data.total);
       } finally {
-        setChargement(false);
+        if (!silencieux) setChargement(false);
       }
     },
     [filtres],
@@ -90,6 +92,10 @@ export function IncidentsPage(): JSX.Element {
   useEffect(() => {
     void charger(page);
   }, [charger, page]);
+
+  // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
+  // en pause quand l'onglet est masqué.
+  useRafraichissement(() => void charger(page, true));
 
   return (
     <div className={styles.page}>

@@ -11,6 +11,7 @@ import { BadgeStatut } from '@/common/statuts';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { assignerLot, type FiltresListe } from '@/features/incidents/incidentsApi';
 import { demandesApi, type Demande } from './demandesApi';
+import { useRafraichissement } from '@/common/useRafraichissement';
 
 function formaterDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -63,14 +64,15 @@ export function DemandesPage(): JSX.Element {
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
   const charger = useCallback(
-    async (p: number): Promise<void> => {
-      setChargement(true);
+    // `silencieux` : rafraîchissement de fond — pas de squelette, la table ne doit pas clignoter.
+    async (p: number, silencieux = false): Promise<void> => {
+      if (!silencieux) setChargement(true);
       try {
         const data = await demandesApi.lister(p, filtres);
         setDemandes(data.elements);
         setTotal(data.total);
       } finally {
-        setChargement(false);
+        if (!silencieux) setChargement(false);
       }
     },
     [filtres],
@@ -79,6 +81,10 @@ export function DemandesPage(): JSX.Element {
   useEffect(() => {
     void charger(page);
   }, [charger, page]);
+
+  // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
+  // en pause quand l'onglet est masqué.
+  useRafraichissement(() => void charger(page, true));
 
   return (
     <div className={styles.page}>
