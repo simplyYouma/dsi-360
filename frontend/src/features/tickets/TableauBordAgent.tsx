@@ -10,6 +10,7 @@ import {
   Cell,
 } from 'recharts';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { infobulle } from '@/common/infobulle';
 import { LIBELLE_MODULE } from '@/common/routesModule';
 import styles from './MesTickets.module.css';
@@ -39,11 +40,11 @@ function couleurTaux(taux: number): string {
       : 'var(--status-danger)';
 }
 
-/** Jauge circulaire (SVG) — % de respect SLA personnel. */
-function Jauge({ taux }: { taux: number }): JSX.Element {
+/** Jauge circulaire (SVG) — % de respect SLA personnel. Sans résolution, rien à noter : « — ». */
+function Jauge({ taux, mesure }: { taux: number; mesure: boolean }): JSX.Element {
   const r = 34;
   const circ = 2 * Math.PI * r;
-  const couleur = couleurTaux(taux);
+  const couleur = mesure ? couleurTaux(taux) : 'var(--bg-subtle)';
   return (
     <svg viewBox="0 0 88 88" className={styles.jaugeSvg}>
       <circle cx="44" cy="44" r={r} fill="none" stroke="var(--bg-subtle)" strokeWidth="9" />
@@ -56,12 +57,12 @@ function Jauge({ taux }: { taux: number }): JSX.Element {
         strokeWidth="9"
         strokeLinecap="round"
         strokeDasharray={circ}
-        strokeDashoffset={circ * (1 - taux / 100)}
+        strokeDashoffset={mesure ? circ * (1 - taux / 100) : circ}
         transform="rotate(-90 44 44)"
         style={{ transition: 'stroke-dashoffset 0.6s ease' }}
       />
       <text x="44" y="42" textAnchor="middle" fontSize="20" fontWeight="600" fill="var(--text)">
-        {taux}%
+        {mesure ? `${taux}%` : '—'}
       </text>
       <text x="44" y="57" textAnchor="middle" fontSize="9" fill="var(--text-muted)">
         respect SLA
@@ -107,15 +108,19 @@ function AnneauSla({ stats }: { stats: MesStats }): JSX.Element {
           <span className={styles.anneauUnite}>avec SLA</span>
         </div>
       </div>
-      <ul className={styles.legende}>
-        {data.map((d) => (
-          <li key={d.nom}>
-            <span className={styles.pastille} style={{ background: d.couleur }} />
-            <span className={styles.legendeNom}>{d.nom}</span>
-            <span className={styles.legendeVal}>{d.valeur}</span>
-          </li>
-        ))}
-      </ul>
+      {total === 0 ? (
+        <p className={styles.vide}>Aucun ticket ouvert ne porte d'échéance SLA.</p>
+      ) : (
+        <ul className={styles.legende}>
+          {data.map((d) => (
+            <li key={d.nom}>
+              <span className={styles.pastille} style={{ background: d.couleur }} />
+              <span className={styles.legendeNom}>{d.nom}</span>
+              <span className={styles.legendeVal}>{d.valeur}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -180,9 +185,10 @@ const KPIS = (
   {
     cle: 'sla',
     icone: Gauge,
-    valeur: `${s.respect_sla} %`,
+    valeur: s.resolus_30j > 0 || s.respect_sla > 0 ? `${s.respect_sla} %` : '—',
     libelle: 'Respect SLA',
-    couleur: couleurTaux(s.respect_sla),
+    couleur:
+      s.resolus_30j > 0 || s.respect_sla > 0 ? couleurTaux(s.respect_sla) : 'var(--text-muted)',
   },
   {
     cle: 'mttr',
@@ -196,7 +202,7 @@ const KPIS = (
 export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
   return (
     <>
-      <section className={styles.profil}>
+      <section className={styles.profil} data-visuel="Agent">
         <AvatarPersonnage seed={stats.agent.nom} taille={56} />
         <div className={styles.profilTxt}>
           <span className={styles.profilNom}>{stats.agent.nom}</span>
@@ -213,7 +219,7 @@ export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
         )}
       </section>
 
-      <section className={styles.kpis}>
+      <section className={styles.kpis} data-visuel="Mes indicateurs">
         {KPIS(stats).map((k) => {
           const Icone = k.icone;
           return (
@@ -231,30 +237,39 @@ export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
       </section>
 
       <section className={styles.dash}>
-        <div className={styles.carte}>
+        <div className={styles.carte} data-visuel="Respect du SLA">
+          <BoutonExportPng nom="Respect du SLA" />
           <h2 className={styles.carteTitre}>Respect du SLA</h2>
           <p className={styles.carteSous}>Résolus dans la cible (90 j).</p>
           <div className={styles.jaugeWrap}>
-            <Jauge taux={stats.respect_sla} />
+            <Jauge
+              taux={stats.respect_sla}
+              mesure={stats.resolus_30j > 0 || stats.respect_sla > 0}
+            />
             <span className={styles.jaugeNote}>
-              {stats.resolus_30j} résolu{stats.resolus_30j > 1 ? 's' : ''} sur 30 j
+              {stats.resolus_30j === 0
+                ? 'Aucun ticket résolu sur 30 j'
+                : `${stats.resolus_30j} résolu${stats.resolus_30j > 1 ? 's' : ''} sur 30 j`}
             </span>
           </div>
         </div>
 
-        <div className={styles.carte}>
+        <div className={styles.carte} data-visuel="File par échéance">
+          <BoutonExportPng nom="File par échéance" />
           <h2 className={styles.carteTitre}>File par échéance</h2>
           <p className={styles.carteSous}>Où en sont vos tickets ouverts.</p>
           <AnneauSla stats={stats} />
         </div>
 
-        <div className={styles.carte}>
+        <div className={styles.carte} data-visuel="Par priorité">
+          <BoutonExportPng nom="Par priorité" />
           <h2 className={styles.carteTitre}>Par priorité</h2>
           <p className={styles.carteSous}>Tickets ouverts, P1 critique → P5.</p>
           <Barres data={stats.par_priorite} couleurs={PRIORITE_COULEUR} />
         </div>
 
-        <div className={styles.carte}>
+        <div className={styles.carte} data-visuel="Par domaine">
+          <BoutonExportPng nom="Par domaine" />
           <h2 className={styles.carteTitre}>Par domaine</h2>
           <p className={styles.carteSous}>Répartition de votre charge.</p>
           <Barres
@@ -264,7 +279,8 @@ export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
           />
         </div>
 
-        <div className={`${styles.carte} ${styles.carteLarge}`}>
+        <div className={`${styles.carte} ${styles.carteLarge}`} data-visuel="Rythme de résolution">
+          <BoutonExportPng nom="Rythme de résolution" />
           <h2 className={styles.carteTitre}>Rythme de résolution</h2>
           <p className={styles.carteSous}>Tickets que vous avez résolus, 14 derniers jours.</p>
           <ResponsiveContainer width="100%" height={140}>

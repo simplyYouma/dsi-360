@@ -313,7 +313,10 @@ export function MesTicketsPage(): JSX.Element {
                 nomFichier="dsi360-mon-activite.pdf"
               />
             </div>
-            <div ref={analyseRef}>
+            <div
+              ref={analyseRef}
+              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}
+            >
               <TableauBordAgent stats={stats} />
             </div>
           </>
