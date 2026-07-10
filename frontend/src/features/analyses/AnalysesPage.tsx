@@ -12,6 +12,8 @@ import {
   RadialBar,
   ComposedChart,
   Area,
+  Bar,
+  Line,
   CartesianGrid,
   ScatterChart,
   Scatter,
@@ -65,9 +67,10 @@ const SLA_SEGMENTS = [
   { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
 ] as const;
 
-type CleOnglet = 'apercu' | 'priorites' | 'equipe';
+type CleOnglet = 'apercu' | 'flux' | 'priorites' | 'equipe';
 const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
   { cle: 'apercu', libelle: "Vue d'ensemble" },
+  { cle: 'flux', libelle: 'Flux & qualité' },
   { cle: 'priorites', libelle: 'Risques & priorités' },
   { cle: 'equipe', libelle: 'Équipe & gestionnaires' },
 ];
@@ -264,6 +267,7 @@ interface BulleData {
   id: string;
   nom: string;
   couleur: string;
+  suivis: number;
 }
 
 function BulleTooltip({
@@ -280,6 +284,7 @@ function BulleTooltip({
       <strong>{point.nom}</strong>
       <span>
         {point.x} traités · {point.y} j de délai · {point.z} en charge
+        {point.suivis > 0 && ` · ${point.suivis} suivi(s)`}
       </span>
     </div>
   );
@@ -377,6 +382,106 @@ function HeatmapActivite({ points }: { points: PointActivite[] }): JSX.Element {
   );
 }
 
+// ---------------------------------------------------------------- Flux & qualité
+
+/** Durée lisible : les séjours d'un ticket se comptent en heures autant qu'en jours. */
+function formaterJours(jours: number): string {
+  if (jours >= 1) return `${jours} j`;
+  const heures = Math.round(jours * 24);
+  return heures >= 1 ? `${heures} h` : '< 1 h';
+}
+
+/** Barres horizontales des séjours moyens par statut, module par module. */
+function DureesStatuts({ durees }: { durees: Analyses['durees_statuts'] }): JSX.Element {
+  const lignes = [...durees].sort((a, b) => b.jours - a.jours).slice(0, 10);
+  const max = Math.max(...lignes.map((d) => d.jours), 0.01);
+  if (lignes.length === 0) return <p className={styles.vide}>Aucun parcours journalisé.</p>;
+  return (
+    <ul className={styles.stack}>
+      {lignes.map((d) => (
+        <li key={`${d.module}-${d.statut}`} className={styles.stackLigne}>
+          <span className={styles.stackNom} title={MODULE_LABEL[d.module] ?? d.module}>
+            <span
+              className={styles.pointModule}
+              style={{ background: MODULE_COULEUR[d.module] ?? '#8a93a6' }}
+            />
+            {d.statut}
+          </span>
+          <div className={styles.stackBarre}>
+            <span
+              className={styles.stackSeg}
+              style={{
+                width: `${Math.max(2, (100 * d.jours) / max)}%`,
+                background: MODULE_COULEUR[d.module] ?? '#8a93a6',
+              }}
+              title={`${MODULE_LABEL[d.module] ?? d.module} · ${d.passages} passage(s)`}
+            />
+          </div>
+          <span className={styles.stackTot}>{formaterJours(d.jours)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Vieillissement du stock ouvert : plus c'est vieux, plus la couleur insiste. */
+const TONS_AGE = ['#1f9d55', '#c77700', '#e0683c', '#d64545'];
+
+function Vieillissement({ tranches }: { tranches: Analyses['vieillissement'] }): JSX.Element {
+  const max = Math.max(...tranches.map((v) => v.valeur), 1);
+  return (
+    <div className={styles.ages}>
+      {tranches.map((v, i) => (
+        <div key={v.libelle} className={styles.age}>
+          <span className={styles.ageValeur}>{v.valeur}</span>
+          <div className={styles.ageColonne}>
+            <div
+              className={styles.agePlein}
+              style={{
+                height: `${Math.max(4, (100 * v.valeur) / max)}%`,
+                background: TONS_AGE[i] ?? '#8a93a6',
+              }}
+            />
+          </div>
+          <span className={styles.ageLibelle}>{v.libelle}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Part DSI / DBS des tickets importés : une seule barre, deux camps. */
+function PartDbs({ dbs }: { dbs: Analyses['dbs'] }): JSX.Element {
+  const total = dbs.dsi + dbs.dbs;
+  const partDbs = total === 0 ? 0 : Math.round((100 * dbs.dbs) / total);
+  return (
+    <div className={styles.dbsBloc}>
+      <div className={styles.dbsBarre}>
+        <span className={styles.dbsSegDsi} style={{ width: `${100 - partDbs}%` }} />
+        <span className={styles.dbsSegDbs} style={{ width: `${partDbs}%` }} />
+      </div>
+      <ul className={styles.miniLegende}>
+        <li>
+          <span className={styles.tiret} style={{ background: 'var(--secondary)' }} />
+          DSI · {dbs.dsi}
+        </li>
+        <li>
+          <span className={styles.tiret} style={{ background: '#c77700' }} />
+          DBS · {dbs.dbs} ({partDbs} %)
+        </li>
+      </ul>
+      <p className={styles.dbsNote}>
+        {dbs.dbs_ouverts === 0
+          ? 'Aucun ticket ouvert chez DBS.'
+          : `${dbs.dbs_ouverts} ticket(s) encore ouvert(s) chez DBS` +
+            (dbs.dbs_age_jours !== null
+              ? `, depuis ${Math.round(dbs.dbs_age_jours)} j en moyenne.`
+              : '.')}
+      </p>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AnalysesPage(): JSX.Element {
@@ -426,6 +531,7 @@ export function AnalysesPage(): JSX.Element {
     id: e.id,
     nom: e.gestionnaire,
     couleur: couleurMttr(e.mttr_jours),
+    suivis: e.suivis,
   }));
   const detailTaux =
     gestDetail && gestDetail.volume > 0
@@ -611,6 +717,133 @@ export function AnalysesPage(): JSX.Element {
                 Volume de tickets créés par jour de semaine et heure — repère les pics de charge.
               </p>
               <HeatmapActivite points={a?.activite ?? []} />
+            </Card>
+          </section>
+        )}
+
+        {onglet === 'flux' && (
+          <section className={styles.grille}>
+            <Card>
+              <h2 className={styles.chartTitre}>Où le temps se perd</h2>
+              <p className={styles.chartSous}>
+                Séjour moyen dans chaque statut, reconstitué du journal — les goulots se voient.
+              </p>
+              <DureesStatuts durees={a?.durees_statuts ?? []} />
+            </Card>
+
+            <Card>
+              <h2 className={styles.chartTitre}>Vieillissement du stock ouvert</h2>
+              <p className={styles.chartSous}>
+                Ancienneté des activités non clôturées — le vieux stock est le plus coûteux.
+              </p>
+              <Vieillissement tranches={a?.vieillissement ?? []} />
+            </Card>
+
+            <Card className={styles.span2}>
+              <h2 className={styles.chartTitre}>Ce qui casse le plus</h2>
+              <p className={styles.chartSous}>
+                Pareto des catégories : volumes décroissants, part cumulée en surimpression.
+              </p>
+              {(a?.pareto_categories ?? []).length === 0 ? (
+                <p className={styles.vide}>Aucune catégorie renseignée.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <ComposedChart
+                    data={a?.pareto_categories ?? []}
+                    margin={{ top: 10, right: 8, left: -18, bottom: 0 }}
+                  >
+                    <CartesianGrid vertical={false} strokeDasharray="4 4" stroke="var(--border)" />
+                    <XAxis
+                      dataKey="libelle"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                      interval={0}
+                      angle={-18}
+                      textAnchor="end"
+                      height={52}
+                    />
+                    <YAxis yAxisId="v" hide allowDecimals={false} />
+                    <YAxis yAxisId="pct" hide domain={[0, 100]} />
+                    <Tooltip {...infobulle} />
+                    <Bar
+                      yAxisId="v"
+                      dataKey="valeur"
+                      name="Volume"
+                      fill="var(--secondary)"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={38}
+                    />
+                    <Line
+                      yAxisId="pct"
+                      type="monotone"
+                      dataKey="cumul_pct"
+                      name="Cumul (%)"
+                      stroke="#c77700"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </Card>
+
+            <Card>
+              <h2 className={styles.chartTitre}>Résolutions qui n'ont pas tenu</h2>
+              <p className={styles.chartSous}>
+                Tickets rouverts après résolution — le taux dit la qualité, pas la vitesse.
+              </p>
+              <ul className={styles.stack}>
+                {(a?.reouvertures ?? []).map((r) => (
+                  <li key={r.libelle} className={styles.stackLigne}>
+                    <span className={styles.stackNom}>{MODULE_LABEL[r.libelle] ?? r.libelle}</span>
+                    <div className={styles.stackBarre}>
+                      {r.taux > 0 && (
+                        <span
+                          className={styles.stackSeg}
+                          style={{ width: `${Math.max(3, r.taux)}%`, background: '#d64545' }}
+                          title={`${r.rouverts} rouvert(s) / ${r.resolus} résolu(s)`}
+                        />
+                      )}
+                    </div>
+                    <span
+                      className={styles.stackTot}
+                      style={{ color: r.taux > 10 ? '#d64545' : 'var(--text-muted)' }}
+                    >
+                      {r.taux} %
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+
+            <Card>
+              <h2 className={styles.chartTitre}>Tickets restés chez DBS</h2>
+              <p className={styles.chartSous}>
+                Gestionnaire hors DSI = transféré (ADR-0005). Ce volume nous échappe.
+              </p>
+              <PartDbs dbs={a?.dbs ?? { dsi: 0, dbs: 0, dbs_ouverts: 0, dbs_age_jours: null }} />
+            </Card>
+
+            <Card className={styles.span2}>
+              <h2 className={styles.chartTitre}>Prise en charge — la première promesse</h2>
+              <p className={styles.chartSous}>
+                Part des tickets pris en charge dans la cible de leur priorité (durées réelles).
+              </p>
+              {(a?.pec_par_priorite ?? []).length === 0 ? (
+                <p className={styles.vide}>Aucune durée de prise en charge mesurée.</p>
+              ) : (
+                <div className={styles.jauges}>
+                  {(a?.pec_par_priorite ?? []).map((p) => (
+                    <Jauge
+                      key={p.priorite}
+                      taux={p.taux}
+                      label={p.priorite}
+                      detail={`${p.dans_delai}/${p.total}`}
+                    />
+                  ))}
+                </div>
+              )}
             </Card>
           </section>
         )}
@@ -821,6 +1054,10 @@ export function AnalysesPage(): JSX.Element {
                         {detailTaux}%
                       </span>
                       <span className={styles.gestLib}>Taux résolution</span>
+                    </div>
+                    <div className={styles.gestKpi}>
+                      <span className={styles.gestVal}>{gestDetail?.suivis ?? '—'}</span>
+                      <span className={styles.gestLib}>Suivis (contributeur)</span>
                     </div>
                   </div>
                 </Card>

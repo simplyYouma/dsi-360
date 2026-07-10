@@ -44,6 +44,33 @@ export interface PointActivite {
   valeur: number;
 }
 
+export interface DureeStatut {
+  module: string;
+  statut: string;
+  jours: number;
+  passages: number;
+}
+
+export interface Reouverture {
+  libelle: string;
+  rouverts: number;
+  resolus: number;
+  taux: number;
+}
+
+export interface DbsSynthese {
+  dsi: number;
+  dbs: number;
+  dbs_ouverts: number;
+  dbs_age_jours: number | null;
+}
+
+export interface ParetoItem {
+  libelle: string;
+  valeur: number;
+  cumul_pct: number;
+}
+
 export interface Analyses {
   total: number;
   kpis: Kpis;
@@ -57,6 +84,12 @@ export interface Analyses {
   matrice_risques: CaseRisque[];
   tendance: PointTendance[];
   activite: PointActivite[];
+  durees_statuts: DureeStatut[];
+  reouvertures: Reouverture[];
+  vieillissement: AnalyseItem[];
+  dbs: DbsSynthese;
+  pareto_categories: ParetoItem[];
+  pec_par_priorite: SlaPriorite[];
 }
 
 export interface GestionnaireEval {
@@ -67,6 +100,8 @@ export interface GestionnaireEval {
   resolus: number;
   mttr_jours: number | null;
   prise_en_charge_h: number | null;
+  /** Activités suivies comme contributeur : dans sa file, hors de son volume traité. */
+  suivis: number;
 }
 
 export interface GestionnaireDetail extends GestionnaireEval {
