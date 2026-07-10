@@ -23,6 +23,9 @@ export interface Incident {
   responsable_id: string | null;
   nb_commentaires: number;
   nb_non_vus: number;
+  /** Déduit du gestionnaire : N1/N2 s'il est des nôtres, sinon DBS (niveau 3). */
+  niveau_support: number;
+  transfere_dbs: boolean;
 }
 
 export interface PageIncidents {

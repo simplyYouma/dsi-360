@@ -254,19 +254,6 @@ async def test_un_incident_importe_reste_traitable_par_tout_agent(
     assert r.status_code == 200, r.text
 
 
-async def test_un_incident_importe_reste_escaladable_par_tout_agent(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    gens = await _equipe(session, "import-esc")
-    incident = await creer_activite(
-        session, module="incident", reference="INC-ACT-2", responsable_id=gens["responsable"]
-    )
-
-    r = await client.post(f"/incidents/{incident}/escalader", headers=entetes(gens["lecteur"]))
-
-    assert r.status_code in (200, 409), r.text
-
-
 async def test_une_demande_importee_reste_traitable_par_tout_agent(
     client: AsyncClient, session: AsyncSession
 ) -> None:

@@ -35,7 +35,6 @@ from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
-from dsi360.infrastructure.repositories import groupe_support as groupe_repo
 from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.routeurs.liens_communs import enregistrer_liens
@@ -102,7 +101,7 @@ def _gestionnaire(r: RowMapping) -> str | None:
     return str(valeur) if valeur else None
 
 
-def _resume(r: RowMapping, maintenant: datetime) -> dict[str, Any]:
+def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[str, Any]:
     return {
         "id": r["id"],
         "reference": r["reference"],
@@ -120,12 +119,17 @@ def _resume(r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         "responsable_id": r["resp_id"],
         "nb_commentaires": r["nb_commentaires"],
         "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,
+        # Le support voit d'un coup d'œil où se trouve chaque ticket, sans ouvrir les fiches.
+        "niveau_support": _niveau_support(r, importe),
+        "transfere_dbs": _transfere_dbs(r, importe),
     }
 
 
-def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
+def _detail(
+    module: str, r: RowMapping, maintenant: datetime, importe: bool = False
+) -> dict[str, Any]:
     return {
-        **_resume(r, maintenant),
+        **_resume(r, maintenant, importe),
         "description": r["description"],
         "categorie_id": str(r["categorie_id"]) if r["categorie_id"] is not None else None,
         "impact": r["impact"],
@@ -142,8 +146,6 @@ def _detail(module: str, r: RowMapping, maintenant: datetime) -> dict[str, Any]:
         ],
         "etats": ordre_etats(module),
         "avancement": int(_donnees(r).get("avancement", 0)),
-        "niveau_support": _niveau_support(r),
-        "transfere_dbs": _transfere_dbs(r),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
         "periodicite": _donnees(r).get("periodicite"),
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
@@ -161,19 +163,30 @@ _CHAMPS_RFC = (
 )
 
 
-# Niveau 3 = DBS, hors du système (ADR-0003 §3). La DSI ne tient que N1 et N2 : aucun compte ne
-# porte le niveau 3, et un ticket qui l'atteint est « transféré à DBS ».
+# Niveau 3 = DBS, hors du système. La DSI ne tient que N1 et N2 : aucun compte ne porte le
+# niveau 3 (ADR-0003 §3).
 NIVEAU_DBS = 3
+NIVEAU_DEFAUT = 1
 
 
-def _niveau_support(r: RowMapping) -> int:
-    """Niveau de support du ticket. Un ticket sans gestionnaire n'est encore à aucun niveau : il
-    entre au N1, faute d'avoir été pris par qui que ce soit."""
-    return int(_donnees(r).get("niveau_support", 1))
+def _niveau_support(r: RowMapping, importe: bool) -> int:
+    """Niveau du ticket, **déduit** de son gestionnaire (ADR-0005).
+
+    Le gestionnaire vient du fichier importé. Rapproché d'un compte DSI, le ticket est à son
+    niveau ; sinon c'est DBS — tout ce qui n'est pas nous est DBS — et le ticket est au niveau 3.
+    Les modules qui ne viennent pas de l'import n'ont pas de niveau de support.
+    """
+    if not importe:
+        return NIVEAU_DEFAUT
+    if r["resp_id"] is None:
+        return NIVEAU_DBS
+    niveau = r["resp_niveau"] if "resp_niveau" in r else None
+    return int(niveau) if niveau is not None else NIVEAU_DEFAUT
 
 
-def _transfere_dbs(r: RowMapping) -> bool:
-    return bool(_donnees(r).get("transfere_dbs", False))
+def _transfere_dbs(r: RowMapping, importe: bool) -> bool:
+    """Chez DBS : le gestionnaire du fichier n'est aucun des nôtres."""
+    return importe and r["resp_id"] is None
 
 
 def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
@@ -223,7 +236,6 @@ def creer_routeur(
     import_uniquement: bool = False,
     avec_taches: bool = False,
     avec_documents: bool = False,
-    avec_escalade: bool = False,
     avec_revue: bool = False,
     avec_notes: bool = False,
     editable: bool = False,
@@ -248,8 +260,7 @@ def creer_routeur(
     # Faire avancer le sujet revient à l'administrateur, au gestionnaire et aux contributeurs.
     #
     # Incidents et demandes font exception : ils viennent de l'import quotidien, et un ticket sans
-    # gestionnaire rapproché n'aurait aucun acteur — plus personne ne pourrait l'escalader ni le
-    # clore. Pour eux, l'accès au module suffit encore. Leur cas se traite dans un lot dédié.
+    # gestionnaire rapproché n'aurait aucun acteur. Pour eux, l'accès au module suffit encore.
     requis_travail: set[str] = set() if import_uniquement else {ACTEUR}
     CtxActeur = Annotated[  # noqa: N806
         ContexteActivite, Depends(exiger_role_activite(module, acces, requis_travail))
@@ -299,7 +310,7 @@ def creer_routeur(
         )
         maintenant = datetime.now(UTC)
         return {
-            "elements": [_resume(r, maintenant) for r in lignes],
+            "elements": [_resume(r, maintenant, import_uniquement) for r in lignes],
             "total": total,
             "page": page,
             "taille": _TAILLE,
@@ -353,7 +364,7 @@ def creer_routeur(
     async def detail_complet(
         r: RowMapping, session: AsyncSession, courant: dict[str, Any]
     ) -> dict[str, Any]:
-        base = _detail(module, r, datetime.now(UTC))
+        base = _detail(module, r, datetime.now(UTC), import_uniquement)
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
         base["contributeurs"] = [
             dict(c) for c in await repo.lister_contributeurs(session, r["id"])
@@ -817,107 +828,6 @@ def creer_routeur(
             await session.commit()
             return dict(ligne)
 
-    if avec_escalade:
-
-        @routeur.post("/{ident}/escalader", response_model=ActiviteDetail)
-        async def escalader(ident: str, ctx: CtxActeur, session: Session) -> dict[str, Any]:
-            """Monte le ticket d'un niveau de support.
-
-            La DSI tient N1 et N2 ; le N3 est DBS, qui n'a aucun compte ici (ADR-0003 §3).
-            Escalader depuis le N2 ne réaffecte donc personne : le ticket est marqué « transféré à
-            DBS » et **garde son gestionnaire**, désormais référent du suivi et de la relance. Le
-            SLA continue de courir — le demandeur ignore quelle équipe traite son ticket.
-            """
-            courant, avant = ctx.courant, ctx.activite
-            resp_avant = str(avant["resp_id"]) if avant["resp_id"] is not None else None
-            courant_niveau = _niveau_support(avant)
-            if courant_niveau >= NIVEAU_DBS:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Déjà transféré à DBS (N3) — dernier niveau d'escalade.",
-                )
-            # Sans gestionnaire, personne à la DSI ne l'a pris : l'escalader, c'est le passer à DBS.
-            niveau = NIVEAU_DBS if resp_avant is None else courant_niveau + 1
-            vers_dbs = niveau >= NIVEAU_DBS
-
-            nouveau_resp: str | None = None
-            if not vers_dbs:
-                # On ne cherche qu'au niveau visé : jamais de montée silencieuse jusqu'à DBS.
-                nouveau_resp = await groupe_repo.membre_le_moins_charge(
-                    session, niveau, avant["direction"]
-                )
-                if nouveau_resp is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Aucun gestionnaire N{niveau} disponible pour prendre ce ticket.",
-                    )
-
-            champs: dict[str, Any] = {"niveau_support": niveau}
-            if vers_dbs:
-                champs["transfere_dbs"] = True
-            await session.execute(
-                text(
-                    "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
-                    "WHERE id = cast(:id as uuid)"
-                ),
-                {"id": ident, "f": json.dumps(champs)},
-            )
-            reaffecte = nouveau_resp is not None and nouveau_resp != resp_avant
-            if reaffecte:
-                await repo.assigner(session, ident, nouveau_resp)
-                await notifier(
-                    session,
-                    destinataire_id=nouveau_resp,
-                    activite_id=str(avant["id"]),
-                    type_="ASSIGNATION",
-                    titre=f"Escalade N{niveau} — {avant['reference']}",
-                    message=f"{avant['reference']} vous est confié en support niveau {niveau}.",
-                )
-            # Informe le gestionnaire précédent (s'il existe, n'est pas l'auteur, et n'est pas le
-            # nouveau). Au transfert vers DBS il reste responsable : on lui dit ce qu'on attend.
-            ancien_a_prevenir = (
-                resp_avant is not None
-                and resp_avant != courant["id"]
-                and resp_avant != nouveau_resp
-            )
-            if ancien_a_prevenir:
-                message = (
-                    f"{avant['reference']} a été transféré à DBS (N3). Vous en restez référent : "
-                    "suivi, relance et clôture."
-                    if vers_dbs
-                    else f"{avant['reference']} a été escaladé au support niveau {niveau} "
-                    f"{'et réaffecté' if reaffecte else ''}".strip()
-                )
-                await notifier(
-                    session,
-                    destinataire_id=resp_avant,
-                    activite_id=str(avant["id"]),
-                    # Type dédié : 'ESCALADE' est réservé (index unique) à l'escalade SLA auto.
-                    type_="ESCALADE_SUPPORT",
-                    titre=(
-                        f"Transféré à DBS — {avant['reference']}"
-                        if vers_dbs
-                        else f"Escalade N{niveau} — {avant['reference']}"
-                    ),
-                    message=message,
-                )
-            await audit.consigner(
-                session,
-                action="ESCALADE",
-                acteur_id=courant["id"],
-                acteur_email=courant["email"],
-                module=module,
-                cible_type=module,
-                cible_id=avant["reference"],
-                nouvelle={
-                    "niveau_support": niveau,
-                    "transfere_dbs": vers_dbs,
-                    "reaffecte_a": nouveau_resp if reaffecte else None,
-                },
-            )
-            await session.commit()
-            r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session, courant)
 
     @routeur.post("/{ident}/evaluation", response_model=ActiviteDetail)
     async def evaluer(

@@ -15,6 +15,8 @@ _LISTE_CHAMPS = """
     a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, a.donnees,
     c.libelle AS categorie, a.categorie_id::text AS categorie_id, d.code AS direction,
     r.id::text AS resp_id, r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email,
+    -- Niveau de support du gestionnaire : le niveau du ticket importé s'en déduit (ADR-0005).
+    r.niveau_support AS resp_niveau,
     dem.nom_complet AS demandeur_nom,
     (SELECT count(*) FROM core.commentaire cm
      WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires,

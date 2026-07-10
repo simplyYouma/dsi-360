@@ -145,6 +145,10 @@ class ActiviteResume(BaseModel):
     responsable_id: str | None
     nb_commentaires: int = 0
     nb_non_vus: int = 0
+    # Niveau de support, déduit du gestionnaire pour les tickets importés (ADR-0005). Le support
+    # voit d'un coup d'œil où se trouve chaque ticket, sans ouvrir les fiches une à une.
+    niveau_support: int = 1
+    transfere_dbs: bool = False
 
 
 class PermissionsActivite(BaseModel):
@@ -176,11 +180,6 @@ class ActiviteDetail(ActiviteResume):
     valideurs: list[Contributeur] = []
     # Avancement dérivé des tâches (modules avec tâches : changement…). 0 sinon.
     avancement: int = 0
-    # Niveau de support ITIL. La DSI tient N1 et N2 ; le niveau 3 signifie « chez DBS ».
-    niveau_support: int = 1
-    # Transféré à DBS (niveau 3) : plus personne à la DSI ne le traite. Le gestionnaire reste
-    # référent du suivi, et le SLA continue de courir (ADR-0003 §3).
-    transfere_dbs: bool = False
     permissions: PermissionsActivite = PermissionsActivite()
     # Champs RFC (changement, ITIL SI-12.04) — stockés dans donnees, None si non renseignés.
     analyse_impact: str | None = None

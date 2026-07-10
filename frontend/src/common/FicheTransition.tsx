@@ -4,7 +4,7 @@ import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
-import { BoutonEscalade } from '@/common/BoutonEscalade';
+import { NiveauSupport } from '@/common/NiveauSupport';
 import { chargerAgents, moduleDeLaBase, type Agent } from '@/common/agentsApi';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { AUCUNE_PERMISSION, type Permissions } from '@/common/permissions';
@@ -75,8 +75,8 @@ interface FicheTransitionProps {
   avecRevue?: boolean;
   /** Gestionnaire figé (tickets importés) : affiché (compte lié ou nom importé), non modifiable. */
   gestionnaireFige?: boolean;
-  /** Affiche le niveau de support et l'escalade (modules `avec_escalade` : incidents, demandes). */
-  escaladable?: boolean;
+  /** Affiche le niveau de support, déduit du gestionnaire (tickets importés : incidents, demandes). */
+  avecNiveauSupport?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -101,7 +101,7 @@ export function FicheTransition({
   avecDocuments = false,
   gestionnaireFige = false,
   avecRevue = false,
-  escaladable = false,
+  avecNiveauSupport = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -157,12 +157,6 @@ export function FicheTransition({
     if (id === null) return;
     setDetail(null);
     setErreur(null);
-    setDetail(await api.get<Detail>(`${base}/${id}`));
-  }, [base, id]);
-
-  /** Relit la fiche sans la vider : pas de squelette qui clignote après une action. */
-  const rafraichir = useCallback(async (): Promise<void> => {
-    if (id === null) return;
     setDetail(await api.get<Detail>(`${base}/${id}`));
   }, [base, id]);
 
@@ -543,20 +537,13 @@ export function FicheTransition({
                 </dd>
               </div>
             ) : null}
-            {escaladable && permissions.peut_travailler && id !== null ? (
+            {avecNiveauSupport ? (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt>Support</dt>
                 <dd>
-                  <BoutonEscalade
-                    base={base}
-                    id={id}
+                  <NiveauSupport
                     niveau={detail.niveau_support ?? 1}
                     transfereDbs={detail.transfere_dbs ?? false}
-                    sansGestionnaire={detail.responsable_id == null}
-                    onChange={() => {
-                      void rafraichir();
-                      onChange();
-                    }}
                   />
                 </dd>
               </div>

@@ -7,6 +7,7 @@ import { FiltreTickets } from '@/common/FiltreTickets';
 import { DispatchBar } from '@/common/DispatchBar';
 import { SablierSla } from '@/common/SablierSla';
 import { CelluleReference } from '@/common/CelluleReference';
+import { NiveauSupport } from '@/common/NiveauSupport';
 import { BadgeStatut } from '@/common/statuts';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { assignerLot, type FiltresListe } from '@/features/incidents/incidentsApi';
@@ -35,6 +36,13 @@ const COLONNES: Colonne<Demande>[] = [
       d.categorie ? <StatusBadge couleur="var(--cat-1)">{d.categorie}</StatusBadge> : '—',
   },
   { cle: 'statut', entete: 'Statut', rendu: (d) => <BadgeStatut statut={d.statut} /> },
+  {
+    // Où se trouve le ticket, sans ouvrir la fiche : déduit du gestionnaire à chaque import.
+    cle: 'niveau',
+    entete: 'Niveau',
+    largeur: '90px',
+    rendu: (d) => <NiveauSupport niveau={d.niveau_support} transfereDbs={d.transfere_dbs} compact />,
+  },
   {
     cle: 'sla',
     entete: 'SLA',
@@ -159,7 +167,7 @@ export function DemandesPage(): JSX.Element {
         id={ficheId}
         assignable
         gestionnaireFige
-        escaladable
+        avecNiveauSupport
         moduleCategorie="demande"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
