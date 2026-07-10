@@ -939,6 +939,7 @@ def creer_routeur(
             charger=charger_visible,
             Courant=Courant,
             CourantEcriture=CourantActeur,
+            avec_taches=avec_taches,
         )
 
     return routeur

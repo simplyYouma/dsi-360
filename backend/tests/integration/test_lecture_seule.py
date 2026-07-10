@@ -10,6 +10,7 @@ viennent pas du fichier.
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.integration.conftest import creer_activite, creer_utilisateur, entetes
@@ -209,4 +210,46 @@ async def test_un_changement_reste_pilotable(client: AsyncClient, session: Async
         json={"vers": "Soumis"},
     )
 
+    assert r.status_code == 200, r.text
+
+
+async def test_un_incident_n_expose_pas_les_documents_de_tache(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un incident n'a pas de tâches : la route vers leurs pièces jointes ne doit pas exister.
+
+    Elle a survécu au passage en lecture seule, alors que la création de tâches, elle, a disparu.
+    """
+    ident, admin, _ = await _ticket(session, "incidents", "doctache")
+
+    r = await client.get(
+        f"/incidents/{ident}/taches/{ident}/documents", headers=entetes(admin)
+    )
+
+    assert r.status_code == 404, r.text
+
+
+async def test_un_changement_expose_les_documents_de_tache(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """La route existe là où les tâches existent : une tâche inconnue répond 404, pas la route."""
+    responsable = await creer_utilisateur(session, email="resp.doctache@afgbank.ml")
+    changement = await creer_activite(
+        session, module="changement", reference="CHG-DOC-1", responsable_id=responsable
+    )
+
+    r = await client.post(
+        f"/changements/{changement}/taches",
+        headers=entetes(responsable),
+        json={"titre": "Déployer"},
+    )
+    assert r.status_code in (200, 201), r.text
+    tache = await session.scalar(
+        text("SELECT id::text FROM core.tache WHERE activite_id = cast(:a as uuid)"),
+        {"a": changement},
+    )
+
+    r = await client.get(
+        f"/changements/{changement}/taches/{tache}/documents", headers=entetes(responsable)
+    )
     assert r.status_code == 200, r.text

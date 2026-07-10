@@ -111,6 +111,7 @@ def enregistrer_documents(
     charger: Callable[[AsyncSession, str, dict[str, Any]], Awaitable[RowMapping]],
     Courant: Any,  # noqa: N803 - annotation FastAPI (Depends), même nom que la variable locale
     CourantEcriture: Any,  # noqa: N803
+    avec_taches: bool = True,
 ) -> None:
     """Ajoute les endpoints de pièces jointes (activité + tâches) à un routeur d'activités.
 
@@ -118,6 +119,9 @@ def enregistrer_documents(
 
     ``CourantEcriture`` garde le dépôt, le renommage et la suppression : consulter reste ouvert à
     qui voit l'activité.
+
+    ``avec_taches`` suit le drapeau du routeur d'activités : sans lui, on exposerait des routes vers
+    les tâches d'un module qui n'en a pas (incidents, demandes).
     """
 
     async def _charger_tache(
@@ -259,6 +263,10 @@ def enregistrer_documents(
             session, action="SUPPRESSION", acteur_id=courant["id"], acteur_email=courant["email"],
             module=module, cible_type="document", cible_id=f"{r['reference']}/{ligne['nom']}",
         )
+
+    # Incidents et demandes n'ont pas de tâches : ne pas exposer de route vers celles-ci.
+    if not avec_taches:
+        return
 
     @routeur.get("/{ident}/taches/{tache_id}/documents", response_model=list[DocumentItem])
     async def lister_documents_tache(

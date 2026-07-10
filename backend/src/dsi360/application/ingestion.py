@@ -39,9 +39,9 @@ def _gestionnaire_id(cache: dict[str, str], nom: str | None) -> str | None:
     """Rattache le gestionnaire du ticket à un compte DSI EXISTANT (jamais de création).
 
     Le rapprochement se fait par nom normalisé (prénom nom / nom prénom). Si le nom n'appartient à
-    aucun utilisateur du système (typiquement un agent DBS), on renvoie ``None`` : le nom brut reste
-    conservé dans ``donnees.gestionnaire`` (affiché, non modifiable) et un contributeur DSI pourra
-    prendre le relais. Les comptes se créent uniquement depuis l'administration.
+    aucun utilisateur du système, c'est un agent DBS : on renvoie ``None``, le ticket n'a donc pas
+    de responsable chez nous et se lit en N3 (ADR-0005). Le nom brut reste affiché depuis
+    ``donnees.gestionnaire``. Les comptes se créent uniquement depuis l'administration.
     """
     if nom is None or nom.strip() == "":
         return None

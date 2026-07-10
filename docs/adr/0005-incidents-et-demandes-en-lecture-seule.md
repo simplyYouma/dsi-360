@@ -58,8 +58,12 @@ contributeurs et de valideurs, décision. La création manuelle n'existait déj�
 rien, plutôt que de laisser cliquer là où le serveur répondrait 404.
 
 **Ce qui reste** : lire la fiche, son historique et son niveau ; exporter ; déposer des pièces
-jointes ; et la **discussion interne** à la DSI. Nos échanges nous appartiennent — ils ne viennent
-pas du fichier, et l'import ne les touche pas (tables séparées).
+jointes (**incidents seulement** — les demandes n'en ont jamais eu) ; et la **discussion interne**
+à la DSI. Nos échanges nous appartiennent — ils ne viennent pas du fichier, et l'import ne les
+touche pas (tables séparées).
+
+Ni les incidents ni les demandes n'ont de **tâches** : les routes qui pointaient vers les pièces
+jointes de leurs tâches ne sont plus montées.
 
 ### 4. Le cycle de vie est journalisé
 
@@ -90,3 +94,5 @@ deviennent possibles.
    un vrai agent DBS d'une faute de frappe.
 3. **Statistiques de cycle de vie** : maintenant que les transitions sont journalisées, mesurer le
    temps passé dans chaque statut.
+4. **Pièces jointes des demandes** : les incidents en acceptent, les demandes non. L'asymétrie n'est
+   pas décidée, elle est héritée. À trancher.
