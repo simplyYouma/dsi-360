@@ -451,10 +451,6 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     if statut in TERMINAUX:
                         resolu = cree_le + timedelta(minutes=ttr)
                         cloture = resolu if statut.startswith("Clôtur") else None
-                    # Escalade fonctionnelle N1→N2/N3 sur une partie des incidents (SI-12.01).
-                    # Niveau du *ticket*, pas de l'agent : N3 = transféré à DBS, sans gestionnaire.
-                    if module == "incident" and random.random() < 0.3:
-                        donnees["niveau_support"] = random.choice([2, 2, 3])
 
                 # Revue périodique (cybersécurité, gouvernance, risques) sur un échantillon.
                 if module in MODULES_REVUE and random.random() < 0.6:
@@ -463,11 +459,12 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         maintenant + timedelta(days=random.randint(15, 120))
                     ).date().isoformat()
 
-                # Échéances SLA depuis la matrice du module (activités « fiche »).
-                if priorite is not None and module not in MODULES_IMPORTES:
+                # Échéances SLA depuis la matrice du module. Un ticket importé porte une
+                # priorité, donc un engagement : il a des échéances comme les autres (ADR-0005).
+                if priorite is not None:
                     ech = echeances(priorite, cree_le, matrice)
                     sla_pc, sla_res = ech.prise_en_charge_le, ech.resolution_le
-                    if statut in TERMINAUX:
+                    if statut in TERMINAUX and module not in MODULES_IMPORTES:
                         resolu = cree_le + timedelta(days=random.randint(1, 5))
                         cloture = resolu
 

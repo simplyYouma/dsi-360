@@ -119,14 +119,18 @@ _UPSERT = text(
     " sla_prise_en_charge_le = excluded.sla_prise_en_charge_le, "
     " sla_resolution_le = excluded.sla_resolution_le, donnees = excluded.donnees "
     # On ne met à jour QUE si une donnée a réellement changé : sinon, ligne « inchangée ».
+    # Les échéances SLA entrent dans la comparaison : sinon un ticket que le rapport ne fait plus
+    # bouger resterait sans échéance pour toujours.
     " WHERE (core.activite.titre, core.activite.statut, core.activite.priorite, "
     "        core.activite.categorie_id, core.activite.demandeur_externe_id, "
     "        core.activite.responsable_id, core.activite.pris_en_charge_le, "
-    "        core.activite.resolu_le, core.activite.cloture_le, core.activite.donnees) "
+    "        core.activite.resolu_le, core.activite.cloture_le, core.activite.donnees, "
+    "        core.activite.sla_prise_en_charge_le, core.activite.sla_resolution_le) "
     " IS DISTINCT FROM "
     "       (excluded.titre, excluded.statut, excluded.priorite, excluded.categorie_id, "
     "        excluded.demandeur_externe_id, excluded.responsable_id, excluded.pris_en_charge_le, "
-    "        excluded.resolu_le, excluded.cloture_le, excluded.donnees) "
+    "        excluded.resolu_le, excluded.cloture_le, excluded.donnees, "
+    "        excluded.sla_prise_en_charge_le, excluded.sla_resolution_le) "
     # cree=True => insertion ; cree=False => mise à jour ; aucune ligne => inchangée.
     "RETURNING (xmax = 0) AS cree"
 )

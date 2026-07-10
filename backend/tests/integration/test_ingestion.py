@@ -10,6 +10,7 @@ DBS : le ticket n'a pas de responsable dans notre système, et il est au niveau 
 Aucun compte n'est jamais créé par l'import.
 """
 
+from datetime import timedelta
 from io import BytesIO
 from typing import Any
 
@@ -272,3 +273,44 @@ async def test_l_historique_de_la_fiche_se_remplit(
 
     assert r.status_code == 200, r.text
     assert [e["statut"] for e in r.json()["historique"]] == ["Nouveau", "Ouvert"]
+
+
+async def test_un_ticket_importe_porte_ses_echeances_sla(session: AsyncSession) -> None:
+    """Il porte une priorité, donc un engagement (ADR-0005).
+
+    Sans échéance, aucun retard ne serait mesurable.
+    """
+    acteur = await _acteur(session, "sla.import@afgbank.ml")
+
+    await importer_tickets(session, _classeur([{"numero": "SLA-1", "priorite": "P1"}]), acteur)
+
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT cree_le, sla_prise_en_charge_le, sla_resolution_le "
+                "FROM core.activite WHERE reference = 'INC-SLA-1'"
+            )
+        )
+    ).mappings().one()
+
+    # Incident P1 : prise en charge 15 min, résolution 2 h (core.sla_regle).
+    assert ligne["sla_prise_en_charge_le"] == ligne["cree_le"] + timedelta(minutes=15)
+    assert ligne["sla_resolution_le"] == ligne["cree_le"] + timedelta(minutes=120)
+
+
+async def test_un_ticket_inchange_recoit_quand_meme_ses_echeances(session: AsyncSession) -> None:
+    """Le garde-fou « rien n'a changé » ne doit pas figer un ticket sans échéance à jamais."""
+    acteur = await _acteur(session, "sla.rattrape@afgbank.ml")
+    lignes = [{"numero": "SLA-2", "priorite": "P3"}]
+    await importer_tickets(session, _classeur(lignes), acteur)
+    await session.execute(
+        text("UPDATE core.activite SET sla_resolution_le = NULL WHERE reference = 'INC-SLA-2'")
+    )
+
+    resultat = await importer_tickets(session, _classeur(lignes), acteur)
+
+    assert resultat["mis_a_jour"] == 1, "le ticket doit être réécrit, pas déclaré inchangé"
+    echeance = await session.scalar(
+        text("SELECT sla_resolution_le FROM core.activite WHERE reference = 'INC-SLA-2'")
+    )
+    assert echeance is not None
