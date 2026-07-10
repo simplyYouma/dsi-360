@@ -303,25 +303,47 @@ async def _reset(conn: asyncpg.Connection) -> None:
 
 
 async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
-    empreinte = hacher_mot_de_passe("changez-moi")
-    for email, nom, prenom, profil, direction in UTILISATEURS:
-        await conn.execute(
-            "INSERT INTO core.utilisateur"
-            "(email, nom, prenom, profil_id, direction_id, source_auth, mot_de_passe_hash, "
-            " doit_changer_mdp) VALUES ($1,$2,$3,"
-            " (SELECT id FROM core.profil WHERE code=$4),"
-            " (SELECT id FROM core.direction WHERE code=$5),'LOCAL',$6,false) "
-            "ON CONFLICT (email) DO NOTHING",
-            email, nom, prenom, profil, direction, empreinte,
-        )
-    # Uniquement les comptes de démo : le compte admin (et tout autre compte réel) ne doit jamais
-    # devenir acteur des données fictives, sinon l'ordonnanceur lui envoie de vrais e-mails.
-    return [
+    """L'équipe de la démo : les agents réels s'ils existent, des personnages sinon.
+
+    Une démo à la DSI parle mieux avec les vrais noms de l'équipe. Mais les notifications
+    partent aussi par e-mail : on **coupe le canal e-mail** de chaque agent embarqué —
+    préférence par utilisateur, réversible depuis son profil — pour que les données fictives
+    ne remplissent aucune boîte réelle. L'administrateur, lui, n'est jamais acteur de la démo.
+    """
+    equipe = [
         r["id"]
         for r in await conn.fetch(
-            "SELECT id FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO
+            "SELECT u.id FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+            "WHERE u.actif AND p.code <> 'ADMIN' ORDER BY u.nom, u.prenom"
         )
     ]
+    if len(equipe) < 3:
+        # Pas assez d'agents réels : on complète avec les personnages historiques.
+        empreinte = hacher_mot_de_passe("changez-moi")
+        for email, nom, prenom, profil, direction in UTILISATEURS:
+            await conn.execute(
+                "INSERT INTO core.utilisateur"
+                "(email, nom, prenom, profil_id, direction_id, source_auth, mot_de_passe_hash, "
+                " doit_changer_mdp) VALUES ($1,$2,$3,"
+                " (SELECT id FROM core.profil WHERE code=$4),"
+                " (SELECT id FROM core.direction WHERE code=$5),'LOCAL',$6,false) "
+                "ON CONFLICT (email) DO NOTHING",
+                email, nom, prenom, profil, direction, empreinte,
+            )
+        equipe = [
+            r["id"]
+            for r in await conn.fetch(
+                "SELECT u.id FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+                "WHERE u.actif AND p.code <> 'ADMIN' ORDER BY u.nom, u.prenom"
+            )
+        ]
+    for uid in equipe:
+        await conn.execute(
+            "INSERT INTO core.preference_notification (utilisateur_id, email) "
+            "VALUES ($1, false) ON CONFLICT (utilisateur_id) DO UPDATE SET email = false",
+            uid,
+        )
+    return equipe
 
 
 async def _categories(conn: asyncpg.Connection, module: str) -> list[str]:
@@ -447,14 +469,13 @@ async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) ->
     Le niveau d'un ticket importé se lit sur son gestionnaire (ADR-0005) : sans niveau ici, les
     tickets de démo retomberaient tous au N1."""
     # La DSI n'a pas de N3 : un ticket sans gestionnaire de chez nous est chez DBS, donc N3.
-    # Indices : m.diallo/f.keita N1, o.sanogo N2, k.coulibaly N2. L'administrateur n'a pas de niveau.
-    niveaux = {1: 1, 2: 1, 3: 2, 4: 2}
-    for i, niveau in niveaux.items():
-        if i < len(utilisateurs):
-            await conn.execute(
-                "UPDATE core.utilisateur SET niveau_support=$2 WHERE id=$1",
-                utilisateurs[i], niveau,
-            )
+    # On ne touche qu'aux comptes SANS niveau : un niveau posé par l'administrateur fait foi.
+    for i, uid in enumerate(utilisateurs):
+        await conn.execute(
+            "UPDATE core.utilisateur SET niveau_support=$2 "
+            "WHERE id=$1 AND niveau_support IS NULL",
+            uid, 2 if i % 3 == 2 else 1,  # deux N1 pour un N2 : la forme d'une vraie équipe
+        )
 
 
 async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de démo
