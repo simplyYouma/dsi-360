@@ -118,14 +118,19 @@ async def test_les_permissions_sont_exposees_sur_les_risques(
     assert not (await _permissions(client, "/risques", risque, lecteur))["peut_assigner"]
 
 
-async def test_un_incident_importe_n_offre_aucune_action(
+async def test_un_incident_importe_ne_se_travaille_pas(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Même l'administrateur n'agit pas sur un ticket importé : l'écran ne doit rien proposer.
 
-    Sinon il laisserait cliquer là où le serveur répond 404 (ADR-0005).
+    Sinon il laisserait cliquer là où le serveur répond 404 (ADR-0005). Seule la désignation de
+    contributeurs reste ouverte : suivre un ticket n'est pas le modifier.
     """
     admin = await creer_utilisateur(session, email="admin.perminc@afgbank.ml", profil="ADMIN")
+    lecteur = await creer_utilisateur(session, email="lecteur.perminc@afgbank.ml")
     incident = await creer_activite(session, module="incident", reference="INC-PRM-1")
 
-    assert not any((await _permissions(client, "/incidents", incident, admin)).values())
+    p = await _permissions(client, "/incidents", incident, admin)
+    assert p["peut_gerer_acteurs"]
+    assert not any(p[c] for c in TOUTES if c != "peut_gerer_acteurs")
+    assert not any((await _permissions(client, "/incidents", incident, lecteur)).values())

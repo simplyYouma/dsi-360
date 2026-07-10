@@ -106,16 +106,13 @@ async def test_la_categorie_ne_se_change_pas(
 
 
 @pytest.mark.parametrize("module", MODULES)
-async def test_on_ne_designe_ni_contributeur_ni_valideur(
+async def test_on_ne_designe_ni_valideur_ni_decision(
     client: AsyncClient, session: AsyncSession, module: str
 ) -> None:
-    """Il n'y a rien à faire avancer, donc personne à désigner pour le faire."""
+    """Il n'y a rien à valider : le ticket est décidé dans l'autre système."""
     ident, admin, agent = await _ticket(session, module, f"acteurs-{module}")
     corps = {"utilisateur_id": agent}
 
-    assert (
-        await client.post(f"/{module}/{ident}/contributeurs", headers=entetes(admin), json=corps)
-    ).status_code == 404
     assert (
         await client.post(f"/{module}/{ident}/valideurs", headers=entetes(admin), json=corps)
     ).status_code == 404
@@ -124,6 +121,41 @@ async def test_on_ne_designe_ni_contributeur_ni_valideur(
             f"/{module}/{ident}/decision", headers=entetes(admin), json={"decision": "APPROUVE"}
         )
     ).status_code == 404
+
+
+@pytest.mark.parametrize("module", MODULES)
+async def test_l_admin_designe_un_contributeur_sur_un_ticket_importe(
+    client: AsyncClient, session: AsyncSession, module: str
+) -> None:
+    """La DSI suit un ticket qu'elle ne traite pas : le contributeur l'a dans sa file."""
+    ident, admin, agent = await _ticket(session, module, f"contrib-{module}")
+
+    r = await client.post(
+        f"/{module}/{ident}/contributeurs", headers=entetes(admin), json={"utilisateur_id": agent}
+    )
+
+    assert r.status_code == 200, r.text
+    assert not r.json()["permissions"]["peut_travailler"], "suivre n'est pas agir"
+
+    files = await client.get("/mes-tickets", headers=entetes(agent))
+    assert any(x["id"] == ident for x in files.json()), "le ticket entre dans sa file"
+
+
+@pytest.mark.parametrize("module", MODULES)
+async def test_un_contributeur_de_ticket_importe_ne_le_modifie_pas(
+    client: AsyncClient, session: AsyncSession, module: str
+) -> None:
+    """Il suit, il commente, mais l'import du lendemain reste la seule source d'état."""
+    ident, admin, agent = await _ticket(session, module, f"contribro-{module}")
+    await client.post(
+        f"/{module}/{ident}/contributeurs", headers=entetes(admin), json={"utilisateur_id": agent}
+    )
+
+    r = await client.post(
+        f"/{module}/{ident}/transition", headers=entetes(agent), json={"vers": "Résolu"}
+    )
+
+    assert r.status_code == 404, r.text
 
 
 @pytest.mark.parametrize("module", MODULES)

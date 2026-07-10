@@ -17,6 +17,10 @@ interface Props {
   classeTexte?: string | undefined;
   /** Variante « titre » : saisie discrète, sans encadré. */
   titre?: boolean;
+  /** Sans droit d'écrire : la valeur s'affiche, le clic n'ouvre rien. */
+  lectureSeule?: boolean;
+  /** Pourquoi le champ ne s'édite pas (infobulle). */
+  titreLectureSeule?: string | undefined;
   'aria-label'?: string | undefined;
 }
 
@@ -31,13 +35,15 @@ export function ChampInline({
   toujoursEdition = false,
   classeTexte,
   titre = false,
+  lectureSeule = false,
+  titreLectureSeule,
   'aria-label': ariaLabel,
 }: Props): JSX.Element {
   const [edite, setEdite] = useState(false);
   const [brouillon, setBrouillon] = useState(valeur);
   useEffect(() => setBrouillon(valeur), [valeur]);
 
-  const enEdition = edite || toujoursEdition;
+  const enEdition = !lectureSeule && (edite || toujoursEdition);
 
   const valider = (): void => {
     if (!toujoursEdition) setEdite(false);
@@ -52,8 +58,10 @@ export function ChampInline({
     return (
       <button
         type="button"
-        className={cx(styles.affichage, classeTexte)}
-        onClick={() => setEdite(true)}
+        className={cx(styles.affichage, classeTexte, lectureSeule && styles.affichageFige)}
+        onClick={() => !lectureSeule && setEdite(true)}
+        disabled={lectureSeule}
+        title={lectureSeule ? titreLectureSeule : undefined}
         aria-label={ariaLabel}
       >
         {valeur !== '' ? valeur : <span className={styles.placeholder}>{placeholder ?? '—'}</span>}

@@ -375,6 +375,67 @@ def creer_routeur(
         base["permissions"] = capacites(roles, lecture_seule=import_uniquement)
         return base
 
+    # Un incident ou une demande n'est pas pilotable ici, mais la DSI veut le suivre :
+    # l'administrateur y désigne des contributeurs de chez nous — y compris quand le rapport a mis
+    # DBS au gestionnaire. Le ticket entre dans leur file, sans qu'ils puissent le modifier.
+    @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
+    async def ajouter_contributeur(
+        ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
+    ) -> dict[str, Any]:
+        """Un contributeur a les droits de travail du gestionnaire : seul l'admin le désigne."""
+        courant, avant = ctx.courant, ctx.activite
+        await exiger_agent_designable(session, corps.utilisateur_id, acces)
+        await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
+        # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
+        if corps.utilisateur_id != courant["id"]:
+            await session.execute(
+                text(
+                    "INSERT INTO core.notification "
+                    "(destinataire_id, activite_id, type, titre, message) "
+                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', "
+                    ":titre, :msg)"
+                ),
+                {
+                    "dest": corps.utilisateur_id,
+                    "aid": avant["id"],
+                    "titre": f"Contributeur : {avant['reference']}",
+                    "msg": avant["titre"],
+                },
+            )
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            nouvelle={"contributeur_ajoute": corps.utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session, courant)
+
+    @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
+    async def retirer_contributeur(
+        ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
+    ) -> dict[str, Any]:
+        courant, avant = ctx.courant, ctx.activite
+        await repo.retirer_contributeur(session, ident, utilisateur_id)
+        await audit.consigner(
+            session,
+            action="MODIFICATION",
+            acteur_id=courant["id"],
+            acteur_email=courant["email"],
+            module=module,
+            cible_type=module,
+            cible_id=avant["reference"],
+            ancienne={"contributeur_retire": utilisateur_id},
+        )
+        await session.commit()
+        r = await charger_visible(session, ident, courant)
+        return await detail_complet(r, session, courant)
+
     # Incidents et demandes ne se pilotent pas ici : ils sont traités dans un autre système,
     # et l'import du lendemain effacerait toute modification. On observe, on n'agit pas.
     if not import_uniquement:
@@ -548,64 +609,6 @@ def creer_routeur(
                 cible_type=module,
                 cible_id=avant["reference"],
                 nouvelle={"categorie_id": corps.categorie_id},
-            )
-            await session.commit()
-            r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session, courant)
-
-        @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
-        async def ajouter_contributeur(
-            ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
-        ) -> dict[str, Any]:
-            """Un contributeur a les droits de travail du gestionnaire : seul l'admin le désigne."""
-            courant, avant = ctx.courant, ctx.activite
-            await exiger_agent_designable(session, corps.utilisateur_id, acces)
-            await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
-            # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
-            if corps.utilisateur_id != courant["id"]:
-                await session.execute(
-                    text(
-                        "INSERT INTO core.notification "
-                        "(destinataire_id, activite_id, type, titre, message) "
-                        "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', "
-                        ":titre, :msg)"
-                    ),
-                    {
-                        "dest": corps.utilisateur_id,
-                        "aid": avant["id"],
-                        "titre": f"Contributeur : {avant['reference']}",
-                        "msg": avant["titre"],
-                    },
-                )
-            await audit.consigner(
-                session,
-                action="MODIFICATION",
-                acteur_id=courant["id"],
-                acteur_email=courant["email"],
-                module=module,
-                cible_type=module,
-                cible_id=avant["reference"],
-                nouvelle={"contributeur_ajoute": corps.utilisateur_id},
-            )
-            await session.commit()
-            r = await charger_visible(session, ident, courant)
-            return await detail_complet(r, session, courant)
-
-        @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
-        async def retirer_contributeur(
-            ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
-        ) -> dict[str, Any]:
-            courant, avant = ctx.courant, ctx.activite
-            await repo.retirer_contributeur(session, ident, utilisateur_id)
-            await audit.consigner(
-                session,
-                action="MODIFICATION",
-                acteur_id=courant["id"],
-                acteur_email=courant["email"],
-                module=module,
-                cible_type=module,
-                cible_id=avant["reference"],
-                ancienne={"contributeur_retire": utilisateur_id},
             )
             await session.commit()
             r = await charger_visible(session, ident, courant)

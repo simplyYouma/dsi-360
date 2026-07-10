@@ -83,11 +83,18 @@ def test_un_admin_valideur_peut_decider() -> None:
     assert capacites(RolesActivite(est_admin=True, est_valideur=True))["peut_decider"]
 
 
-def test_sur_un_module_importe_personne_ne_peut_rien() -> None:
+def test_sur_un_module_importe_personne_ne_travaille() -> None:
     """Incidents et demandes : leur état vient du fichier. Même l'admin n'y agit pas (ADR-0005)."""
-    assert not any(capacites(ADMINISTRATEUR, lecture_seule=True).values())
-    assert not any(capacites(RESPONSABLE, lecture_seule=True).values())
-    assert not any(capacites(LE_VALIDEUR, lecture_seule=True).values())
+    for roles in (ADMINISTRATEUR, RESPONSABLE, LE_VALIDEUR):
+        c = capacites(roles, lecture_seule=True)
+        assert not c["peut_travailler"] and not c["peut_decider"]
+        assert not c["peut_assigner"] and not c["peut_evaluer"]
+
+
+def test_sur_un_module_importe_l_admin_designe_encore_des_contributeurs() -> None:
+    """La DSI suit un ticket qu'elle ne traite pas : le contributeur le voit dans sa file."""
+    assert capacites(ADMINISTRATEUR, lecture_seule=True)["peut_gerer_acteurs"]
+    assert not capacites(RESPONSABLE, lecture_seule=True)["peut_gerer_acteurs"]
 
 
 # --- Satisfaction d'une exigence -----------------------------------------------------------------

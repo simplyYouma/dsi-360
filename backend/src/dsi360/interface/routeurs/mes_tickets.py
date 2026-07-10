@@ -31,6 +31,15 @@ _MODULES_LISTE = ("incident", "demande", "changement", "audit", "cybersecurite",
 _TERMINAUX = sorted({etat for m in _MODULES_LISTE for etat in etats_terminaux(m)})
 
 # Condition de segment de la file (liste blanche — jamais d'entrée utilisateur dans le SQL).
+# Ma file : les activités dont je suis le gestionnaire, et celles où l'administrateur m'a désigné
+# contributeur. Sur un incident ou une demande, c'est le seul moyen d'entrer dans la file : leur
+# gestionnaire vient du rapport, et il peut être DBS (ADR-0005).
+_A_MOI = (
+    "(a.responsable_id = cast(:id as uuid) OR EXISTS ("
+    " SELECT 1 FROM core.activite_acteur aa WHERE aa.activite_id = a.id"
+    "   AND aa.utilisateur_id = cast(:id as uuid) AND aa.role = 'CONTRIBUTEUR'))"
+)
+
 _SEGMENTS: dict[str, str] = {
     "actifs": "a.cloture_le IS NULL AND a.statut NOT IN :term",
     "resolus": "a.cloture_le IS NULL AND a.resolu_le IS NOT NULL AND a.statut NOT IN :term",
@@ -53,7 +62,7 @@ def _requete_liste(segment: str) -> Any:
         "                   WHERE v.commentaire_id = cm.id "
         "                     AND v.utilisateur_id = cast(:id as uuid))) AS nb_non_vus "
         "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
-        f"WHERE a.responsable_id = cast(:id as uuid) AND a.module IN {_MODULES} AND {cond} "
+        f"WHERE {_A_MOI} AND a.module IN {_MODULES} AND {cond} "
         "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST LIMIT 200"
     )
     requete = text(sql)
@@ -84,14 +93,14 @@ async def mes_tickets(
 
 
 _OUVERTS = text(
-    "SELECT module, priorite, statut, sla_resolution_le, cree_le FROM core.activite "
-    f"WHERE responsable_id = cast(:id as uuid) AND cloture_le IS NULL AND module IN {_MODULES} "
-    "AND statut NOT IN :term"
+    "SELECT a.module, a.priorite, a.statut, a.sla_resolution_le, a.cree_le FROM core.activite a "
+    f"WHERE {_A_MOI} AND a.cloture_le IS NULL AND a.module IN {_MODULES} "
+    "AND a.statut NOT IN :term"
 ).bindparams(bindparam("term", expanding=True))
 _RESOLUS = text(
-    "SELECT cree_le, resolu_le, sla_resolution_le FROM core.activite "
-    f"WHERE responsable_id = cast(:id as uuid) AND resolu_le IS NOT NULL AND module IN {_MODULES} "
-    "AND resolu_le >= :depuis"
+    "SELECT a.cree_le, a.resolu_le, a.sla_resolution_le FROM core.activite a "
+    f"WHERE {_A_MOI} AND a.resolu_le IS NOT NULL AND a.module IN {_MODULES} "
+    "AND a.resolu_le >= :depuis"
 )
 
 

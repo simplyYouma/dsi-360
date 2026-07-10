@@ -211,12 +211,16 @@ export function FicheTransition({
     }
   };
 
+  // Les tickets importés ne s'assignent pas, mais ils se suivent : l'administrateur y désigne des
+  // contributeurs de chez nous, même quand le rapport a mis DBS au gestionnaire (ADR-0005).
+  const avecContributeurs = assignable || gestionnaireFige;
+
   useEffect(() => {
     // Seuls les agents ayant accès à ce module sont désignables : le serveur refuserait les autres.
-    if (assignable && agents.length === 0) {
+    if (avecContributeurs && agents.length === 0) {
       void chargerAgents(moduleDeLaBase(base)).then(setAgents);
     }
-  }, [assignable, agents.length, base]);
+  }, [avecContributeurs, agents.length, base]);
 
   const assigner = async (responsableId: string | null): Promise<void> => {
     if (id === null) return;
@@ -503,7 +507,8 @@ export function FicheTransition({
             ) : null}
             {gestionnaireFige ? (
               <div className={styles.metaItem}>
-                <dt>Gestionnaire (import)</dt>
+                {/* Le gestionnaire vient du rapport. S'il n'est pas des nôtres, c'est DBS. */}
+                <dt>{detail.transfere_dbs === true ? 'Gestionnaire (DBS)' : 'Gestionnaire'}</dt>
                 <dd className={styles.valeur}>{detail.gestionnaire ?? '—'}</dd>
               </div>
             ) : assignable && permissions.peut_assigner ? (
@@ -551,23 +556,30 @@ export function FicheTransition({
                 </dd>
               </div>
             ) : null}
+            {avecContributeurs ? (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Contributeurs</dt>
+                <dd>
+                  <GestionActeurs
+                    acteurs={detail.contributeurs ?? []}
+                    agents={agents}
+                    exclureIds={[detail.responsable_id ?? '']}
+                    onAjouter={(v) => void ajouterContributeur(v)}
+                    onRetirer={(v) => void retirerContributeur(v)}
+                    placeholder="Ajouter un contributeur…"
+                    disabled={envoi}
+                    lectureSeule={!permissions.peut_gerer_acteurs}
+                  />
+                  {gestionnaireFige && permissions.peut_gerer_acteurs && (
+                    <span className={styles.aideActeurs}>
+                      Le ticket entre dans leur file. Ils le suivent, ils ne le modifient pas.
+                    </span>
+                  )}
+                </dd>
+              </div>
+            ) : null}
             {assignable ? (
               <>
-                <div className={cx(styles.metaItem, styles.metaLarge)}>
-                  <dt>Contributeurs</dt>
-                  <dd>
-                    <GestionActeurs
-                      acteurs={detail.contributeurs ?? []}
-                      agents={agents}
-                      exclureIds={[detail.responsable_id ?? '']}
-                      onAjouter={(v) => void ajouterContributeur(v)}
-                      onRetirer={(v) => void retirerContributeur(v)}
-                      placeholder="Ajouter un contributeur…"
-                      disabled={envoi}
-                      lectureSeule={!permissions.peut_gerer_acteurs}
-                    />
-                  </dd>
-                </div>
                 <div className={cx(styles.metaItem, styles.metaLarge)}>
                   <dt>Valideurs</dt>
                   <dd>

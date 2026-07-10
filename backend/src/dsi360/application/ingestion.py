@@ -7,16 +7,18 @@ l'activité par (module, n° de ticket). Recharger le même fichier met à jour,
 
 import json
 import unicodedata
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import PREFIXE_REFERENCE
+from dsi360.domain.sla import CiblesSla, echeances
 from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.ingestion import analyser_classeur
+from dsi360.infrastructure.repositories import sla as sla_repo
 
 
 def _norme(nom: str) -> str:
@@ -96,10 +98,12 @@ async def _categorie_id(
 _UPSERT = text(
     "INSERT INTO core.activite "
     "(reference, module, titre, categorie_id, demandeur_externe_id, responsable_id, "
-    " priorite, statut, cree_le, pris_en_charge_le, resolu_le, cloture_le, donnees, source, source_id) "
+    " priorite, statut, cree_le, pris_en_charge_le, resolu_le, cloture_le, "
+    " sla_prise_en_charge_le, sla_resolution_le, donnees, source, source_id) "
     "VALUES (:reference, :module, :titre, cast(:categorie_id as uuid), "
     " cast(:demandeur_externe_id as uuid), cast(:responsable_id as uuid), "
     " :priorite, :statut, :cree_le, :pris_en_charge_le, :resolu_le, :cloture_le, "
+    " :sla_prise_en_charge_le, :sla_resolution_le, "
     " cast(:donnees as jsonb), 'IMPORT_SD', :source_id) "
     # Ré-importation : le fichier fait autorité. Ces tickets sont traités dans un autre système ;
     # DSI 360 en reflète l'état. Le gestionnaire suit donc le rapport — un compte DSI si le nom est
@@ -111,7 +115,9 @@ _UPSERT = text(
     " responsable_id = excluded.responsable_id, "
     " priorite = excluded.priorite, statut = excluded.statut, "
     " pris_en_charge_le = excluded.pris_en_charge_le, resolu_le = excluded.resolu_le, "
-    " cloture_le = excluded.cloture_le, donnees = excluded.donnees "
+    " cloture_le = excluded.cloture_le, "
+    " sla_prise_en_charge_le = excluded.sla_prise_en_charge_le, "
+    " sla_resolution_le = excluded.sla_resolution_le, donnees = excluded.donnees "
     # On ne met à jour QUE si une donnée a réellement changé : sinon, ligne « inchangée ».
     " WHERE (core.activite.titre, core.activite.statut, core.activite.priorite, "
     "        core.activite.categorie_id, core.activite.demandeur_externe_id, "
@@ -138,11 +144,29 @@ async def _statuts_avant(session: AsyncSession) -> dict[tuple[str, str], str]:
     return {(module, source_id): statut for module, source_id, statut in lignes}
 
 
+def _echeances_sla(
+    matrice: dict[int, CiblesSla], priorite: int | None, cree_le: datetime | None
+) -> tuple[datetime | None, datetime | None]:
+    """Échéances d'un ticket importé. Sans priorité ni date, aucun engagement : on n'invente pas."""
+    if priorite is None or cree_le is None:
+        return None, None
+    try:
+        ech = echeances(int(priorite), cree_le, matrice)
+    except ValueError:
+        return None, None
+    return ech.prise_en_charge_le, ech.resolution_le
+
+
 async def importer_tickets(
     session: AsyncSession, contenu: bytes, acteur: dict[str, Any]
 ) -> dict[str, Any]:
     tickets = analyser_classeur(contenu)
     cache_gest = await _index_gestionnaires(session)  # comptes existants -> jamais de création
+    # Un ticket importé porte une priorité : il porte donc un engagement. Les échéances SLA se
+    # calculent ici, sinon la fiche afficherait « Échéance — » et aucun retard ne serait mesurable.
+    matrices: dict[str, dict[int, CiblesSla]] = {
+        m: await sla_repo.charger_matrice(session, m) for m in ("incident", "demande")
+    }
     cache_dem: dict[str, str] = {}
     cache_cat: dict[str, str] = {}
     statuts_avant = await _statuts_avant(session)
@@ -173,6 +197,7 @@ async def importer_tickets(
         )
         resolu = t["date_fermeture"] if t["issue"] in ("resolu", "cloture") else None
         cloture = t["date_fermeture"] if t["issue"] == "cloture" else None
+        sla_pec, sla_res = _echeances_sla(matrices[t["module"]], t["priorite"], cree_le)
 
         cree = await session.scalar(
             _UPSERT,
@@ -189,6 +214,8 @@ async def importer_tickets(
                 "pris_en_charge_le": pris,
                 "resolu_le": resolu,
                 "cloture_le": cloture,
+                "sla_prise_en_charge_le": sla_pec,
+                "sla_resolution_le": sla_res,
                 "donnees": json.dumps(donnees),
                 "source_id": t["source_id"],
             },

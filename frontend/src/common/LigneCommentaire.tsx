@@ -31,13 +31,17 @@ export function LigneCommentaire({
   const [texte, setTexte] = useState(c.texte);
   const [envoi, setEnvoi] = useState(false);
   const [lecteurs, setLecteurs] = useState<LecteurCommentaire[] | null>(null);
+  // La liste des lecteurs est demandée au serveur ; le compteur, lui, datait du chargement du fil.
+  // Les deux doivent dire la même chose : dès qu'on connaît les noms, on compte les noms.
+  const [nbVuesFrais, setNbVuesFrais] = useState<number | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const editRef = useRef<HTMLDivElement>(null);
   const accuseRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const estAuteur = moiId !== null && c.auteur_id === moiId;
   const nonVu = !estAuteur && !c.vu;
-  const lu = c.nb_vues > 0;
+  const nbVues = nbVuesFrais ?? c.nb_vues;
+  const lu = nbVues > 0;
 
   // À l'ouverture de l'édition, on amène le formulaire (et ses boutons) dans la vue.
   useEffect(() => {
@@ -59,7 +63,10 @@ export function LigneCommentaire({
       left: Math.max(6, Math.min(r.right - LARGEUR_POP, window.innerWidth - LARGEUR_POP - 6)),
     });
     setLecteurs([]);
-    void commentairesApi.lecteurs(c.id).then(setLecteurs);
+    void commentairesApi.lecteurs(c.id).then((liste) => {
+      setLecteurs(liste);
+      setNbVuesFrais(liste.length);
+    });
   };
 
   useEffect(() => {
@@ -119,14 +126,12 @@ export function LigneCommentaire({
             className={cx(styles.accuse, lu && styles.accuseLu)}
             onClick={ouvrirLecteurs}
             title={
-              lu
-                ? `Vu par ${c.nb_vues} personne${c.nb_vues > 1 ? 's' : ''}`
-                : 'Envoyé — pas encore lu'
+              lu ? `Vu par ${nbVues} personne${nbVues > 1 ? 's' : ''}` : 'Envoyé — pas encore lu'
             }
             aria-label={lu ? 'Voir qui a lu ce message' : 'Message pas encore lu'}
           >
             {lu ? <CheckCheck size={15} /> : <Check size={15} />}
-            {lu && <span className={styles.accuseNb}>{c.nb_vues}</span>}
+            {lu && <span className={styles.accuseNb}>{nbVues}</span>}
           </button>
         )}
         {estAuteur && !edition && (

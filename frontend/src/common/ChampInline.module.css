@@ -50,3 +50,12 @@
   background: var(--bg-subtle);
   box-shadow: none;
 }
+
+/* Lecture seule : le champ se lit, il ne s'ouvre pas. Ni curseur, ni survol qui promette l'édition. */
+.affichageFige {
+  cursor: default;
+  background: transparent;
+}
+.affichageFige:hover {
+  background: transparent;
+}

@@ -26,8 +26,18 @@ function formaterDateCourte(iso: string | null): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-/** Jalons (dates clés) d'un projet : liste avec case « atteint », ajout et suppression. */
-function Jalons({ projetId }: { projetId: string }): JSX.Element {
+/** Pourquoi une commande est figée. Le serveur refuserait de toute façon (403). */
+const TITRE_LECTURE = 'Réservé au chef de projet, aux contributeurs et à l’administrateur.';
+
+/** Jalons (dates clés) d'un projet : liste avec case « atteint », ajout et suppression.
+ *  Sans droit de travailler, on lit : le serveur refuserait l'écriture (403). */
+function Jalons({
+  projetId,
+  peutTravailler,
+}: {
+  projetId: string;
+  peutTravailler: boolean;
+}): JSX.Element {
   const [jalons, setJalons] = useState<Jalon[]>([]);
   const [titre, setTitre] = useState('');
   const [echeance, setEcheance] = useState('');
@@ -67,35 +77,45 @@ function Jalons({ projetId }: { projetId: string }): JSX.Element {
             type="button"
             className={cx(styles.jalonCase, j.atteint && styles.jalonAtteint)}
             onClick={() => void basculer(j)}
+            disabled={!peutTravailler}
+            title={peutTravailler ? undefined : TITRE_LECTURE}
             aria-label={j.atteint ? 'Marquer non atteint' : 'Marquer atteint'}
           >
             {j.atteint ? <Check size={13} /> : <Flag size={13} />}
           </button>
           <span className={cx(styles.jalonTitre, j.atteint && styles.jalonFait)}>{j.titre}</span>
           <span className={styles.note}>{formaterDateCourte(j.echeance)}</span>
-          <BoutonSupprimer
-            cible={`le jalon « ${j.titre} »`}
-            onSupprimer={() => retirer(j.id)}
-            className={styles.docAction}
-            taille={14}
-          />
+          {peutTravailler && (
+            <BoutonSupprimer
+              cible={`le jalon « ${j.titre} »`}
+              onSupprimer={() => retirer(j.id)}
+              className={styles.docAction}
+              taille={14}
+            />
+          )}
         </div>
       ))}
-      <div className={styles.jalonAjout}>
-        <input
-          className={styles.jalonInput}
-          value={titre}
-          onChange={(e) => setTitre(e.target.value)}
-          placeholder="Nouveau jalon…"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void ajouter();
-          }}
-        />
-        <SelecteurDate valeur={echeance || null} onChange={(v) => setEcheance(v ?? '')} placeholder="Échéance" />
-        <Button onClick={() => void ajouter()} disabled={titre.trim().length < 2}>
-          <Plus size={15} />
-        </Button>
-      </div>
+      {peutTravailler && (
+        <div className={styles.jalonAjout}>
+          <input
+            className={styles.jalonInput}
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Nouveau jalon…"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void ajouter();
+            }}
+          />
+          <SelecteurDate
+            valeur={echeance || null}
+            onChange={(v) => setEcheance(v ?? '')}
+            placeholder="Échéance"
+          />
+          <Button onClick={() => void ajouter()} disabled={titre.trim().length < 2}>
+            <Plus size={15} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -449,7 +469,7 @@ export function ProjetPage(): JSX.Element {
           {!creation && id !== undefined && (
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Jalons</span>
-              <Jalons projetId={id} />
+              <Jalons projetId={id} peutTravailler={permissions.peut_travailler} />
             </section>
           )}
         </div>

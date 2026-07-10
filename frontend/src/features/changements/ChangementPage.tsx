@@ -35,6 +35,9 @@ const NIVEAU_DEFAUT = { impact: 3, urgence: 3 };
 
 /** Dossier RFC (ITIL SI-12.04) : ce que le CAB attend avant d'autoriser le changement, et le
  *  bilan qui suit la mise en production. Chaque champ porte son indication de saisie. */
+/** Pourquoi un champ est figé. Le serveur refuserait de toute façon (403). */
+const TITRE_LECTURE = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
+
 const CHAMPS_RFC = [
   [
     'analyse_impact',
@@ -385,21 +388,36 @@ export function ChangementPage(): JSX.Element {
 
           {!creation && detail && (
             <section className={styles.carte}>
-              <span className={styles.carteTitre}>Analyse & plans (RFC)</span>
-              {CHAMPS_RFC.map(([champ, libelle, indication]) => (
-                <div key={champ} className={styles.champBloc}>
-                  <span className={styles.note}>{libelle}</span>
-                  <ChampInline
-                    valeur={detail[champ] ?? ''}
-                    onValider={(val) =>
-                      void agir(() => changementsApi.modifier(id!, { [champ]: val }))
-                    }
-                    multiligne
-                    indication={indication}
-                    aria-label={libelle}
-                  />
-                </div>
-              ))}
+              <div className={styles.rfcEntete}>
+                <span className={styles.carteTitre}>Analyse &amp; plans (RFC)</span>
+                <span className={styles.rfcCompte}>
+                  {CHAMPS_RFC.filter(([c]) => (detail[c] ?? '') !== '').length}/{CHAMPS_RFC.length}
+                </span>
+              </div>
+              <div className={styles.rfcListe}>
+                {CHAMPS_RFC.map(([champ, libelle, indication]) => {
+                  const rempli = (detail[champ] ?? '') !== '';
+                  return (
+                    <div key={champ} className={styles.rfcChamp}>
+                      <span className={cx(styles.rfcLibelle, rempli && styles.rfcRempli)}>
+                        {libelle}
+                      </span>
+                      <ChampInline
+                        valeur={detail[champ] ?? ''}
+                        onValider={(val) =>
+                          void agir(() => changementsApi.modifier(id!, { [champ]: val }))
+                        }
+                        multiligne
+                        indication={indication}
+                        lectureSeule={!permissions.peut_travailler}
+                        titreLectureSeule={TITRE_LECTURE}
+                        placeholder="Non renseigné"
+                        aria-label={libelle}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           )}
 

@@ -71,15 +71,20 @@ class RolesActivite:
 def capacites(roles: RolesActivite, *, lecture_seule: bool = False) -> dict[str, bool]:
     """Ce que l'utilisateur peut faire. Source unique : gardes serveur **et** affichage.
 
-    ``lecture_seule`` : incidents et demandes, dont l'état vient de l'import quotidien. Aucune
-    action n'y est possible — l'écran ne doit donc rien proposer (ADR-0005).
+    ``lecture_seule`` : incidents et demandes, dont l'état vient de l'import quotidien. On n'y agit
+    pas — hormis la désignation de contributeurs par l'administrateur, qui met le ticket dans leur
+    file sans leur donner prise dessus (ADR-0005).
     """
     if lecture_seule:
-        return dict.fromkeys(
-            ("peut_assigner", "peut_evaluer", "peut_gerer_acteurs", "peut_travailler",
-             "peut_decider"),
-            False,
-        )
+        # Une exception : l'administrateur y désigne des contributeurs, pour que la DSI suive un
+        # ticket qu'elle ne traite pas — y compris quand le rapport a mis DBS au gestionnaire.
+        return {
+            "peut_assigner": False,
+            "peut_evaluer": False,
+            "peut_gerer_acteurs": roles.est_admin,
+            "peut_travailler": False,
+            "peut_decider": False,
+        }
     return {
         "peut_assigner": roles.est_admin,
         "peut_evaluer": roles.est_admin,

@@ -57,6 +57,24 @@ contributeurs et de valideurs, décision. La création manuelle n'existait déj�
 `capacites(..., lecture_seule=True)` renvoie toutes les permissions à faux : l'écran ne propose
 rien, plutôt que de laisser cliquer là où le serveur répondrait 404.
 
+### 5. Suivre sans agir : les contributeurs
+
+Un ticket peut être géré par DBS, ou par un agent DSI dont ce n'est pas le sujet. La DSI veut
+pourtant le suivre. L'administrateur y **désigne donc des contributeurs de chez nous**, sur les
+incidents comme sur les demandes, quel que soit le gestionnaire porté par le rapport.
+
+Le ticket entre alors dans leur file (« Mes tickets ») et compte dans leurs statistiques. Il ne leur
+donne **aucune prise** : `peut_travailler` reste faux. Suivre n'est pas agir. Seul
+`peut_gerer_acteurs` survit à la lecture seule, et seulement pour l'administrateur.
+
+Les valideurs, eux, n'ont pas lieu d'être : le ticket est décidé dans l'autre système.
+
+### 6. Les échéances SLA se calculent à l'import
+
+Un ticket importé porte une priorité : il porte donc un engagement. Ses échéances de prise en charge
+et de résolution sont calculées à l'import, depuis la matrice SLA du module. Sans elles, la fiche
+affichait une priorité sans date, et aucun retard n'était mesurable.
+
 **Ce qui reste** : lire la fiche, son historique et son niveau ; exporter ; déposer des pièces
 jointes (**incidents seulement** — les demandes n'en ont jamais eu) ; et la **discussion interne**
 à la DSI. Nos échanges nous appartiennent — ils ne viennent pas du fichier, et l'import ne les
