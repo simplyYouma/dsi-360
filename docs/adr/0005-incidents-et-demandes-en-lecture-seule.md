@@ -51,11 +51,19 @@ mentirait en silence. Seul l'administrateur, qui ne traite pas de tickets, est s
 ### 3. Lecture seule
 
 Pour ces deux modules uniquement, le serveur ne monte plus : transition de statut, assignation (et
-assignation en lot), réévaluation impact/urgence, changement de catégorie, désignation de
-contributeurs et de valideurs, décision. La création manuelle n'existait déjà pas.
+assignation en lot), réévaluation impact/urgence, changement de catégorie, désignation de valideurs,
+décision. La création manuelle n'existait déjà pas.
 
-`capacites(..., lecture_seule=True)` renvoie toutes les permissions à faux : l'écran ne propose
-rien, plutôt que de laisser cliquer là où le serveur répondrait 404.
+`capacites(..., lecture_seule=True)` renvoie tout à faux — sauf `peut_gerer_acteurs` pour
+l'administrateur (§5). L'écran ne propose donc rien, plutôt que de laisser cliquer là où le serveur
+répondrait 404.
+
+### 4. Le cycle de vie est journalisé
+
+L'import consigne une entrée `CREATION` à l'apparition d'un ticket, et une `TRANSITION` à chaque
+changement d'état — et rien d'autre : le rapport est réimporté chaque jour, l'immense majorité des
+lignes ne bouge pas. L'historique de la fiche se remplit, et les statistiques de durée par statut
+deviennent possibles.
 
 ### 5. Suivre sans agir : les contributeurs
 
@@ -83,13 +91,6 @@ touche pas (tables séparées).
 Ni les incidents ni les demandes n'ont de **tâches** : les routes qui pointaient vers les pièces
 jointes de leurs tâches ne sont plus montées.
 
-### 4. Le cycle de vie est journalisé
-
-L'import consigne une entrée `CREATION` à l'apparition d'un ticket, et une `TRANSITION` à chaque
-changement d'état — et rien d'autre : le rapport est réimporté chaque jour, l'immense majorité des
-lignes ne bouge pas. L'historique de la fiche se remplit, et les statistiques de durée par statut
-deviennent possibles.
-
 ## Conséquences
 
 - ➕ Une seule source de vérité. Ce que l'écran montre est ce que le fichier dit.
@@ -99,8 +100,9 @@ deviennent possibles.
 - ➖ Le journal d'audit grossit : un import où 500 tickets changent d'état écrit 500 entrées, et il
   est chaîné par empreinte. À surveiller si le volume quotidien croît.
 - ➖ Un ticket dont le gestionnaire n'est pas rapproché (DBS) n'a pas de responsable : il échappe à
-  l'évaluation des gestionnaires (`/analyses/gestionnaires`) et à la file « Mes tickets ». C'est
-  voulu — DBS n'est pas nous — mais il faudra un indicateur propre au volume parti chez DBS.
+  l'évaluation des gestionnaires (`/analyses/gestionnaires`). C'est voulu — DBS n'est pas nous — mais
+  il faudra un indicateur propre au volume parti chez DBS. Le désigner à un contributeur (§5) le
+  ramène dans une file DSI.
 - ➖ Un nom mal orthographié dans le rapport fait basculer le ticket chez DBS sans avertissement.
   Un écran de rapprochement (« ces N noms n'ont trouvé aucun compte ») serait utile.
 
