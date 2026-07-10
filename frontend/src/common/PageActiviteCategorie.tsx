@@ -14,6 +14,7 @@ import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { api, ErreurApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import { SablierSla } from '@/common/SablierSla';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
 import { useRafraichissement } from '@/common/useRafraichissement';
@@ -88,6 +89,14 @@ export function PageActiviteCategorie({
       cle: 'responsable',
       entete: 'Responsable',
       rendu: (a) => (a.responsable ? `${a.responsable.prenom} ${a.responsable.nom}` : '—'),
+    },
+    {
+      cle: 'sla',
+      entete: 'Échéance SLA',
+      valeur: (a) => a.sla_resolution_le ?? '',
+      rendu: (a) => (
+        <SablierSla echeance={a.sla_resolution_le} debut={a.cree_le} statut={a.statut_sla ?? 'a_lheure'} />
+      ),
     },
     { cle: 'cree_le', entete: 'Créé le', valeur: (a) => a.cree_le, rendu: (a) => formaterDate(a.cree_le) },
   ];

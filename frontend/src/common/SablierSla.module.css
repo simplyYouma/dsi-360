@@ -12,3 +12,32 @@
 .na {
   color: var(--text-muted);
 }
+
+/* Le sable est redessiné à chaque seconde : la transition relie les deux formes, et l'écoulement
+   se voit couler au lieu de sauter. */
+.sable {
+  transition: d 1s linear;
+}
+
+/* Le filet s'écoule vers le bas — un défilement continu, jamais un clignotement (CLAUDE.md §6). */
+.filet {
+  animation: chute 0.9s linear infinite;
+}
+
+@keyframes chute {
+  from {
+    stroke-dashoffset: 1.7;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sable {
+    transition: none;
+  }
+  .filet {
+    animation: none;
+  }
+}

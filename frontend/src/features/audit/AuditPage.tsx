@@ -15,6 +15,7 @@ import { ErreurApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import { SablierSla } from '@/common/SablierSla';
 import { auditApi, type Categorie, type Recommandation } from './auditApi';
 
 function formaterDate(iso: string): string {
@@ -43,6 +44,14 @@ const COLONNES: Colonne<Recommandation>[] = [
     cle: 'responsable',
     entete: 'Responsable',
     rendu: (r) => (r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : '—'),
+  },
+  {
+    cle: 'sla',
+    entete: 'Échéance SLA',
+    valeur: (r) => r.sla_resolution_le ?? '',
+    rendu: (r) => (
+      <SablierSla echeance={r.sla_resolution_le} debut={r.cree_le} statut={r.statut_sla ?? 'a_lheure'} />
+    ),
   },
   { cle: 'cree_le', entete: 'Ouverte le', valeur: (r) => r.cree_le, rendu: (r) => formaterDate(r.cree_le) },
 ];

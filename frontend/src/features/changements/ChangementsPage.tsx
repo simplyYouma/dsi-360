@@ -7,6 +7,7 @@ import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeStatut } from '@/common/statuts';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import { SablierSla } from '@/common/SablierSla';
 import { changementsApi, type Changement } from './changementsApi';
 
 const PRIORITE_COULEUR: Record<number, string> = {
@@ -42,6 +43,14 @@ const COLONNES: Colonne<Changement>[] = [
     cle: 'responsable',
     entete: 'Responsable',
     rendu: (c) => (c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : '—'),
+  },
+  {
+    cle: 'sla',
+    entete: 'Échéance SLA',
+    valeur: (c) => c.sla_resolution_le ?? '',
+    rendu: (c) => (
+      <SablierSla echeance={c.sla_resolution_le} debut={c.cree_le} statut={c.statut_sla ?? 'a_lheure'} />
+    ),
   },
   { cle: 'cree_le', entete: 'Créé le', valeur: (c) => c.cree_le, rendu: (c) => formaterDate(c.cree_le) },
 ];

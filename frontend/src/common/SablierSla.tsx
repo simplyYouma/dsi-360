@@ -13,9 +13,36 @@ const COULEUR: Record<Props['statut'], string> = {
   depasse: 'var(--status-danger)',
 };
 
-// Silhouette du sablier (bouteilles haut/bas), pour découper le sable proprement.
-const SILHOUETTE = 'M5 3 H19 L12.6 12 L19 21 H5 L11.4 12 Z';
-const HAUT = 8.6; // hauteur utile d'une ampoule (y 3.4 -> 12 et 12 -> 20.6)
+// Un seul battement pour toute la page. Une liste de quinze tickets, c'est quinze sabliers : un
+// minuteur chacun les ferait battre en désordre, et pour rien — le temps est le même pour tous.
+const abonnes = new Set<() => void>();
+let minuteur: number | null = null;
+
+function useBattement(): void {
+  const [, rafraichir] = useState(0);
+  useEffect(() => {
+    const reveiller = (): void => rafraichir((n) => n + 1);
+    abonnes.add(reveiller);
+    minuteur ??= window.setInterval(() => abonnes.forEach((f) => f()), 1000);
+    return () => {
+      abonnes.delete(reveiller);
+      if (abonnes.size === 0 && minuteur !== null) {
+        window.clearInterval(minuteur);
+        minuteur = null;
+      }
+    };
+  }, []);
+}
+
+// Deux ampoules bombées qui se rejoignent au goulot (12, 12). Le sable prend la forme du verre :
+// on le dessine large, on le découpe dedans.
+const AMPOULE_HAUT = 'M5.3 3.4 C5.3 7.9 8.7 10.3 12 12 C15.3 10.3 18.7 7.9 18.7 3.4 Z';
+const AMPOULE_BAS = 'M5.3 20.6 C5.3 16.1 8.7 13.7 12 12 C15.3 13.7 18.7 16.1 18.7 20.6 Z';
+
+const HAUT_Y = 3.4; // sommet de l'ampoule supérieure
+const BAS_Y = 20.6; // fond de l'ampoule inférieure
+const GOULOT = 12;
+const HAUTEUR = GOULOT - HAUT_Y; // course du sable dans une ampoule
 
 function duree(ms: number): string {
   const minutes = Math.floor(ms / 60000);
@@ -31,54 +58,90 @@ function libelleSla(restantMs: number): string {
   return restantMs <= 0 ? `Dépassé · ${duree(-restantMs)}` : `reste ${duree(restantMs)}`;
 }
 
-/** Sablier réaliste : niveau de sable continu (écoulé création -> échéance) découpé dans la
- *  silhouette pour rester lisible, couleur d'urgence vert / orange / rouge. */
-export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
-  const clip = useId();
-  const [, rafraichir] = useState(0);
+/** Le sable du haut repose sur le goulot et se creuse en entonnoir à mesure qu'il s'écoule :
+ *  c'est ce creux qui donne à l'œil la sensation qu'il descend. */
+function sableHaut(part: number): string {
+  const hauteur = part * HAUTEUR;
+  const y = GOULOT - hauteur;
+  const creux = Math.min(1.7, hauteur * 0.5); // s'efface quand il ne reste qu'un fond
+  return `M2 ${y} Q12 ${y + creux * 2} 22 ${y} L22 ${GOULOT} L2 ${GOULOT} Z`;
+}
 
-  useEffect(() => {
-    const id = window.setInterval(() => rafraichir((t) => t + 1), 30000);
-    return () => window.clearInterval(id);
-  }, []);
+/** En bas, le sable ne s'empile pas à plat : il forme un monticule sous le filet. */
+function sableBas(part: number): string {
+  const hauteur = part * HAUTEUR;
+  const y = BAS_Y - hauteur;
+  const cone = Math.min(2.2, hauteur * 0.7);
+  return `M2 ${BAS_Y} L2 ${y} Q12 ${y - cone * 2} 22 ${y} L22 ${BAS_Y} Z`;
+}
+
+/** Sablier du SLA : le sable descend au fil du temps, la couleur dit l'urgence. */
+export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
+  const clipHaut = useId();
+  const clipBas = useId();
+  useBattement();
 
   if (echeance === null) return <span className={styles.na}>—</span>;
 
   const fin = new Date(echeance).getTime();
-  const dep = new Date(debut).getTime();
+  const depart = new Date(debut).getTime();
   const restant = fin - Date.now();
-  const total = Math.max(1, fin - dep);
-  const reste = Math.max(0, Math.min(1, restant / total)); // part encore en haut
-  const ecoule = 1 - reste; // part tombée en bas
+  const total = Math.max(1, fin - depart);
+  const reste = Math.max(0, Math.min(1, restant / total)); // ce qui est encore en haut
+  const ecoule = 1 - reste; // ce qui est tombé
   const couleur = COULEUR[statut];
+  const coule = reste > 0.005 && ecoule > 0.005;
 
   return (
     <span className={styles.sablier} title={`SLA : ${libelleSla(restant)}`}>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <defs>
-          <clipPath id={clip}>
-            <path d={SILHOUETTE} />
+          <clipPath id={clipHaut}>
+            <path d={AMPOULE_HAUT} />
+          </clipPath>
+          <clipPath id={clipBas}>
+            <path d={AMPOULE_BAS} />
           </clipPath>
         </defs>
-        <g clipPath={`url(#${clip})`}>
-          <rect x="0" y="0" width="24" height="24" fill="var(--bg-subtle)" />
-          {/* Sable en haut : posé au-dessus du goulot, hauteur = part restante. */}
-          {reste > 0.01 && (
-            <rect x="0" y={12 - reste * HAUT} width="24" height={reste * HAUT} fill={couleur} />
-          )}
-          {/* Tas en bas : monte depuis la base, hauteur = part écoulée. */}
-          {ecoule > 0.01 && (
-            <rect x="0" y={20.6 - ecoule * HAUT} width="24" height={ecoule * HAUT} fill={couleur} />
-          )}
-        </g>
-        <path d={SILHOUETTE} fill="none" stroke={couleur} strokeWidth="1.3" strokeLinejoin="round" />
-        <path d="M6 3 H18 M6 21 H18" stroke={couleur} strokeWidth="1.6" strokeLinecap="round" />
-        {/* Filet de sable qui tombe au goulot tant qu'il s'écoule. */}
-        {reste > 0.02 && ecoule > 0.02 && (
-          <line x1="12" y1="11.5" x2="12" y2="14" stroke={couleur} strokeWidth="0.9" strokeLinecap="round">
-            <animate attributeName="opacity" values="1;0.15;1" dur="1s" repeatCount="indefinite" />
-          </line>
+
+        {/* Le verre vide, à peine teinté : sans lui, le sable flotterait. */}
+        <path d={AMPOULE_HAUT} fill="var(--bg-subtle)" />
+        <path d={AMPOULE_BAS} fill="var(--bg-subtle)" />
+
+        {reste > 0.005 && (
+          <g clipPath={`url(#${clipHaut})`}>
+            <path d={sableHaut(reste)} fill={couleur} className={styles.sable} />
+          </g>
         )}
+        {ecoule > 0.005 && (
+          <g clipPath={`url(#${clipBas})`}>
+            <path d={sableBas(ecoule)} fill={couleur} className={styles.sable} />
+          </g>
+        )}
+
+        {/* Le filet qui tombe : des grains, pas un trait. Il s'arrête avec l'écoulement. */}
+        {coule && (
+          <line
+            x1="12"
+            y1="12.4"
+            x2="12"
+            y2={BAS_Y - ecoule * HAUTEUR}
+            stroke={couleur}
+            strokeWidth="0.7"
+            strokeLinecap="round"
+            strokeDasharray="0.6 1.1"
+            className={styles.filet}
+          />
+        )}
+
+        <path d={AMPOULE_HAUT} fill="none" stroke={couleur} strokeWidth="1.15" strokeLinejoin="round" />
+        <path d={AMPOULE_BAS} fill="none" stroke={couleur} strokeWidth="1.15" strokeLinejoin="round" />
+        <path
+          d={`M5 ${HAUT_Y - 0.4} H19 M5 ${BAS_Y + 0.4} H19`}
+          stroke={couleur}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
       </svg>
       <span className={styles.reste} style={{ color: couleur }}>
         {libelleSla(restant)}

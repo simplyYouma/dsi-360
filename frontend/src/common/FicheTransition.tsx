@@ -570,11 +570,6 @@ export function FicheTransition({
                     disabled={envoi}
                     lectureSeule={!permissions.peut_gerer_acteurs}
                   />
-                  {gestionnaireFige && permissions.peut_gerer_acteurs && (
-                    <span className={styles.aideActeurs}>
-                      Le ticket entre dans leur file. Ils le suivent, ils ne le modifient pas.
-                    </span>
-                  )}
                 </dd>
               </div>
             ) : null}
