@@ -143,3 +143,27 @@
   background: var(--bg-subtle);
   color: var(--text);
 }
+
+/* « … +N » : révèle les catégories au-delà des trois premières. Discret, ghost, comme « Ajouter ». */
+.plus {
+  height: 34px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.plus:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+.plusNb {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+}

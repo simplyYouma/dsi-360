@@ -649,7 +649,12 @@ export function FicheTransition({
               )}
             {avecRevue && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
-                <dt>Revue périodique</dt>
+                <dt className={styles.revueTitre}>
+                  Revue périodique
+                  {detail.periodicite && detail.prochaine_revue && (
+                    <PastilleEcheance date={detail.prochaine_revue} prefixe="Revue" />
+                  )}
+                </dt>
                 <dd className={styles.revue}>
                   <SelecteurListe
                     options={['Mensuelle', 'Trimestrielle', 'Semestrielle', 'Annuelle'].map(
@@ -673,9 +678,6 @@ export function FicheTransition({
                     desactive={!permissions.peut_travailler}
                     titreDesactive={TITRE_LECTURE}
                   />
-                  {detail.periodicite && (
-                    <PastilleEcheance date={detail.prochaine_revue ?? null} prefixe="Revue" />
-                  )}
                   <Button
                     variante="secondaire"
                     className={styles.boutonRevue}

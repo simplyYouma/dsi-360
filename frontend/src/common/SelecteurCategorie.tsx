@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Check } from 'lucide-react';
+import { Plus, X, Check, MoreHorizontal } from 'lucide-react';
 import { useToast } from '@/design-system/primitives';
 import { ErreurApi } from '@/lib/api';
 import { cx } from './cx';
@@ -49,9 +49,25 @@ export function SelecteurCategorie({
   const [ajout, setAjout] = useState(false);
   const [nouveau, setNouveau] = useState('');
   const [enCours, setEnCours] = useState(false);
+  const [tout, setTout] = useState(false);
   const gestion = gerable === true && module !== undefined;
 
   if (categories.length === 0 && !gestion) return null;
+
+  // On ne déroule que les trois premières : une longue liste encombre la fiche. La sélection
+  // reste toujours visible (on la fait remonter), et « … » révèle le reste à la demande.
+  const LIMITE = 3;
+  const trop = !tout && categories.length > LIMITE + 1;
+  let visibles = categories;
+  if (trop) {
+    const tete = categories.slice(0, LIMITE);
+    const choisie = categories.find((c) => c.id === valeur);
+    visibles =
+      choisie !== undefined && !tete.some((c) => c.id === choisie.id)
+        ? [choisie, ...tete.slice(0, LIMITE - 1)]
+        : tete;
+  }
+  const restant = categories.length - visibles.length;
 
   const ajouter = async (): Promise<void> => {
     const libelle = nouveau.trim();
@@ -87,7 +103,7 @@ export function SelecteurCategorie({
 
   return (
     <div className={styles.chips} role="listbox" aria-label="Catégorie">
-      {categories.map((c) => {
+      {visibles.map((c) => {
         const actif = c.id === valeur;
         const coul = c.code !== undefined && couleurs !== undefined ? couleurs[c.code] : undefined;
         const style =
@@ -129,6 +145,30 @@ export function SelecteurCategorie({
           </span>
         );
       })}
+
+      {trop && (
+        <button
+          type="button"
+          className={styles.plus}
+          onClick={() => setTout(true)}
+          title={`Voir ${restant} catégorie(s) de plus`}
+          aria-label={`Voir ${restant} catégorie(s) de plus`}
+        >
+          <MoreHorizontal size={14} />
+          <span className={styles.plusNb}>{restant}</span>
+        </button>
+      )}
+      {tout && categories.length > LIMITE + 1 && (
+        <button
+          type="button"
+          className={styles.plus}
+          onClick={() => setTout(false)}
+          title="Réduire la liste"
+          aria-label="Réduire la liste"
+        >
+          Réduire
+        </button>
+      )}
 
       {gestion &&
         (ajout ? (
