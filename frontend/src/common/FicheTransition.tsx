@@ -28,6 +28,8 @@ interface Detail {
   description: string | null;
   transitions_possibles: string[];
   etats: string[];
+  /** L'état courant attend la décision des valideurs : rien n'avance manuellement. */
+  en_attente_validation?: boolean;
   historique: { statut: string; horodatage: string; acteur: string | null }[];
   // Champs optionnels selon le module (activité, risque…).
   priorite?: number;
@@ -565,7 +567,7 @@ export function FicheTransition({
             ) : null}
             {avecContributeurs ? (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
-                <dt>Contributeurs</dt>
+                <dt>Contributeur</dt>
                 <dd>
                   <GestionActeurs
                     acteurs={detail.contributeurs ?? []}
@@ -583,7 +585,7 @@ export function FicheTransition({
             {assignable ? (
               <>
                 <div className={cx(styles.metaItem, styles.metaLarge)}>
-                  <dt>Valideurs</dt>
+                  <dt>Valideur</dt>
                   <dd>
                     <GestionActeurs
                       acteurs={detail.valideurs ?? []}
@@ -750,6 +752,27 @@ export function FicheTransition({
                 );
               })}
             </div>
+            {detail.en_attente_validation === true &&
+              (() => {
+                const valideurs = detail.valideurs ?? [];
+                const attendus = valideurs.filter((v) => v.decision == null).length;
+                if (valideurs.length === 0) {
+                  return (
+                    <p className={styles.wfAttente} data-ton="alerte">
+                      <Clock size={14} />
+                      Aucun valideur désigné : l’étape ne peut pas être tranchée. L’administrateur
+                      doit désigner un valideur.
+                    </p>
+                  );
+                }
+                return (
+                  <p className={styles.wfAttente}>
+                    <Clock size={14} />
+                    En attente de la décision {attendus > 1 ? 'des valideurs' : 'du valideur'} —
+                    l’étape suivante se déclenche dès qu’ils ont tranché.
+                  </p>
+                );
+              })()}
           </div>
 
           {avecDocuments && id !== null && (

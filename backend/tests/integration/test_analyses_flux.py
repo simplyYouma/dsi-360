@@ -317,3 +317,25 @@ async def test_a_traiter_ignore_le_resolu_sans_date(
 
     assert "DEM-AT-1" in refs
     assert "DEM-AT-2" not in refs, "un ticket résolu ne réclame plus de travail"
+
+
+async def test_l_etat_de_validation_est_signale(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« En validation de clôture » attend les valideurs.
+
+    Le détail le dit, pour que l'écran l'explique au lieu de sembler bloqué.
+    """
+    admin = await _admin(session, "admin.gate1@afgbank.ml")
+    en_cours = await creer_activite(session, module="audit", reference="AUD-GATE-1")
+    en_gate = await creer_activite(
+        session, module="audit", reference="AUD-GATE-2", statut="En validation de clôture"
+    )
+    assert en_cours
+
+    d_gate = (await client.get(f"/audit/{en_gate}", headers=entetes(admin))).json()
+    assert d_gate["en_attente_validation"] is True
+    assert d_gate["transitions_possibles"] == [], "les issues sont réservées aux valideurs"
+
+    d_cours = (await client.get(f"/audit/{en_cours}", headers=entetes(admin))).json()
+    assert d_cours["en_attente_validation"] is False

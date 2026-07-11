@@ -142,6 +142,16 @@ GATES_VALIDATION: dict[str, tuple[frozenset[str], str, str]] = {
 }
 
 
+def est_porte_validation(module: str, statut: str) -> bool:
+    """Vrai si l'état attend la décision des valideurs (CAB/ECAB, validation de demande/clôture).
+
+    Depuis un tel état, aucune transition manuelle n'est offerte : la sortie ne vient que de
+    l'agrégation des décisions. L'écran s'en sert pour dire *pourquoi* rien n'avance.
+    """
+    gate = GATES_VALIDATION.get(module)
+    return gate is not None and statut in gate[0]
+
+
 def transition_reservee(module: str, depuis: str, vers: str) -> bool:
     """Vrai si la transition est une issue de validation, réservée à la décision des valideurs.
 

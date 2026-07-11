@@ -422,3 +422,17 @@
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+
+/* Pourquoi le cycle de vie n'avance pas : l'étape attend la décision des valideurs. */
+.wfAttente {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+/* Sans valideur désigné, c'est une impasse : la couleur alerte. */
+.wfAttente[data-ton='alerte'] {
+  color: var(--status-warn);
+}

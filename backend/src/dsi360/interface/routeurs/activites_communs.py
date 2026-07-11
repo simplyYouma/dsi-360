@@ -27,7 +27,12 @@ from dsi360.application.activites import (
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
-from dsi360.domain.etats import ordre_etats, transition_reservee, transitions_possibles
+from dsi360.domain.etats import (
+    est_porte_validation,
+    ordre_etats,
+    transition_reservee,
+    transitions_possibles,
+)
 from dsi360.domain.revue import prochaine_revue
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import phrase_propre
@@ -145,6 +150,8 @@ def _detail(
             if not transition_reservee(module, r["statut"], e)
         ],
         "etats": ordre_etats(module),
+        # L'état attend-il la décision des valideurs ? L'écran dit alors pourquoi rien n'avance.
+        "en_attente_validation": est_porte_validation(module, r["statut"]),
         "avancement": int(_donnees(r).get("avancement", 0)),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
         "periodicite": _donnees(r).get("periodicite"),

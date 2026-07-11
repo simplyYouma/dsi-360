@@ -178,6 +178,7 @@ class ActiviteDetail(ActiviteResume):
     cloture_le: datetime | None
     transitions_possibles: list[str]
     etats: list[str]
+    en_attente_validation: bool = False
     historique: list[EntreeHistorique]
     contributeurs: list[Contributeur] = []
     valideurs: list[Contributeur] = []
@@ -755,6 +756,7 @@ class RisqueDetail(RisqueResume):
     categorie_id: str | None = None
     transitions_possibles: list[str]
     etats: list[str]
+    en_attente_validation: bool = False
     historique: list[EntreeHistorique]
     periodicite: str | None = None
     prochaine_revue: date | None = None

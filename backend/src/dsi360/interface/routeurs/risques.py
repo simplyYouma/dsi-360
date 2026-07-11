@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.risques import creer_risque
-from dsi360.domain.etats import ordre_etats, transitions_possibles
+from dsi360.domain.etats import est_porte_validation, ordre_etats, transitions_possibles
 from dsi360.domain.revue import prochaine_revue
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
@@ -87,6 +87,7 @@ def _detail(r: RowMapping) -> dict[str, Any]:
         "categorie_id": str(r["categorie_id"]) if r["categorie_id"] is not None else None,
         "transitions_possibles": transitions_possibles(MODULE, r["statut"]),
         "etats": ordre_etats(MODULE),
+        "en_attente_validation": est_porte_validation(MODULE, r["statut"]),
         "periodicite": d.get("periodicite"),
         "prochaine_revue": d.get("prochaine_revue"),
         "derniere_revue": d.get("derniere_revue"),
