@@ -85,6 +85,11 @@ correctifs, MFA, IAM) outille ces obligations. **Recette sécurité RSSI** prév
 - **Frein sur les connexions** (cf. §1), **jetons courts**, **cloisonnement** vérifié côté serveur.
 - Tests de non-régression : `tests/integration/test_securite.py` (en-têtes, 401 sans jeton, jeton
   falsifié rejeté, journal append-only).
+- **Test d'intrusion rejouable** (`backend/scripts/pentest.py`, lanceur `infra\local\pentest.ps1`) :
+  boîte grise, un agent à faible privilège tente de franchir 21 gardes (auth & jetons, élévation de
+  privilège, incarnation, écriture sur incident importé, auto-désignation sur activité, injection
+  SQL, fuite d'erreur, en-têtes). Chaque tentative doit être refusée ; le script sort en erreur à la
+  première faille. À dérouler avant chaque mise en production, contre une instance de recette.
 
 ## 7. Résilience — survivre à une base qui tombe
 

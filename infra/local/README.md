@@ -103,3 +103,16 @@ développement. La créer une fois, en superuser :
 
 Ensuite `pytest tests` s'en occupe seul : migrations, seed, puis chaque test dans une transaction
 annulée à la fin. Les tests unitaires (`pytest tests\unit`) ne demandent aucune base.
+
+### Test d'intrusion (avant chaque mise en production)
+
+L'API doit tourner (via `api.ps1` ou `demarrer-dev.ps1`). Le script se connecte avec un compte à
+faible privilège et tente de forcer 21 gardes ; chacune doit refuser. À lancer contre une instance
+de recette, jamais en production.
+
+```powershell
+infra\local\pentest.ps1
+```
+
+Sortie attendue : `21 contrôles franchis, 0 faille(s)`. Toute faille fait sortir le script en
+erreur. Détail des contrôles : `docs/04-SECURITY.md` §6.
