@@ -10,7 +10,8 @@ Guide de lecture. La **source de vérité unique** est [`/CLAUDE.md`](../CLAUDE.
 5. [`05-DESIGN-SYSTEM.md`](05-DESIGN-SYSTEM.md) — tokens, composants maison, charte (cf. images d'inspi). ✅
 6. [`03-API-CONTRACTS.md`](03-API-CONTRACTS.md) — conventions REST, endpoints, format d'erreur, versioning. ✅
 7. [`04-SECURITY.md`](04-SECURITY.md) — auth locale, RBAC (profils métier paramétrables), cloisonnement, audit. ✅
-8. [`07-ROADMAP.md`](07-ROADMAP.md) — socle transverse + phases 1/2/3, jalons. ✅
+8. [`06-DEPLOIEMENT.md`](06-DEPLOIEMENT.md) — mise en ligne serveur (Windows, IP:port, TLS, tâches, sauvegarde), standard AFG. ✅
+9. [`07-ROADMAP.md`](07-ROADMAP.md) — socle transverse + phases 1/2/3, jalons. ✅
 
 > Doc de conception **complète**. Prochaine étape : vérifier l'exécution du squelette, puis lot P1-0.
 

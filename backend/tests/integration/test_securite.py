@@ -24,6 +24,10 @@ async def test_les_entetes_de_securite_sont_presents(
     assert r.headers["X-Content-Type-Options"] == "nosniff"
     assert r.headers["X-Frame-Options"] == "DENY"
     assert r.headers["Referrer-Policy"] == "no-referrer"
+    csp = r.headers["Content-Security-Policy"]
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'none'" in csp
+    assert "object-src 'none'" in csp
 
 
 async def test_une_route_protegee_refuse_sans_jeton(client: AsyncClient) -> None:

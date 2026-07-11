@@ -26,6 +26,15 @@ infra/local/provisionner-db.sql
 Thumbs.db
 .idea/
 
+# Certificats / cles TLS (vivent seulement sur le serveur — jamais versionnes)
+cert/
+*.pem
+*.key
+*.pfx
+*.crt
+# Sauvegardes de base (pg_dump)
+*.dump
+
 # Sources de conception confidentielles (banque) — jamais publiees
 docs/_sources-conception/
 infra/nginx/certs/

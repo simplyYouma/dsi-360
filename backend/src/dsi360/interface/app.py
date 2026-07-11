@@ -126,7 +126,15 @@ def creer_app() -> FastAPI:
         reponse.headers["X-Frame-Options"] = "DENY"
         reponse.headers["Referrer-Policy"] = "no-referrer"
         reponse.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        # HSTS seulement hors dev (là où le TLS est présent, via le reverse-proxy).
+        # CSP : l'app est mono-origine (l'API sert la SPA). Tout vient de 'self' ; aucune source
+        # externe (le carillon de notif est synthétisé, pas un fichier). 'unsafe-inline' sur les
+        # styles couvre les `style=` de la charte ; les scripts, eux, restent stricts ('self').
+        reponse.headers["Content-Security-Policy"] = (
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; "
+            "img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; connect-src 'self'; form-action 'self'"
+        )
+        # HSTS seulement hors dev (là où le TLS est présent : uvicorn --ssl ou reverse-proxy).
         if settings.environnement != "dev":
             reponse.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return reponse
