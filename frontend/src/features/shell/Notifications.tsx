@@ -67,6 +67,15 @@ export function Notifications(): JSX.Element {
   const ouvrirSujet = (n: Notif): void => {
     const lien = n.activite_id ? lienActivite(n.module ?? '', n.activite_id) : null;
     if (lien === null) return;
+    // Entrer dans une notif la marque lue (côté serveur + affichage immédiat).
+    if (!n.lu) {
+      void api.post(`/notifications/${n.id}/lu`);
+      setElements((prev) => prev.map((x) => (x.id === n.id ? { ...x, lu: true } : x)));
+      setNonLus((c) => Math.max(0, c - 1));
+      if (precedentNonLus.current !== null) {
+        precedentNonLus.current = Math.max(0, precedentNonLus.current - 1);
+      }
+    }
     setOuvert(false);
     navigate(lien);
   };

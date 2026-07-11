@@ -30,6 +30,10 @@ _TOUT_LU = text(
     "UPDATE core.notification SET lu = true "
     "WHERE destinataire_id = cast(:id as uuid) AND lu = false"
 )
+_LU_UN = text(
+    "UPDATE core.notification SET lu = true "
+    "WHERE id = :nid AND destinataire_id = cast(:id as uuid)"
+)
 
 
 @routeur.get("", response_model=NotificationsReponse)
@@ -42,6 +46,13 @@ async def lister(courant: Courant, session: Session) -> dict[str, Any]:
 @routeur.post("/tout-lu", status_code=status.HTTP_204_NO_CONTENT)
 async def tout_marquer_lu(courant: Courant, session: Session) -> None:
     await session.execute(_TOUT_LU, {"id": courant["id"]})
+    await session.commit()
+
+
+@routeur.post("/{notif_id}/lu", status_code=status.HTTP_204_NO_CONTENT)
+async def marquer_lu(notif_id: int, courant: Courant, session: Session) -> None:
+    """Marque une notification lue. Scopée au destinataire : jamais celle d'autrui."""
+    await session.execute(_LU_UN, {"nid": notif_id, "id": courant["id"]})
     await session.commit()
 
 

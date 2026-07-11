@@ -61,5 +61,8 @@ export const CAPACITES_MODULE: Record<string, CapacitesModule> = {
 /** Lien profond vers la fiche d'une activité (ouvre la fiche à l'arrivée). */
 export function lienActivite(module: string, id: string): string | null {
   const route = ROUTE_MODULE[module];
-  return route === undefined ? null : `${route}?fiche=${id}`;
+  if (route === undefined) return null;
+  // Projet & changement ont une page dédiée (tâches, jalons, RFC) : on y entre directement, plutôt
+  // que d'ouvrir la fiche modale partielle sur la liste.
+  return MODULES_PAGE_DEDIEE.has(module) ? `${route}/${id}` : `${route}?fiche=${id}`;
 }

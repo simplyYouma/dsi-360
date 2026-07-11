@@ -185,6 +185,7 @@ export function ListeTaches({
                 libelleVide="Non assigné"
                 desactive={!peutTravailler}
                 titreDesactive={RESERVE_AUX_ACTEURS}
+                indiceReaffectation="Réassigner"
               />
             </div>
             <div className={styles.tacheChamp}>
