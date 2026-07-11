@@ -50,7 +50,7 @@ Les `.ps1` de ce dossier sont en **UTF-8 avec BOM**, et doivent le rester. Un do
 deviennent du charabia et le script ne compile plus. `start-dev.ps1` se relance de lui-même
 sous **pwsh 7** ; il doit d'abord pouvoir être lu par 5.1 pour y parvenir.
 
-> Les `.bat` (lanceurs bureau, ex. `MAJ-DSI360.bat`) sont au contraire **sans BOM** : un BOM
+> Les `.bat` (lanceurs bureau, ex. `maj-prod.bat`) sont au contraire **sans BOM** : un BOM
 > casserait `cmd`. Ils sont écrits en ASCII pur.
 
 Corollaire : **jamais d'accent dans un nom de variable** PowerShell.

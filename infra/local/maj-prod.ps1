@@ -1,10 +1,10 @@
 ﻿# Met à jour DSI 360 sur le serveur, d'un seul geste, de façon sûre et rejouable :
 #   contrôle du dépôt -> git pull (fast-forward) -> dépendances -> migrations -> build front
 #   -> redémarrage de la tâche -> contrôle de santé.
-# Pensé pour être lancé par MAJ-DSI360.bat (double-clic + élévation admin). Idempotent.
+# Pensé pour être lancé par maj-prod.bat (double-clic + élévation admin). Idempotent.
 #
-#   infra\local\maj-serveur.ps1 [-Tache DSI360] [-UrlSante https://127.0.0.1:8453/healthz]
-#                               [-SansRedemarrage]
+#   infra\local\maj-prod.ps1 [-Tache DSI360] [-UrlSante https://127.0.0.1:8453/healthz]
+#                            [-SansRedemarrage]
 param(
     [string]$Tache = 'DSI360',
     [string]$UrlSante = 'https://127.0.0.1:8453/healthz',

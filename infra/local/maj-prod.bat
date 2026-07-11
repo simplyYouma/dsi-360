@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0maj-serveur.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0maj-prod.ps1"
 set CODE=%errorlevel%
 echo.
 if %CODE% neq 0 (

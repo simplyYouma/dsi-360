@@ -25,7 +25,7 @@ Références : [ADR-0002 exécution native](adr/0002-execution-native-sans-docke
 | **Certificat** | `C:\MY_APPS\DSI360\cert\cert.pem` / `key.pem` — **jamais** versionné |
 | **Préfixe des variables** | `DSI360_` (ex. `DSI360_JWT_SECRET_KEY`, `DSI360_DATABASE_URL`) |
 | **Tâches planifiées** | `DSI360` (app), `DSI360-Sauvegarde` (pg_dump) — **préfixées, jamais génériques** |
-| **Lanceur bureau** | **`MAJ-DSI360.bat`** — mise à jour un-clic (double-clic, élévation admin automatique) |
+| **Lanceur bureau** | **`maj-prod.bat`** — mise à jour un-clic (double-clic, élévation admin automatique) |
 | **PWA** | Oui — installable (manifest + service worker). Le SW ne met **jamais** `/api` en cache et sert la navigation en réseau-d'abord ; après un `git pull` + rebuild, il se met à jour tout seul au prochain chargement en ligne. |
 | **Reverse-proxy** | **Facultatif** : l'API termine elle-même le TLS (voir §1) |
 
@@ -218,7 +218,7 @@ Attendu : `21 contrôles franchis, 0 faille(s)` (détail : [04-SECURITY.md](04-S
 
 ### En un clic (recommandé)
 
-Double-cliquer **`infra\local\MAJ-DSI360.bat`** (ou son raccourci sur le bureau du serveur). Il
+Double-cliquer **`infra\local\maj-prod.bat`** (ou son raccourci sur le bureau du serveur). Il
 demande l'élévation administrateur puis déroule, tout seul et dans l'ordre :
 
 1. **contrôle du dépôt** (refuse s'il y a des modifications locales — le code ne se modifie que par git) ;
@@ -229,12 +229,12 @@ demande l'élévation administrateur puis déroule, tout seul et dans l'ordre :
 6. **redémarrage de la tâche `DSI360`** (sans quoi l'ancien code et l'ancien certificat restent en mémoire) ;
 7. **contrôle de santé** (`/healthz` doit répondre 200).
 
-Le moteur est `infra\local\maj-serveur.ps1` — le `.bat` n'est que l'enveloppe qui l'élève et l'exécute.
+Le moteur est `infra\local\maj-prod.ps1` — le `.bat` n'est que l'enveloppe qui l'élève et l'exécute.
 En cas d'anomalie, le script s'arrête net sur l'étape fautive et l'affiche.
 
 > Démarrage/arrêt manuels du service : ils passent par la **tâche planifiée `DSI360`**
 > (`Start-ScheduledTask`/`Stop-ScheduledTask`, ou le Planificateur de tâches Windows). Le boot du
-> serveur la lance seule ; `MAJ-DSI360.bat` la redémarre après chaque mise à jour.
+> serveur la lance seule ; `maj-prod.bat` la redémarre après chaque mise à jour.
 
 ### À la main (équivalent, si besoin)
 ```powershell
