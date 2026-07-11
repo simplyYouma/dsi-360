@@ -25,7 +25,7 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.application.notifications import notifier_acteurs
+from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.config import get_settings
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
@@ -309,20 +309,13 @@ async def _enregistrer_commentaire(
     cible = f"{reference} · {titre_tache}" if titre_tache else reference
     # Mentions @ : notification interne (cloche) aux personnes citées, sauf l'auteur.
     for uid in {m for m in mentions if m and m != courant["id"]}:
-        await session.execute(
-            text(
-                "INSERT INTO core.notification "
-                "(destinataire_id, activite_id, type, titre, message) "
-                "SELECT cast(:dest as uuid), cast(:aid as uuid), 'MENTION', :titre, :msg "
-                "WHERE EXISTS (SELECT 1 FROM core.utilisateur WHERE id = cast(:dest as uuid) "
-                "              AND actif)"
-            ),
-            {
-                "dest": uid,
-                "aid": activite_id,
-                "titre": f"Vous êtes mentionné — {cible}",
-                "msg": f"{courant['email']} vous a mentionné : {texte[:140]}",
-            },
+        await notifier(
+            session,
+            destinataire_id=uid,
+            activite_id=activite_id,
+            type_="MENTION",
+            titre=f"Vous êtes mentionné — {cible}",
+            message=f"{courant['email']} vous a mentionné : {texte[:140]}",
         )
     await audit.consigner(
         session,

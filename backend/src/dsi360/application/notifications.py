@@ -148,6 +148,13 @@ _INSERT_ESCALADE = text(
     "ON CONFLICT DO NOTHING RETURNING id"
 )
 
+_EMAIL_DEST = text(
+    "SELECT u.email, coalesce(p.email, true) AS envoyer_email "
+    "FROM core.utilisateur u "
+    "LEFT JOIN core.preference_notification p ON p.utilisateur_id = u.id "
+    "WHERE u.id = cast(:d as uuid) AND u.actif"
+)
+
 
 async def scanner_tout() -> None:
     """Un passage complet de l'ordonnanceur : échéances SLA + escalades P1 + revues + jalons."""
@@ -258,6 +265,17 @@ async def scanner_escalades() -> dict[str, int]:
             )
             if nouvel_id is not None:
                 crees += 1
+                # L'escalade P1 est critique : elle part aussi par e-mail (comme les autres notifs).
+                dest_email = (
+                    await session.execute(_EMAIL_DEST, {"d": destinataire})
+                ).mappings().first()
+                if (
+                    get_settings().notif_email_active
+                    and dest_email
+                    and dest_email["envoyer_email"]
+                    and dest_email["email"]
+                ):
+                    envoyer(dest_email["email"], titre, message)
                 await audit.consigner(
                     session,
                     action="ESCALADE",

@@ -385,3 +385,30 @@ async def test_mes_taches_disent_mon_role_dans_l_activite(
 
     r_aide = await client.get("/mes-tickets/taches", headers=entetes(aide))
     assert r_aide.json()["elements"][0]["role_activite"] == "ASSIGNE"
+
+
+async def test_assigner_une_tache_notifie_son_porteur(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Recevoir une tâche doit se voir : une notification interne part vers l'assigné."""
+    admin = await _admin(session, "admin.notiftache@afgbank.ml")
+    porteur = await creer_utilisateur(session, email="porteur.notiftache@afgbank.ml")
+    projet = await creer_activite(
+        session, module="projet", reference="PRJ-NT-1", responsable_id=admin
+    )
+
+    r = await client.post(
+        f"/projets/{projet}/taches",
+        headers=entetes(admin),
+        json={"titre": "Rédiger le cadrage", "assigne_id": porteur},
+    )
+    assert r.status_code in (200, 201), r.text
+
+    n = await session.scalar(
+        text(
+            "SELECT count(*) FROM core.notification "
+            "WHERE destinataire_id = cast(:d as uuid) AND type = 'TACHE'"
+        ),
+        {"d": porteur},
+    )
+    assert n == 1

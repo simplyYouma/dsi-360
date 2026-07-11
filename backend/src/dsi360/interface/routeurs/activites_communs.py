@@ -396,19 +396,13 @@ def creer_routeur(
         await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
         # Notifie le contributeur ajouté (sauf s'il s'ajoute lui-même).
         if corps.utilisateur_id != courant["id"]:
-            await session.execute(
-                text(
-                    "INSERT INTO core.notification "
-                    "(destinataire_id, activite_id, type, titre, message) "
-                    "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', "
-                    ":titre, :msg)"
-                ),
-                {
-                    "dest": corps.utilisateur_id,
-                    "aid": avant["id"],
-                    "titre": f"Contributeur : {avant['reference']}",
-                    "msg": avant["titre"],
-                },
+            await notifier(
+                session,
+                destinataire_id=corps.utilisateur_id,
+                activite_id=str(avant["id"]),
+                type_="ASSIGNATION",
+                titre=f"Contributeur désigné — {avant['reference']}",
+                message=f"Vous suivez désormais {avant['reference']} « {avant['titre']} ».",
             )
         await audit.consigner(
             session,
@@ -546,19 +540,13 @@ def creer_routeur(
                 and corps.responsable_id != avant["resp_id"]
                 and corps.responsable_id != courant["id"]
             ):
-                await session.execute(
-                    text(
-                        "INSERT INTO core.notification "
-                        "(destinataire_id, activite_id, type, titre, message) "
-                        "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'ASSIGNATION', "
-                        ":titre, :msg)"
-                    ),
-                    {
-                        "dest": corps.responsable_id,
-                        "aid": avant["id"],
-                        "titre": f"Ticket assigné : {avant['reference']}",
-                        "msg": avant["titre"],
-                    },
+                await notifier(
+                    session,
+                    destinataire_id=corps.responsable_id,
+                    activite_id=str(avant["id"]),
+                    type_="ASSIGNATION",
+                    titre=f"Activité assignée — {avant['reference']}",
+                    message=f"{avant['reference']} « {avant['titre']} » vous a été assignée.",
                 )
             # Réaffectation : prévient aussi l'ancien responsable qu'il n'est plus en charge.
             if avant["resp_id"] is not None and avant["resp_id"] != corps.responsable_id:
@@ -632,19 +620,14 @@ def creer_routeur(
             await repo.ajouter_valideur(session, ident, corps.utilisateur_id)
             # Notifie le valideur désigné (sauf s'il se désigne lui-même).
             if corps.utilisateur_id != courant["id"]:
-                await session.execute(
-                    text(
-                        "INSERT INTO core.notification "
-                        "(destinataire_id, activite_id, type, titre, message) "
-                        "VALUES (cast(:dest as uuid), cast(:aid as uuid), 'VALIDATION', "
-                        ":titre, :msg)"
-                    ),
-                    {
-                        "dest": corps.utilisateur_id,
-                        "aid": avant["id"],
-                        "titre": f"Validation demandée : {avant['reference']}",
-                        "msg": avant["titre"],
-                    },
+                await notifier(
+                    session,
+                    destinataire_id=corps.utilisateur_id,
+                    activite_id=str(avant["id"]),
+                    type_="VALIDATION",
+                    titre=f"Validation demandée — {avant['reference']}",
+                    message=f"Votre décision est attendue sur {avant['reference']} "
+                    f"« {avant['titre']} ».",
                 )
             await audit.consigner(
                 session,
@@ -727,6 +710,11 @@ def creer_routeur(
             courant = ctx.courant
             avant = await charger_visible(session, ident, courant)
             fragment = corps.model_dump(exclude_unset=True, mode="json")
+            # Choisir une périodicité fixe la prochaine revue : inutile de resaisir une date.
+            if fragment.get("periodicite") and "prochaine_revue" not in fragment:
+                fragment["prochaine_revue"] = prochaine_revue(
+                    fragment["periodicite"], datetime.now(UTC).date()
+                ).isoformat()
             if fragment:
                 await session.execute(
                     text(

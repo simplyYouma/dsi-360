@@ -257,6 +257,11 @@ async def planifier_revue(
     courant = ctx.courant
     avant = await _charger(session, ident, courant)
     fragment = corps.model_dump(exclude_unset=True, mode="json")
+    # Choisir une périodicité fixe la prochaine revue : inutile de resaisir une date.
+    if fragment.get("periodicite") and "prochaine_revue" not in fragment:
+        fragment["prochaine_revue"] = prochaine_revue(
+            fragment["periodicite"], datetime.now(UTC).date()
+        ).isoformat()
     if fragment:
         await session.execute(
             text(

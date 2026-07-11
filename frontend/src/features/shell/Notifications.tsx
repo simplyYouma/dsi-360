@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Inbox, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { couleurStatut } from '@/common/statuts';
 import { lienActivite } from '@/common/routesModule';
 import { useRafraichissement } from '@/common/useRafraichissement';
+import { jouerSonNotif } from '@/common/sonNotif';
 import { cx } from '@/common/cx';
 import styles from './Notifications.module.css';
 
@@ -37,11 +38,18 @@ export function Notifications(): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [elements, setElements] = useState<Notif[]>([]);
   const [nonLus, setNonLus] = useState(0);
+  // Compteur précédent : un carillon ne sonne qu'à l'arrivée d'un nouveau non-lu, jamais au
+  // premier chargement ni quand on marque comme lu.
+  const precedentNonLus = useRef<number | null>(null);
 
   const charger = useCallback(async (): Promise<void> => {
     const data = await api.get<{ elements: Notif[]; non_lus: number }>('/notifications');
     setElements(data.elements);
     setNonLus(data.non_lus);
+    if (precedentNonLus.current !== null && data.non_lus > precedentNonLus.current) {
+      jouerSonNotif();
+    }
+    precedentNonLus.current = data.non_lus;
   }, []);
 
   useEffect(() => {

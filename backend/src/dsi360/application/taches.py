@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import transition
+from dsi360.application.notifications import notifier
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import activite as activite_repo
 from dsi360.infrastructure.repositories import tache as repo
@@ -56,6 +57,27 @@ async def _recalculer(
         await transition(session, module, activite_id, achevement[1], acteur)
 
 
+async def _notifier_assigne(
+    session: AsyncSession, activite_id: str, titre_tache: str, assigne_id: str | None,
+    acteur: dict[str, Any],
+) -> None:
+    """Prévient l'agent qui reçoit une tâche (interne + e-mail). Rien s'il se l'assigne lui-même."""
+    if not assigne_id or assigne_id == acteur["id"]:
+        return
+    reference = await session.scalar(
+        text("SELECT reference FROM core.activite WHERE id = cast(:a as uuid)"),
+        {"a": activite_id},
+    )
+    await notifier(
+        session,
+        destinataire_id=assigne_id,
+        activite_id=activite_id,
+        type_="TACHE",
+        titre=f"Tâche assignée — {reference}",
+        message=f"« {titre_tache} » ({reference}) vous a été assignée.",
+    )
+
+
 async def creer_tache(
     session: AsyncSession,
     activite_id: str,
@@ -64,6 +86,7 @@ async def creer_tache(
     acteur: dict[str, Any],
 ) -> str:
     tache_id = await repo.creer(session, activite_id, champs)
+    await _notifier_assigne(session, activite_id, champs["titre"], champs.get("assigne_id"), acteur)
     await audit.consigner(
         session,
         action="CREATION",
@@ -86,6 +109,11 @@ async def maj_tache(
     acteur: dict[str, Any],
 ) -> None:
     await repo.maj(session, tache["id"], champs)
+    # Réassignation d'une tâche : prévenir le nouveau porteur (pas si l'assigné n'a pas changé).
+    if "assigne_id" in champs and champs["assigne_id"] != tache["assigne_id"]:
+        await _notifier_assigne(
+            session, tache["activite_id"], tache["titre"], champs["assigne_id"], acteur
+        )
     await audit.consigner(
         session,
         action="MODIFICATION",
