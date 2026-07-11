@@ -66,6 +66,10 @@ npm run dev
 
 Ouvrir **http://localhost:5290** (le front proxifie `/api` vers l'API sur 8011).
 
+> **Un seul geste** : double-cliquer **`infra\local\start-dev.ps1`** démarre l'API + le front **et
+> ouvre l'application tout seul** dès qu'elle répond, dans une fenêtre autonome façon PWA
+> (Chrome/Edge `--app`). Ajouter `-SansOuvrir` pour ne pas ouvrir la fenêtre.
+>
 > `npm run dev` exécute `frontend/dev.mjs`, qui lance uvicorn (avec `infra/local/.env`) et Vite.
 > Besoin de ne lancer qu'une brique ? `npm run web` (front seul) ou `infra\local\api.ps1` (API seule).
 

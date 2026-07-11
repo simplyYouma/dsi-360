@@ -10,6 +10,8 @@
 # ATTENTION, encodage : ce fichier doit rester en UTF-8 **avec BOM**. Un double-clic ouvre Windows
 # PowerShell 5.1, qui lit un .ps1 sans BOM comme du Windows-1252 : les accents deviennent du
 # charabia et le script ne compile plus.
+param([switch]$SansOuvrir)  # -SansOuvrir : demarrer sans ouvrir automatiquement l'application
+
 $ErrorActionPreference = 'Stop'
 
 # Les scripts du projet visent PowerShell 7 (pwsh). Le double-clic lance 5.1 : on se relance nous-
@@ -59,7 +61,29 @@ if ($occupes.Count -gt 0) {
 Set-Location $frontend
 if (-not (Test-Path 'node_modules')) { npm install }
 
-Write-Host "API (8011) + frontend (5290). Ouvrez http://localhost:5290 - Ctrl+C arrete les deux." -ForegroundColor Green
+# Ouvre l'application des que le front repond, dans une fenetre autonome facon PWA (Chrome/Edge
+# --app), sans que tu aies a lancer deux choses. Un aide-ouvreur detache attend la disponibilite
+# pendant que `npm run dev` occupe cette fenetre. Desactivable avec -SansOuvrir.
+if (-not $SansOuvrir) {
+    $ouvreur = @'
+$url = "http://localhost:5290"
+for ($i = 0; $i -lt 60; $i++) {
+    try { if ((Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { break } }
+    catch { Start-Sleep -Milliseconds 700 }
+}
+$chrome = @(
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+$edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+if ($chrome) { Start-Process $chrome "--app=$url" }
+elseif (Test-Path $edge) { Start-Process $edge "--app=$url" }
+else { Start-Process $url }
+'@
+    Start-Process pwsh -ArgumentList '-NoProfile', '-WindowStyle', 'Hidden', '-Command', $ouvreur
+}
+
+Write-Host "API (8011) + frontend (5290). L'app s'ouvre seule - Ctrl+C arrete les deux." -ForegroundColor Green
 npm run dev
 
 # `npm run dev` ne rend la main que si les deux services se sont arretes. En double-clic, la fenetre
