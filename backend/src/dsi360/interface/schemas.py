@@ -823,6 +823,7 @@ class TableauBord(BaseModel):
     dbs_ouverts: int
     dbs_age_jours: float | None
     rouverts_30j: int
+    resolus_30j: int
 
 
 class AnalyseItem(BaseModel):

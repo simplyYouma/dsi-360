@@ -6,7 +6,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import PREFIXE_REFERENCE
-from dsi360.domain.etats import etats_terminaux
+from dsi360.domain.etats import STATUTS_TERMINAUX, etats_terminaux
 
 _CARTES = """
 SELECT
@@ -72,11 +72,13 @@ SELECT a.module, a.id::text AS id, a.reference, a.titre, a.priorite, a.statut,
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL AND a.sla_resolution_le IS NOT NULL
-  AND a.statut NOT IN :terminaux
+  AND a.statut NOT IN :statuts_regles
 """
 
 # Un ticket résolu, clôturé, rejeté ou annulé n'attend plus personne : il ne se traite pas.
 _TERMINAUX = sorted({e for m in PREFIXE_REFERENCE for e in etats_terminaux(m)})
+# Ce qui ne réclame plus de travail (résolu compris), pour la file « À traiter ».
+_STATUTS_REGLES = sorted(STATUTS_TERMINAUX)
 
 # Créations hebdomadaires des tickets importés : la respiration du flux, en miniature.
 _CREATIONS_HEBDO = """
@@ -104,6 +106,11 @@ _ROUVERTS_30J = """
 SELECT count(DISTINCT j.cible_id) FROM audit.journal j
 WHERE j.action = 'TRANSITION' AND j.nouvelle_valeur->>'statut' = 'Réouvert'
   AND j.horodatage >= now() - interval '30 days'
+"""
+
+_RESOLUS_30J = """
+SELECT count(*) FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.resolu_le >= now() - interval '30 days'
 """
 
 
@@ -146,9 +153,9 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
 
     requete_a_traiter = text(
         _A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"
-    ).bindparams(bindparam("terminaux", expanding=True))
+    ).bindparams(bindparam("statuts_regles", expanding=True))
     a_traiter = (
-        (await session.execute(requete_a_traiter, {**params, "terminaux": _TERMINAUX}))
+        (await session.execute(requete_a_traiter, {**params, "statuts_regles": _STATUTS_REGLES}))
         .mappings()
         .all()
     )
@@ -160,6 +167,7 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
 
     dbs = (await session.execute(text(_DBS_DASH + cond), params)).mappings().one()
     rouverts = await session.scalar(text(_ROUVERTS_30J)) or 0
+    resolus_30j = await session.scalar(text(_RESOLUS_30J + cond), params) or 0
 
     return {
         "a_traiter": [dict(x) for x in a_traiter],
@@ -167,6 +175,7 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
         "dbs_ouverts": dbs["dbs_ouverts"],
         "dbs_age_jours": float(dbs["dbs_age_jours"]) if dbs["dbs_age_jours"] is not None else None,
         "rouverts_30j": rouverts,
+        "resolus_30j": resolus_30j,
         "cartes": {
             "incidents_ouverts": ligne["incidents_ouverts"],
             "incidents_critiques": ligne["incidents_critiques"],

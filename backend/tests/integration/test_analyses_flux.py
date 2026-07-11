@@ -289,3 +289,31 @@ async def test_un_ticket_resolu_n_est_plus_a_traiter(
 
     assert "DEM-FLX-10B" in references
     assert "DEM-FLX-10" not in references
+
+
+async def test_a_traiter_ignore_le_resolu_sans_date(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un import pose « Résolue » sans dater la résolution : ce ticket n'attend plus personne.
+
+    Le filtre par statut sémantique (STATUTS_TERMINAUX) le range hors de la file, là où le seul
+    resolu_le le laissait passer — c'est ce que montraient les vraies données à la DSI.
+    """
+    admin = await _admin(session, "admin.fluxAT@afgbank.ml")
+    a_faire = await creer_activite(session, module="demande", reference="DEM-AT-1")
+    resolu = await creer_activite(
+        session, module="demande", reference="DEM-AT-2", statut="Résolue"
+    )
+    maj = (
+        "UPDATE core.activite SET sla_resolution_le = now() - interval '5 days', "
+        "resolu_le = NULL WHERE id = cast(:a as uuid)"
+    )
+    await session.execute(text(maj), {"a": a_faire})
+    await session.execute(text(maj), {"a": resolu})  # dépassé ET résolu-sans-date
+
+    r = await client.get("/tableau-de-bord", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    refs = {x["reference"] for x in r.json()["a_traiter"]}
+
+    assert "DEM-AT-1" in refs
+    assert "DEM-AT-2" not in refs, "un ticket résolu ne réclame plus de travail"

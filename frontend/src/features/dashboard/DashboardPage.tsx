@@ -16,8 +16,7 @@ import {
 import { Card, Skeleton } from '@/design-system/primitives';
 import { cx } from '@/common/cx';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
-import { SablierSla } from '@/common/SablierSla';
-import { LIBELLE_MODULE, lienActivite } from '@/common/routesModule';
+import { lienActivite } from '@/common/routesModule';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { infobulle } from '@/common/infobulle';
@@ -113,50 +112,68 @@ const MODULE_META: Record<string, { nom: string; couleur: string }> = {
   risque: { nom: 'Risques', couleur: '#2fa363' },
 };
 
-/** Un signal : le chiffre, sa couleur, et — quand un dénominateur existe — la part qu'il pèse. */
-function Signal({
+const TON_COULEUR: Record<Exclude<Ton, undefined>, string> = {
+  ok: 'var(--status-ok)',
+  warn: 'var(--status-warn)',
+  danger: 'var(--status-danger)',
+};
+
+/**
+ * Un signal = une jauge radiale (anneau). L'arc encode la PART, le grand chiffre au centre
+ * donne le compte, la couleur dit l'état. Le sens ne repose jamais sur la couleur seule : un
+ * libellé l'accompagne toujours.
+ */
+function JaugeSignal({
   valeur,
   ton,
-  libelle,
-  part,
-  ensemble,
-  legende,
+  titre,
+  detail,
+  pct,
 }: {
   valeur: number;
   ton: Ton;
-  libelle: string;
-  part?: number;
-  ensemble?: number;
-  legende?: string;
+  titre: string;
+  detail: string;
+  pct: number | null;
 }): JSX.Element {
-  const pct =
-    part !== undefined && ensemble !== undefined && ensemble > 0
-      ? Math.min(100, Math.round((100 * part) / ensemble))
-      : null;
-  const couleur =
-    ton === 'danger'
-      ? 'var(--status-danger)'
-      : ton === 'warn'
-        ? 'var(--status-warn)'
-        : 'var(--status-ok)';
+  const couleur = TON_COULEUR[ton ?? 'ok'];
+  const r = 22;
+  const c = 2 * Math.PI * r;
+  const rempli = pct === null ? 0 : Math.min(1, pct / 100);
   return (
     <li className={styles.signal}>
-      <span className={styles.signalValeur} data-ton={ton}>
-        {valeur}
-      </span>
-      <span className={styles.signalCorps}>
-        <span className={styles.signalLibelle}>{libelle}</span>
-        {pct !== null && (
-          <span className={styles.signalJauge} title={`${pct} % — ${legende ?? ''}`}>
-            <span className={styles.signalTrack}>
-              <span
-                className={styles.signalPlein}
-                style={{ width: `${Math.max(2, pct)}%`, background: couleur }}
-              />
-            </span>
-            <span className={styles.signalPct}>{pct} %</span>
-          </span>
+      <svg viewBox="0 0 60 60" className={styles.signalArc} aria-hidden="true">
+        {/* Anneau : rail complet gris, part remplie en couleur d'état, départ en haut. */}
+        <circle cx="30" cy="30" r={r} fill="none" stroke="var(--bg-subtle)" strokeWidth="6" />
+        {pct !== null && rempli > 0 && (
+          <circle
+            cx="30"
+            cy="30"
+            r={r}
+            fill="none"
+            stroke={couleur}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={c * (1 - rempli)}
+            transform="rotate(-90 30 30)"
+            style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+          />
         )}
+        <text
+          x="30"
+          y="30"
+          textAnchor="middle"
+          dominantBaseline="central"
+          className={styles.signalNombre}
+          fill={couleur}
+        >
+          {valeur}
+        </text>
+      </svg>
+      <span className={styles.signalCorps}>
+        <span className={styles.signalTitre}>{titre}</span>
+        <span className={styles.signalDetail}>{detail}</span>
       </span>
     </li>
   );
@@ -303,6 +320,11 @@ function TendanceSla({
   );
 }
 
+/** Part entière, bornée, sans division par zéro. */
+function pctDe(part: number, tout: number): number {
+  return tout > 0 ? Math.min(100, Math.round((100 * part) / tout)) : 0;
+}
+
 export function DashboardPage(): JSX.Element {
   const [tableau, setTableau] = useState<TableauBord | null>(null);
   const contenuRef = useRef<HTMLDivElement>(null);
@@ -422,34 +444,53 @@ export function DashboardPage(): JSX.Element {
               <p className={styles.vide}>Aucune échéance en cours : rien ne presse.</p>
             ) : (
               <ul className={styles.urgences}>
-                {tableau.a_traiter.map((u) => (
-                  <li key={u.id}>
-                    <button
-                      type="button"
-                      className={styles.urgence}
-                      onClick={() => ouvrir(u.module, u.id)}
-                    >
-                      <span className={styles.urgenceRef}>{u.reference}</span>
-                      <span className={styles.urgenceTitre} title={u.titre}>
-                        {u.titre}
-                      </span>
-                      <span className={styles.urgenceModule}>
-                        {LIBELLE_MODULE[u.module] ?? u.module}
-                      </span>
-                      {u.priorite !== null && <BadgePriorite priorite={u.priorite} />}
-                      <BadgeStatut statut={u.statut} />
-                      <SablierSla
-                        echeance={u.sla_resolution_le}
-                        debut={new Date().toISOString()}
-                        statut={
-                          new Date(u.sla_resolution_le).getTime() < Date.now()
-                            ? 'depasse'
-                            : 'approche'
-                        }
-                      />
-                    </button>
-                  </li>
-                ))}
+                {(() => {
+                  // La barre compare les lignes entre elles : sa longueur ∝ jours de retard,
+                  // rapportés au pire de la liste. On classe, on ne juxtapose pas.
+                  const jours = (iso: string): number =>
+                    (Date.now() - new Date(iso).getTime()) / 86_400_000;
+                  const pire = Math.max(
+                    1,
+                    ...tableau.a_traiter.map((u) => Math.abs(jours(u.sla_resolution_le))),
+                  );
+                  return tableau.a_traiter.map((u) => {
+                    const dj = jours(u.sla_resolution_le);
+                    const retard = dj > 0;
+                    const largeur = Math.max(4, (100 * Math.abs(dj)) / pire);
+                    const couleur = retard ? 'var(--status-danger)' : 'var(--status-warn)';
+                    return (
+                      <li key={u.id}>
+                        <button
+                          type="button"
+                          className={styles.urgence}
+                          onClick={() => ouvrir(u.module, u.id)}
+                        >
+                          <span className={styles.urgenceTete}>
+                            <span className={styles.urgenceRef}>{u.reference}</span>
+                            <span className={styles.urgenceTitre} title={u.titre}>
+                              {u.titre}
+                            </span>
+                            {u.priorite !== null && <BadgePriorite priorite={u.priorite} />}
+                            <BadgeStatut statut={u.statut} />
+                          </span>
+                          <span className={styles.urgenceMesure}>
+                            <span className={styles.urgenceRail}>
+                              <span
+                                className={styles.urgencePlein}
+                                style={{ width: `${largeur}%`, background: couleur }}
+                              />
+                            </span>
+                            <span className={styles.urgenceDelai} style={{ color: couleur }}>
+                              {retard
+                                ? `${Math.round(Math.abs(dj))} j de retard`
+                                : `dans ${Math.max(1, Math.round(Math.abs(dj)))} j`}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  });
+                })()}
               </ul>
             )}
           </Card>
@@ -462,31 +503,47 @@ export function DashboardPage(): JSX.Element {
               <Skeleton hauteur="180px" radius="var(--radius-md)" />
             ) : (
               <ul className={styles.signaux}>
-                <Signal
+                <JaugeSignal
                   valeur={tableau.dbs_ouverts}
                   ton={tableau.dbs_ouverts > 0 ? 'warn' : 'ok'}
-                  libelle={
-                    'ticket(s) chez DBS' +
-                    (tableau.dbs_age_jours !== null
-                      ? ` — ${Math.round(tableau.dbs_age_jours)} j en moyenne`
-                      : '')
+                  titre="Tickets chez DBS"
+                  detail={
+                    tableau.dbs_ouverts === 0
+                      ? 'Rien parti chez DBS.'
+                      : `${pctDe(tableau.dbs_ouverts, ticketsOuverts)} % des ouverts` +
+                        (tableau.dbs_age_jours !== null
+                          ? ` · ${Math.round(tableau.dbs_age_jours)} j en moyenne`
+                          : '')
                   }
-                  part={tableau.dbs_ouverts}
-                  ensemble={ticketsOuverts}
-                  legende="part des tickets ouverts"
+                  pct={pctDe(tableau.dbs_ouverts, ticketsOuverts)}
                 />
-                <Signal
+                <JaugeSignal
                   valeur={tableau.rouverts_30j}
                   ton={tableau.rouverts_30j > 0 ? 'warn' : 'ok'}
-                  libelle="réouverture(s) sur 30 jours — une résolution qui n'a pas tenu"
+                  titre="Réouvertures (30 j)"
+                  detail={
+                    tableau.resolus_30j === 0
+                      ? 'Aucune résolution récente.'
+                      : `${pctDe(tableau.rouverts_30j, tableau.resolus_30j)} % des résolutions ont rouvert`
+                  }
+                  pct={
+                    tableau.resolus_30j === 0
+                      ? null
+                      : pctDe(tableau.rouverts_30j, tableau.resolus_30j)
+                  }
                 />
-                <Signal
+                <JaugeSignal
                   valeur={tableau.sla.depasse}
                   ton={tableau.sla.depasse > 0 ? 'danger' : 'ok'}
-                  libelle="échéance(s) SLA dépassée(s)"
-                  part={tableau.sla.depasse}
-                  ensemble={tableau.sla.a_lheure + tableau.sla.approche + tableau.sla.depasse}
-                  legende="part des échéances en cours"
+                  titre="Échéances dépassées"
+                  detail={`${pctDe(
+                    tableau.sla.depasse,
+                    tableau.sla.a_lheure + tableau.sla.approche + tableau.sla.depasse,
+                  )} % des échéances en cours`}
+                  pct={pctDe(
+                    tableau.sla.depasse,
+                    tableau.sla.a_lheure + tableau.sla.approche + tableau.sla.depasse,
+                  )}
                 />
               </ul>
             )}
