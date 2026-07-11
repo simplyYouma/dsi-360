@@ -171,8 +171,10 @@
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border);
 }
+/* Non-lu : un fond vert très léger + un filet d'accent — présent sans crier. */
 .itemNonLu {
-  background: var(--bg-subtle);
+  background: color-mix(in srgb, var(--secondary) 9%, transparent);
+  box-shadow: inset 3px 0 0 var(--secondary);
 }
 .cliquable {
   width: 100%;

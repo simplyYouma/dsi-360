@@ -11,9 +11,10 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
+from sqlalchemy.exc import InterfaceError, OperationalError
 
 from dsi360.application.notifications import scanner_tout
 from dsi360.config import Settings, get_settings
@@ -116,6 +117,33 @@ def creer_app() -> FastAPI:
         openapi_url="/api/v1/openapi.json",
         lifespan=_cycle_vie,
     )
+
+    @app.middleware("http")
+    async def _entetes_securite(request: Request, appel):  # type: ignore[no-untyped-def]
+        """En-têtes de sécurité sur chaque réponse : défense en profondeur, gratuite et globale."""
+        reponse = await appel(request)
+        reponse.headers["X-Content-Type-Options"] = "nosniff"
+        reponse.headers["X-Frame-Options"] = "DENY"
+        reponse.headers["Referrer-Policy"] = "no-referrer"
+        reponse.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # HSTS seulement hors dev (là où le TLS est présent, via le reverse-proxy).
+        if settings.environnement != "dev":
+            reponse.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return reponse
+
+    @app.exception_handler(OperationalError)
+    @app.exception_handler(InterfaceError)
+    async def _base_indisponible(request: Request, exc: Exception) -> JSONResponse:
+        """La base ne répond pas : on rend un 503 propre plutôt qu'un 500 qui fuit des détails.
+
+        Le serveur de la banque tombe souvent ; l'app ne doit pas tomber avec lui — elle refuse
+        proprement, se rétablit dès que la base revient (pool_pre_ping), et ne divulgue rien.
+        """
+        _log.error("Base indisponible : %s", type(exc).__name__)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Service momentanément indisponible. Réessayez dans un instant."},
+        )
 
     @app.get("/healthz", tags=["sante"], summary="Vivant")
     def healthz() -> dict[str, str]:
