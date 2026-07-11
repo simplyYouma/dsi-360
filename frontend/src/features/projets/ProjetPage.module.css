@@ -3,8 +3,8 @@
   flex-direction: column;
   gap: var(--space-5);
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
+  /* Fluide : la page remplit la zone de contenu, sans marges vides au dézoom. */
+  width: 100%;
   /* Conteneur de requête : la mise en page réagit à la largeur RÉELLE disponible
      (donc au repli/dépli de la sidebar), pas seulement à la taille de l'écran. */
   container-type: inline-size;

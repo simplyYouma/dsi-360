@@ -21,7 +21,7 @@
 
 /* Cellule tronquée : titres longs coupés avec « … » (détail au clic). */
 .tronque {
-  max-width: 320px;
+  max-width: 280px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
