@@ -134,3 +134,43 @@
 .lienOubli:hover {
   color: var(--text);
 }
+
+/* Case « Se souvenir de mon adresse » — même facture maison que l'administration (zéro natif). */
+.memoriser {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: left;
+  transition: color 0.12s ease;
+}
+.memoriser:hover {
+  color: var(--text);
+}
+.memCase {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.memCaseOn {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.memoriser:focus-visible {
+  outline: none;
+}
+.memoriser:focus-visible .memCase {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}

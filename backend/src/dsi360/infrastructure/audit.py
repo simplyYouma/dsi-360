@@ -26,6 +26,9 @@ def definir_adresse_ip(ip: str | None) -> None:
 
 _DERNIER = text("SELECT hash_courant FROM audit.journal ORDER BY id DESC LIMIT 1")
 
+# Verrou de sérialisation de l'écriture du journal (clé arbitraire, propre à ce verrou).
+_VERROU_CHAINE = text("SELECT pg_advisory_xact_lock(872361)")
+
 _HISTORIQUE = text(
     "SELECT nouvelle_valeur->>'statut' AS statut, horodatage, acteur_email "
     "FROM audit.journal "
@@ -87,6 +90,9 @@ async def consigner(
     # Repli sur l'IP de la requête courante (contextvar) si l'appelant ne la fournit pas.
     if adresse_ip is None:
         adresse_ip = _adresse_ip_courante.get()
+    # Verrou tenu jusqu'au commit : deux écritures concurrentes ne peuvent plus lire le même hash
+    # précédent et forker la chaîne. Sérialise le seul couple lecture-du-dernier + insertion.
+    await session.execute(_VERROU_CHAINE)
     precedent = await session.scalar(_DERNIER)
     horodatage = datetime.now(UTC)
     av = _serialiser(ancienne)

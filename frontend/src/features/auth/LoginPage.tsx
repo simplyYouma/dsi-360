@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, EyeOff, LogIn, Moon, Sun, ArrowLeft, MailCheck } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Moon, Sun, ArrowLeft, MailCheck, Check } from 'lucide-react';
 import { Button } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/design-system/ThemeProvider';
@@ -18,6 +18,27 @@ const STYLE_FOND = {
   backgroundPosition: 'center',
 };
 
+// Mémorisation de l'adresse e-mail (confort de saisie, jamais le mot de passe). Stockage local
+// tolérant : en navigation privée il peut lever, on l'ignore — la fonction reste un simple plus.
+const CLE_EMAIL = 'dsi360.email_memorise';
+
+function lireEmailMemorise(): string | null {
+  try {
+    return localStorage.getItem(CLE_EMAIL);
+  } catch {
+    return null;
+  }
+}
+
+function ecrireEmailMemorise(email: string | null): void {
+  try {
+    if (email) localStorage.setItem(CLE_EMAIL, email);
+    else localStorage.removeItem(CLE_EMAIL);
+  } catch {
+    /* stockage indisponible : la mémorisation est un confort, pas un requis. */
+  }
+}
+
 /** Le serveur dit combien de temps la porte reste close (429) : ne pas avaler son message. */
 function messageDeConnexion(err: unknown): string {
   if (!(err instanceof ErreurApi)) return 'Connexion impossible. Réessayez.';
@@ -31,9 +52,10 @@ export function LoginPage(): JSX.Element {
   const { connecter } = useAuth();
   const { theme, basculer } = useTheme();
   const logo = theme === 'dark' ? logoSombre : logoClair;
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => lireEmailMemorise() ?? '');
   const [motDePasse, setMotDePasse] = useState('');
   const [visible, setVisible] = useState(false);
+  const [memoriser, setMemoriser] = useState(() => lireEmailMemorise() !== null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [oubli, setOubli] = useState(false);
@@ -43,6 +65,7 @@ export function LoginPage(): JSX.Element {
     e.preventDefault();
     setErreur(null);
     setEnvoi(true);
+    ecrireEmailMemorise(memoriser ? email.trim() : null);
     try {
       await connecter(email.trim(), motDePasse);
     } catch (err) {
@@ -163,6 +186,19 @@ export function LoginPage(): JSX.Element {
               </button>
             </div>
           </label>
+
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={memoriser}
+            className={styles.memoriser}
+            onClick={() => setMemoriser((v) => !v)}
+          >
+            <span className={`${styles.memCase} ${memoriser ? styles.memCaseOn : ''}`}>
+              {memoriser && <Check size={13} />}
+            </span>
+            Se souvenir de mon adresse
+          </button>
 
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
 

@@ -87,9 +87,12 @@ _SELECTION = """
     SELECT a.id::text AS id, a.reference, a.titre,
            coalesce(a.responsable_id, a.demandeur_id)::text AS destinataire_id,
            u.email AS destinataire_email,
+           coalesce(p.email, true) AS envoyer_email,
+           coalesce(u.actif, false) AS destinataire_actif,
            (a.sla_resolution_le <= now()) AS depasse
     FROM core.activite a
     LEFT JOIN core.utilisateur u ON u.id = coalesce(a.responsable_id, a.demandeur_id)
+    LEFT JOIN core.preference_notification p ON p.utilisateur_id = u.id
     WHERE a.resolu_le IS NULL AND a.cloture_le IS NULL
       AND a.sla_resolution_le IS NOT NULL
       AND a.sla_resolution_le <= now() + make_interval(hours => $1)
@@ -123,7 +126,14 @@ async def scanner_echeances(fenetre_heures: int = 2) -> dict[str, int]:
             )
             if resultat.endswith(" 1"):
                 crees += 1
-                if get_settings().notif_email_active and r["destinataire_email"]:
+                # E-mail seulement si le canal est actif, l'agent l'accepte (préférence) et son
+                # compte est actif — même règle que notifier() et les escalades.
+                if (
+                    get_settings().notif_email_active
+                    and r["destinataire_email"]
+                    and r["envoyer_email"]
+                    and r["destinataire_actif"]
+                ):
                     envoyer(r["destinataire_email"], titre, message)
     finally:
         await conn.close()

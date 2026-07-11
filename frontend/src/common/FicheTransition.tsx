@@ -497,6 +497,8 @@ export function FicheTransition({
                     onChange={(v) => void changerCategorie(v)}
                     module={moduleCategorie}
                     gerable={gerableCat}
+                    desactive={!permissions.peut_evaluer}
+                    titreDesactive={TITRE_LECTURE}
                     onModifie={chargerCategories}
                   />
                 </dd>

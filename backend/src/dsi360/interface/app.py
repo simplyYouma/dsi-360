@@ -1,12 +1,13 @@
-"""Point d'entrée de l'API DSI 360 (FastAPI). Pour l'instant : sondes de santé + squelette v1.
+"""Point d'entrée de l'API DSI 360 (FastAPI) : middleware de sécurité, sondes de santé, service
+de la SPA compilée, et les routeurs métier montés sous /api/v1.
 
-Les routeurs des modules (incidents, demandes, projets, dashboard…) seront montés sous /api/v1
-au fur et à mesure des lots (cf. docs/07-ROADMAP.md). Architecture en couches : cf. docs/01.
+Architecture en couches : cf. docs/01. Sécurité (en-têtes, CSP, garde des secrets) : cf. docs/04.
 """
 
 import asyncio
 import contextlib
 import logging
+import mimetypes
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -42,6 +43,19 @@ from dsi360.interface.routeurs import (
     risques,
     tableau_de_bord,
 )
+
+# Force les types MIME servis en prod. Sur Windows, mimetypes lit le registre : `.js` y est parfois
+# `text/plain`, ce qui — avec l'en-tête nosniff — fait REFUSER le bundle et le service worker par le
+# navigateur (page blanche). On fige les valeurs correctes pour que le build charge sur n'importe
+# quel serveur, quel que soit son registre.
+for _type, _ext in (
+    ("text/javascript", ".js"),
+    ("text/javascript", ".mjs"),
+    ("text/css", ".css"),
+    ("application/manifest+json", ".webmanifest"),
+    ("image/svg+xml", ".svg"),
+):
+    mimetypes.add_type(_type, _ext)
 
 _log = logging.getLogger("dsi360.ordonnanceur")
 
@@ -110,6 +124,15 @@ def _monter_frontend(app: FastAPI, settings: Settings) -> None:
 
 def creer_app() -> FastAPI:
     settings = get_settings()
+    # Fail-closed : hors dev, on refuse de démarrer avec un secret d'usine (jeton forgeable, compte
+    # admin ouvert). Mieux vaut un démarrage bruyant qu'une prod silencieusement vulnérable.
+    if settings.environnement != "dev":
+        faibles = settings.secrets_par_defaut()
+        if faibles:
+            raise RuntimeError(
+                f"Démarrage refusé en {settings.environnement} : secret(s) laissé(s) par défaut — "
+                f"{', '.join(faibles)}. Renseignez-les dans l'environnement avant de démarrer."
+            )
     app = FastAPI(
         title="DSI 360 — API",
         version="0.1.0",

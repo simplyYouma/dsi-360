@@ -5,18 +5,22 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Valeurs d'usine des secrets : tolérées en dev, refusées au démarrage hors dev (fail-closed).
+_DEFAUT_JWT = "changez-moi-en-dev-uniquement"
+_DEFAUT_ADMIN_MDP = "changez-moi"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DSI360_", env_file=None)
 
     environnement: Literal["dev", "recette", "prod"] = "dev"
-    # DSN PostgreSQL (asyncpg). Fournie par l'environnement (exécution native, cf. ADR-0002).
-    database_url: str = "postgresql+asyncpg://dsi360:dsi360@postgres:5432/dsi360"
+    # DSN PostgreSQL (asyncpg). Fournie par l'environnement (natif, hôte local — ADR-0002).
+    database_url: str = "postgresql+asyncpg://dsi360:dsi360@127.0.0.1:5432/dsi360"
 
     # Authentification locale : chaque agent définit son mot de passe via le lien d'activation reçu
     # par e-mail (ADR-0004). Pas d'annuaire AD/LDAP/M365 — la colonne core.utilisateur.source_auth
     # garde la porte ouverte, sans prétendre que la plomberie existe.
-    jwt_secret_key: str = "changez-moi-en-dev-uniquement"
+    jwt_secret_key: str = _DEFAUT_JWT
     jwt_acces_minutes: int = 15
 
     # Frein sur les tentatives de connexion. Le verrou est temporaire : définitif, il donnerait à un
@@ -24,9 +28,10 @@ class Settings(BaseSettings):
     login_echecs_max: int = 5
     login_verrou_minutes: int = 15
 
-    # E-mails automatiques (notifications d'activité, échéances SLA). Les e-mails de compte
+    # E-mails automatiques (notifications d'activité, échéances SLA). Coupés par défaut (« en
+    # veille ») : on les active explicitement quand un relais SMTP est fourni. Les e-mails de compte
     # (activation, réinitialisation) ne sont pas concernés : sans eux, personne n'entre.
-    notif_email_active: bool = True
+    notif_email_active: bool = False
 
     max_upload_mb: int = 20
     # Applique les migrations SQL en attente au démarrage de l'API (idempotent). Désactivable en
@@ -45,7 +50,7 @@ class Settings(BaseSettings):
 
     # Compte administrateur initial (seed). Mot de passe à changer à la 1re connexion.
     seed_admin_email: str = "admin@afgbank.ml"
-    seed_admin_password: str = "changez-moi"
+    seed_admin_password: str = _DEFAUT_ADMIN_MDP
 
     # Domaines e-mail autorisés pour les comptes (séparés par des virgules). Vide = aucun contrôle.
     domaines_email_autorises: str = "afgbank.ml"
@@ -59,6 +64,19 @@ class Settings(BaseSettings):
     @property
     def domaines_email(self) -> list[str]:
         return [d.strip().lower() for d in self.domaines_email_autorises.split(",") if d.strip()]
+
+    def secrets_par_defaut(self) -> list[str]:
+        """Secrets restés à leur valeur d'usine — connus publiquement, donc interdits hors dev.
+
+        Un secret JWT par défaut rend les jetons forgeables ; un mot de passe admin par défaut
+        ouvre le compte administrateur. On refuse de démarrer avec, hors dev (cf. app.creer_app).
+        """
+        faibles = []
+        if self.jwt_secret_key == _DEFAUT_JWT:
+            faibles.append("DSI360_JWT_SECRET_KEY")
+        if self.seed_admin_password == _DEFAUT_ADMIN_MDP:
+            faibles.append("DSI360_SEED_ADMIN_PASSWORD")
+        return faibles
 
 
 @lru_cache

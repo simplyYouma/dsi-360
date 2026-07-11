@@ -9,7 +9,7 @@
 # Prérequis : build du frontend fait (infra\local\front-build.ps1) et infra\local\.env renseigné
 # avec DSI360_ENVIRONNEMENT=recette|prod (active HSTS) et un DSI360_JWT_SECRET_KEY fort.
 #
-#   infra\local\demarrer-prod.ps1 -Port 8453 -Certificat C:\MY_APPS\DSI360\cert\cert.pem -CleCertificat C:\MY_APPS\DSI360\cert\key.pem
+#   infra\local\start-prod.ps1 -Port 8453 -Certificat C:\MY_APPS\DSI360\cert\cert.pem -CleCertificat C:\MY_APPS\DSI360\cert\key.pem
 #
 # Sans -Certificat : démarre en HTTP (à réserver au cas « derrière un reverse-proxy qui fait le TLS »).
 param(

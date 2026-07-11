@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.config import get_settings
+from dsi360.config.acces import ACCES_PAR_MODULE_ACTIVITE
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import (
@@ -120,6 +121,12 @@ async def _exiger_activite_visible(
         )
     ).mappings().first()
     if ligne is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activité introuvable.")
+    # Préalable des deux plans RBAC : l'accès au module conditionne la visibilité. Sans lui,
+    # l'activité — et son fil de discussion — n'existe pas pour cet utilisateur (404, comme
+    # exiger_role_activite). Le fil était la seule route générique à ne vérifier que la direction.
+    acces = ACCES_PAR_MODULE_ACTIVITE.get(ligne["module"])
+    if acces is not None and acces not in courant["acces"]:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Activité introuvable.")
     if not courant["transverse"] and ligne["direction"] not in (None, courant["direction"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hors périmètre.")
