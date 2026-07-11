@@ -1,5 +1,8 @@
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+// html2canvas-pro (fork maintenu) : gère les couleurs CSS modernes — color-mix(), color(srgb …),
+// oklch — que html2canvas 1.4.1 refuse (« unsupported color function »), ce qui faisait échouer
+// l'export dès qu'un visuel touchait la charte (fonds en color-mix partout).
+import html2canvas from 'html2canvas-pro';
 import logoUrl from '@/assets/brand/logo1.png';
 
 const MARGE = 14; // mm
