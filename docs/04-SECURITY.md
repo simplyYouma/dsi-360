@@ -77,7 +77,36 @@ Circulaires **BCEAO** (n°03-2017 contrôle interne, n°04-2017 gestion des risq
 Le module **Cybersécurité** (habilitations sensibles, comptes admin, revue d'accès, vulnérabilités,
 correctifs, MFA, IAM) outille ces obligations. **Recette sécurité RSSI** prévue avant mise en production.
 
-## 6. Disponibilité
+## 6. Durcissement HTTP
+
+- **En-têtes de sécurité** posés sur chaque réponse (middleware global) : `X-Content-Type-Options:
+  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`
+  (géoloc/micro/caméra coupés), et `Strict-Transport-Security` **hors dev** (TLS présent).
+- **Frein sur les connexions** (cf. §1), **jetons courts**, **cloisonnement** vérifié côté serveur.
+- Tests de non-régression : `tests/integration/test_securite.py` (en-têtes, 401 sans jeton, jeton
+  falsifié rejeté, journal append-only).
+
+## 7. Résilience — survivre à une base qui tombe
+
+Le serveur d'hébergement tombe souvent : l'application **ne doit pas tomber avec lui**.
+
+- **Moteur de base réglé pour l'instabilité** (`infrastructure/db/base.py`) : `pool_pre_ping` (une
+  base redémarrée ne renvoie plus une connexion morte), `pool_recycle` 30 min, pool borné, et
+  surtout des **délais** — connexion 10 s, requête 30 s (`command_timeout` asyncpg +
+  `statement_timeout` Postgres). Une requête ne pend plus indéfiniment ; sans quoi les connexions
+  s'accumulent jusqu'à faire tomber l'app avec la base.
+- **Base injoignable → 503 propre** (gestionnaire global), jamais un 500 qui fuit des détails ;
+  l'app se rétablit seule dès que la base revient.
+- **Migrations au démarrage** enveloppées : leur échec est journalisé, il ne bloque pas le boot.
+- **Ordonnanceur SLA isolé** : un scan raté ne tue jamais la boucle.
+- **Disjoncteur SMTP** : une panne d'e-mail n'interrompt jamais une action ; l'app reste utilisable
+  hors ligne (cf. §1).
+- **Client web** : serveur injoignable → message clair (« Service injoignable… »), pas un
+  « Failed to fetch » cryptique.
+
+## 8. Disponibilité (exploitation)
 
 Objectif **> 99 %** : réplication applicative (plusieurs workers API), Postgres avec sauvegardes,
-supervision, et plan de reprise (PRA — Phase 3). À cadrer avec la DSI/exploitation.
+supervision, et plan de reprise (PRA — Phase 3). **Reste côté exploitation** : TLS au reverse-proxy,
+sauvegardes régulières de PostgreSQL, et — pour ouvrir les e-mails — un SMTP AFG et
+`DSI360_NOTIF_EMAIL_ACTIVE=true`. À cadrer avec la DSI/exploitation.

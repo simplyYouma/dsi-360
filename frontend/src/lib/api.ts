@@ -80,7 +80,14 @@ async function requete<T>(chemin: string, options: RequestInit = {}, reessayer =
   if (acces !== null) headers.set('Authorization', `Bearer ${acces}`);
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
 
-  const res = await fetch(`${BASE}${chemin}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${chemin}`, { ...options, headers });
+  } catch {
+    // Serveur injoignable (réseau coupé, serveur tombé) : un message clair, pas un
+    // « Failed to fetch » cryptique. statut 0 = pas de réponse HTTP.
+    throw new ErreurApi(0, 'Service injoignable. Vérifiez votre connexion, puis réessayez.');
+  }
 
   if (res.status === 401 && reessayer && (await tenterRafraichir())) {
     return requete<T>(chemin, options, false);
