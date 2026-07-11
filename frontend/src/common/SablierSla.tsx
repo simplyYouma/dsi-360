@@ -1,13 +1,16 @@
 import { useEffect, useId, useState } from 'react';
 import styles from './SablierSla.module.css';
 
+type EtatSla = 'a_lheure' | 'approche' | 'depasse';
+
 interface Props {
-  echeance: string | null; // sla_resolution_le (ISO)
-  debut: string; // cree_le (ISO) — base de l'écoulement
-  statut: 'a_lheure' | 'approche' | 'depasse';
+  echeance: string | null; // date d'échéance (ISO)
+  debut?: string | null; // base de l'écoulement (création…) ; par défaut, 14 j avant l'échéance
+  /** État imposé ; sinon déduit du temps restant (approche < 48 h, dépassé si négatif). */
+  statut?: EtatSla;
 }
 
-const COULEUR: Record<Props['statut'], string> = {
+const COULEUR: Record<EtatSla, string> = {
   a_lheure: 'var(--status-ok)',
   approche: 'var(--status-warn)',
   depasse: 'var(--status-danger)',
@@ -53,9 +56,12 @@ function duree(ms: number): string {
   return `${Math.max(1, minutes)} min`;
 }
 
-/** Libellé non ambigu : « reste 4 j » ou « Dépassé · 2 j ». */
-function libelleSla(restantMs: number): string {
-  return restantMs <= 0 ? `Dépassé · ${duree(-restantMs)}` : `reste ${duree(restantMs)}`;
+function formaterEcheance(iso: string): string {
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 /** Le sable du haut repose sur le goulot et se creuse en entonnoir à mesure qu'il s'écoule :
@@ -76,6 +82,8 @@ function sableBas(part: number): string {
 }
 
 /** Sablier du SLA : le sable descend au fil du temps, la couleur dit l'urgence. */
+const JOUR = 86_400_000;
+
 export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
   const clipHaut = useId();
   const clipBas = useId();
@@ -84,16 +92,24 @@ export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
   if (echeance === null) return <span className={styles.na}>—</span>;
 
   const fin = new Date(echeance).getTime();
-  const depart = new Date(debut).getTime();
+  // Sans début fourni (tâches, jalons…), on prend une fenêtre de 14 j : le sablier reste parlant.
+  const depart = debut ? new Date(debut).getTime() : fin - 14 * JOUR;
   const restant = fin - Date.now();
+  // État déduit si non imposé : dépassé (< 0), approche (< 48 h), sinon à l'heure.
+  const etat: EtatSla =
+    statut ?? (restant < 0 ? 'depasse' : restant < 2 * JOUR ? 'approche' : 'a_lheure');
   const total = Math.max(1, fin - depart);
   const reste = Math.max(0, Math.min(1, restant / total)); // ce qui est encore en haut
   const ecoule = 1 - reste; // ce qui est tombé
-  const couleur = COULEUR[statut];
+  const couleur = COULEUR[etat];
   const coule = reste > 0.005 && ecoule > 0.005;
+  const enRetard = restant < 0;
+  const libelle = enRetard
+    ? `${formaterEcheance(echeance)} · Dépassé · ${duree(-restant)}`
+    : formaterEcheance(echeance);
 
   return (
-    <span className={styles.sablier} title={`SLA : ${libelleSla(restant)}`}>
+    <span className={styles.sablier} title={`Échéance : ${libelle}`}>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <defs>
           <clipPath id={clipHaut}>
@@ -155,8 +171,8 @@ export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
           strokeLinecap="round"
         />
       </svg>
-      <span className={styles.reste} style={{ color: couleur }}>
-        {libelleSla(restant)}
+      <span className={styles.reste} style={{ color: enRetard ? couleur : 'var(--text-muted)' }}>
+        {libelle}
       </span>
     </span>
   );

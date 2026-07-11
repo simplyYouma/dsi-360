@@ -293,3 +293,11 @@
 .rfcRempli {
   color: var(--text);
 }
+
+/* Titre « Échéance » + son compteur, alignés. */
+.echeanceTitre {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, Flag, Plus } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
+import { BarreAvancement } from '@/common/BarreAvancement';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
@@ -507,18 +508,9 @@ export function ProjetPage(): JSX.Element {
           {!creation && detail && (
             <>
               <section className={styles.carte}>
-                <div className={styles.avTete}>
-                  <span className={styles.carteTitre}>Avancement</span>
-                  <span className={styles.avValeur}>{detail.avancement}%</span>
-                </div>
-                <div className={styles.barre}>
-                  <div
-                    className={cx(
-                      styles.remplissage,
-                      detail.avancement === 100 && styles.remplissageComplet,
-                    )}
-                    style={{ width: `${detail.avancement}%` }}
-                  />
+                <span className={styles.carteTitre}>Avancement</span>
+                <div style={{ marginTop: 'var(--space-3)' }}>
+                  <BarreAvancement valeur={detail.avancement} />
                 </div>
                 <p className={styles.note}>Calculé automatiquement d'après les tâches terminées.</p>
               </section>

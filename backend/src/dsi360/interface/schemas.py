@@ -108,10 +108,13 @@ class MaTache(BaseModel):
     titre: str
     statut: str
     echeance: date | None
+    cree_le: datetime
     activite_id: str
     module: str
     reference: str
     activite_titre: str
+    # RESPONSABLE (chef/gestionnaire) · CONTRIBUTEUR · ASSIGNE (seulement cette tâche).
+    role_activite: str
 
 
 class ActiviteCreation(BaseModel):

@@ -107,68 +107,6 @@
   letter-spacing: 0.05em;
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
 }
-.avTete {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-.avValeur {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-}
-.barre {
-  height: 10px;
-  background: var(--bg-subtle);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-.remplissage {
-  position: relative;
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--secondary) 72%, var(--surface)),
-    var(--secondary)
-  );
-  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-  overflow: hidden;
-}
-/* Reflet discret qui parcourt la barre : du relief, sans clignotement. */
-.remplissage::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 35%,
-    color-mix(in srgb, #fff 22%, transparent) 50%,
-    transparent 65%
-  );
-  transform: translateX(-100%);
-  animation: reflet 2.8s ease-in-out infinite;
-}
-/* 100 % : couleur = sens (abouti). Le reflet s'arrête, le travail est fini. */
-.remplissageComplet {
-  background: var(--status-ok);
-}
-.remplissageComplet::after {
-  animation: none;
-}
-@keyframes reflet {
-  to {
-    transform: translateX(100%);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .remplissage {
-    transition: none;
-  }
-  .remplissage::after {
-    animation: none;
-  }
-}
 .note {
   font-size: var(--text-xs);
   color: var(--text-muted);

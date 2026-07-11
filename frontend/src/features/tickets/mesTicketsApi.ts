@@ -57,10 +57,12 @@ export interface MaTache {
   titre: string;
   statut: string;
   echeance: string | null;
+  cree_le: string;
   activite_id: string;
   module: string;
   reference: string;
   activite_titre: string;
+  role_activite: string;
 }
 
 export const mesTicketsApi = {

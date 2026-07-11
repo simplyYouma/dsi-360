@@ -679,6 +679,7 @@ export function FicheTransition({
                     placeholder="Prochaine revue"
                     desactive={!permissions.peut_travailler}
                     titreDesactive={TITRE_LECTURE}
+                    remplissageEcheance
                   />
                   <Button
                     variante="secondaire"

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, CheckCircle2, Circle, XCircle } from 'luc
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { AUCUNE_PERMISSION } from '@/common/permissions';
+import { PastilleEcheance } from '@/common/PastilleEcheance';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { ChampInline } from '@/common/ChampInline';
 import { DiscussionTache } from '@/common/DiscussionTache';
@@ -270,7 +271,12 @@ export function ChangementPage(): JSX.Element {
                     </div>
                   )}
                   <div className={styles.metaItem}>
-                    <dt>Échéance</dt>
+                    <dt className={styles.echeanceTitre}>
+                      Échéance
+                      {detail.sla_resolution_le && (
+                        <PastilleEcheance date={detail.sla_resolution_le} />
+                      )}
+                    </dt>
                     <dd className={styles.valeur}>{formaterDate(detail.sla_resolution_le)}</dd>
                   </div>
                 </>

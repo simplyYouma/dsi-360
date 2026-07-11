@@ -135,12 +135,30 @@ const COLONNES_TACHE: Colonne<MaTache>[] = [
     valeur: (t) => t.reference,
   },
   {
+    cle: 'role',
+    entete: 'Mon rôle',
+    largeur: '150px',
+    rendu: (t) => <span className="tabular">{libelleRole(t.role_activite, t.module)}</span>,
+  },
+  {
     cle: 'echeance',
     entete: 'Échéance',
     valeur: (t) => t.echeance ?? '',
-    rendu: (t) => (t.echeance ? formaterDate(t.echeance) : '—'),
+    rendu: (t) =>
+      t.echeance ? (
+        <SablierSla echeance={t.echeance} debut={t.cree_le} />
+      ) : (
+        <span style={{ color: 'var(--text-muted)' }}>—</span>
+      ),
   },
 ];
+
+/** Mon rôle dans l'activité parente, dit dans le vocabulaire du module. */
+function libelleRole(role: string, module: string): string {
+  if (role === 'RESPONSABLE') return module === 'projet' ? 'Chef de projet' : 'Gestionnaire';
+  if (role === 'CONTRIBUTEUR') return 'Contributeur';
+  return 'Assigné';
+}
 
 export function MesTicketsPage(): JSX.Element {
   const [items, setItems] = useState<MonTicket[]>([]);

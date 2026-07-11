@@ -358,3 +358,30 @@ async def test_le_contributeur_apparait_dans_la_liste(
 
     assert ligne["contributeur"] is not None
     assert "liste" in ligne["contributeur"].lower() or ligne["contributeur"] != ""
+
+
+async def test_mes_taches_disent_mon_role_dans_l_activite(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Dans « Mes tâches », l'agent voit sa position : chef, contributeur, ou seulement assigné."""
+    chef = await creer_utilisateur(session, email="chef.role@afgbank.ml")
+    aide = await creer_utilisateur(session, email="aide.role@afgbank.ml")
+    projet = await creer_activite(
+        session, module="projet", reference="PRJ-ROLE-1", responsable_id=chef
+    )
+    # Une tâche pour le chef, une pour un simple assigné (ni chef ni contributeur).
+    for uid in (chef, aide):
+        await session.execute(
+            text(
+                "INSERT INTO core.tache (activite_id, titre, assigne_id, ordre) "
+                "VALUES (cast(:a as uuid), 'T', cast(:u as uuid), 0)"
+            ),
+            {"a": projet, "u": uid},
+        )
+
+    r_chef = await client.get("/mes-tickets/taches", headers=entetes(chef))
+    assert r_chef.status_code == 200, r_chef.text
+    assert r_chef.json()["elements"][0]["role_activite"] == "RESPONSABLE"
+
+    r_aide = await client.get("/mes-tickets/taches", headers=entetes(aide))
+    assert r_aide.json()["elements"][0]["role_activite"] == "ASSIGNE"

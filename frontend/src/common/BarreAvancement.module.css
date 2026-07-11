@@ -1,0 +1,68 @@
+.bloc {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rail {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.compact .rail {
+  height: 6px;
+}
+.remplissage {
+  position: relative;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--secondary) 72%, var(--surface)),
+    var(--secondary)
+  );
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+/* Reflet discret qui parcourt la barre : du relief, sans clignotement. */
+.remplissage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    color-mix(in srgb, #fff 22%, transparent) 50%,
+    transparent 65%
+  );
+  transform: translateX(-100%);
+  animation: reflet 2.8s ease-in-out infinite;
+}
+/* 100 % : couleur = sens (abouti). Le reflet s'arrête, le travail est fini. */
+.complet {
+  background: var(--status-ok);
+}
+.complet::after {
+  animation: none;
+}
+.valeur {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  min-width: 4ch;
+  text-align: right;
+}
+.compact .valeur {
+  min-width: 3.5ch;
+}
+@keyframes reflet {
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .remplissage::after {
+    animation: none;
+  }
+}

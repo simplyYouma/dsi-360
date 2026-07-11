@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { Button, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
+import { Button, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { SablierSla } from '@/common/SablierSla';
+import { BadgeStatut } from '@/common/statuts';
+import { BarreAvancement } from '@/common/BarreAvancement';
 import { CelluleActeur } from '@/common/CelluleActeur';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
@@ -24,33 +27,6 @@ function formaterBudget(v: number | null): string {
   );
 }
 
-function Avancement({ valeur }: { valeur: number }): JSX.Element {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 130 }}>
-      <div
-        style={{
-          flex: 1,
-          height: 6,
-          background: 'var(--bg-subtle)',
-          borderRadius: 'var(--radius-pill)',
-        }}
-      >
-        <div
-          style={{
-            width: `${valeur}%`,
-            height: '100%',
-            background: 'var(--secondary)',
-            borderRadius: 'var(--radius-pill)',
-          }}
-        />
-      </div>
-      <span className="tabular" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-        {valeur}%
-      </span>
-    </div>
-  );
-}
-
 const COLONNES: Colonne<Projet>[] = [
   { cle: 'reference', entete: 'Référence', valeur: (p) => p.reference, largeur: '150px' },
   {
@@ -60,7 +36,7 @@ const COLONNES: Colonne<Projet>[] = [
     rendu: (p) => <strong title={p.titre}>{p.titre}</strong>,
     valeur: (p) => p.titre,
   },
-  { cle: 'statut', entete: 'Statut', rendu: (p) => <StatusBadge>{p.statut}</StatusBadge> },
+  { cle: 'statut', entete: 'Statut', rendu: (p) => <BadgeStatut statut={p.statut} /> },
   {
     cle: 'chef',
     entete: 'Chef de projet',
@@ -76,7 +52,7 @@ const COLONNES: Colonne<Projet>[] = [
     cle: 'avancement',
     entete: 'Avancement',
     valeur: (p) => p.avancement,
-    rendu: (p) => <Avancement valeur={p.avancement} />,
+    rendu: (p) => <BarreAvancement valeur={p.avancement} compact />,
   },
   {
     cle: 'budget',
@@ -85,7 +61,17 @@ const COLONNES: Colonne<Projet>[] = [
     valeur: (p) => p.budget ?? 0,
     rendu: (p) => <span className="tabular">{formaterBudget(p.budget)}</span>,
   },
-  { cle: 'date_fin', entete: 'Échéance', rendu: (p) => p.date_fin ?? '—' },
+  {
+    cle: 'date_fin',
+    entete: 'Échéance',
+    valeur: (p) => p.date_fin ?? '',
+    rendu: (p) =>
+      p.date_fin ? (
+        <SablierSla echeance={p.date_fin} debut={p.cree_le} />
+      ) : (
+        <span style={{ color: 'var(--text-muted)' }}>—</span>
+      ),
+  },
   {
     cle: 'cree_le',
     entete: 'Créé le',

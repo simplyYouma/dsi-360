@@ -48,7 +48,15 @@ async def lister_pour_utilisateur(
     lignes = await session.execute(
         text(
             "SELECT t.id::text AS id, t.titre, t.statut, t.echeance, t.cree_le, "
-            "       a.id::text AS activite_id, a.module, a.reference, a.titre AS activite_titre "
+            "       a.id::text AS activite_id, a.module, a.reference, a.titre AS activite_titre, "
+            # Rôle de l'agent DANS l'activité parente : responsable, contributeur, ou seulement
+            # assigné de cette tâche. Le front en fait un libellé selon le module.
+            "       CASE WHEN a.responsable_id = cast(:u as uuid) THEN 'RESPONSABLE' "
+            "            WHEN EXISTS (SELECT 1 FROM core.activite_acteur aa "
+            "                        WHERE aa.activite_id = a.id "
+            "                          AND aa.utilisateur_id = cast(:u as uuid) "
+            "                          AND aa.role = 'CONTRIBUTEUR') THEN 'CONTRIBUTEUR' "
+            "            ELSE 'ASSIGNE' END AS role_activite "
             "FROM core.tache t JOIN core.activite a ON a.id = t.activite_id "
             "WHERE t.assigne_id = cast(:u as uuid) "
             f"{filtre_statut}"
