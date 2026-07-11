@@ -440,3 +440,38 @@ async def test_le_tableau_de_bord_filtre_par_periode(
     r = await client.get("/tableau-de-bord?du=2000-01-01&au=2099-01-01", headers=entetes(admin))
     assert r.status_code == 200, r.text
     assert r.json()["cartes"]["incidents_ouverts"] == 2
+
+
+async def test_mes_stats_suivent_la_periode(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """L'onglet Analyse de Mes tickets : les résolus suivent la période (jours puis du/au)."""
+    admin = await _admin(session, "admin.messtats@afgbank.ml")
+    recent = await creer_activite(
+        session, module="incident", reference="INC-MS-1", responsable_id=admin
+    )
+    ancien = await creer_activite(
+        session, module="incident", reference="INC-MS-2", responsable_id=admin
+    )
+    await session.execute(
+        text("UPDATE core.activite SET resolu_le = now() WHERE id = cast(:a as uuid)"),
+        {"a": recent},
+    )
+    await session.execute(
+        text(
+            "UPDATE core.activite SET resolu_le = now() - interval '60 days' "
+            "WHERE id = cast(:a as uuid)"
+        ),
+        {"a": ancien},
+    )
+    await session.commit()
+
+    tout = (await client.get("/mes-tickets/stats", headers=entetes(admin))).json()
+    assert tout["resolus_periode"] == 2  # sans filtre : les deux
+
+    sur7 = (await client.get("/mes-tickets/stats?jours=7", headers=entetes(admin))).json()
+    assert sur7["resolus_periode"] == 1  # 7 j : l'ancien (60 j) sort
+
+    r = await client.get("/mes-tickets/stats?du=2000-01-01&au=2099-01-01", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    assert r.json()["resolus_periode"] == 2

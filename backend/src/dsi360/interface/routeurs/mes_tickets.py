@@ -5,7 +5,7 @@ Vue temps réel « je me connecte et je vois ce que je dois traiter », triée p
 """
 
 from collections import Counter
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
@@ -129,8 +129,42 @@ _OUVERTS = text(
 _RESOLUS = text(
     "SELECT a.cree_le, a.resolu_le, a.sla_resolution_le FROM core.activite a "
     f"WHERE {_A_MOI} AND a.resolu_le IS NOT NULL AND a.module IN {_MODULES} "
-    "AND a.resolu_le >= :depuis"
+    "AND a.resolu_le >= :depuis AND a.resolu_le < :jusqua"
 )
+
+
+def _fenetre_periode(
+    jours: int | None, du: date | None, au: date | None, maintenant: datetime
+) -> tuple[datetime, datetime]:
+    """Fenêtre [début, fin[ des résolutions. Dates explicites > jours > tout."""
+    loin = datetime(1970, 1, 1, tzinfo=UTC)
+    futur = maintenant + timedelta(days=1)
+    if du is not None or au is not None:
+        debut = datetime(du.year, du.month, du.day, tzinfo=UTC) if du is not None else loin
+        fin = datetime(au.year, au.month, au.day, tzinfo=UTC) + timedelta(days=1) if au else futur
+        return debut, fin
+    if jours is not None:
+        return maintenant - timedelta(days=jours), futur
+    return loin, futur
+
+
+def _tendance_resolus(
+    resolus: list[Any], dernier: date, portee_jours: int
+) -> list[dict[str, Any]]:
+    """Rythme de résolution sur les `portee_jours` finissant à `dernier` (inclus) : quotidien si
+    court, hebdomadaire au-delà — pour garder un nombre de points lisible."""
+    pas = 7 if portee_jours > 31 else 1
+    n = (portee_jours + pas - 1) // pas
+    seaux: Counter[int] = Counter()
+    for r in resolus:
+        delta = (dernier - r["resolu_le"].date()).days
+        if 0 <= delta < portee_jours:
+            seaux[delta // pas] += 1
+    points: list[dict[str, Any]] = []
+    for i in range(n - 1, -1, -1):
+        jour = dernier - timedelta(days=i * pas)
+        points.append({"jour": jour.strftime("%d/%m"), "resolus": seaux.get(i, 0)})
+    return points
 
 
 def _comptes(valeurs: list[Any]) -> list[dict[str, Any]]:
@@ -158,14 +192,21 @@ async def mes_taches(
 
 
 @routeur.get("/stats", response_model=MesStats)
-async def mes_stats(courant: Courant, session: Session) -> dict[str, Any]:
+async def mes_stats(
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    du: date | None = None,
+    au: date | None = None,
+) -> dict[str, Any]:
     maintenant = datetime.now(UTC)
+    debut, fin = _fenetre_periode(jours, du, au, maintenant)
     ouverts = (
         await session.execute(_OUVERTS, {"id": courant["id"], "regles": _REGLES})
     ).mappings().all()
     resolus = (
         await session.execute(
-            _RESOLUS, {"id": courant["id"], "depuis": maintenant - timedelta(days=90)}
+            _RESOLUS, {"id": courant["id"], "depuis": debut, "jusqua": fin}
         )
     ).mappings().all()
 
@@ -183,9 +224,8 @@ async def mes_stats(courant: Courant, session: Session) -> dict[str, Any]:
         for n in (1, 2, 3, 4, 5)
     ]
 
-    # --- Résolus (90 j) : volumes, respect SLA, délai moyen, tendance 14 j ---
-    resolus_7j = sum(1 for r in resolus if r["resolu_le"] >= maintenant - timedelta(days=7))
-    resolus_30j = sum(1 for r in resolus if r["resolu_le"] >= maintenant - timedelta(days=30))
+    # --- Résolus SUR LA PÉRIODE : volume, respect SLA, délai moyen, rythme ---
+    resolus_periode = len(resolus)
 
     avec_cible = [r for r in resolus if r["sla_resolution_le"] is not None]
     dans_delai = sum(1 for r in avec_cible if r["resolu_le"] <= r["sla_resolution_le"])
@@ -194,15 +234,11 @@ async def mes_stats(courant: Courant, session: Session) -> dict[str, Any]:
     delais = [(r["resolu_le"] - r["cree_le"]).total_seconds() / 86400 for r in resolus]
     mttr_jours = round(sum(delais) / len(delais), 1) if delais else None
 
-    par_jour: Counter[str] = Counter()
-    for r in resolus:
-        par_jour[r["resolu_le"].date().isoformat()] += 1
-    tendance: list[dict[str, Any]] = []
-    for i in range(13, -1, -1):
-        jour = (maintenant - timedelta(days=i)).date()
-        tendance.append(
-            {"jour": jour.strftime("%d/%m"), "resolus": par_jour.get(jour.isoformat(), 0)}
-        )
+    # Rythme : sur la période, borné à un an pour rester lisible. « Tout » → 12 dernières semaines.
+    borne = jours is not None or du is not None or au is not None
+    portee = min((fin - debut).days, 366) if borne else 84
+    dernier = min((au if au is not None else maintenant.date()), maintenant.date())
+    tendance = _tendance_resolus(list(resolus), dernier, max(7, portee))
 
     return {
         "agent": {
@@ -214,8 +250,7 @@ async def mes_stats(courant: Courant, session: Session) -> dict[str, Any]:
         "a_lheure": sla["a_lheure"],
         "approche": sla["approche"],
         "en_retard": sla["depasse"],
-        "resolus_7j": resolus_7j,
-        "resolus_30j": resolus_30j,
+        "resolus_periode": resolus_periode,
         "respect_sla": respect_sla,
         "mttr_jours": mttr_jours,
         "plus_ancien_jours": plus_ancien if ouverts else None,

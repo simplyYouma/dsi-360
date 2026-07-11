@@ -178,17 +178,17 @@ const KPIS = (
   {
     cle: 'resolus',
     icone: CheckCircle2,
-    valeur: String(s.resolus_7j),
-    libelle: 'Résolus (7 j)',
+    valeur: String(s.resolus_periode),
+    libelle: 'Résolus',
     couleur: 'var(--status-ok)',
   },
   {
     cle: 'sla',
     icone: Gauge,
-    valeur: s.resolus_30j > 0 || s.respect_sla > 0 ? `${s.respect_sla} %` : '—',
+    valeur: s.resolus_periode > 0 || s.respect_sla > 0 ? `${s.respect_sla} %` : '—',
     libelle: 'Respect SLA',
     couleur:
-      s.resolus_30j > 0 || s.respect_sla > 0 ? couleurTaux(s.respect_sla) : 'var(--text-muted)',
+      s.resolus_periode > 0 || s.respect_sla > 0 ? couleurTaux(s.respect_sla) : 'var(--text-muted)',
   },
   {
     cle: 'mttr',
@@ -240,16 +240,16 @@ export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
         <div className={styles.carte} data-visuel="Respect du SLA">
           <BoutonExportPng nom="Respect du SLA" />
           <h2 className={styles.carteTitre}>Respect du SLA</h2>
-          <p className={styles.carteSous}>Résolus dans la cible (90 j).</p>
+          <p className={styles.carteSous}>Résolus dans la cible, sur la période.</p>
           <div className={styles.jaugeWrap}>
             <Jauge
               taux={stats.respect_sla}
-              mesure={stats.resolus_30j > 0 || stats.respect_sla > 0}
+              mesure={stats.resolus_periode > 0 || stats.respect_sla > 0}
             />
             <span className={styles.jaugeNote}>
-              {stats.resolus_30j === 0
-                ? 'Aucun ticket résolu sur 30 j'
-                : `${stats.resolus_30j} résolu${stats.resolus_30j > 1 ? 's' : ''} sur 30 j`}
+              {stats.resolus_periode === 0
+                ? 'Aucun ticket résolu sur la période'
+                : `${stats.resolus_periode} résolu${stats.resolus_periode > 1 ? 's' : ''} sur la période`}
             </span>
           </div>
         </div>
@@ -282,7 +282,7 @@ export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
         <div className={`${styles.carte} ${styles.carteLarge}`} data-visuel="Rythme de résolution">
           <BoutonExportPng nom="Rythme de résolution" />
           <h2 className={styles.carteTitre}>Rythme de résolution</h2>
-          <p className={styles.carteSous}>Tickets que vous avez résolus, 14 derniers jours.</p>
+          <p className={styles.carteSous}>Tickets que vous avez résolus, sur la période.</p>
           <ResponsiveContainer width="100%" height={140}>
             <AreaChart data={stats.tendance} margin={{ top: 8, right: 8, left: -28, bottom: 0 }}>
               <defs>

@@ -18,6 +18,8 @@ import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import { TableauBordAgent } from './TableauBordAgent';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
+import { FiltrePeriode } from '@/common/FiltrePeriode';
+import { PERIODE_TOUT, type Periode } from '@/common/periode';
 import { BandeauAgent } from './BandeauAgent';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
@@ -167,6 +169,7 @@ export function MesTicketsPage(): JSX.Element {
   const [fiche, setFiche] = useState<{ base: string; id: string; module: string } | null>(null);
   const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
   const [onglet, setOnglet] = useState<'tickets' | 'taches' | 'analyse'>('tickets');
+  const [periodeAnalyse, setPeriodeAnalyse] = useState<Periode>(PERIODE_TOUT);
   const [taches, setTaches] = useState<MaTache[]>([]);
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
   const [page, setPage] = useState(1);
@@ -190,7 +193,6 @@ export function MesTicketsPage(): JSX.Element {
         .finally(() => {
           if (!silencieux) setChargement(false);
         });
-      void mesTicketsApi.stats().then(setStats);
     },
     [segment, page],
   );
@@ -261,6 +263,11 @@ export function MesTicketsPage(): JSX.Element {
       setTotalTaches(p.total);
     });
   }, [onglet, pageTaches]);
+
+  // Les indicateurs de l'onglet Analyse suivent la période choisie.
+  useEffect(() => {
+    void mesTicketsApi.stats(periodeAnalyse).then(setStats);
+  }, [periodeAnalyse]);
 
   // Kanban : une colonne par statut présent (ordre d'apparition : déjà trié priorité/SLA).
   const statutsPresents = [...new Set(items.map((t) => t.statut))];
@@ -335,7 +342,16 @@ export function MesTicketsPage(): JSX.Element {
       {onglet === 'analyse' ? (
         stats !== null && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 'var(--space-3)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <FiltrePeriode valeur={periodeAnalyse} onChange={setPeriodeAnalyse} />
               <BoutonExportPdf
                 cible={analyseRef}
                 titre="Mon activité — Mes tickets"

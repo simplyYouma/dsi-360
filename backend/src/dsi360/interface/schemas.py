@@ -334,10 +334,9 @@ class MesStats(BaseModel):
     a_lheure: int
     approche: int
     en_retard: int
-    resolus_7j: int
-    resolus_30j: int
-    respect_sla: int  # pourcentage
-    mttr_jours: float | None  # délai moyen de résolution (90 j)
+    resolus_periode: int  # résolus sur la période choisie (7/30/90 j, plage, ou tout)
+    respect_sla: int  # pourcentage, sur les résolus de la période
+    mttr_jours: float | None  # délai moyen de résolution, sur la période
     plus_ancien_jours: int | None
     par_priorite: list[CompteLibelle]
     par_module: list[CompteLibelle]

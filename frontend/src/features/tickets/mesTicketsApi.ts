@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { requetePeriode, type Periode } from '@/common/periode';
 
 export interface MonTicket {
   module: string;
@@ -29,8 +30,7 @@ export interface MesStats {
   a_lheure: number;
   approche: number;
   en_retard: number;
-  resolus_7j: number;
-  resolus_30j: number;
+  resolus_periode: number;
   respect_sla: number;
   mttr_jours: number | null;
   plus_ancien_jours: number | null;
@@ -68,7 +68,7 @@ export interface MaTache {
 export const mesTicketsApi = {
   lister: (segment: SegmentTicket = 'actifs', page = 1): Promise<PageMesTickets> =>
     api.get(`/mes-tickets?segment=${segment}&page=${page}`),
-  stats: (): Promise<MesStats> => api.get('/mes-tickets/stats'),
+  stats: (p: Periode): Promise<MesStats> => api.get(`/mes-tickets/stats${requetePeriode(p)}`),
   taches: (inclureTerminees = false, page = 1): Promise<PageMesTaches> =>
     api.get(`/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}`),
 };
