@@ -90,15 +90,22 @@
   color: var(--status-warn);
   background: color-mix(in srgb, var(--status-warn) 14%, transparent);
 }
+/* Statut · assigné · échéance sur une grille fixe : les colonnes s'alignent d'une tâche à
+   l'autre, quel que soit le nom de l'assigné. */
 .tacheChamps {
   grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 220px;
   gap: var(--space-2);
   align-items: center;
 }
 .tacheChamp {
-  min-width: 150px;
+  min-width: 0;
+}
+@media (max-width: 680px) {
+  .tacheChamps {
+    grid-template-columns: 1fr;
+  }
 }
 .tacheSuppr {
   color: var(--text-muted);

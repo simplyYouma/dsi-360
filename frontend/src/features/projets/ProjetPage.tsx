@@ -125,6 +125,12 @@ function Jalons({
 }
 
 /** Pastille d'état d'échéance du projet (date de fin dépassée / proche), hors clôture. */
+/** Montant avec separateurs de milliers : « 15 000 000 » au lieu de « 15000000 ». */
+function formaterMontant(brut: string): string {
+  const chiffres = brut.replace(/\D/g, '');
+  return chiffres === '' ? '' : chiffres.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
 function EtatEcheanceProjet({
   dateFin,
   statut,
@@ -320,6 +326,8 @@ export function ProjetPage(): JSX.Element {
             placeholder="Intitulé du projet"
             classeTexte={styles.titre}
             aria-label="Intitulé du projet"
+            lectureSeule={!creation && !permissions.peut_travailler}
+            titreLectureSeule={TITRE_LECTURE}
           />
         </div>
         {creation ? (
@@ -349,6 +357,8 @@ export function ProjetPage(): JSX.Element {
                     libelleVide="Non désigné"
                     placeholder="Désigner un chef de projet"
                     indiceReaffectation="Réassigner"
+                    desactive={!creation && !permissions.peut_assigner}
+                    titreDesactive="Seul l’administrateur désigne le chef de projet."
                   />
                 </dd>
               </div>
@@ -361,6 +371,8 @@ export function ProjetPage(): JSX.Element {
                     toujoursEdition={creation}
                     placeholder="—"
                     aria-label="Sponsor"
+                    lectureSeule={!creation && !permissions.peut_travailler}
+                    titreLectureSeule={TITRE_LECTURE}
                   />
                 </dd>
               </div>
@@ -368,16 +380,19 @@ export function ProjetPage(): JSX.Element {
                 <dt>Budget (FCFA)</dt>
                 <dd>
                   <ChampInline
-                    valeur={v.budget}
-                    onValider={(val) =>
-                      creation
-                        ? setBudget(val)
-                        : void patch({ budget: val === '' ? null : Number(val) })
-                    }
+                    valeur={creation ? v.budget : formaterMontant(v.budget)}
+                    onValider={(val) => {
+                      const net = val.replace(/\s/g, '');
+                      return creation
+                        ? setBudget(net)
+                        : void patch({ budget: net === '' ? null : Number(net) });
+                    }}
                     toujoursEdition={creation}
                     inputMode="numeric"
                     placeholder="0"
                     aria-label="Budget"
+                    lectureSeule={!creation && !permissions.peut_travailler}
+                    titreLectureSeule={TITRE_LECTURE}
                   />
                 </dd>
               </div>
@@ -390,6 +405,8 @@ export function ProjetPage(): JSX.Element {
                       creation ? setDateDebut(val ?? '') : void patch({ date_debut: val })
                     }
                     placeholder="jj/mm/aaaa"
+                    desactive={!creation && !permissions.peut_travailler}
+                    titreDesactive={TITRE_LECTURE}
                   />
                 </dd>
               </div>
@@ -409,6 +426,8 @@ export function ProjetPage(): JSX.Element {
                     placeholder="jj/mm/aaaa"
                     remplissageEcheance={!creation && detail?.statut !== 'Clôturé'}
                     depuis={v.dateDebut || null}
+                    desactive={!creation && !permissions.peut_travailler}
+                    titreDesactive={TITRE_LECTURE}
                   />
                 </dd>
               </div>
@@ -421,6 +440,8 @@ export function ProjetPage(): JSX.Element {
                   creation ? setDescription(val) : void patch({ description: val })
                 }
                 toujoursEdition={creation}
+                lectureSeule={!creation && !permissions.peut_travailler}
+                titreLectureSeule={TITRE_LECTURE}
                 multiligne
                 placeholder="Objectifs, périmètre…"
                 aria-label="Description"

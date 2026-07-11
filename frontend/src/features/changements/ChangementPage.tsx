@@ -218,6 +218,8 @@ export function ChangementPage(): JSX.Element {
             placeholder="Objet du changement"
             classeTexte={styles.titre}
             aria-label="Objet du changement"
+            lectureSeule={!creation && !permissions.peut_travailler}
+            titreLectureSeule={TITRE_LECTURE}
           />
         </div>
         {creation ? (
@@ -374,6 +376,8 @@ export function ChangementPage(): JSX.Element {
                 multiligne
                 placeholder="Analyse d'impact, plan de déploiement, retour arrière…"
                 aria-label="Description"
+                lectureSeule={!creation && !permissions.peut_travailler}
+                titreLectureSeule={TITRE_LECTURE}
               />
             </div>
           </section>
