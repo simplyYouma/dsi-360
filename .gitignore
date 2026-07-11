@@ -11,6 +11,13 @@ build/
 # Cache incrémental de tsc : change à chaque compilation, ne dit rien du code
 *.tsbuildinfo
 
+# Caches d'outils (régénérés à chaque exécution — jamais versionnés)
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
 # Secrets / env (jamais commités)
 infra/env/.env
 *.env
