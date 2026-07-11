@@ -129,7 +129,7 @@ export function LoginPage(): JSX.Element {
         <form className={styles.carte} onSubmit={soumettre}>
           <img src={logo} alt="DSI 360" className={styles.logo} />
           <h1 className={styles.titre}>Connexion</h1>
-          <p className={styles.sous}>Plateforme de pilotage de la DSI — AFG Bank Mali.</p>
+          <p className={styles.sous}>Plateforme de pilotage de la DSI.</p>
 
           <label className={styles.champ}>
             <span className={styles.label}>Adresse e-mail</span>

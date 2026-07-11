@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleActeur } from '@/common/CelluleActeur';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { FiltreTickets } from '@/common/FiltreTickets';
@@ -64,12 +65,7 @@ const COLONNES: Colonne<Demande>[] = [
   {
     cle: 'gestionnaire',
     entete: 'Gestionnaire',
-    rendu: (d) =>
-      d.gestionnaire ? (
-        d.gestionnaire
-      ) : (
-        <span style={{ color: 'var(--text-muted)' }}>Non assigné</span>
-      ),
+    rendu: (d) => <CelluleActeur nom={d.gestionnaire} contributeur={d.contributeur} />,
   },
   {
     cle: 'cree_le',

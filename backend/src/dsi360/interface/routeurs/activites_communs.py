@@ -121,6 +121,7 @@ def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[
         "responsable": _responsable(r),
         "demandeur": r["demandeur_nom"],
         "gestionnaire": _gestionnaire(r),
+        "contributeur": r["contributeur"] if "contributeur" in r else None,
         "responsable_id": r["resp_id"],
         "nb_commentaires": r["nb_commentaires"],
         "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,

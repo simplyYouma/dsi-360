@@ -18,6 +18,10 @@ _LISTE_CHAMPS = """
     -- Niveau de support du gestionnaire : le niveau du ticket importé s'en déduit (ADR-0005).
     r.niveau_support AS resp_niveau,
     dem.nom_complet AS demandeur_nom,
+    -- Contributeur (au plus un, cf. contrainte d'unicité) : visible en liste sans ouvrir la fiche.
+    (SELECT u.prenom || ' ' || u.nom FROM core.activite_acteur aa
+     JOIN core.utilisateur u ON u.id = aa.utilisateur_id
+     WHERE aa.activite_id = a.id AND aa.role = 'CONTRIBUTEUR' LIMIT 1) AS contributeur,
     (SELECT count(*) FROM core.commentaire cm
      WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires,
     (SELECT count(*) FROM core.commentaire cm

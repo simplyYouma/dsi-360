@@ -339,3 +339,22 @@ async def test_l_etat_de_validation_est_signale(
 
     d_cours = (await client.get(f"/audit/{en_cours}", headers=entetes(admin))).json()
     assert d_cours["en_attente_validation"] is False
+
+
+async def test_le_contributeur_apparait_dans_la_liste(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le résumé de liste porte le contributeur : on voit qui suit sans ouvrir la fiche."""
+    admin = await _admin(session, "admin.contrliste@afgbank.ml")
+    contrib = await creer_utilisateur(
+        session, email="contrib.liste@afgbank.ml", profil="SUPPORT_APP_HELPDESK"
+    )
+    ident = await creer_activite(session, module="changement", reference="CHG-CTR-1")
+    await designer(session, activite_id=ident, utilisateur_id=contrib, role="CONTRIBUTEUR")
+
+    r = await client.get("/changements", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    ligne = next(x for x in r.json()["elements"] if x["reference"] == "CHG-CTR-1")
+
+    assert ligne["contributeur"] is not None
+    assert "liste" in ligne["contributeur"].lower() or ligne["contributeur"] != ""

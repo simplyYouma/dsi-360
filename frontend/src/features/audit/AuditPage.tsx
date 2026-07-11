@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleActeur } from '@/common/CelluleActeur';
 import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
@@ -59,7 +60,13 @@ const COLONNES: Colonne<Recommandation>[] = [
   {
     cle: 'responsable',
     entete: 'Responsable',
-    rendu: (r) => (r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : '—'),
+    rendu: (r) => (
+      <CelluleActeur
+        nom={r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : null}
+        contributeur={r.contributeur}
+        vide="—"
+      />
+    ),
   },
   {
     cle: 'sla',

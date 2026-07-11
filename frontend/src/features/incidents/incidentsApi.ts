@@ -20,6 +20,7 @@ export interface Incident {
   responsable: ResponsableBref | null;
   demandeur: string | null;
   gestionnaire: string | null;
+  contributeur: string | null;
   responsable_id: string | null;
   nb_commentaires: number;
   nb_non_vus: number;

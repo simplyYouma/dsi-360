@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleActeur } from '@/common/CelluleActeur';
 import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
@@ -108,7 +109,13 @@ export function PageActiviteCategorie({
     {
       cle: 'responsable',
       entete: 'Responsable',
-      rendu: (a) => (a.responsable ? `${a.responsable.prenom} ${a.responsable.nom}` : '—'),
+      rendu: (a) => (
+        <CelluleActeur
+          nom={a.responsable ? `${a.responsable.prenom} ${a.responsable.nom}` : null}
+          contributeur={a.contributeur}
+          vide="—"
+        />
+      ),
     },
     {
       cle: 'sla',

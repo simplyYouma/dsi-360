@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleActeur } from '@/common/CelluleActeur';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeStatut } from '@/common/statuts';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
@@ -55,7 +56,13 @@ const COLONNES: Colonne<Changement>[] = [
   {
     cle: 'responsable',
     entete: 'Responsable',
-    rendu: (c) => (c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : '—'),
+    rendu: (c) => (
+      <CelluleActeur
+        nom={c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : null}
+        contributeur={c.contributeur}
+        vide="—"
+      />
+    ),
   },
   {
     cle: 'sla',

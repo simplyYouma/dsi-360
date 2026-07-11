@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { CelluleActeur } from '@/common/CelluleActeur';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -63,7 +64,13 @@ const COLONNES: Colonne<Projet>[] = [
   {
     cle: 'chef',
     entete: 'Chef de projet',
-    rendu: (p) => (p.chef ? `${p.chef.prenom} ${p.chef.nom}` : '—'),
+    rendu: (p) => (
+      <CelluleActeur
+        nom={p.chef ? `${p.chef.prenom} ${p.chef.nom}` : null}
+        contributeur={p.contributeur}
+        vide="—"
+      />
+    ),
   },
   {
     cle: 'avancement',

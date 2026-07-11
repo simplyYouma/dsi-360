@@ -17,6 +17,7 @@ export interface Projet {
   statut: string;
   direction: string | null;
   chef: Chef | null;
+  contributeur: string | null;
   responsable_id: string | null;
   avancement: number;
   budget: number | null;

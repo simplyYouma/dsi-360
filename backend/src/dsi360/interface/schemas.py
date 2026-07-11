@@ -145,6 +145,7 @@ class ActiviteResume(BaseModel):
     responsable: ResponsableBref | None
     demandeur: str | None
     gestionnaire: str | None
+    contributeur: str | None = None
     responsable_id: str | None
     nb_commentaires: int = 0
     nb_non_vus: int = 0
