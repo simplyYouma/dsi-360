@@ -1,8 +1,9 @@
 """Tableau de bord : indicateurs agrégés (cloisonnés par direction). RBAC tableau-de-bord."""
 
+from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.indicateurs import tableau_de_bord
@@ -17,6 +18,12 @@ Courant = Annotated[dict[str, Any], Depends(exiger_acces("tableau-de-bord"))]
 
 
 @routeur.get("", response_model=TableauBord)
-async def indicateurs(courant: Courant, session: Session) -> dict[str, Any]:
+async def indicateurs(
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    du: date | None = None,
+    au: date | None = None,
+) -> dict[str, Any]:
     direction = None if courant["transverse"] else courant["direction"]
-    return await tableau_de_bord(session, direction)
+    return await tableau_de_bord(session, direction, jours, du, au)

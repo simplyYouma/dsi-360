@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { requetePeriode, type Periode } from '@/common/periode';
 
 export interface TableauBord {
   cartes: {
@@ -31,5 +32,6 @@ export interface TableauBord {
 }
 
 export const dashboardApi = {
-  charger: (): Promise<TableauBord> => api.get('/tableau-de-bord'),
+  charger: (periode: Periode): Promise<TableauBord> =>
+    api.get(`/tableau-de-bord${requetePeriode(periode)}`),
 };

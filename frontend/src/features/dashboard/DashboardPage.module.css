@@ -5,6 +5,20 @@
   /* Fluide : la page remplit la zone de contenu, sans marges vides au dézoom. */
   width: 100%;
 }
+/* Barre d'en-tête : titre à gauche, actions (filtre + export) à droite. */
+.enteteBarre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
 .entete {
   display: flex;
   flex-direction: column;

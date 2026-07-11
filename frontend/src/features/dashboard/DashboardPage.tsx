@@ -19,6 +19,8 @@ import { BadgePriorite, BadgeStatut } from '@/common/statuts';
 import { lienActivite } from '@/common/routesModule';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
+import { FiltrePeriode } from '@/common/FiltrePeriode';
+import { PERIODE_TOUT, type Periode } from '@/common/periode';
 import { infobulle } from '@/common/infobulle';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
@@ -327,6 +329,7 @@ function pctDe(part: number, tout: number): number {
 
 export function DashboardPage(): JSX.Element {
   const [tableau, setTableau] = useState<TableauBord | null>(null);
+  const [periode, setPeriode] = useState<Periode>(PERIODE_TOUT);
   const contenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -336,8 +339,8 @@ export function DashboardPage(): JSX.Element {
   };
 
   useEffect(() => {
-    void dashboardApi.charger().then(setTableau);
-  }, []);
+    void dashboardApi.charger(periode).then(setTableau);
+  }, [periode]);
 
   const repartition: Segment[] = tableau
     ? tableau.repartition.map((r) => ({
@@ -361,25 +364,19 @@ export function DashboardPage(): JSX.Element {
 
   return (
     <div className={styles.page}>
-      <header
-        className={styles.entete}
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 'var(--space-4)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div>
+      <header className={styles.enteteBarre}>
+        <div className={styles.entete}>
           <h1 className={styles.titre}>Tableau de bord</h1>
           <p className={styles.sous}>Vue d'ensemble des activités de la DSI — AFG Bank Mali.</p>
         </div>
-        <BoutonExportPdf
-          cible={contenuRef}
-          titre="Tableau de bord exécutif"
-          nomFichier="dsi360-tableau-de-bord.pdf"
-        />
+        <div className={styles.actions}>
+          <FiltrePeriode valeur={periode} onChange={setPeriode} />
+          <BoutonExportPdf
+            cible={contenuRef}
+            titre="Tableau de bord exécutif"
+            nomFichier="dsi360-tableau-de-bord.pdf"
+          />
+        </div>
       </header>
 
       <div

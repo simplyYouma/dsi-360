@@ -20,6 +20,7 @@ export function BoutonExportPdf({ cible, titre, nomFichier }: Props): JSX.Elemen
     setEnCours(true);
     try {
       await exporterVisuelsPdf(cible.current, titre, nomFichier);
+      notifier('PDF exporté.', 'succes');
     } catch {
       notifier('Export PDF impossible.', 'erreur');
     } finally {

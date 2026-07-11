@@ -1,5 +1,6 @@
 """Indicateurs du tableau de bord : agrégations sur les activités (cloisonnées par direction)."""
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy import bindparam, text
@@ -7,6 +8,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import PREFIXE_REFERENCE
 from dsi360.domain.etats import STATUTS_TERMINAUX, etats_terminaux
+
+
+def _clause_periode(
+    jours: int | None, du: date | None, au: date | None
+) -> tuple[str, dict[str, Any]]:
+    """Filtre sur la date de création. Priorité : dates explicites > jours > tout (chaîne vide)."""
+    if du is not None or au is not None:
+        cond, params = "", {}
+        if du is not None:
+            cond += " AND a.cree_le >= :du"
+            params["du"] = du
+        if au is not None:
+            cond += " AND a.cree_le < (cast(:au as date) + 1)"
+            params["au"] = au
+        return cond, params
+    if jours is not None:
+        return " AND a.cree_le >= now() - make_interval(days => :jours)", {"jours": jours}
+    return "", {}
 
 _CARTES = """
 SELECT
@@ -59,8 +78,10 @@ SELECT to_char(date_trunc('week', a.cree_le), 'DD/MM') AS periode,
   count(*) FILTER (WHERE a.sla_resolution_le < now()) AS depasse
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.sla_resolution_le IS NOT NULL AND a.cree_le >= now() - interval '8 weeks'
+WHERE a.sla_resolution_le IS NOT NULL
 """
+# Fenêtre par défaut de la tendance quand aucune période n'est demandée (« Tout »).
+_SERIE_DEFAUT = " AND a.cree_le >= now() - interval '8 weeks'"
 
 
 # Les activités à traiter en premier : échéance la plus proche (ou la plus dépassée) d'abord.
@@ -114,11 +135,23 @@ WHERE a.resolu_le >= now() - interval '30 days'
 """
 
 
-async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[str, Any]:
+async def tableau_de_bord(
+    session: AsyncSession,
+    direction: str | None,
+    jours: int | None = None,
+    du: date | None = None,
+    au: date | None = None,
+) -> dict[str, Any]:
     cond = " AND d.code = :dir" if direction is not None else ""
-    params = {"dir": direction} if direction is not None else {}
+    params: dict[str, Any] = {"dir": direction} if direction is not None else {}
+    # Filtre période (sur la date de création) : appliqué aux KPI et graphes analytiques (cond_p).
+    # Les files d'urgence (« À traiter ») et les signaux courants (DBS) gardent `cond` seul : les
+    # filtrer par date de création masquerait les vieux dossiers en retard, l'inverse du besoin.
+    perio, perio_params = _clause_periode(jours, du, au)
+    cond_p = cond + perio
+    params.update(perio_params)
 
-    ligne = (await session.execute(text(_CARTES + cond), params)).mappings().one()
+    ligne = (await session.execute(text(_CARTES + cond_p), params)).mappings().one()
     # Respect SLA réel (durées mesurées des tickets importés) ; repli sur les échéances en cours.
     reel_total = ligne["sla_reel_total"] or 0
     total_sla = ligne["sla_total"] or 0
@@ -130,16 +163,18 @@ async def tableau_de_bord(session: AsyncSession, direction: str | None) -> dict[
         respect = 100
 
     repartition = (
-        (await session.execute(text(_REPARTITION + cond + " GROUP BY a.module"), params))
+        (await session.execute(text(_REPARTITION + cond_p + " GROUP BY a.module"), params))
         .mappings()
         .all()
     )
 
+    # Tendance : sur la période demandée ; à défaut (« Tout »), fenêtre glissante de 8 semaines.
     serie = (
         (
             await session.execute(
                 text(
                     _SERIE
+                    + (perio or _SERIE_DEFAUT)
                     + cond
                     + " GROUP BY date_trunc('week', a.cree_le)"
                     + " ORDER BY date_trunc('week', a.cree_le)"

@@ -412,3 +412,31 @@ async def test_assigner_une_tache_notifie_son_porteur(
         {"d": porteur},
     )
     assert n == 1
+
+
+async def test_le_tableau_de_bord_filtre_par_periode(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le filtre période (jours puis du/au) restreint les KPI analytiques, sans erreur SQL."""
+    admin = await _admin(session, "admin.periode@afgbank.ml")
+    await creer_activite(session, module="incident", reference="INC-PER-1")  # récent (now)
+    ancien = await creer_activite(session, module="incident", reference="INC-PER-2")
+    await session.execute(
+        text(
+            "UPDATE core.activite SET cree_le = now() - interval '60 days' "
+            "WHERE id = cast(:a as uuid)"
+        ),
+        {"a": ancien},
+    )
+    await session.commit()
+
+    tout = (await client.get("/tableau-de-bord", headers=entetes(admin))).json()
+    assert tout["cartes"]["incidents_ouverts"] == 2  # sans filtre : les deux
+
+    sur7j = (await client.get("/tableau-de-bord?jours=7", headers=entetes(admin))).json()
+    assert sur7j["cartes"]["incidents_ouverts"] == 1  # 7 j : l'ancien (60 j) sort
+
+    # Plage de dates personnalisée : la requête s'exécute (200) et englobe les deux.
+    r = await client.get("/tableau-de-bord?du=2000-01-01&au=2099-01-01", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    assert r.json()["cartes"]["incidents_ouverts"] == 2
