@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { requetePeriode, type Periode } from '@/common/periode';
 
 export interface AnalyseItem {
   libelle: string;
@@ -109,10 +110,9 @@ export interface GestionnaireDetail extends GestionnaireEval {
 }
 
 export const analysesApi = {
-  charger: (jours: number | null): Promise<Analyses> =>
-    api.get(`/analyses${jours !== null ? `?jours=${jours}` : ''}`),
-  gestionnaires: (jours: number | null): Promise<GestionnaireEval[]> =>
-    api.get(`/analyses/gestionnaires${jours !== null ? `?jours=${jours}` : ''}`),
-  gestionnaire: (id: string, jours: number | null): Promise<GestionnaireDetail> =>
-    api.get(`/analyses/gestionnaire/${id}${jours !== null ? `?jours=${jours}` : ''}`),
+  charger: (p: Periode): Promise<Analyses> => api.get(`/analyses${requetePeriode(p)}`),
+  gestionnaires: (p: Periode): Promise<GestionnaireEval[]> =>
+    api.get(`/analyses/gestionnaires${requetePeriode(p)}`),
+  gestionnaire: (id: string, p: Periode): Promise<GestionnaireDetail> =>
+    api.get(`/analyses/gestionnaire/${id}${requetePeriode(p)}`),
 };

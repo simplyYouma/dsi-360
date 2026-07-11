@@ -24,6 +24,8 @@ import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
+import { FiltrePeriode } from '@/common/FiltrePeriode';
+import { PERIODE_TOUT, type Periode } from '@/common/periode';
 import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
@@ -75,13 +77,6 @@ const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
   { cle: 'priorites', libelle: 'Risques & priorités' },
   { cle: 'equipe', libelle: 'Équipe & gestionnaires' },
 ];
-const PERIODES: { libelle: string; jours: number | null }[] = [
-  { libelle: '7 j', jours: 7 },
-  { libelle: '30 j', jours: 30 },
-  { libelle: '90 j', jours: 90 },
-  { libelle: 'Tout', jours: null },
-];
-
 // ---------------------------------------------------------------- KPI
 
 interface MetaKpi {
@@ -488,26 +483,26 @@ function PartDbs({ dbs }: { dbs: Analyses['dbs'] }): JSX.Element {
 export function AnalysesPage(): JSX.Element {
   const [a, setA] = useState<Analyses | null>(null);
   const [evals, setEvals] = useState<GestionnaireEval[]>([]);
-  const [jours, setJours] = useState<number | null>(null);
+  const [periode, setPeriode] = useState<Periode>(PERIODE_TOUT);
   const [onglet, setOnglet] = useState<CleOnglet>('apercu');
   const [gestSel, setGestSel] = useState<string | null>(null);
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
   const contenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    void analysesApi.charger(jours).then(setA);
-  }, [jours]);
+    void analysesApi.charger(periode).then(setA);
+  }, [periode]);
   useEffect(() => {
-    void analysesApi.gestionnaires(jours).then(setEvals);
-  }, [jours]);
+    void analysesApi.gestionnaires(periode).then(setEvals);
+  }, [periode]);
   useEffect(() => {
     if (gestSel === null) {
       setGestDetail(null);
       return;
     }
     setGestDetail(null);
-    void analysesApi.gestionnaire(gestSel, jours).then(setGestDetail);
-  }, [gestSel, jours]);
+    void analysesApi.gestionnaire(gestSel, periode).then(setGestDetail);
+  }, [gestSel, periode]);
 
   const modules: Segment[] = (a?.par_module ?? []).map((m) => ({
     nom: MODULE_LABEL[m.libelle] ?? m.libelle,
@@ -549,17 +544,7 @@ export function AnalysesPage(): JSX.Element {
           </p>
         </div>
         <div className={styles.actionsAnalyse}>
-          <div className={styles.periodes}>
-            {PERIODES.map((p) => (
-              <button
-                key={p.libelle}
-                className={jours === p.jours ? styles.periodeOn : styles.periode}
-                onClick={() => setJours(p.jours)}
-              >
-                {p.libelle}
-              </button>
-            ))}
-          </div>
+          <FiltrePeriode valeur={periode} onChange={setPeriode} />
           <BoutonExportPdf
             cible={contenuRef}
             titre="Analyses DSI"

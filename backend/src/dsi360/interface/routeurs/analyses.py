@@ -5,6 +5,7 @@ retards), répartitions (module, priorité, direction, charge), matrice des risq
 (probabilité × impact) et tendance hebdomadaire création vs résolution.
 """
 
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
@@ -147,18 +148,16 @@ async def analyses(
     courant: Courant,
     session: Session,
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    du: date | None = None,
+    au: date | None = None,
 ) -> dict[str, Any]:
     cond_dir = ""
-    params: dict[str, Any] = {}
+    params: dict[str, Any] = dict(_pparams(jours, du, au))
     if not courant["transverse"]:
         cond_dir = " AND d.code = :dir"
         params["dir"] = courant["direction"]
     # Filtre période (sur la date de création) appliqué aux agrégations, hors tendance.
-    periode = ""
-    if jours is not None:
-        periode = " AND a.cree_le >= now() - make_interval(days => :jours)"
-        params["jours"] = jours
-    cond = cond_dir + periode
+    cond = cond_dir + _periode(jours, du, au)
 
     total = await session.scalar(text(f"SELECT count(*) {_OUVERTES}{cond}"), params) or 0
 
@@ -282,9 +281,7 @@ async def analyses(
         params,
     )
 
-    periode_journal = (
-        " AND j.horodatage >= now() - make_interval(days => :jours)" if jours is not None else ""
-    )
+    periode_journal = _periode(jours, du, au, "j.horodatage")
     durees_statuts = await _lignes(
         session, _DUREES_STATUTS.format(periode=periode_journal), params
     )
@@ -377,9 +374,30 @@ async def analyses(
     }
 
 
-# Filtre période (sur la date de création) injectable dans les requêtes gestionnaires.
-def _periode(jours: int | None) -> str:
-    return " AND a.cree_le >= now() - make_interval(days => :jours)" if jours is not None else ""
+# Filtre période injectable, sur `colonne`. Dates explicites (du/au) prioritaires sur le nombre de
+# jours. `_periode` donne le SQL ; `_pparams` les paramètres liés (clés :du/:au/:jours).
+def _periode(
+    jours: int | None, du: date | None, au: date | None, colonne: str = "a.cree_le"
+) -> str:
+    if du is not None or au is not None:
+        sql = ""
+        if du is not None:
+            sql += f" AND {colonne} >= :du"
+        if au is not None:
+            sql += f" AND {colonne} < (cast(:au as date) + 1)"
+        return sql
+    return f" AND {colonne} >= now() - make_interval(days => :jours)" if jours is not None else ""
+
+
+def _pparams(jours: int | None, du: date | None, au: date | None) -> dict[str, Any]:
+    if du is not None or au is not None:
+        p: dict[str, Any] = {}
+        if du is not None:
+            p["du"] = du
+        if au is not None:
+            p["au"] = au
+        return p
+    return {"jours": jours} if jours is not None else {}
 
 
 _AGREGATS_GEST = (
@@ -420,13 +438,15 @@ async def evaluation_gestionnaires(
     courant: Courant,
     session: Session,
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    du: date | None = None,
+    au: date | None = None,
 ) -> list[dict[str, Any]]:
     requete = (
         f"SELECT s.id, (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
-        f"FROM ({_src_gest(_periode(jours))}) s "
+        f"FROM ({_src_gest(_periode(jours, du, au))}) s "
         "GROUP BY s.id, s.prenom, s.nom ORDER BY volume DESC LIMIT 20"
     )
-    params = {"jours": jours} if jours is not None else {}
+    params = _pparams(jours, du, au)
     lignes = (await session.execute(text(requete), params)).mappings().all()
     evaluations = [_eval_dict(r) for r in lignes]
 
@@ -434,7 +454,7 @@ async def evaluation_gestionnaires(
     # y compris pour un agent qui ne gère rien : il apparaît alors avec un volume nul.
     suivis = {
         r["id"]: r["suivis"]
-        for r in await _lignes(session, _SUIVIS.format(periode=_periode(jours)), params)
+        for r in await _lignes(session, _SUIVIS.format(periode=_periode(jours, du, au)), params)
     }
     for e in evaluations:
         e["suivis"] = suivis.pop(e["id"], 0)
@@ -468,13 +488,13 @@ async def gestionnaire_detail(
     courant: Courant,
     session: Session,
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    du: date | None = None,
+    au: date | None = None,
 ) -> dict[str, Any]:
-    params: dict[str, Any] = {"id": ident}
-    if jours is not None:
-        params["jours"] = jours
+    params: dict[str, Any] = {"id": ident, **_pparams(jours, du, au)}
     requete = (
         f"SELECT (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
-        f"FROM ({_src_gest(_periode(jours) + ' AND r.id::text = :id')}) s "
+        f"FROM ({_src_gest(_periode(jours, du, au) + ' AND r.id::text = :id')}) s "
         "GROUP BY s.prenom, s.nom"
     )
     ligne = (await session.execute(text(requete), params)).mappings().first()
@@ -483,7 +503,7 @@ async def gestionnaire_detail(
         "SELECT extract(isodow from a.cree_le)::int AS jour, "
         "extract(hour from a.cree_le)::int AS heure, count(*) AS valeur "
         "FROM core.activite a WHERE a.responsable_id = cast(:id as uuid) "
-        f"AND a.cree_le IS NOT NULL{_periode(jours)} GROUP BY 1, 2",
+        f"AND a.cree_le IS NOT NULL{_periode(jours, du, au)} GROUP BY 1, 2",
         params,
     )
     nb_suivis = (
@@ -492,7 +512,7 @@ async def gestionnaire_detail(
                 "SELECT count(*) FROM core.activite_acteur aa "
                 "JOIN core.activite a ON a.id = aa.activite_id "
                 "WHERE aa.role = 'CONTRIBUTEUR' AND aa.utilisateur_id = cast(:id as uuid)"
-                + _periode(jours)
+                + _periode(jours, du, au)
             ),
             params,
         )
