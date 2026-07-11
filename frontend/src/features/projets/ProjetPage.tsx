@@ -348,6 +348,7 @@ export function ProjetPage(): JSX.Element {
                     permettreVide
                     libelleVide="Non désigné"
                     placeholder="Désigner un chef de projet"
+                    indiceReaffectation="Réassigner"
                   />
                 </dd>
               </div>

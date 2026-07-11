@@ -137,3 +137,18 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* « Réassigner » : effacé, révélé au survol du champ — signale que la place est prise. */
+.indice {
+  flex: none;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--secondary-hover);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+.champ:hover .indice,
+.champ:focus-visible .indice {
+  opacity: 1;
+}

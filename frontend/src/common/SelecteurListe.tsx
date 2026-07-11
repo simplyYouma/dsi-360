@@ -22,6 +22,9 @@ interface Props {
   desactive?: boolean;
   /** Raison du grisage, en infobulle : on n'interdit jamais sans dire pourquoi. */
   titreDesactive?: string;
+  /** Mot montré au survol quand une valeur est déjà choisie (ex. « Réassigner ») : on voit
+   *  que la case est prise, et qu'un clic la remplace. */
+  indiceReaffectation?: string;
 }
 
 /** Liste déroulante maison (popover) — aucun composant natif navigateur. */
@@ -51,6 +54,7 @@ export function SelecteurListe({
   couleurs,
   desactive = false,
   titreDesactive,
+  indiceReaffectation,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
@@ -159,6 +163,9 @@ export function SelecteurListe({
         <span className={courant ? styles.valeur : styles.placeholder}>
           {courant ? courant.libelle : placeholder}
         </span>
+        {indiceReaffectation !== undefined && courant !== undefined && !desactive && (
+          <span className={styles.indice}>{indiceReaffectation}</span>
+        )}
         {!desactive && (
           <ChevronDown size={16} className={cx(styles.fleche, ouvert && styles.flecheOuverte)} />
         )}

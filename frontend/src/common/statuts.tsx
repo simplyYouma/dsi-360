@@ -12,12 +12,30 @@ const STATUT_OK = new Set([
   'Accepté',
 ]);
 const STATUT_DANGER = new Set(['Rejeté', 'Rejetée', 'Annulé', 'Retour arrière']);
-const STATUT_WARN = new Set([
-  'Réouvert',
-  'Réouverte',
+// Vigilance : le sujet recule ou s'arrête (réouvert, suspendu, reporté).
+const STATUT_WARN = new Set(['Réouvert', 'Réouverte', 'Suspendu', 'Reporté']);
+// En attente d'une décision ou d'une revue (violet) : il avance, mais dépend d'un avis.
+const STATUT_VALIDATION = new Set([
+  'Soumis',
+  'Évaluation',
+  'CAB',
+  'ECAB',
   'En validation',
   'En validation de clôture',
-  'Suspendu',
+  'Revue post-implémentation',
+  'Revue',
+]);
+// Vient d'arriver, personne n'y a touché (cyan). Distinct de « en cours » : c'est ce que
+// « toujours la même couleur » désignait — un nouveau ne se voyait pas d'un actif.
+const STATUT_NOUVEAU = new Set([
+  'Nouveau',
+  'Nouvelle',
+  'Brouillon',
+  'Identifié',
+  'À engager',
+  'Cadrage',
+  'Ouverte',
+  'À qualifier',
 ]);
 
 /** Badge de statut coloré selon le sens (vert = abouti, rouge = négatif, ambre = vigilance,
@@ -26,6 +44,10 @@ export function BadgeStatut({ statut }: { statut: string }): JSX.Element {
   if (STATUT_OK.has(statut)) return <StatusBadge statut="ok">{statut}</StatusBadge>;
   if (STATUT_DANGER.has(statut)) return <StatusBadge statut="danger">{statut}</StatusBadge>;
   if (STATUT_WARN.has(statut)) return <StatusBadge statut="warn">{statut}</StatusBadge>;
+  if (STATUT_VALIDATION.has(statut))
+    return <StatusBadge couleur="var(--cat-5)">{statut}</StatusBadge>;
+  if (STATUT_NOUVEAU.has(statut)) return <StatusBadge couleur="var(--cat-7)">{statut}</StatusBadge>;
+  // Le reste : en cours / actif (indigo).
   return <StatusBadge couleur="var(--cat-1)">{statut}</StatusBadge>;
 }
 
@@ -41,6 +63,8 @@ export function couleurStatut(statut: string): string {
   if (STATUT_OK.has(statut)) return 'var(--status-ok)';
   if (STATUT_DANGER.has(statut)) return 'var(--status-danger)';
   if (STATUT_WARN.has(statut)) return 'var(--status-warn)';
+  if (STATUT_VALIDATION.has(statut)) return 'var(--cat-5)';
+  if (STATUT_NOUVEAU.has(statut)) return 'var(--cat-7)';
   return 'var(--cat-1)';
 }
 

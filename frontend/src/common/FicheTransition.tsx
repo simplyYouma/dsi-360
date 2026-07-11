@@ -3,6 +3,7 @@ import { ArrowRight, Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurDate } from '@/common/SelecteurDate';
+import { PastilleEcheance } from '@/common/PastilleEcheance';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { NiveauSupport } from '@/common/NiveauSupport';
 import { chargerAgents, moduleDeLaBase, type Agent } from '@/common/agentsApi';
@@ -527,6 +528,7 @@ export function FicheTransition({
                     permettreVide
                     libelleVide="Non assigné"
                     placeholder="Assigner à un agent DSI…"
+                    indiceReaffectation="Réassigner"
                   />
                 </dd>
               </div>
@@ -671,8 +673,12 @@ export function FicheTransition({
                     desactive={!permissions.peut_travailler}
                     titreDesactive={TITRE_LECTURE}
                   />
+                  {detail.periodicite && (
+                    <PastilleEcheance date={detail.prochaine_revue ?? null} prefixe="Revue" />
+                  )}
                   <Button
                     variante="secondaire"
+                    className={styles.boutonRevue}
                     onClick={() => void revueEffectuee()}
                     disabled={envoi || !detail.periodicite || !permissions.peut_travailler}
                     title={

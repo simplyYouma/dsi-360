@@ -407,3 +407,10 @@
   font-weight: var(--weight-semibold);
   color: var(--text-muted);
 }
+
+/* « Revue effectuée » : le survol vire au vert — le geste aboutit, la couleur le dit. */
+.boutonRevue:hover:not(:disabled) {
+  color: var(--status-ok);
+  border-color: color-mix(in srgb, var(--status-ok) 45%, transparent);
+  background: color-mix(in srgb, var(--status-ok) 10%, transparent);
+}
