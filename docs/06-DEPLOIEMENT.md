@@ -25,7 +25,7 @@ Références : [ADR-0002 exécution native](adr/0002-execution-native-sans-docke
 | **Certificat** | `C:\MY_APPS\DSI360\cert\cert.pem` / `key.pem` — **jamais** versionné |
 | **Préfixe des variables** | `DSI360_` (ex. `DSI360_JWT_SECRET_KEY`, `DSI360_DATABASE_URL`) |
 | **Tâches planifiées** | `DSI360` (app), `DSI360-Sauvegarde` (pg_dump) — **préfixées, jamais génériques** |
-| **Lanceurs bureau** | `START-DSI360.bat` · `STOP-DSI360.bat` · **`MAJ-DSI360.bat`** (mise à jour un-clic) — double-clic, élévation admin automatique |
+| **Lanceur bureau** | **`MAJ-DSI360.bat`** — mise à jour un-clic (double-clic, élévation admin automatique) |
 | **PWA** | Oui — installable (manifest + service worker). Le SW ne met **jamais** `/api` en cache et sert la navigation en réseau-d'abord ; après un `git pull` + rebuild, il se met à jour tout seul au prochain chargement en ligne. |
 | **Reverse-proxy** | **Facultatif** : l'API termine elle-même le TLS (voir §1) |
 
@@ -232,8 +232,9 @@ demande l'élévation administrateur puis déroule, tout seul et dans l'ordre :
 Le moteur est `infra\local\maj-serveur.ps1` — le `.bat` n'est que l'enveloppe qui l'élève et l'exécute.
 En cas d'anomalie, le script s'arrête net sur l'étape fautive et l'affiche.
 
-Lanceurs `.bat` du bureau (élévation automatique) : **`START-DSI360.bat`** / **`STOP-DSI360.bat`**
-démarrent/arrêtent le service (la tâche `DSI360`), **`MAJ-DSI360.bat`** met à jour.
+> Démarrage/arrêt manuels du service : ils passent par la **tâche planifiée `DSI360`**
+> (`Start-ScheduledTask`/`Stop-ScheduledTask`, ou le Planificateur de tâches Windows). Le boot du
+> serveur la lance seule ; `MAJ-DSI360.bat` la redémarre après chaque mise à jour.
 
 ### À la main (équivalent, si besoin)
 ```powershell

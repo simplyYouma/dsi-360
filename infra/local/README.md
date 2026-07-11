@@ -47,8 +47,11 @@ Décision tracée : [ADR-0002](../../docs/adr/0002-execution-native-sans-docker.
 
 Les `.ps1` de ce dossier sont en **UTF-8 avec BOM**, et doivent le rester. Un double-clic ouvre
 **Windows PowerShell 5.1**, qui lit un `.ps1` sans BOM comme du Windows-1252 : les accents
-deviennent du charabia et le script ne compile plus. `demarrer-dev.ps1` se relance de lui-même
+deviennent du charabia et le script ne compile plus. `start-dev.ps1` se relance de lui-même
 sous **pwsh 7** ; il doit d'abord pouvoir être lu par 5.1 pour y parvenir.
+
+> Les `.bat` (lanceurs bureau, ex. `MAJ-DSI360.bat`) sont au contraire **sans BOM** : un BOM
+> casserait `cmd`. Ils sont écrits en ASCII pur.
 
 Corollaire : **jamais d'accent dans un nom de variable** PowerShell.
 
@@ -106,7 +109,7 @@ annulée à la fin. Les tests unitaires (`pytest tests\unit`) ne demandent aucun
 
 ### Test d'intrusion (avant chaque mise en production)
 
-L'API doit tourner (via `api.ps1` ou `demarrer-dev.ps1`). Le script se connecte avec un compte à
+L'API doit tourner (via `api.ps1` ou `start-dev.ps1`). Le script se connecte avec un compte à
 faible privilège et tente de forcer 21 gardes ; chacune doit refuser. À lancer contre une instance
 de recette, jamais en production.
 

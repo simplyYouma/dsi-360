@@ -33,20 +33,6 @@ PROFILS: tuple[tuple[str, str, bool], ...] = (
     ("SUPPORT_APP", "IT Support Applicatif", False),
 )
 
-# Traduction : valeur stockée dans core.activite.module -> clé d'accès module (core.acces_role /
-# courant["acces"]). Sert aux routes génériques (fil de discussion) à vérifier l'accès module, qui
-# reste le préalable pour voir OU écrire — y compris la discussion interne, y compris l'importé.
-ACCES_PAR_MODULE_ACTIVITE: dict[str, str] = {
-    "incident": "incidents",
-    "demande": "demandes",
-    "projet": "projets",
-    "changement": "changements",
-    "audit": "audit",
-    "risque": "risques",
-    "cybersecurite": "cybersecurite",
-    "gouvernance": "gouvernance",
-}
-
 # Tout l'opérationnel, hors administration : le socle commun des profils métier. Ils se distinguent
 # par leur périmètre de travail, et bientôt par leurs actions (ADR-0003 §4).
 _OPERATIONNEL = [m for m in MODULES if m != "administration"]

@@ -1,6 +1,6 @@
 ﻿# Lance l'API FastAPI (uvicorn) SEULE, avec rechargement à chaud, sur 127.0.0.1:8011.
 # Le serveur Vite y proxifie /api (cf. vite.config.ts).
-# Pour démarrer l'API + le frontend d'un coup : infra\local\demarrer-dev.ps1
+# Pour démarrer l'API + le frontend d'un coup : infra\local\start-dev.ps1
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\env.ps1"
 

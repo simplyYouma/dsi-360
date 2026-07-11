@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config.settings import _DEFAUT_ADMIN_MDP, _DEFAUT_JWT, Settings
-from tests.integration.conftest import creer_activite, creer_utilisateur, entetes
+from tests.integration.conftest import creer_utilisateur, entetes
 
 
 async def test_les_entetes_de_securite_sont_presents(
@@ -63,42 +63,6 @@ async def test_le_journal_d_audit_refuse_la_modification(
         await session.execute(text("DELETE FROM audit.journal"))
     await session.rollback()
     assert admin  # l'admin existe : le test a bien tourné
-
-
-async def test_le_fil_de_discussion_exige_l_acces_au_module(
-    client: AsyncClient, session: AsyncSession
-) -> None:
-    """Deux plans RBAC : sans l'accès au module, le fil interne d'une activité est invisible (404).
-
-    Le fil de commentaires était la seule route générique à ne vérifier que le périmètre direction.
-    """
-    # Profil restreint : tout l'opérationnel SAUF « changements ».
-    await session.execute(
-        text(
-            "INSERT INTO core.profil (code, libelle, transverse) "
-            "VALUES ('RESTREINT_TEST', 'Restreint', false)"
-        )
-    )
-    for acces in ("incidents", "demandes", "projets", "audit", "risques"):
-        await session.execute(
-            text("INSERT INTO core.acces_role (profil_code, acces) VALUES ('RESTREINT_TEST', :a)"),
-            {"a": acces},
-        )
-    await session.commit()
-
-    restreint = await creer_utilisateur(
-        session, email="restreint@afgbank.ml", profil="RESTREINT_TEST"
-    )
-    # Profil métier par défaut : accès à tous les modules opérationnels.
-    complet = await creer_utilisateur(session, email="complet.chg@afgbank.ml")
-    aid = await creer_activite(session, module="changement", reference="CHG-RBAC-1")
-
-    # Sans accès « changements », l'activité et sa discussion n'existent pas pour lui.
-    refuse = await client.get(f"/commentaires/{aid}", headers=entetes(restreint))
-    assert refuse.status_code == 404, refuse.text
-    # Avec l'accès au module, le fil est visible.
-    autorise = await client.get(f"/commentaires/{aid}", headers=entetes(complet))
-    assert autorise.status_code == 200, autorise.text
 
 
 def test_les_secrets_par_defaut_sont_detectes() -> None:

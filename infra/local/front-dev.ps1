@@ -3,7 +3,7 @@
 #
 # `npm run web` = Vite seul. Surtout pas `npm run dev`, qui démarre aussi une API et ferait
 # doublon avec celle du terminal voisin (course sur le port 8011).
-# Pour tout lancer d'un coup : infra\local\demarrer-dev.ps1
+# Pour tout lancer d'un coup : infra\local\start-dev.ps1
 $ErrorActionPreference = 'Stop'
 $racine = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location (Join-Path $racine 'frontend')
