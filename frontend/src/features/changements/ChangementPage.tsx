@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Circle, XCircle } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { useAuth } from '@/lib/auth';
 import { AUCUNE_PERMISSION } from '@/common/permissions';
@@ -423,32 +423,61 @@ export function ChangementPage(): JSX.Element {
 
           {!creation && detail && (
             <section className={styles.carte}>
-              <div className={styles.rfcEntete}>
-                <span className={styles.carteTitre}>Analyse &amp; plans (RFC)</span>
-                <span className={styles.rfcCompte}>
-                  {CHAMPS_RFC.filter(([c]) => (detail[c] ?? '') !== '').length}/{CHAMPS_RFC.length}
-                </span>
-              </div>
+              {(() => {
+                const remplis = CHAMPS_RFC.filter(([c]) => (detail[c] ?? '') !== '').length;
+                const complet = remplis === CHAMPS_RFC.length;
+                return (
+                  <div className={styles.rfcEntete}>
+                    <span className={styles.carteTitre}>Analyse &amp; plans (RFC)</span>
+                    {/* Complétude du dossier CAB : une jauge segmentée, une pièce par cellule. */}
+                    <span
+                      className={styles.rfcMeter}
+                      title={`${remplis}/${CHAMPS_RFC.length} pièce(s) fournie(s)`}
+                    >
+                      {CHAMPS_RFC.map(([c]) => (
+                        <span
+                          key={c}
+                          className={cx(
+                            styles.rfcCell,
+                            (detail[c] ?? '') !== '' && styles.rfcCellPlein,
+                          )}
+                        />
+                      ))}
+                      <span className={cx(styles.rfcCompte, complet && styles.rfcCompteOk)}>
+                        {remplis}/{CHAMPS_RFC.length}
+                      </span>
+                    </span>
+                  </div>
+                );
+              })()}
               <div className={styles.rfcListe}>
                 {CHAMPS_RFC.map(([champ, libelle, indication]) => {
                   const rempli = (detail[champ] ?? '') !== '';
                   return (
-                    <div key={champ} className={styles.rfcChamp}>
-                      <span className={cx(styles.rfcLibelle, rempli && styles.rfcRempli)}>
-                        {libelle}
+                    <div
+                      key={champ}
+                      className={cx(styles.rfcChamp, rempli && styles.rfcChampPlein)}
+                    >
+                      <span className={styles.rfcMarqueur} aria-hidden="true">
+                        {rempli ? <CheckCircle2 size={16} /> : <Circle size={16} />}
                       </span>
-                      <ChampInline
-                        valeur={detail[champ] ?? ''}
-                        onValider={(val) =>
-                          void agir(() => changementsApi.modifier(id!, { [champ]: val }))
-                        }
-                        multiligne
-                        indication={indication}
-                        lectureSeule={!permissions.peut_travailler}
-                        titreLectureSeule={TITRE_LECTURE}
-                        placeholder="Non renseigné"
-                        aria-label={libelle}
-                      />
+                      <div className={styles.rfcCorps}>
+                        <span className={cx(styles.rfcLibelle, rempli && styles.rfcRempli)}>
+                          {libelle}
+                        </span>
+                        <ChampInline
+                          valeur={detail[champ] ?? ''}
+                          onValider={(val) =>
+                            void agir(() => changementsApi.modifier(id!, { [champ]: val }))
+                          }
+                          multiligne
+                          indication={indication}
+                          lectureSeule={!permissions.peut_travailler}
+                          titreLectureSeule={TITRE_LECTURE}
+                          placeholder="Non renseigné"
+                          aria-label={libelle}
+                        />
+                      </div>
                     </div>
                   );
                 })}
