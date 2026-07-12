@@ -228,12 +228,11 @@ async def analyses(
         params,
     )
 
-    # MTTR : délai moyen de résolution (jours) sur les 90 derniers jours.
+    # MTTR : délai moyen de résolution (jours), sur la période (par date de création).
     mttr = await session.scalar(
         text(
             "SELECT round(avg(extract(epoch FROM (a.resolu_le - a.cree_le)) / 86400)::numeric, 1) "
-            f"{_JOINTURE} WHERE a.resolu_le IS NOT NULL "
-            f"AND a.resolu_le >= now() - interval '90 days'{cond}"
+            f"{_JOINTURE} WHERE a.resolu_le IS NOT NULL{cond}"
         ),
         params,
     )

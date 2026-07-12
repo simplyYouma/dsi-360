@@ -118,7 +118,7 @@ const KPIS: MetaKpi[] = [
     icone: Timer,
     couleur: '#8a5cf6',
     format: (v) => `${v} j`,
-    note: '90 derniers jours',
+    note: 'Sur la période',
   },
   {
     cle: 'en_retard',
