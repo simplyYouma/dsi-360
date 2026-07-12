@@ -375,21 +375,37 @@
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
+/* Cinq indicateurs sur une rangée (jamais d'orpheline) ; 3 puis 1 sur écrans réduits. */
 .gestKpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-3);
 }
-@media (max-width: 720px) {
+@media (max-width: 1000px) {
   .gestKpis {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .gestKpis {
+    grid-template-columns: 1fr;
   }
 }
 .gestKpi {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.gestKpiIcone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-md);
   background: var(--bg-subtle);
 }
@@ -397,6 +413,7 @@
   font-size: 1.6rem;
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 .gestLib {
   font-size: var(--text-xs);

@@ -595,6 +595,12 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     if statut in TERMINAUX and module not in MODULES_IMPORTES:
                         resolu = cree_le + timedelta(days=random.randint(1, 5))
                         cloture = resolu
+                    elif resolu is None:
+                        # Ticket encore ouvert : échéance répartie autour de maintenant, pour une
+                        # démo variée (à l'heure / approche / dépassé). Sinon « créé il y a 0–55 j »
+                        # + cible courte = presque tout en dépassé (une mer de rouge).
+                        heures = random.choice([96, 72, 48, 120, 36, 24, 12, 6, 2, 1, -4, -24, -72])
+                        sla_res = maintenant + timedelta(hours=heures)
 
                 activite_id = await conn.fetchval(
                     "INSERT INTO core.activite"

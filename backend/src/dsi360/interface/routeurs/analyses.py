@@ -238,11 +238,28 @@ async def analyses(
         params,
     )
 
+    # La tendance suit la période : semaines couvrant la fenêtre choisie ; à défaut, 8 dernières.
+    if du is not None or au is not None:
+        borne_debut = (
+            "date_trunc('week', cast(:du as date))"
+            if du is not None
+            else "date_trunc('week', now()) - interval '7 weeks'"
+        )
+        borne_fin = (
+            "date_trunc('week', cast(:au as date))"
+            if au is not None
+            else "date_trunc('week', now())"
+        )
+    elif jours is not None:
+        borne_debut = "date_trunc('week', now() - make_interval(days => :jours))"
+        borne_fin = "date_trunc('week', now())"
+    else:
+        borne_debut = "date_trunc('week', now()) - interval '7 weeks'"
+        borne_fin = "date_trunc('week', now())"
     tendance = await _lignes(
         session,
         "WITH semaines AS ("
-        "  SELECT generate_series(date_trunc('week', now()) - interval '7 weeks', "
-        "    date_trunc('week', now()), interval '1 week') AS debut) "
+        f"  SELECT generate_series({borne_debut}, {borne_fin}, interval '1 week') AS debut) "
         "SELECT to_char(s.debut, 'DD/MM') AS periode, "
         f"  (SELECT count(*) {_JOINTURE} WHERE a.cree_le >= s.debut "
         f"    AND a.cree_le < s.debut + interval '1 week'{cond_dir}) AS crees, "
@@ -302,7 +319,8 @@ async def analyses(
         if r["resolus"] > 0 or rouverts.get(r["libelle"], 0) > 0
     ]
 
-    vieillissement = await _lignes(session, _VIEILLISSEMENT.format(cond_dir=cond_dir), params)
+    # Le vieillissement suit la période : ancienneté du stock ouvert créé dans la fenêtre choisie.
+    vieillissement = await _lignes(session, _VIEILLISSEMENT.format(cond_dir=cond), params)
 
     ligne_dbs = (await session.execute(text(_DBS.format(cond=cond)), params)).mappings().one()
     dbs = {

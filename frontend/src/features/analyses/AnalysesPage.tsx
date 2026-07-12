@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Activity, Gauge, Timer, AlertTriangle, type LucideIcon } from 'lucide-react';
+import {
+  Activity,
+  Gauge,
+  Timer,
+  AlertTriangle,
+  Layers,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   PieChart,
   Pie,
@@ -601,7 +609,9 @@ export function AnalysesPage(): JSX.Element {
             <Card className={styles.span2} data-visuel="Tendance — créations vs résolutions">
               <BoutonExportPng nom="Tendance — créations vs résolutions" />
               <h2 className={styles.chartTitre}>Tendance — créations vs résolutions</h2>
-              <p className={styles.chartSous}>Volume hebdomadaire sur les 8 dernières semaines.</p>
+              <p className={styles.chartSous}>
+                Créations et résolutions par semaine, sur la période.
+              </p>
               <ResponsiveContainer width="100%" height={240}>
                 <ComposedChart
                   data={a?.tendance ?? []}
@@ -1036,16 +1046,28 @@ export function AnalysesPage(): JSX.Element {
                   </div>
                   <div className={styles.gestKpis}>
                     <div className={styles.gestKpi}>
+                      <span className={styles.gestKpiIcone} style={{ color: 'var(--text-muted)' }}>
+                        <Activity size={16} />
+                      </span>
                       <span className={styles.gestVal}>{gestDetail?.volume ?? '—'}</span>
                       <span className={styles.gestLib}>Volume traité</span>
                     </div>
                     <div className={styles.gestKpi}>
+                      <span className={styles.gestKpiIcone} style={{ color: 'var(--cat-1)' }}>
+                        <Layers size={16} />
+                      </span>
                       <span className={styles.gestVal} style={{ color: 'var(--cat-1)' }}>
                         {gestDetail?.charge ?? '—'}
                       </span>
                       <span className={styles.gestLib}>Charge ouverte</span>
                     </div>
                     <div className={styles.gestKpi}>
+                      <span
+                        className={styles.gestKpiIcone}
+                        style={{ color: couleurMttr(gestDetail?.mttr_jours ?? null) }}
+                      >
+                        <Timer size={16} />
+                      </span>
                       <span
                         className={styles.gestVal}
                         style={{ color: couleurMttr(gestDetail?.mttr_jours ?? null) }}
@@ -1055,12 +1077,21 @@ export function AnalysesPage(): JSX.Element {
                       <span className={styles.gestLib}>Délai moyen</span>
                     </div>
                     <div className={styles.gestKpi}>
+                      <span
+                        className={styles.gestKpiIcone}
+                        style={{ color: couleurTaux(detailTaux) }}
+                      >
+                        <Gauge size={16} />
+                      </span>
                       <span className={styles.gestVal} style={{ color: couleurTaux(detailTaux) }}>
                         {detailTaux}%
                       </span>
                       <span className={styles.gestLib}>Taux résolution</span>
                     </div>
                     <div className={styles.gestKpi}>
+                      <span className={styles.gestKpiIcone} style={{ color: 'var(--cat-2)' }}>
+                        <Users size={16} />
+                      </span>
                       <span className={styles.gestVal}>{gestDetail?.suivis ?? '—'}</span>
                       <span className={styles.gestLib}>Suivis (contributeur)</span>
                     </div>
