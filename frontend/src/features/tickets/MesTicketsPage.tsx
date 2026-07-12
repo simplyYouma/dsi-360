@@ -34,6 +34,7 @@ import {
 
 const SEGMENTS: { cle: SegmentTicket; libelle: string }[] = [
   { cle: 'actifs', libelle: 'Actifs' },
+  { cle: 'a_valider', libelle: 'À valider' },
   { cle: 'resolus', libelle: 'Résolus' },
   { cle: 'termines', libelle: 'Terminés' },
   { cle: 'tout', libelle: 'Tout' },
@@ -172,6 +173,7 @@ export function MesTicketsPage(): JSX.Element {
   const [periodeAnalyse, setPeriodeAnalyse] = useState<Periode>(PERIODE_TOUT);
   const [taches, setTaches] = useState<MaTache[]>([]);
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
+  const [aValider, setAValider] = useState(0);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pageTaches, setPageTaches] = useState(1);
@@ -189,6 +191,7 @@ export function MesTicketsPage(): JSX.Element {
         .then((p) => {
           setItems(p.elements);
           setTotal(p.total);
+          setAValider(p.a_valider);
         })
         .finally(() => {
           if (!silencieux) setChargement(false);
@@ -393,6 +396,9 @@ export function MesTicketsPage(): JSX.Element {
                   }}
                 >
                   {s.libelle}
+                  {s.cle === 'a_valider' && aValider > 0 && (
+                    <span className={local.badgeSegment}>{aValider}</span>
+                  )}
                 </button>
               ))}
             </div>

@@ -342,3 +342,16 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+/* Badge de compteur sur le segment « À valider » (nombre d'activités qui attendent ma décision). */
+.badgeSegment {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--secondary);
+  color: var(--on-secondary);
+  font-size: 0.6875rem;
+  font-weight: var(--weight-semibold);
+  line-height: 18px;
+  text-align: center;
+}

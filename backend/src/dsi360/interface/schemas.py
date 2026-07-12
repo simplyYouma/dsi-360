@@ -319,6 +319,7 @@ class AgentBref(BaseModel):
 class PageMesTickets(BaseModel):
     elements: list[MonTicket]
     total: int
+    a_valider: int = 0  # nombre d'activités où ma décision de valideur est attendue (badge)
 
 
 class PageMesTaches(BaseModel):

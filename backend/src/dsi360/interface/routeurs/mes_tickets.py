@@ -38,15 +38,26 @@ _REGLES = sorted(STATUTS_TERMINAUX)
 # Ma file : les activités dont je suis le gestionnaire, et celles où l'administrateur m'a désigné
 # contributeur. Sur un incident ou une demande, c'est le seul moyen d'entrer dans la file : leur
 # gestionnaire vient du rapport, et il peut être DBS (ADR-0005).
+# « Mes tickets » = ceux où je suis responsable, contributeur OU valideur : un valideur doit
+# retrouver dans sa liste les activités qu'il a à approuver.
 _A_MOI = (
     "(a.responsable_id = cast(:id as uuid) OR EXISTS ("
     " SELECT 1 FROM core.activite_acteur aa WHERE aa.activite_id = a.id"
-    "   AND aa.utilisateur_id = cast(:id as uuid) AND aa.role = 'CONTRIBUTEUR'))"
+    "   AND aa.utilisateur_id = cast(:id as uuid) AND aa.role IN ('CONTRIBUTEUR', 'VALIDEUR')))"
+)
+
+# Activités où ma décision de valideur est encore attendue (décision non posée, activité non close).
+_A_VALIDER = (
+    "EXISTS (SELECT 1 FROM core.activite_acteur aa WHERE aa.activite_id = a.id"
+    "   AND aa.utilisateur_id = cast(:id as uuid) AND aa.role = 'VALIDEUR'"
+    "   AND aa.decision IS NULL) AND a.cloture_le IS NULL"
 )
 
 _SEGMENTS: dict[str, str] = {
     # Actif = ni clôturé, ni résolu (par date ou par statut).
     "actifs": "a.cloture_le IS NULL AND a.resolu_le IS NULL AND a.statut NOT IN :regles",
+    # À valider : ma décision de valideur est encore attendue.
+    "a_valider": _A_VALIDER,
     # Résolu mais pas encore archivé : par date OU par statut, tant que non terminal.
     "resolus": "a.cloture_le IS NULL AND (a.resolu_le IS NOT NULL OR a.statut IN :regles) "
     "AND a.statut NOT IN :termines",
@@ -106,6 +117,8 @@ async def mes_tickets(
         segment = "actifs"
     params: dict[str, Any] = {"id": courant["id"], "regles": _REGLES, "termines": _TERMINES}
     total = await session.scalar(_requete_total(segment), params) or 0
+    # Compteur du segment « À valider » (badge), quel que soit le segment affiché.
+    a_valider = await session.scalar(_requete_total("a_valider"), params) or 0
     lignes = (
         await session.execute(
             _requete_liste(segment),
@@ -118,7 +131,7 @@ async def mes_tickets(
         echeance = r["sla_resolution_le"]
         etat = statut_sla(echeance, maintenant, _FENETRE) if echeance is not None else "a_lheure"
         elements.append({**dict(r), "statut_sla": etat})
-    return {"elements": elements, "total": total}
+    return {"elements": elements, "total": total, "a_valider": a_valider}
 
 
 _OUVERTS = text(

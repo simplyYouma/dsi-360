@@ -40,11 +40,12 @@ export interface MesStats {
   tendance: JourResolus[];
 }
 
-export type SegmentTicket = 'actifs' | 'resolus' | 'termines' | 'tout';
+export type SegmentTicket = 'actifs' | 'a_valider' | 'resolus' | 'termines' | 'tout';
 
 export interface PageMesTickets {
   elements: MonTicket[];
   total: number;
+  a_valider: number;
 }
 
 export interface PageMesTaches {
