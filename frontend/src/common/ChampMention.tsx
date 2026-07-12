@@ -65,7 +65,13 @@ export function ChampMention({
   const calque = useRef<HTMLDivElement>(null);
   const [token, setToken] = useState<{ debut: number; requete: string } | null>(null);
   const [surligne, setSurligne] = useState(0);
-  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{
+    left: number;
+    width: number;
+    top?: number;
+    bottom?: number;
+    maxH: number;
+  } | null>(null);
 
   const suggestions = token
     ? agents.filter((a) => a.nom.toLowerCase().includes(token.requete.toLowerCase())).slice(0, 6)
@@ -79,7 +85,17 @@ export function ChampMention({
     setSurligne(0);
     if (t) {
       const r = el.getBoundingClientRect();
-      setPos({ left: r.left, top: r.bottom + 4, width: Math.max(220, r.width) });
+      // Bascule vers le haut si la place manque sous le champ (composeur en bas de panneau) : le
+      // menu ne se fait plus rogner par le bas de la fenêtre. Hauteur bornée à l'espace disponible.
+      const espaceBas = window.innerHeight - r.bottom - 8;
+      const espaceHaut = r.top - 8;
+      const versLeHaut = espaceBas < 200 && espaceHaut > espaceBas;
+      setPos({
+        left: r.left,
+        width: Math.max(220, r.width),
+        maxH: Math.min(280, versLeHaut ? espaceHaut : espaceBas),
+        ...(versLeHaut ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+      });
     }
   };
 
@@ -206,7 +222,14 @@ export function ChampMention({
         createPortal(
           <ul
             className={styles.menu}
-            style={{ position: 'fixed', left: pos.left, top: pos.top, width: pos.width }}
+            style={{
+              position: 'fixed',
+              left: pos.left,
+              top: pos.top,
+              bottom: pos.bottom,
+              width: pos.width,
+              maxHeight: pos.maxH,
+            }}
           >
             {suggestions.map((a, i) => (
               <li key={a.id}>

@@ -353,11 +353,25 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: none;
+  /* Scroller subtil (présent mais discret) plutôt qu'invisible. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border) 80%, transparent) transparent;
 }
 .panneauFil::-webkit-scrollbar {
-  width: 0;
-  display: none;
+  width: 6px;
+}
+.panneauFil::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 3px;
+}
+.panneauFil::-webkit-scrollbar-track {
+  background: transparent;
+}
+/* Dans le panneau latéral, la liste ne plafonne pas : c'est le fil qui occupe tout l'espace et
+   défile. Sinon la liste s'arrêtait à 340px et laissait un grand vide sous les messages. */
+.panneauFil .commListe {
+  max-height: none;
+  overflow: visible;
 }
 .panneauForm {
   flex: 0 0 auto;
