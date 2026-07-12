@@ -127,6 +127,18 @@ def transitions_possibles(module: str, etat: str) -> list[str]:
     return etats[etat]
 
 
+def est_etat_terminal(module: str, etat: str) -> bool:
+    """Vrai si l'état n'a plus aucune suite : l'activité est close (clôturé, rejeté, réalisé…).
+
+    Signal de « lecture seule » : une activité dans un tel état ne se modifie plus (hors
+    discussion, dossier RFC et liens). Un état inconnu est traité comme non terminal (prudence).
+    """
+    etats = TRANSITIONS.get(module)
+    if etats is None or etat not in etats:
+        return False
+    return not etats[etat]
+
+
 def transition_autorisee(module: str, depuis: str, vers: str) -> bool:
     return vers in transitions_possibles(module, depuis)
 

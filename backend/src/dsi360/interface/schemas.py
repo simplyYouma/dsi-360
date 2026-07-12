@@ -170,6 +170,8 @@ class PermissionsActivite(BaseModel):
     peut_gerer_acteurs: bool = False  # contributeurs, valideurs
     peut_travailler: bool = False  # transitions, tâches, notes, documents, liens
     peut_decider: bool = False  # approuver / rejeter
+    # analyses/plans (RFC) et liens — restent ouverts même après clôture
+    peut_completer_dossier: bool = False
 
 
 class ActiviteDetail(ActiviteResume):
@@ -186,6 +188,9 @@ class ActiviteDetail(ActiviteResume):
     historique: list[EntreeHistorique]
     contributeurs: list[Contributeur] = []
     valideurs: list[Contributeur] = []
+    # Décision de l'appelant s'il est valideur (fige ses boutons) ; verrou de la liste.
+    ma_decision: str | None = None
+    valideurs_verrouilles: bool = False
     # Avancement dérivé des tâches (modules avec tâches : changement…). 0 sinon.
     avancement: int = 0
     permissions: PermissionsActivite = PermissionsActivite()

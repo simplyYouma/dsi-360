@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import (
     ActiviteIntrouvable,
+    AucunValideur,
     DossierIncomplet,
     TransitionInterdite,
     TransitionReservee,
@@ -28,6 +29,7 @@ from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_r
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import (
+    est_etat_terminal,
     est_porte_validation,
     ordre_etats,
     transition_reservee,
@@ -235,6 +237,19 @@ def _ligne_export(r: RowMapping) -> list[Any]:
 Session = Annotated[AsyncSession, Depends(session_scope)]
 
 
+async def _exiger_valideurs_ouverts(session: AsyncSession, ident: str) -> None:
+    """Refuse d'ajouter/retirer un valideur dès qu'une décision est tombée.
+
+    Une fois qu'un valideur a tranché, changer la liste fausserait le décompte d'approbation
+    (une décision disparaîtrait de l'agrégation). La composition du comité est alors figée.
+    """
+    if await repo.des_valideurs_ont_decide(session, ident):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Un valideur a déjà tranché : la liste des valideurs est figée.",
+        )
+
+
 def creer_routeur(
     module: str,
     acces: str,
@@ -262,7 +277,8 @@ def creer_routeur(
     # Distribuer le travail (assigner, évaluer, désigner) revient à l'administrateur ; l'activité
     # est chargée une fois par la dépendance et voyage dans le contexte (cf. ADR-0003, docs/04).
     CtxAdmin = Annotated[  # noqa: N806
-        ContexteActivite, Depends(exiger_role_activite(module, acces, {ADMIN}))
+        ContexteActivite,
+        Depends(exiger_role_activite(module, acces, {ADMIN}, bloquer_si_clos=True)),
     ]
 
     # Faire avancer le sujet revient à l'administrateur, au gestionnaire et aux contributeurs.
@@ -270,17 +286,28 @@ def creer_routeur(
     # Incidents et demandes font exception : ils viennent de l'import quotidien, et un ticket sans
     # gestionnaire rapproché n'aurait aucun acteur. Pour eux, l'accès au module suffit encore.
     requis_travail: set[str] = set() if import_uniquement else {ACTEUR}
+    # Verrouillé après clôture : transitions, notes, tâches, documents ne bougent plus.
     CtxActeur = Annotated[  # noqa: N806
-        ContexteActivite, Depends(exiger_role_activite(module, acces, requis_travail))
+        ContexteActivite,
+        Depends(exiger_role_activite(module, acces, requis_travail, bloquer_si_clos=True)),
     ]
     CourantActeur = Annotated[  # noqa: N806
+        dict[str, Any],
+        Depends(exiger_role_activite_courant(module, acces, requis_travail, bloquer_si_clos=True)),
+    ]
+    # Le dossier reste ouvert après clôture : RFC (dont le bilan post-implémentation) et liens.
+    CtxDossier = Annotated[  # noqa: N806
+        ContexteActivite, Depends(exiger_role_activite(module, acces, requis_travail))
+    ]
+    CourantDossier = Annotated[  # noqa: N806
         dict[str, Any], Depends(exiger_role_activite_courant(module, acces, requis_travail))
     ]
 
     # Aucun rôle exigé : il suffit de voir l'activité. La route tranche ensuite elle-même — mettre
-    # à jour une tâche : tous les champs pour un acteur, le statut seul pour son assigné.
+    # à jour une tâche : tous les champs pour un acteur, le statut seul pour son assigné. Bloquée
+    # après clôture : une tâche d'activité close ne se modifie plus (même son statut).
     CtxLecture = Annotated[  # noqa: N806
-        ContexteActivite, Depends(exiger_role_activite(module, acces))
+        ContexteActivite, Depends(exiger_role_activite(module, acces, bloquer_si_clos=True))
     ]
 
     async def charger_visible(
@@ -379,8 +406,17 @@ def creer_routeur(
         ]
         base["valideurs"] = [dict(c) for c in await repo.lister_valideurs(session, r["id"])]
         # Le serveur calcule les capacités ; l'écran obéit. La règle ne vit qu'ici.
+        clos = est_etat_terminal(module, r["statut"])
         roles = await charger_roles(session, r, courant)
-        base["permissions"] = capacites(roles, lecture_seule=import_uniquement)
+        base["permissions"] = capacites(roles, lecture_seule=import_uniquement, clos=clos)
+        # Décision de l'appelant, s'il est valideur : l'écran fige alors ses boutons.
+        base["ma_decision"] = next(
+            (v["decision"] for v in base["valideurs"] if str(v["id"]) == courant["id"]), None
+        )
+        # Verrouillage : dès qu'un valideur a tranché (ou l'activité close), la liste est figée.
+        base["valideurs_verrouilles"] = clos or any(
+            v["decision"] is not None for v in base["valideurs"]
+        )
         return base
 
     # Un incident ou une demande n'est pas pilotable ici, mais la DSI veut le suivre :
@@ -523,6 +559,11 @@ def creer_routeur(
                         "pas par un changement d'état manuel."
                     ),
                 ) from exc
+            except AucunValideur as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Désignez au moins un valideur avant de soumettre au comité.",
+                ) from exc
             r = await charger_visible(session, ident, courant)
             return await detail_complet(r, session, courant)
 
@@ -616,6 +657,7 @@ def creer_routeur(
         ) -> dict[str, Any]:
             """Seul l'admin désigne les valideurs : sinon on s'auto-désigne, puis on s'approuve."""
             courant, avant = ctx.courant, ctx.activite
+            await _exiger_valideurs_ouverts(session, ident)
             await exiger_agent_designable(session, corps.utilisateur_id, acces)
             await repo.ajouter_valideur(session, ident, corps.utilisateur_id)
             # Notifie le valideur désigné (sauf s'il se désigne lui-même).
@@ -648,6 +690,7 @@ def creer_routeur(
             ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
         ) -> dict[str, Any]:
             courant, avant = ctx.courant, ctx.activite
+            await _exiger_valideurs_ouverts(session, ident)
             await repo.retirer_valideur(session, ident, utilisateur_id)
             await audit.consigner(
                 session,
@@ -873,12 +916,26 @@ def creer_routeur(
 
         @routeur.patch("/{ident}", response_model=ActiviteDetail)
         async def modifier(
-            ident: str, corps: ActiviteMaj, ctx: CtxActeur, session: Session
+            ident: str, corps: ActiviteMaj, ctx: CtxDossier, session: Session
         ) -> dict[str, Any]:
-            """Titre, description, analyses RFC : c'est du travail, pas de la lecture."""
+            """Titre, description, analyses RFC : c'est du travail, pas de la lecture.
+
+            Après clôture, seul le dossier RFC reste éditable (le bilan post-implémentation se
+            remplit *après* la mise en production) : titre et description sont alors refusés.
+            """
             courant = ctx.courant
-            avant = await charger_visible(session, ident, courant)
             champs = corps.model_dump(exclude_unset=True)
+            if est_etat_terminal(module, ctx.activite["statut"]):
+                hors_dossier = sorted(set(champs) - set(_CHAMPS_RFC))
+                if hors_dossier:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=(
+                            "Activité clôturée : seules les analyses/plans (RFC) restent "
+                            f"modifiables (champs refusés : {', '.join(hors_dossier)})."
+                        ),
+                    )
+            avant = await charger_visible(session, ident, courant)
             # Colonnes directes (titre, description).
             fragments = []
             params: dict[str, Any] = {"id": ident}
@@ -927,14 +984,15 @@ def creer_routeur(
             routeur, module, charger_visible, Courant, detail_complet, CourantActeur,
             CtxLecture, acces,
         )
-        # Les modules à tâches ont aussi les liens utiles (au niveau tâche, ex. changements).
+        # Les modules à tâches ont aussi les liens utiles. Ils restent ouverts après clôture
+        # (documenter un changement clos par un lien de suivi doit rester possible).
         enregistrer_liens(
             routeur,
             module=module,
             charger=charger_visible,
             Courant=Courant,
             Session=Session,
-            CourantEcriture=CourantActeur,
+            CourantEcriture=CourantDossier,
         )
     if avec_documents:
         enregistrer_documents(

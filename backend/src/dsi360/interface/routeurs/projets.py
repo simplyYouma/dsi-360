@@ -11,7 +11,7 @@ from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdit
 from dsi360.application.autorisations import ACTEUR, capacites, charger_roles
 from dsi360.application.projets import creer_projet, maj_projet
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
-from dsi360.domain.etats import transitions_possibles
+from dsi360.domain.etats import est_etat_terminal, transitions_possibles
 from dsi360.domain.texte import phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
@@ -56,9 +56,20 @@ routeur = APIRouter(prefix="/projets", tags=["projets"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 # Faire avancer le projet : administrateur, chef de projet et contributeurs. Lire reste ouvert.
-Acteur = Annotated[dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))]
+# Verrouillé après clôture : transitions, notes, tâches, documents, cadrage ne bougent plus.
+Acteur = Annotated[
+    dict[str, Any],
+    Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}, bloquer_si_clos=True)),
+]
+# Les liens restent ouverts après clôture (documenter un projet clos par un lien de suivi).
+ActeurDossier = Annotated[
+    dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))
+]
 # Aucun rôle exigé : il suffit de voir le projet. La route tranche ensuite champ par champ.
-CtxLecture = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES))]
+# Bloquée après clôture : une tâche de projet clos ne se modifie plus (même son statut).
+CtxLecture = Annotated[
+    ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, bloquer_si_clos=True))
+]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -107,7 +118,8 @@ async def _detail_complet(
 ) -> dict[str, Any]:
     """Détail + capacités de l'appelant. Le serveur calcule, l'écran obéit."""
     base = _detail(r)
-    base["permissions"] = capacites(await charger_roles(session, r, courant))
+    clos = est_etat_terminal(MODULE, r["statut"])
+    base["permissions"] = capacites(await charger_roles(session, r, courant), clos=clos)
     return base
 
 
@@ -331,14 +343,14 @@ async def creer_note(
     return dict(ligne)
 
 
-# Liens utiles (projet + tâches) : logique partagée avec les changements.
+# Liens utiles (projet + tâches) : logique partagée avec les changements. Ouverts après clôture.
 enregistrer_liens(
     routeur,
     module=MODULE,
     charger=_charger,
     Courant=Courant,
     Session=Session,
-    CourantEcriture=Acteur,
+    CourantEcriture=ActeurDossier,
 )
 
 

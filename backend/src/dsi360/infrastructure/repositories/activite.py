@@ -302,6 +302,21 @@ async def retirer_valideur(
     await retirer_acteur(session, identifiant, utilisateur_id, "VALIDEUR")
 
 
+async def des_valideurs_ont_decide(session: AsyncSession, identifiant: str) -> bool:
+    """Vrai dès qu'au moins un valideur a tranché : la liste des valideurs se fige alors."""
+    return (
+        await session.scalar(
+            text(
+                "SELECT 1 FROM core.activite_acteur "
+                "WHERE activite_id = cast(:aid as uuid) AND role = 'VALIDEUR' "
+                "AND decision IS NOT NULL LIMIT 1"
+            ),
+            {"aid": identifiant},
+        )
+        is not None
+    )
+
+
 async def changer_statut(
     session: AsyncSession,
     identifiant: str,

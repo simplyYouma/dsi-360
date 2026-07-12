@@ -12,6 +12,7 @@ from dsi360.domain.activite import calculer_priorite
 from dsi360.domain.changement import dossier_incomplet_pour
 from dsi360.domain.etats import (
     cible_apres_decisions,
+    est_porte_validation,
     etat_initial,
     transition_autorisee,
     transition_reservee,
@@ -65,6 +66,10 @@ class DossierIncomplet(Exception):
     def __init__(self, manquantes: list[str]) -> None:
         self.manquantes = manquantes
         super().__init__(", ".join(manquantes))
+
+
+class AucunValideur(Exception):
+    """On soumet au comité une activité sans valideur : la décision serait alors impossible."""
 
 
 async def creer_activite(
@@ -223,6 +228,11 @@ async def transition(
     # elles passent par la décision des valideurs (appliquer_decisions, force=True).
     if not force and transition_reservee(module, depuis, vers):
         raise TransitionReservee(f"{depuis} → {vers}")
+    # On n'entre pas au comité sans valideur : l'activité y resterait bloquée à vie, personne ne
+    # pouvant approuver. On exige au moins un valideur désigné avant de soumettre.
+    if not force and est_porte_validation(module, vers):
+        if not await repo.lister_valideurs(session, identifiant):
+            raise AucunValideur
 
     maintenant = datetime.now(UTC)
     horodatages: dict[str, datetime] = {}

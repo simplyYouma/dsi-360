@@ -68,29 +68,50 @@ class RolesActivite:
         )
 
 
-def capacites(roles: RolesActivite, *, lecture_seule: bool = False) -> dict[str, bool]:
+def capacites(
+    roles: RolesActivite, *, lecture_seule: bool = False, clos: bool = False
+) -> dict[str, bool]:
     """Ce que l'utilisateur peut faire. Source unique : gardes serveur **et** affichage.
 
     ``lecture_seule`` : incidents et demandes, dont l'état vient de l'import quotidien. On n'y agit
     pas — hormis la désignation de contributeurs par l'administrateur, qui met le ticket dans leur
     file sans leur donner prise dessus (ADR-0005).
+
+    ``clos`` : activité dans un état terminal (clôturé, rejeté, annulé, réalisé…). Plus aucune
+    modification de son contenu ne doit l'atteindre — titre, catégorie, acteurs, statut, tâches.
+    Seul reste ouvert le **dossier** : les analyses/plans (RFC, dont le bilan qu'on remplit *après*
+    la mise en production) et les liens, pour les acteurs de travail. La discussion, elle, ne passe
+    pas par ces droits : elle reste toujours ouverte.
     """
+    acteur = roles.est_acteur_travail
     if lecture_seule:
         # Une exception : l'administrateur y désigne des contributeurs, pour que la DSI suive un
         # ticket qu'elle ne traite pas — y compris quand le rapport a mis DBS au gestionnaire.
+        # Close, même cette désignation se ferme : plus rien ne bouge sur un ticket terminé.
         return {
             "peut_assigner": False,
             "peut_evaluer": False,
-            "peut_gerer_acteurs": roles.est_admin,
+            "peut_gerer_acteurs": roles.est_admin and not clos,
             "peut_travailler": False,
             "peut_decider": False,
+            "peut_completer_dossier": False,
+        }
+    if clos:
+        return {
+            "peut_assigner": False,
+            "peut_evaluer": False,
+            "peut_gerer_acteurs": False,
+            "peut_travailler": False,
+            "peut_decider": False,
+            "peut_completer_dossier": acteur,
         }
     return {
         "peut_assigner": roles.est_admin,
         "peut_evaluer": roles.est_admin,
         "peut_gerer_acteurs": roles.est_admin,
-        "peut_travailler": roles.est_acteur_travail,
+        "peut_travailler": acteur,
         "peut_decider": roles.est_valideur,
+        "peut_completer_dossier": acteur,
     }
 
 

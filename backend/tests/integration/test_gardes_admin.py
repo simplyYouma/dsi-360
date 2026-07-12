@@ -411,10 +411,13 @@ async def test_designer_un_second_contributeur_remplace_le_premier(
     assert contributeurs[0]["email"] == "second.unique@afgbank.ml"
 
 
-async def test_reaffecter_le_valideur_efface_sa_decision(
+async def test_une_decision_fige_la_liste_des_valideurs(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """L'avis du prédécesseur n'engage pas le nouveau valideur."""
+    """Dès qu'un valideur a tranché, on ne peut plus ni remplacer ni retirer un valideur.
+
+    Sinon la décision du prédécesseur disparaîtrait silencieusement du décompte d'approbation.
+    """
     admin = await creer_utilisateur(session, email="admin.reval@afgbank.ml", profil="ADMIN")
     premier = await creer_utilisateur(session, email="premier.reval@afgbank.ml")
     second = await creer_utilisateur(session, email="second.reval@afgbank.ml")
@@ -431,14 +434,27 @@ async def test_reaffecter_le_valideur_efface_sa_decision(
         json={"decision": "APPROUVE"},
     )
     assert r.status_code == 200, r.text
+    assert r.json()["valideurs_verrouilles"] is True
 
+    # Réaffecter un autre valideur : refusé.
     r = await client.post(
         f"/changements/{changement}/valideurs",
         headers=entetes(admin),
         json={"utilisateur_id": second},
     )
+    assert r.status_code == 409, r.text
 
+    # Retirer le valideur qui a décidé : refusé aussi.
+    r = await client.request(
+        "DELETE",
+        f"/changements/{changement}/valideurs/{premier}",
+        headers=entetes(admin),
+    )
+    assert r.status_code == 409, r.text
+
+    # La décision d'origine tient toujours.
+    r = await client.get(f"/changements/{changement}", headers=entetes(admin))
     valideurs = r.json()["valideurs"]
     assert len(valideurs) == 1
-    assert valideurs[0]["email"] == "second.reval@afgbank.ml"
-    assert valideurs[0]["decision"] is None, "la décision repart à zéro"
+    assert valideurs[0]["email"] == "premier.reval@afgbank.ml"
+    assert valideurs[0]["decision"] == "APPROUVE"
