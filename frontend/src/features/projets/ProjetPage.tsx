@@ -557,7 +557,7 @@ export function ProjetPage(): JSX.Element {
                     charger={() => projetsApi.liens(id)}
                     creer={(libelle, url) => projetsApi.creerLien(id, libelle, url)}
                     supprimer={(lienId) => projetsApi.supprimerLien(id, lienId)}
-                    modifiable={permissions.peut_travailler}
+                    modifiable={permissions.peut_completer_dossier}
                   />
                 )}
               </section>

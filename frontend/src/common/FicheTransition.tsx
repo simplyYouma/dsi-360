@@ -18,7 +18,16 @@ import { commentairesApi, type Commentaire } from '@/common/commentairesApi';
 import { api, ErreurApi, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cx } from './cx';
-import { BadgeCriticite, BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from './statuts';
+import {
+  BadgeCriticite,
+  BadgePriorite,
+  BadgeSla,
+  BadgeStatut,
+  couleurStatut,
+  estTransitionCloturante,
+  libelleStatut,
+} from './statuts';
+import { ModaleConfirmation, type DemandeConfirmation } from '@/common/ModaleConfirmation';
 import styles from './FicheTransition.module.css';
 
 interface Detail {
@@ -47,6 +56,10 @@ interface Detail {
   responsable_id?: string | null;
   contributeurs?: Acteur[];
   valideurs?: Acteur[];
+  /** Décision de l'appelant s'il est valideur : fige ses boutons Approuver/Rejeter. */
+  ma_decision?: string | null;
+  /** Un valideur a déjà tranché (ou activité close) : la liste des valideurs est figée. */
+  valideurs_verrouilles?: boolean;
   niveau_support?: number;
   /** Transféré à DBS (N3) : traité hors plateforme, le gestionnaire reste référent du suivi. */
   transfere_dbs?: boolean;
@@ -93,6 +106,33 @@ function formaterDate(iso: string | null): string {
 /** Pourquoi une commande est grisée. Le serveur refuserait de toute façon. */
 const TITRE_LECTURE = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
 
+/** Décision déjà rendue : le choix reste coloré (vert/rouge), l'autre est grisé, non cliquable. */
+function BlocDecisionFigee({ decision }: { decision: string }): JSX.Element {
+  const approuve = decision === 'APPROUVE';
+  const couleur = approuve ? 'var(--status-ok)' : 'var(--status-danger)';
+  return (
+    <div className={styles.decision}>
+      <span className={styles.decisionLabel}>Votre décision :</span>
+      <Button
+        variante="secondaire"
+        disabled
+        style={{
+          color: couleur,
+          borderColor: couleur,
+          background: `color-mix(in srgb, ${couleur} 12%, transparent)`,
+          opacity: 1,
+        }}
+      >
+        {approuve ? <Check size={15} /> : <XCircle size={15} />} {approuve ? 'Approuvé' : 'Rejeté'}
+      </Button>
+      <Button variante="secondaire" disabled>
+        {approuve ? <XCircle size={15} /> : <Check size={15} />}{' '}
+        {approuve ? 'Rejeter' : 'Approuver'}
+      </Button>
+    </div>
+  );
+}
+
 /** Fiche d'une activité : détails présentés proprement + transitions d'état (couleurs sémantiques). */
 export function FicheTransition({
   base,
@@ -113,6 +153,7 @@ export function FicheTransition({
   const agentsMention = useAgents();
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<DemandeConfirmation | null>(null);
   const [commentaires, setCommentaires] = useState<Commentaire[]>([]);
   const [texte, setTexte] = useState('');
   const [envoiC, setEnvoiC] = useState(false);
@@ -376,12 +417,45 @@ export function FicheTransition({
       const d = await api.post<Detail>(`${base}/${id}/transition`, { vers });
       setDetail(d);
       onChange();
-      notifier(`${d.reference} · ${vers}`, 'succes');
+      notifier(`${d.reference} · ${libelleStatut(vers)}`, 'succes');
+      // Étape en attente des valideurs : l'étape suivante ne se déclenche pas toute seule.
+      if (d.en_attente_validation === true) {
+        notifier('En attente de la décision du valideur pour passer à l’étape suivante.', 'info');
+      }
     } catch (err) {
       setErreur(err instanceof ErreurApi ? err.message : 'Transition impossible.');
     } finally {
       setEnvoi(false);
     }
+  };
+
+  // Décision d'un valideur : jamais d'un simple clic. On confirme d'abord (c'est définitif).
+  const demanderDecision = (decision: 'APPROUVE' | 'REJETE'): void => {
+    setConfirmation({
+      titre: decision === 'APPROUVE' ? 'Approuver l’activité' : 'Rejeter l’activité',
+      message:
+        decision === 'APPROUVE'
+          ? 'Confirmer votre approbation ? Votre décision est définitive.'
+          : 'Confirmer votre rejet ? Votre décision est définitive.',
+      libelleConfirmer: decision === 'APPROUVE' ? 'Approuver' : 'Rejeter',
+      variante: decision === 'APPROUVE' ? 'primaire' : 'danger',
+      action: () => decider(decision),
+    });
+  };
+
+  // Transition : confirmation seulement pour les états qui closent ou annulent l'activité.
+  const lancerTransition = (vers: string): void => {
+    if (estTransitionCloturante(vers)) {
+      setConfirmation({
+        titre: `${libelleStatut(vers)} — confirmation`,
+        message: `Passer l’activité à « ${libelleStatut(vers)} » ? Cet état la clôt : elle passera en lecture seule.`,
+        libelleConfirmer: libelleStatut(vers),
+        variante: 'danger',
+        action: () => transitionner(vers),
+      });
+      return;
+    }
+    void transitionner(vers);
   };
 
   const visites = new Set((detail?.historique ?? []).map((h) => h.statut));
@@ -598,27 +672,31 @@ export function FicheTransition({
                       placeholder="Ajouter un valideur…"
                       disabled={envoi}
                       avecDecision
-                      lectureSeule={!permissions.peut_gerer_acteurs}
+                      lectureSeule={
+                        !permissions.peut_gerer_acteurs || (detail.valideurs_verrouilles ?? false)
+                      }
                     />
-                    {permissions.peut_decider && (
+                    {detail.ma_decision ? (
+                      <BlocDecisionFigee decision={detail.ma_decision} />
+                    ) : permissions.peut_decider ? (
                       <div className={styles.decision}>
                         <span className={styles.decisionLabel}>Votre décision :</span>
                         <Button
                           variante="secondaire"
-                          onClick={() => void decider('APPROUVE')}
+                          onClick={() => demanderDecision('APPROUVE')}
                           disabled={envoi}
                         >
                           <Check size={15} /> Approuver
                         </Button>
                         <Button
                           variante="secondaire"
-                          onClick={() => void decider('REJETE')}
+                          onClick={() => demanderDecision('REJETE')}
                           disabled={envoi}
                         >
                           <XCircle size={15} /> Rejeter
                         </Button>
                       </div>
-                    )}
+                    ) : null}
                   </dd>
                 </div>
               </>
@@ -732,9 +810,9 @@ export function FicheTransition({
                       className={styles.chip}
                       style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}
                       disabled={envoi}
-                      onClick={() => void transitionner(etat)}
+                      onClick={() => lancerTransition(etat)}
                     >
-                      {etat}
+                      {libelleStatut(etat)}
                       <ArrowRight size={13} />
                     </button>
                   );
@@ -750,7 +828,7 @@ export function FicheTransition({
                     )}
                     style={estCourant ? { color: c, borderColor: c } : undefined}
                   >
-                    {etat}
+                    {libelleStatut(etat)}
                   </span>
                 );
               })}
@@ -804,7 +882,7 @@ export function FicheTransition({
                         className={styles.histoStatut}
                         style={{ color: couleurStatut(h.statut) }}
                       >
-                        {h.statut}
+                        {libelleStatut(h.statut)}
                       </span>
                       {h.acteur !== null && <span className={styles.histoActeur}>{h.acteur}</span>}
                     </li>
@@ -820,6 +898,7 @@ export function FicheTransition({
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
         </div>
       )}
+      <ModaleConfirmation demande={confirmation} onFermer={() => setConfirmation(null)} />
     </Modale>
   );
 }

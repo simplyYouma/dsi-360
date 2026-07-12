@@ -38,9 +38,14 @@ export interface ChangementDetail {
   demandeur: string | null;
   transitions_possibles: string[];
   etats: string[];
+  en_attente_validation?: boolean;
   historique: { statut: string; horodatage: string; acteur: string | null }[];
   contributeurs: Contributeur[];
   valideurs: Contributeur[];
+  /** Décision de l'appelant s'il est valideur : fige ses boutons. */
+  ma_decision?: string | null;
+  /** Un valideur a tranché (ou activité close) : la liste des valideurs est figée. */
+  valideurs_verrouilles?: boolean;
   avancement: number;
   // Champs RFC (ITIL SI-12.04) — null si non renseignés.
   analyse_impact: string | null;

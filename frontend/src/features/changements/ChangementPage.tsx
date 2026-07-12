@@ -19,8 +19,10 @@ import {
   BadgeSla,
   BadgeStatut,
   couleurStatut,
+  estTransitionCloturante,
   libelleStatut,
 } from '@/common/statuts';
+import { ModaleConfirmation, type DemandeConfirmation } from '@/common/ModaleConfirmation';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
@@ -78,6 +80,33 @@ function formaterDate(iso: string | null): string {
   });
 }
 
+/** Décision déjà rendue : le choix reste coloré (vert/rouge), l'autre est grisé, non cliquable. */
+function BlocDecisionFigee({ decision }: { decision: string }): JSX.Element {
+  const approuve = decision === 'APPROUVE';
+  const couleur = approuve ? 'var(--status-ok)' : 'var(--status-danger)';
+  return (
+    <div className={styles.decision}>
+      <span className={styles.note}>Votre décision :</span>
+      <Button
+        variante="secondaire"
+        disabled
+        style={{
+          color: couleur,
+          borderColor: couleur,
+          background: `color-mix(in srgb, ${couleur} 12%, transparent)`,
+          opacity: 1,
+        }}
+      >
+        {approuve ? <Check size={15} /> : <XCircle size={15} />} {approuve ? 'Approuvé' : 'Rejeté'}
+      </Button>
+      <Button variante="secondaire" disabled>
+        {approuve ? <XCircle size={15} /> : <Check size={15} />}{' '}
+        {approuve ? 'Rejeter' : 'Approuver'}
+      </Button>
+    </div>
+  );
+}
+
 /** Page changement unifiée : même vue pour la création et le détail ; champs éditables au clic. */
 export function ChangementPage(): JSX.Element {
   const { id } = useParams();
@@ -92,6 +121,7 @@ export function ChangementPage(): JSX.Element {
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [introuvable, setIntrouvable] = useState(false);
   const [envoi, setEnvoi] = useState(false);
+  const [confirmation, setConfirmation] = useState<DemandeConfirmation | null>(null);
 
   // Le serveur a calculé ce que l'utilisateur peut faire ici : l'écran obéit, il ne rejoue rien.
   const permissions = detail?.permissions ?? AUCUNE_PERMISSION;
@@ -137,6 +167,57 @@ export function ChangementPage(): JSX.Element {
     } finally {
       setEnvoi(false);
     }
+  };
+
+  // Transition portant son propre feedback : succès + rappel d'attente si l'on entre au comité.
+  const transitionner = async (vers: string): Promise<void> => {
+    if (id === undefined) return;
+    setEnvoi(true);
+    try {
+      const d = await changementsApi.transition(id, vers);
+      setDetail(d);
+      notifier(`${d.reference} · ${libelleStatut(vers)}`, 'succes');
+      if (d.en_attente_validation === true) {
+        notifier('En attente de la décision du valideur pour passer à l’étape suivante.', 'info');
+      }
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Transition impossible.', 'erreur');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  // Confirmation seulement pour les états qui closent ou annulent le changement.
+  const lancerTransition = (vers: string): void => {
+    if (estTransitionCloturante(vers)) {
+      setConfirmation({
+        titre: `${libelleStatut(vers)} — confirmation`,
+        message: `Passer le changement à « ${libelleStatut(vers)} » ? Cet état le clôt : il passera en lecture seule.`,
+        libelleConfirmer: libelleStatut(vers),
+        variante: 'danger',
+        action: () => transitionner(vers),
+      });
+      return;
+    }
+    void transitionner(vers);
+  };
+
+  // Décision d'un valideur : toujours confirmée avant d'agir (c'est définitif).
+  const demanderDecision = (decision: 'APPROUVE' | 'REJETE'): void => {
+    setConfirmation({
+      titre: decision === 'APPROUVE' ? 'Approuver le changement' : 'Rejeter le changement',
+      message:
+        decision === 'APPROUVE'
+          ? 'Confirmer votre approbation ? Votre décision est définitive.'
+          : 'Confirmer votre rejet ? Votre décision est définitive.',
+      libelleConfirmer: decision === 'APPROUVE' ? 'Approuver' : 'Rejeter',
+      variante: decision === 'APPROUVE' ? 'primaire' : 'danger',
+      action: () =>
+        agir(
+          () => changementsApi.decider(id!, decision),
+          decision === 'APPROUVE' ? 'Approuvé' : 'Rejeté',
+        ),
+    });
   };
 
   const codeType = categories.find((c) => c.id === categorie)?.code;
@@ -345,31 +426,32 @@ export function ChangementPage(): JSX.Element {
                         }
                         placeholder="Ajouter un valideur…"
                         disabled={envoi}
-                        lectureSeule={!permissions.peut_gerer_acteurs}
+                        avecDecision
+                        lectureSeule={
+                          !permissions.peut_gerer_acteurs || (detail.valideurs_verrouilles ?? false)
+                        }
                       />
-                      {permissions.peut_decider && (
+                      {detail.ma_decision ? (
+                        <BlocDecisionFigee decision={detail.ma_decision} />
+                      ) : permissions.peut_decider ? (
                         <div className={styles.decision}>
                           <span className={styles.note}>Votre décision :</span>
                           <Button
                             variante="secondaire"
-                            onClick={() =>
-                              void agir(() => changementsApi.decider(id!, 'APPROUVE'), 'Approuvé')
-                            }
+                            onClick={() => demanderDecision('APPROUVE')}
                             disabled={envoi}
                           >
                             <Check size={15} /> Approuver
                           </Button>
                           <Button
                             variante="secondaire"
-                            onClick={() =>
-                              void agir(() => changementsApi.decider(id!, 'REJETE'), 'Rejeté')
-                            }
+                            onClick={() => demanderDecision('REJETE')}
                             disabled={envoi}
                           >
                             <XCircle size={15} /> Rejeter
                           </Button>
                         </div>
-                      )}
+                      ) : null}
                     </dd>
                   </div>
                 </>
@@ -488,7 +570,7 @@ export function ChangementPage(): JSX.Element {
                           }
                           multiligne
                           indication={indication}
-                          lectureSeule={!permissions.peut_travailler}
+                          lectureSeule={!permissions.peut_completer_dossier}
                           titreLectureSeule={TITRE_LECTURE}
                           placeholder="Non renseigné"
                           aria-label={libelle}
@@ -547,7 +629,7 @@ export function ChangementPage(): JSX.Element {
                           background: `color-mix(in srgb, ${c} 14%, transparent)`,
                         }}
                         disabled={envoi}
-                        onClick={() => void agir(() => changementsApi.transition(id!, etat), etat)}
+                        onClick={() => lancerTransition(etat)}
                       >
                         {libelleStatut(etat)}
                         <ArrowRight size={13} />
@@ -567,7 +649,7 @@ export function ChangementPage(): JSX.Element {
                   charger={() => changementsApi.liens(id!)}
                   creer={(libelle, url) => changementsApi.creerLien(id!, libelle, url)}
                   supprimer={(lienId) => changementsApi.supprimerLien(id!, lienId)}
-                  modifiable={permissions.peut_travailler}
+                  modifiable={permissions.peut_completer_dossier}
                 />
               </section>
 
@@ -596,6 +678,7 @@ export function ChangementPage(): JSX.Element {
           )}
         </div>
       </div>
+      <ModaleConfirmation demande={confirmation} onFermer={() => setConfirmation(null)} />
     </div>
   );
 }

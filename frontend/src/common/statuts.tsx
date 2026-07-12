@@ -50,6 +50,22 @@ export function libelleStatut(statut: string): string {
   return LIBELLE_STATUT[statut] ?? statut;
 }
 
+// États qui closent ou annulent une activité : la transition vers eux demande une confirmation.
+const STATUT_CLOTURANT = new Set([
+  'Clôturé',
+  'Clôturée',
+  'Rejeté',
+  'Rejetée',
+  'Annulé',
+  'Retour arrière',
+  'Réalisé',
+]);
+
+/** La transition vers cet état clôture ou annule l'activité ? (confirmation exigée avant le clic). */
+export function estTransitionCloturante(statut: string): boolean {
+  return STATUT_CLOTURANT.has(statut);
+}
+
 /** Badge de statut coloré selon le sens (vert = abouti, rouge = négatif, ambre = vigilance,
  * indigo = en cours / nouveau). */
 export function BadgeStatut({ statut }: { statut: string }): JSX.Element {
