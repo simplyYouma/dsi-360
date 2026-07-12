@@ -297,14 +297,19 @@ async def analyses(
         params,
     )
 
-    periode_journal = _periode(jours, du, au, "j.horodatage")
+    # Le filtre porte sur l'horodatage du journal, mais l'alias diffère : la requête des durées
+    # trie depuis le CTE `pas p` (p.horodatage), celle des réouvertures depuis `journal j`.
     durees_statuts = await _lignes(
-        session, _DUREES_STATUTS.format(periode=periode_journal), params
+        session,
+        _DUREES_STATUTS.format(periode=_periode(jours, du, au, "p.horodatage")),
+        params,
     )
 
     rouverts = {
         r["libelle"]: r["rouverts"]
-        for r in await _lignes(session, _ROUVERTS.format(periode=periode_journal), params)
+        for r in await _lignes(
+            session, _ROUVERTS.format(periode=_periode(jours, du, au, "j.horodatage")), params
+        )
     }
     resolus_mod = await _lignes(session, _RESOLUS_PAR_MODULE.format(cond=cond), params)
     reouvertures = [

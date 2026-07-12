@@ -475,3 +475,18 @@ async def test_mes_stats_suivent_la_periode(
     r = await client.get("/mes-tickets/stats?du=2000-01-01&au=2099-01-01", headers=entetes(admin))
     assert r.status_code == 200, r.text
     assert r.json()["resolus_periode"] == 2
+
+
+async def test_les_analyses_acceptent_le_filtre_periode(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """/analyses doit répondre 200 avec jours ET avec du/au (le durées-par-statut cassait sur
+    un alias de colonne dans la requête externe — jamais couvert jusqu'ici)."""
+    admin = await _admin(session, "admin.anperiode@afgbank.ml")
+    await creer_activite(session, module="incident", reference="INC-ANP-1")
+    await session.commit()
+
+    for suffixe in ("?jours=7", "?jours=30", "?du=2000-01-01&au=2099-01-01"):
+        r = await client.get(f"/analyses{suffixe}", headers=entetes(admin))
+        assert r.status_code == 200, f"{suffixe} → {r.status_code} : {r.text}"
+        assert "durees_statuts" in r.json()
