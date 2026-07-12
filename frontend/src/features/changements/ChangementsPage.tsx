@@ -115,7 +115,9 @@ export function ChangementsPage(): JSX.Element {
       <header className={styles.entete}>
         <div>
           <h1 className={styles.titre}>Changements</h1>
-          <p className={styles.sous}>Demandes de changement (RFC) — workflow CAB / ECAB.</p>
+          <p className={styles.sous}>
+            Demandes de changement (RFC) — validation par comité (normal ou express).
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
           <BoutonsExport base="/changements" />

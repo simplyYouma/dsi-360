@@ -38,17 +38,29 @@ const STATUT_NOUVEAU = new Set([
   'À qualifier',
 ]);
 
+// Renommage d'affichage : le sigle ITIL reste le statut stocké (base, historique, workflow),
+// mais on montre à l'écran un libellé clair. Un seul point de vérité, réutilisé partout.
+const LIBELLE_STATUT: Record<string, string> = {
+  CAB: 'Attente comité',
+  ECAB: 'Validation express',
+};
+
+/** Libellé lisible d'un statut (renomme les sigles ; identité sinon). */
+export function libelleStatut(statut: string): string {
+  return LIBELLE_STATUT[statut] ?? statut;
+}
+
 /** Badge de statut coloré selon le sens (vert = abouti, rouge = négatif, ambre = vigilance,
  * indigo = en cours / nouveau). */
 export function BadgeStatut({ statut }: { statut: string }): JSX.Element {
-  if (STATUT_OK.has(statut)) return <StatusBadge statut="ok">{statut}</StatusBadge>;
-  if (STATUT_DANGER.has(statut)) return <StatusBadge statut="danger">{statut}</StatusBadge>;
-  if (STATUT_WARN.has(statut)) return <StatusBadge statut="warn">{statut}</StatusBadge>;
-  if (STATUT_VALIDATION.has(statut))
-    return <StatusBadge couleur="var(--cat-5)">{statut}</StatusBadge>;
-  if (STATUT_NOUVEAU.has(statut)) return <StatusBadge couleur="var(--cat-7)">{statut}</StatusBadge>;
+  const t = libelleStatut(statut);
+  if (STATUT_OK.has(statut)) return <StatusBadge statut="ok">{t}</StatusBadge>;
+  if (STATUT_DANGER.has(statut)) return <StatusBadge statut="danger">{t}</StatusBadge>;
+  if (STATUT_WARN.has(statut)) return <StatusBadge statut="warn">{t}</StatusBadge>;
+  if (STATUT_VALIDATION.has(statut)) return <StatusBadge couleur="var(--cat-5)">{t}</StatusBadge>;
+  if (STATUT_NOUVEAU.has(statut)) return <StatusBadge couleur="var(--cat-7)">{t}</StatusBadge>;
   // Le reste : en cours / actif (indigo).
-  return <StatusBadge couleur="var(--cat-1)">{statut}</StatusBadge>;
+  return <StatusBadge couleur="var(--cat-1)">{t}</StatusBadge>;
 }
 
 const PRIORITE_COULEUR: Record<number, string> = {

@@ -14,7 +14,13 @@ import { LiensActivite } from '@/common/LiensActivite';
 import { ListeTaches } from '@/common/ListeTaches';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurListe } from '@/common/SelecteurListe';
-import { BadgePriorite, BadgeSla, BadgeStatut, couleurStatut } from '@/common/statuts';
+import {
+  BadgePriorite,
+  BadgeSla,
+  BadgeStatut,
+  couleurStatut,
+  libelleStatut,
+} from '@/common/statuts';
 import { cx } from '@/common/cx';
 import { ErreurApi } from '@/lib/api';
 import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
@@ -250,7 +256,7 @@ export function ChangementPage(): JSX.Element {
                     }
                     couleurs={TYPE_COULEUR}
                     desactive={!creation && !permissions.peut_evaluer}
-                    titreDesactive="Le Type pilote le circuit CAB : seul l’administrateur le change."
+                    titreDesactive="Le Type pilote le circuit de validation : seul l’administrateur le change."
                   />
                 </dd>
               </div>
@@ -526,7 +532,7 @@ export function ChangementPage(): JSX.Element {
                       borderColor: couleurStatut(detail.statut),
                     }}
                   >
-                    {detail.statut}
+                    {libelleStatut(detail.statut)}
                   </span>
                   {/* Faire avancer le sujet appartient aux acteurs : les autres lisent le parcours. */}
                   {(permissions.peut_travailler ? detail.transitions_possibles : []).map((etat) => {
@@ -543,15 +549,15 @@ export function ChangementPage(): JSX.Element {
                         disabled={envoi}
                         onClick={() => void agir(() => changementsApi.transition(id!, etat), etat)}
                       >
-                        {etat}
+                        {libelleStatut(etat)}
                         <ArrowRight size={13} />
                       </button>
                     );
                   })}
                 </div>
                 <p className={styles.note}>
-                  Les tâches font avancer l’implémentation ; le CAB/ECAB est tranché par les
-                  valideurs.
+                  Les tâches font avancer l’implémentation ; le passage en comité (normal ou
+                  express) est tranché par les valideurs.
                 </p>
               </section>
 
@@ -577,7 +583,7 @@ export function ChangementPage(): JSX.Element {
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Prochaines étapes</span>
               <p className={styles.note}>
-                Après création : tâches, cycle de vie ITIL (CAB/ECAB), valideurs et notes.
+                Après création : tâches, cycle de vie ITIL, valideurs et notes.
               </p>
               <Button
                 onClick={() => void creer()}
