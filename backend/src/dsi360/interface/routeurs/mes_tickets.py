@@ -75,8 +75,13 @@ def _lier(requete: Any, cond: str) -> Any:
     return requete
 
 
-def _requete_liste(segment: str) -> Any:
-    cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"])
+def _clause_q(recherche: bool) -> str:
+    """Filtre plein-texte simple : référence ou titre contient la requête (ILIKE :q)."""
+    return " AND (a.reference ILIKE :q OR a.titre ILIKE :q)" if recherche else ""
+
+
+def _requete_liste(segment: str, recherche: bool = False) -> Any:
+    cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"]) + _clause_q(recherche)
     sql = (
         "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
         "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur, "
@@ -99,8 +104,8 @@ def _requete_liste(segment: str) -> Any:
 _TAILLE_PAGE = 15
 
 
-def _requete_total(segment: str) -> Any:
-    cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"])
+def _requete_total(segment: str, recherche: bool = False) -> Any:
+    cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"]) + _clause_q(recherche)
     requete = text(f"SELECT count(*) FROM core.activite a WHERE {_A_MOI} "
                    f"AND a.module IN {_MODULES} AND {cond}")
     return _lier(requete, cond)
@@ -112,16 +117,20 @@ async def mes_tickets(
     session: Session,
     segment: Annotated[str, Query()] = "actifs",
     page: Annotated[int, Query(ge=1)] = 1,
+    q: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     if segment not in _SEGMENTS:
         segment = "actifs"
+    recherche = bool(q and q.strip())
     params: dict[str, Any] = {"id": courant["id"], "regles": _REGLES, "termines": _TERMINES}
-    total = await session.scalar(_requete_total(segment), params) or 0
-    # Compteur du segment « À valider » (badge), quel que soit le segment affiché.
+    if recherche:
+        params["q"] = f"%{q.strip()}%"  # type: ignore[union-attr]
+    total = await session.scalar(_requete_total(segment, recherche), params) or 0
+    # Compteur du segment « À valider » (badge) — sur toute la liste, indépendant de la recherche.
     a_valider = await session.scalar(_requete_total("a_valider"), params) or 0
     lignes = (
         await session.execute(
-            _requete_liste(segment),
+            _requete_liste(segment, recherche),
             {**params, "taille": _TAILLE_PAGE, "decalage": (page - 1) * _TAILLE_PAGE},
         )
     ).mappings().all()
@@ -192,11 +201,21 @@ async def mes_taches(
     session: Session,
     inclure_terminees: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
+    q: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
     lignes = await tache_repo.lister_pour_utilisateur(
         session, courant["id"], inclure_terminees=inclure_terminees
     )
+    if q and q.strip():
+        terme = q.strip().lower()
+        lignes = [
+            r
+            for r in lignes
+            if terme in (r["titre"] or "").lower()
+            or terme in (r["reference"] or "").lower()
+            or terme in (r["activite_titre"] or "").lower()
+        ]
     debut = (page - 1) * _TAILLE_PAGE
     return {
         "elements": [dict(r) for r in lignes[debut : debut + _TAILLE_PAGE]],

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Inbox, List, LayoutGrid, BarChart3, ListChecks } from 'lucide-react';
+import { Inbox, List, LayoutGrid, BarChart3, ListChecks, Search, X } from 'lucide-react';
 import { Table, StatusBadge, useToast, type Colonne } from '@/design-system/primitives';
 import { COULEUR_STATUT_TACHE, type StatutTache } from '@/common/tacheTypes';
 import { BadgeStatut, BadgePriorite, couleurStatut } from '@/common/statuts';
@@ -174,6 +174,7 @@ export function MesTicketsPage(): JSX.Element {
   const [taches, setTaches] = useState<MaTache[]>([]);
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
   const [aValider, setAValider] = useState(0);
+  const [recherche, setRecherche] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pageTaches, setPageTaches] = useState(1);
@@ -187,7 +188,7 @@ export function MesTicketsPage(): JSX.Element {
     (silencieux = false): void => {
       if (!silencieux) setChargement(true);
       void mesTicketsApi
-        .lister(segment, page)
+        .lister(segment, page, recherche)
         .then((p) => {
           setItems(p.elements);
           setTotal(p.total);
@@ -197,7 +198,7 @@ export function MesTicketsPage(): JSX.Element {
           if (!silencieux) setChargement(false);
         });
     },
-    [segment, page],
+    [segment, page, recherche],
   );
 
   const baseDe = useCallback(
@@ -261,11 +262,11 @@ export function MesTicketsPage(): JSX.Element {
 
   useEffect(() => {
     if (onglet !== 'taches') return;
-    void mesTicketsApi.taches(false, pageTaches).then((p) => {
+    void mesTicketsApi.taches(false, pageTaches, recherche).then((p) => {
       setTaches(p.elements);
       setTotalTaches(p.total);
     });
-  }, [onglet, pageTaches]);
+  }, [onglet, pageTaches, recherche]);
 
   // Les indicateurs de l'onglet Analyse suivent la période choisie.
   useEffect(() => {
@@ -341,6 +342,36 @@ export function MesTicketsPage(): JSX.Element {
           </button>
         </div>
       </header>
+
+      {onglet !== 'analyse' && (
+        <div className={local.recherche}>
+          <Search size={16} className={local.rechercheIcone} />
+          <input
+            className={local.rechercheInput}
+            value={recherche}
+            onChange={(e) => {
+              setRecherche(e.target.value);
+              setPage(1);
+              setPageTaches(1);
+            }}
+            placeholder={onglet === 'taches' ? 'Rechercher une tâche…' : 'Rechercher un ticket…'}
+          />
+          {recherche !== '' && (
+            <button
+              type="button"
+              className={local.rechercheReset}
+              onClick={() => {
+                setRecherche('');
+                setPage(1);
+                setPageTaches(1);
+              }}
+              aria-label="Effacer la recherche"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
+      )}
 
       {onglet === 'analyse' ? (
         stats !== null && (

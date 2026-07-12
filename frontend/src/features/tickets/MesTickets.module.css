@@ -355,3 +355,40 @@
   line-height: 18px;
   text-align: center;
 }
+
+/* Barre de recherche (tickets / tâches). */
+.recherche {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  margin-bottom: var(--space-4);
+}
+.recherche:focus-within {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
+.rechercheIcone {
+  color: var(--text-muted);
+  flex: none;
+}
+.rechercheInput {
+  flex: 1 1 auto;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.rechercheReset {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-muted);
+}
+.rechercheReset:hover {
+  color: var(--text);
+}

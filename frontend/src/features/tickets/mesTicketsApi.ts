@@ -66,10 +66,15 @@ export interface MaTache {
   role_activite: string;
 }
 
+const q = (recherche: string): string =>
+  recherche.trim() ? `&q=${encodeURIComponent(recherche.trim())}` : '';
+
 export const mesTicketsApi = {
-  lister: (segment: SegmentTicket = 'actifs', page = 1): Promise<PageMesTickets> =>
-    api.get(`/mes-tickets?segment=${segment}&page=${page}`),
+  lister: (segment: SegmentTicket = 'actifs', page = 1, recherche = ''): Promise<PageMesTickets> =>
+    api.get(`/mes-tickets?segment=${segment}&page=${page}${q(recherche)}`),
   stats: (p: Periode): Promise<MesStats> => api.get(`/mes-tickets/stats${requetePeriode(p)}`),
-  taches: (inclureTerminees = false, page = 1): Promise<PageMesTaches> =>
-    api.get(`/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}`),
+  taches: (inclureTerminees = false, page = 1, recherche = ''): Promise<PageMesTaches> =>
+    api.get(
+      `/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}${q(recherche)}`,
+    ),
 };
