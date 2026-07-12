@@ -689,6 +689,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                 sla_res: datetime | None = None
                 resolu: datetime | None = None
                 cloture: datetime | None = None
+                pris_en_charge: datetime | None = None
                 source = "SAISIE"
                 source_id: str | None = None
 
@@ -780,15 +781,22 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         heures = random.choice([96, 72, 48, 120, 36, 24, 12, 6, 2, 1, -4, -24, -72])
                         sla_res = maintenant + timedelta(hours=heures)
 
+                # Prise en charge (première réponse) : mesurée pour l'importé (via trep), sinon
+                # posée sur la plupart des activités déjà prises en main ; le reste attend encore.
+                if module in MODULES_IMPORTES and trep:
+                    pris_en_charge = cree_le + timedelta(minutes=trep)
+                elif module not in MODULES_IMPORTES and (resolu is not None or random.random() < 0.7):
+                    pris_en_charge = cree_le + timedelta(hours=random.randint(1, 24))
+
                 activite_id = await conn.fetchval(
                     "INSERT INTO core.activite"
                     "(reference, module, titre, description, direction_id, categorie_id, "
                     " responsable_id, demandeur_externe_id, impact, urgence, priorite, statut, "
                     " source, source_id, sla_prise_en_charge_le, sla_resolution_le, cree_le, "
-                    " resolu_le, cloture_le, donnees)"
+                    " resolu_le, cloture_le, donnees, pris_en_charge_le)"
                     " VALUES ($1,$2,$3,$4,"
                     " (SELECT id FROM core.direction WHERE code=$5),"
-                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb) "
+                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21) "
                     "RETURNING id",
                     reference, module, titre, DESCRIPTIONS.get(titre, "Donnée de démonstration."),
                     random.choice(directions),
@@ -797,7 +805,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     impact if module != "projet" else None,
                     urgence if module != "projet" else None,
                     priorite, statut, source, source_id,
-                    sla_pc, sla_res, cree_le, resolu, cloture, json.dumps(donnees),
+                    sla_pc, sla_res, cree_le, resolu, cloture, json.dumps(donnees), pris_en_charge,
                 )
                 total += 1
 

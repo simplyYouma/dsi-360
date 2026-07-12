@@ -88,6 +88,7 @@ export interface Analyses {
   durees_statuts: DureeStatut[];
   reouvertures: Reouverture[];
   vieillissement: AnalyseItem[];
+  distribution_delais: AnalyseItem[];
   dbs: DbsSynthese;
   pareto_categories: ParetoItem[];
   pec_par_priorite: SlaPriorite[];

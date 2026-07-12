@@ -110,6 +110,9 @@ WHERE TRUE{cond}
 GROUP BY c.libelle ORDER BY valeur DESC, c.libelle
 """
 
+# Ordre fixe des tranches de délai de résolution (l'histogramme se lit du plus rapide au plus lent).
+_ORDRE_DELAI = ["< 4 h", "< 1 j", "1–3 j", "3–7 j", "> 7 j"]
+
 _TREP = "nullif(a.donnees->>'ttrespond_minutes', '')::numeric"
 
 # Prise en charge : la première moitié de l'engagement SLA, jamais mesurée jusqu'ici.
@@ -356,6 +359,23 @@ async def analyses(
         for x in pec
     ]
 
+    # Distribution des délais de résolution : la dispersion réelle, au-delà de la moyenne (MTTR).
+    tranches = await _lignes(
+        session,
+        "SELECT CASE "
+        "WHEN a.resolu_le - a.cree_le < interval '4 hours' THEN '< 4 h' "
+        "WHEN a.resolu_le - a.cree_le < interval '1 day' THEN '< 1 j' "
+        "WHEN a.resolu_le - a.cree_le < interval '3 days' THEN '1–3 j' "
+        "WHEN a.resolu_le - a.cree_le < interval '7 days' THEN '3–7 j' "
+        "ELSE '> 7 j' END AS libelle, count(*) AS valeur "
+        f"{_JOINTURE} WHERE a.resolu_le IS NOT NULL{cond} GROUP BY 1",
+        params,
+    )
+    par_tranche = {t["libelle"]: t["valeur"] for t in tranches}
+    distribution_delais = [
+        {"libelle": lib, "valeur": par_tranche.get(lib, 0)} for lib in _ORDRE_DELAI
+    ]
+
     avec_sla = sla["a_lheure"] + sla["approche"] + sla["depasse"]
     # Respect réel prioritaire (durées mesurées) ; repli sur les échéances en cours sinon.
     if reel_total > 0:
@@ -390,6 +410,7 @@ async def analyses(
         "durees_statuts": durees_statuts,
         "reouvertures": reouvertures,
         "vieillissement": vieillissement,
+        "distribution_delais": distribution_delais,
         "dbs": dbs,
         "pareto_categories": pareto,
         "pec_par_priorite": pec_par_priorite,

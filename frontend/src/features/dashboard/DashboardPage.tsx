@@ -542,6 +542,28 @@ export function DashboardPage(): JSX.Element {
                     tableau.sla.a_lheure + tableau.sla.approche + tableau.sla.depasse,
                   )}
                 />
+                <JaugeSignal
+                  valeur={tableau.ouverts_30j}
+                  ton={tableau.ouverts_30j > 0 ? 'warn' : 'ok'}
+                  titre="Ouverts depuis plus de 30 j"
+                  detail={
+                    tableau.ouverts_total === 0
+                      ? 'Aucune activité ouverte.'
+                      : `${pctDe(tableau.ouverts_30j, tableau.ouverts_total)} % du stock ouvert`
+                  }
+                  pct={pctDe(tableau.ouverts_30j, tableau.ouverts_total)}
+                />
+                <JaugeSignal
+                  valeur={tableau.non_pris_en_charge}
+                  ton={tableau.non_pris_en_charge > 0 ? 'warn' : 'ok'}
+                  titre="En attente de prise en charge"
+                  detail={
+                    tableau.ouverts_total === 0
+                      ? 'Rien à prendre en charge.'
+                      : `${pctDe(tableau.non_pris_en_charge, tableau.ouverts_total)} % des ouverts`
+                  }
+                  pct={pctDe(tableau.non_pris_en_charge, tableau.ouverts_total)}
+                />
               </ul>
             )}
           </Card>

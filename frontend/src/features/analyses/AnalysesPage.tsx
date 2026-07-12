@@ -9,8 +9,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import {
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -129,67 +127,6 @@ const KPIS: MetaKpi[] = [
     note: 'À traiter en priorité',
   },
 ];
-
-// ---------------------------------------------------------------- Donut module
-
-interface Segment {
-  nom: string;
-  valeur: number;
-  couleur: string;
-}
-function DonutModules({ data }: { data: Segment[] }): JSX.Element {
-  const total = data.reduce((s, d) => s + d.valeur, 0);
-  return (
-    <div className={styles.donutBloc}>
-      <div className={styles.donutGraphe}>
-        <ResponsiveContainer width="100%" height={200}>
-          <PieChart>
-            <Pie
-              data={total === 0 ? [{ nom: 'vide', valeur: 1, couleur: 'var(--bg-subtle)' }] : data}
-              dataKey="valeur"
-              nameKey="nom"
-              innerRadius={64}
-              outerRadius={92}
-              cornerRadius={9}
-              paddingAngle={total === 0 ? 0 : 4}
-              startAngle={90}
-              endAngle={-270}
-              stroke="none"
-            >
-              {(total === 0 ? [{ couleur: 'var(--bg-subtle)' }] : data).map((d, i) => (
-                <Cell key={i} fill={d.couleur} />
-              ))}
-            </Pie>
-            {total > 0 && <Tooltip {...infobulle} />}
-          </PieChart>
-        </ResponsiveContainer>
-        <div className={styles.donutCentre}>
-          <span className={styles.donutTotal}>{total}</span>
-          <span className={styles.donutUnite}>activités</span>
-        </div>
-      </div>
-      <ul className={styles.legende}>
-        {data.map((d) => {
-          const pct = total === 0 ? 0 : Math.round((100 * d.valeur) / total);
-          return (
-            <li key={d.nom} className={styles.legendeItem}>
-              <div className={styles.legendeTete}>
-                <span className={styles.legendeNom}>{d.nom}</span>
-                <span className={styles.legendeVal}>{d.valeur}</span>
-              </div>
-              <div className={styles.track}>
-                <div
-                  className={styles.trackPlein}
-                  style={{ width: `${pct}%`, background: d.couleur }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------- Matrice des risques
 
@@ -486,6 +423,48 @@ function PartDbs({ dbs }: { dbs: Analyses['dbs'] }): JSX.Element {
   );
 }
 
+// ---------------------------------------------------------------- Vitesse de résolution
+
+// Distribution des délais : du plus rapide (vert) au plus lent (rouge) — le sens porte la couleur.
+const COULEUR_DELAI: Record<string, string> = {
+  '< 4 h': '#1f9d55',
+  '< 1 j': '#5fb85c',
+  '1–3 j': '#c77700',
+  '3–7 j': '#e0683c',
+  '> 7 j': '#d64545',
+};
+
+function HistoDelais({ data }: { data: Analyses['distribution_delais'] }): JSX.Element {
+  const total = data.reduce((s, d) => s + d.valeur, 0);
+  const max = Math.max(1, ...data.map((d) => d.valeur));
+  if (total === 0) return <p className={styles.vide}>Aucune résolution sur la période.</p>;
+  return (
+    <ul className={styles.stack}>
+      {data.map((d) => {
+        const pct = Math.round((100 * d.valeur) / total);
+        return (
+          <li key={d.libelle} className={styles.stackLigne}>
+            <span className={styles.stackNom}>{d.libelle}</span>
+            <div className={styles.stackBarre}>
+              <span
+                className={styles.stackSeg}
+                style={{
+                  width: `${Math.max(2, (100 * d.valeur) / max)}%`,
+                  background: COULEUR_DELAI[d.libelle] ?? '#8a93a6',
+                }}
+                title={`${d.valeur} résolution(s) · ${pct} %`}
+              />
+            </div>
+            <span className={styles.stackTot}>
+              {d.valeur} · {pct} %
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 // ---------------------------------------------------------------- Page
 
 export function AnalysesPage(): JSX.Element {
@@ -512,11 +491,6 @@ export function AnalysesPage(): JSX.Element {
     void analysesApi.gestionnaire(gestSel, periode).then(setGestDetail);
   }, [gestSel, periode]);
 
-  const modules: Segment[] = (a?.par_module ?? []).map((m) => ({
-    nom: MODULE_LABEL[m.libelle] ?? m.libelle,
-    valeur: m.valeur,
-    couleur: MODULE_COULEUR[m.libelle] ?? '#94a3b8',
-  }));
   const slaModules = (a?.sla_par_module ?? []).map((s) => ({
     nom: MODULE_LABEL[s.module] ?? s.module,
     a_lheure: s.a_lheure,
@@ -670,10 +644,13 @@ export function AnalysesPage(): JSX.Element {
               </ul>
             </Card>
 
-            <Card data-visuel="Répartition par module">
-              <BoutonExportPng nom="Répartition par module" />
-              <h2 className={styles.chartTitre}>Répartition par module</h2>
-              <DonutModules data={modules} />
+            <Card data-visuel="Vitesse de résolution">
+              <BoutonExportPng nom="Vitesse de résolution" />
+              <h2 className={styles.chartTitre}>Vitesse de résolution</h2>
+              <p className={styles.chartSous}>
+                Distribution des délais de résolution — la dispersion derrière la moyenne.
+              </p>
+              <HistoDelais data={a?.distribution_delais ?? []} />
             </Card>
 
             <Card data-visuel="Performance SLA par module">

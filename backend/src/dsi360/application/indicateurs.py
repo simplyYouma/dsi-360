@@ -134,6 +134,19 @@ SELECT count(*) FROM core.activite a LEFT JOIN core.direction d ON d.id = a.dire
 WHERE a.resolu_le >= now() - interval '30 days'
 """
 
+# Signaux « état courant » (jamais filtrés par période) : stock qui traîne et tickets en attente
+# de première prise en charge — deux alertes de gouvernance au-delà des volumes.
+_SIGNAUX = """
+SELECT
+  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL) AS ouverts_total,
+  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
+    AND a.cree_le < now() - interval '30 days') AS ouverts_30j,
+  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
+    AND a.pris_en_charge_le IS NULL) AS non_pris_en_charge
+FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE 1=1
+"""
+
 
 async def tableau_de_bord(
     session: AsyncSession,
@@ -203,6 +216,8 @@ async def tableau_de_bord(
     dbs = (await session.execute(text(_DBS_DASH + cond), params)).mappings().one()
     rouverts = await session.scalar(text(_ROUVERTS_30J)) or 0
     resolus_30j = await session.scalar(text(_RESOLUS_30J + cond), params) or 0
+    # Signaux d'état courant : on garde `cond` (direction seule), pas la période.
+    sig = (await session.execute(text(_SIGNAUX + cond), params)).mappings().one()
 
     return {
         "a_traiter": [dict(x) for x in a_traiter],
@@ -211,6 +226,9 @@ async def tableau_de_bord(
         "dbs_age_jours": float(dbs["dbs_age_jours"]) if dbs["dbs_age_jours"] is not None else None,
         "rouverts_30j": rouverts,
         "resolus_30j": resolus_30j,
+        "ouverts_30j": sig["ouverts_30j"],
+        "non_pris_en_charge": sig["non_pris_en_charge"],
+        "ouverts_total": sig["ouverts_total"],
         "cartes": {
             "incidents_ouverts": ligne["incidents_ouverts"],
             "incidents_critiques": ligne["incidents_critiques"],

@@ -829,6 +829,10 @@ class TableauBord(BaseModel):
     dbs_age_jours: float | None
     rouverts_30j: int
     resolus_30j: int
+    # Signaux additionnels : stock qui traîne (> 30 j) et tickets pas encore pris en charge.
+    ouverts_30j: int
+    non_pris_en_charge: int
+    ouverts_total: int
 
 
 class AnalyseItem(BaseModel):
@@ -941,6 +945,7 @@ class AnalysesReponse(BaseModel):
     durees_statuts: list[DureeStatut]
     reouvertures: list[ReouvertureItem]
     vieillissement: list[AnalyseItem]
+    distribution_delais: list[AnalyseItem]
     dbs: DbsSynthese
     pareto_categories: list[ParetoItem]
     pec_par_priorite: list[SlaPrioriteItem]

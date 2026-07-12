@@ -29,6 +29,9 @@ export interface TableauBord {
   dbs_age_jours: number | null;
   rouverts_30j: number;
   resolus_30j: number;
+  ouverts_30j: number;
+  non_pris_en_charge: number;
+  ouverts_total: number;
 }
 
 export const dashboardApi = {
