@@ -214,18 +214,33 @@ async def mes_taches(
     inclure_terminees: Annotated[bool, Query()] = False,
     page: Annotated[int, Query(ge=1)] = 1,
     q: Annotated[str | None, Query()] = None,
+    filtre: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
+    aujourdhui = datetime.now(UTC).date()
     toutes = await tache_repo.lister_pour_utilisateur(
         session, courant["id"], inclure_terminees=inclure_terminees
     )
-    stats = _stats_taches(toutes, datetime.now(UTC).date())
+    stats = _stats_taches(toutes, aujourdhui)  # compté sur TOUTES : les tuiles ne bougent pas.
     lignes = toutes
+    # Filtre rapide (tuile cliquée) : à faire / en cours / en retard.
+    if filtre == "a_faire":
+        lignes = [r for r in lignes if r["statut"] == "À faire"]
+    elif filtre == "en_cours":
+        lignes = [r for r in lignes if r["statut"] == "En cours"]
+    elif filtre == "en_retard":
+        lignes = [
+            r
+            for r in lignes
+            if r["echeance"] is not None
+            and r["echeance"] < aujourdhui
+            and r["statut"] != "Terminée"
+        ]
     if q and q.strip():
         terme = q.strip().lower()
         lignes = [
             r
-            for r in toutes
+            for r in lignes
             if terme in (r["titre"] or "").lower()
             or terme in (r["reference"] or "").lower()
             or terme in (r["activite_titre"] or "").lower()

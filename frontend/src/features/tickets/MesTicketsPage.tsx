@@ -31,6 +31,7 @@ import {
   type SegmentTicket,
   type MaTache,
   type StatsTaches,
+  type FiltreTache,
 } from './mesTicketsApi';
 
 const SEGMENTS: { cle: SegmentTicket; libelle: string }[] = [
@@ -177,6 +178,7 @@ export function MesTicketsPage(): JSX.Element {
   const [aValider, setAValider] = useState(0);
   const [recherche, setRecherche] = useState('');
   const [statsTaches, setStatsTaches] = useState<StatsTaches | null>(null);
+  const [filtreTache, setFiltreTache] = useState<FiltreTache>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pageTaches, setPageTaches] = useState(1);
@@ -264,12 +266,12 @@ export function MesTicketsPage(): JSX.Element {
 
   useEffect(() => {
     if (onglet !== 'taches') return;
-    void mesTicketsApi.taches(false, pageTaches, recherche).then((p) => {
+    void mesTicketsApi.taches(false, pageTaches, recherche, filtreTache).then((p) => {
       setTaches(p.elements);
       setTotalTaches(p.total);
       setStatsTaches(p.stats);
     });
-  }, [onglet, pageTaches, recherche]);
+  }, [onglet, pageTaches, recherche, filtreTache]);
 
   // Les indicateurs de l'onglet Analyse suivent la période choisie.
   useEffect(() => {
@@ -406,28 +408,46 @@ export function MesTicketsPage(): JSX.Element {
       ) : onglet === 'taches' ? (
         <>
           {statsTaches !== null && (
-            <div className={local.tachesEntete}>
-              <div className={local.tacheStat}>
-                <span className={local.tacheVal}>{statsTaches.a_faire}</span>
-                <span className={local.tacheLib}>À faire</span>
-              </div>
-              <div className={local.tacheStat}>
-                <span className={local.tacheVal} style={{ color: 'var(--cat-1)' }}>
-                  {statsTaches.en_cours}
-                </span>
-                <span className={local.tacheLib}>En cours</span>
-              </div>
-              <div className={local.tacheStat}>
-                <span
-                  className={local.tacheVal}
-                  style={{
-                    color: statsTaches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text)',
+            <div className={local.tachesEntete} role="tablist" aria-label="Filtrer mes tâches">
+              {(
+                [
+                  {
+                    cle: 'a_faire',
+                    lib: 'À faire',
+                    val: statsTaches.a_faire,
+                    couleur: 'var(--text)',
+                  },
+                  {
+                    cle: 'en_cours',
+                    lib: 'En cours',
+                    val: statsTaches.en_cours,
+                    couleur: 'var(--cat-1)',
+                  },
+                  {
+                    cle: 'en_retard',
+                    lib: 'En retard',
+                    val: statsTaches.en_retard,
+                    couleur: statsTaches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text)',
+                  },
+                ] as const
+              ).map((s) => (
+                <button
+                  key={s.cle}
+                  type="button"
+                  role="tab"
+                  aria-selected={filtreTache === s.cle}
+                  className={cx(local.tacheStat, filtreTache === s.cle && local.tacheStatOn)}
+                  onClick={() => {
+                    setFiltreTache((f) => (f === s.cle ? null : s.cle));
+                    setPageTaches(1);
                   }}
                 >
-                  {statsTaches.en_retard}
-                </span>
-                <span className={local.tacheLib}>En retard</span>
-              </div>
+                  <span className={local.tacheVal} style={{ color: s.couleur }}>
+                    {s.val}
+                  </span>
+                  <span className={local.tacheLib}>{s.lib}</span>
+                </button>
+              ))}
             </div>
           )}
           <Table

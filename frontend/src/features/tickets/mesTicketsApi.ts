@@ -81,8 +81,16 @@ export const mesTicketsApi = {
   lister: (segment: SegmentTicket = 'actifs', page = 1, recherche = ''): Promise<PageMesTickets> =>
     api.get(`/mes-tickets?segment=${segment}&page=${page}${q(recherche)}`),
   stats: (p: Periode): Promise<MesStats> => api.get(`/mes-tickets/stats${requetePeriode(p)}`),
-  taches: (inclureTerminees = false, page = 1, recherche = ''): Promise<PageMesTaches> =>
+  taches: (
+    inclureTerminees = false,
+    page = 1,
+    recherche = '',
+    filtre: FiltreTache = null,
+  ): Promise<PageMesTaches> =>
     api.get(
-      `/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}${q(recherche)}`,
+      `/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}${q(recherche)}` +
+        (filtre ? `&filtre=${filtre}` : ''),
     ),
 };
+
+export type FiltreTache = 'a_faire' | 'en_cours' | 'en_retard' | null;
