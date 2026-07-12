@@ -83,6 +83,146 @@ TITRES: dict[str, list[str]] = {
     ],
 }
 
+# Description réelle par activité (clé = titre). Donne du corps aux fiches de démonstration :
+# une description crédible, dans le contexte d'AFG Bank Mali, plutôt qu'un texte générique.
+DESCRIPTIONS: dict[str, str] = {
+    # Incidents
+    "Panne messagerie Exchange": "Les utilisateurs du siège ne reçoivent plus leurs e-mails "
+    "depuis ce matin. Le service de transport Exchange ne redémarre pas après la bascule de nuit ; "
+    "les files d'attente saturent.",
+    "Lenteur application OAS": "Temps de réponse dégradés sur l'applicatif OAS aux heures de "
+    "pointe (10h–12h). Les agents de crédit signalent des écrans figés à la validation des dossiers.",
+    "Coupure réseau agence Niaréla": "L'agence de Niaréla est isolée du SI central. Le lien "
+    "opérateur principal est tombé et la bascule sur le lien de secours n'a pas été automatique.",
+    "Échec sauvegarde nocturne": "La sauvegarde planifiée de 2h a échoué sur le serveur de "
+    "fichiers. Espace insuffisant sur le volume de destination signalé dans les journaux.",
+    "Imprimante guichet HS": "L'imprimante du guichet 3 n'imprime plus les reçus clients. Voyant "
+    "d'erreur allumé, redémarrage sans effet.",
+    "Saturation disque serveur SI": "Le volume système du serveur applicatif atteint 96 %. "
+    "Risque d'arrêt des services si le seuil n'est pas résorbé rapidement.",
+    "Erreur batch interbancaire": "Le traitement batch des virements interbancaires s'est arrêté "
+    "en erreur cette nuit : un fichier d'entrée présente un format non conforme.",
+    "Accès VPN instable": "Déconnexions répétées du VPN pour les agents en télétravail ; les "
+    "sessions tombent toutes les quinze minutes environ.",
+    "Téléphonie IP en panne": "La téléphonie sur IP est muette au siège. Aucun appel entrant ni "
+    "sortant ; le serveur de communication ne répond plus aux terminaux.",
+    "Indisponibilité Payway": "La plateforme Payway est inaccessible depuis les agences ; les "
+    "opérations de paiement par carte sont bloquées.",
+    # Demandes
+    "Création compte agent": "Ouverture d'un compte pour un agent recruté à la direction crédit : "
+    "messagerie, poste de travail et applicatifs métier selon la fiche de poste.",
+    "Habilitation module crédit": "Demande d'habilitation au module d'octroi de crédit pour un "
+    "analyste : profil consultation et saisie, sans droit de validation.",
+    "Installation antivirus poste": "Poste de travail neuf à équiper de l'antivirus d'entreprise "
+    "avant mise en service.",
+    "Ouverture VPN prestataire": "Accès VPN temporaire pour un prestataire chargé de la "
+    "maintenance de l'applicatif décisionnel ; durée limitée à l'intervention.",
+    "Nouveau poste de travail": "Fourniture et configuration d'un poste complet pour un agent "
+    "muté au service des opérations.",
+    "Assistance Excel reporting": "Aide à la mise en place d'un tableau de reporting mensuel : "
+    "formules, tableau croisé et mise en forme.",
+    "Réinitialisation mot de passe": "Compte verrouillé après plusieurs tentatives. L'agent "
+    "demande la réinitialisation de son mot de passe.",
+    "Accès partage RH": "Demande d'accès au dossier partagé des ressources humaines pour un "
+    "gestionnaire de paie.",
+    # Changements
+    "Mise à jour pare-feu": "Application des dernières règles et du correctif de sécurité sur le "
+    "pare-feu périmétrique. Fenêtre de maintenance nocturne, plan de retour arrière prévu.",
+    "Migration base PostgreSQL": "Montée de version majeure de la base PostgreSQL de l'applicatif "
+    "décisionnel : migration des données, tests de non-régression et bascule le week-end.",
+    "Déploiement correctif core banking": "Déploiement du correctif éditeur sur le cœur bancaire "
+    "pour corriger une anomalie de calcul d'intérêts. Recette validée par le métier.",
+    "Bascule lien opérateur": "Changement de l'opérateur du lien principal inter-agences : "
+    "bascule progressive site par site avec surveillance renforcée.",
+    "Montée de version OAS": "Passage de l'applicatif OAS à la version supérieure apportant des "
+    "corrections de performance, en coordination avec l'éditeur.",
+    "Changement certificat TLS": "Renouvellement du certificat TLS du portail agences arrivant à "
+    "expiration, sans interruption de service.",
+    # Audit & recommandations
+    "Renforcer la revue des accès": "Recommandation de l'audit groupe : instaurer une revue "
+    "trimestrielle formalisée des droits d'accès aux applicatifs sensibles.",
+    "Tracer les opérations sensibles": "Mettre en place une journalisation exhaustive des "
+    "opérations à risque et son archivage inviolable, conformément aux exigences BCEAO.",
+    "Plan reprise à formaliser": "Formaliser et tester le plan de reprise d'activité "
+    "informatique, aujourd'hui documenté partiellement.",
+    "Cloisonner les environnements": "Séparer strictement les environnements de production, de "
+    "recette et de développement, actuellement partiellement mutualisés.",
+    "Chiffrer les sauvegardes": "Chiffrer les sauvegardes contenant des données clients, au repos "
+    "comme lors des transferts.",
+    "Revue des comptes dormants": "Identifier et désactiver les comptes inactifs depuis plus de "
+    "quatre-vingt-dix jours.",
+    # Risques IT
+    "Indisponibilité datacenter": "Un incident majeur sur l'unique datacenter interromprait "
+    "l'ensemble des services ; absence de site de secours opérationnel.",
+    "Fuite de données clients": "Exposition possible de données clients en cas de compromission "
+    "d'un poste ou d'un compte à privilèges.",
+    "Dépendance fournisseur unique": "Le cœur bancaire repose sur un éditeur unique sans clause "
+    "de réversibilité, exposant la banque à un blocage contractuel.",
+    "Obsolescence d'un applicatif": "Un applicatif métier n'est plus maintenu par son éditeur ; "
+    "les correctifs de sécurité ne sont plus fournis.",
+    "Cyberattaque par rançongiciel": "Un rançongiciel chiffrant les serveurs paralyserait "
+    "l'activité. Sensibilisation et sauvegardes hors ligne à renforcer.",
+    "Perte de compétence clé": "Le départ de l'unique expert d'un applicatif critique laisserait "
+    "la banque sans compétence interne.",
+    # Cybersécurité
+    "Revue des comptes administrateurs": "Passer en revue tous les comptes à privilèges, "
+    "justifier chaque accès et retirer les droits non nécessaires.",
+    "Vulnérabilité critique serveur web": "Une vulnérabilité critique a été détectée sur le "
+    "serveur web exposé : correctif éditeur à appliquer en urgence.",
+    "Activation MFA agences": "Déployer l'authentification à deux facteurs pour tous les agents "
+    "des agences.",
+    "Habilitation sensible à valider": "Demande d'accès à une fonction sensible en attente de "
+    "validation par le RSSI.",
+    "Correctif système d'exploitation": "Appliquer le lot mensuel de correctifs de sécurité sur "
+    "l'ensemble du parc serveur.",
+    "Contrôle IAM trimestriel": "Contrôle périodique de la gestion des identités et des accès : "
+    "cohérence des profils avec les fiches de poste.",
+    # Gouvernance
+    "COPIL trimestriel DSI": "Comité de pilotage trimestriel : avancement des projets, respect "
+    "des SLA, arbitrages budgétaires.",
+    "Comité sécurité mensuel": "Revue mensuelle de la posture de sécurité : incidents, "
+    "vulnérabilités et plan d'actions.",
+    "Décision DG budget cloud": "Arbitrage de la Direction Générale sur l'enveloppe budgétaire "
+    "allouée à la migration cloud.",
+    "Engagement sur les SLA": "Formalisation des engagements de niveau de service entre la DSI et "
+    "les directions métier.",
+    "Plan d'actions audit BCEAO": "Suivi du plan d'actions issu de la mission BCEAO : échéances, "
+    "responsables et preuves de mise en œuvre.",
+    # Projets (cadrage plus étoffé)
+    "Migration cœur bancaire": "Remplacement du système central de la banque par une solution "
+    "moderne. Le projet couvre la reprise des données, l'intégration aux applicatifs périphériques "
+    "et la formation des équipes, avec une bascule en une seule fenêtre pour limiter l'indisponibilité.",
+    "Refonte du portail agences": "Modernisation du portail utilisé quotidiennement par les "
+    "agences : ergonomie repensée, performances améliorées et nouveaux services en libre-service "
+    "pour réduire les sollicitations du support.",
+    "Déploiement MFA groupe": "Généralisation de l'authentification à deux facteurs à l'ensemble "
+    "du groupe, afin de sécuriser les accès distants et les comptes sensibles selon les standards "
+    "groupe.",
+    "Datacenter de secours (PRA)": "Mise en place d'un site de secours et d'un plan de reprise "
+    "d'activité éprouvé. Objectif : garantir la continuité des services critiques en cas de "
+    "sinistre du site principal.",
+    "Dématérialisation des dossiers crédit": "Passage au dossier de crédit entièrement numérique, "
+    "de la constitution à l'archivage. Gains attendus sur les délais d'octroi et la traçabilité "
+    "réglementaire.",
+    "Mise en conformité BCEAO": "Programme de mise en conformité aux exigences de la BCEAO : "
+    "traçabilité, sécurité des données et reporting réglementaire, en plusieurs chantiers "
+    "coordonnés sur l'année.",
+    "Modernisation du réseau interagences": "Refonte des liens réseau entre le siège et les "
+    "agences pour plus de débit et de résilience, avec redondance automatique des liens opérateurs.",
+    "Nouveau SI décisionnel": "Construction d'un système décisionnel consolidant les données de "
+    "la banque pour le pilotage : tableaux de bord directionnels et indicateurs réglementaires.",
+    "Migration messagerie cloud": "Migration de la messagerie interne vers une solution cloud du "
+    "groupe : reprise des boîtes, des archives et des listes de diffusion, sans coupure pour les "
+    "utilisateurs.",
+    "Refonte du site institutionnel": "Refonte du site public de la banque : nouvelle identité "
+    "visuelle, contenus actualisés et conformité aux exigences d'accessibilité.",
+    "Centralisation de la sauvegarde": "Unification des sauvegardes disparates en une plateforme "
+    "centralisée et chiffrée, avec politique de rétention et tests de restauration réguliers.",
+    "Automatisation des rapprochements": "Automatisation des rapprochements comptables "
+    "interbancaires aujourd'hui manuels : réduction des délais de clôture et fiabilisation des "
+    "écritures.",
+}
+
 # Modules dont les tickets proviennent de l'import (incidents/demandes = import-only).
 MODULES_IMPORTES = {"incident", "demande"}
 
@@ -612,7 +752,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     " (SELECT id FROM core.direction WHERE code=$5),"
                     " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb) "
                     "RETURNING id",
-                    reference, module, titre, "Donnée de démonstration.",
+                    reference, module, titre, DESCRIPTIONS.get(titre, "Donnée de démonstration."),
                     random.choice(directions),
                     random.choice(cats) if cats and module != "projet" else None,
                     responsable, demandeur_id,
@@ -646,25 +786,43 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                 if module == "projet":
                     await _jalons(conn, activite_id, cree_le, statut)
 
-                # Commentaires + contributeurs/valideurs sur un échantillon.
-                if random.random() < 0.6:
+                # Notes / fil de discussion : sur la grande majorité des activités, pour que les
+                # fiches aient du corps (une fiche sans aucune note paraît morte en démonstration).
+                if random.random() < 0.85:
                     await _commentaires(
-                        conn, activite_id, utilisateurs, cree_le, random.randint(1, 3), module
+                        conn, activite_id, utilisateurs, cree_le, random.randint(2, 4), module
                     )
                 if responsable is not None and random.random() < 0.5:
                     await _acteurs(conn, activite_id, utilisateurs, responsable, statut, module)
 
-        # Quelques notifications pour peupler la cloche.
+        # Quelques notifications réalistes pour peupler la cloche (référence + titre réels).
         activites_recentes = await conn.fetch(
-            "SELECT id FROM core.activite ORDER BY cree_le DESC LIMIT 8"
+            "SELECT id, reference, titre FROM core.activite ORDER BY cree_le DESC LIMIT 8"
         )
         for r in activites_recentes:
+            type_notif = random.choice(["ASSIGNATION", "SLA_APPROCHE", "MENTION", "VALIDATION"])
+            titre_notif, message = {
+                "ASSIGNATION": (
+                    f"Activité assignée — {r['reference']}",
+                    f"{r['reference']} « {r['titre']} » vous a été assignée.",
+                ),
+                "SLA_APPROCHE": (
+                    f"SLA en approche — {r['reference']}",
+                    f"L'échéance de « {r['titre']} » approche.",
+                ),
+                "MENTION": (
+                    f"Vous êtes mentionné — {r['reference']}",
+                    f"Un collègue vous a mentionné sur « {r['titre']} ».",
+                ),
+                "VALIDATION": (
+                    f"Validation demandée — {r['reference']}",
+                    f"Votre décision est attendue sur « {r['titre']} ».",
+                ),
+            }[type_notif]
             await conn.execute(
                 "INSERT INTO core.notification (destinataire_id, activite_id, type, titre, message) "
                 "VALUES ($1,$2,$3,$4,$5)",
-                random.choice(utilisateurs), r["id"],
-                random.choice(["ASSIGNATION", "SLA_APPROCHE"]),
-                "Notification de démonstration", "Action requise sur une activité.",
+                random.choice(utilisateurs), r["id"], type_notif, titre_notif, message,
             )
 
         print(f"Données de démonstration recréées : {total} activités (+ tâches, documents, "
