@@ -313,12 +313,48 @@ COMMENTAIRES_DEFAUT = [
     "Point d'avancement fait en réunion d'équipe.",
     "Validé par le responsable, on peut clôturer.",
 ]
-DOC_TXT = b"Note de demonstration DSI 360.\nContenu simule pour les tests (apercu, renommage).\n"
+# Documents réalistes par module (nom + contenu) : un extrait crédible plutôt qu'un blob neutre.
+DOCS_MODULE: dict[str, list[tuple[str, str]]] = {
+    "projet": [
+        ("Note de cadrage.txt", "Note de cadrage\n\nContexte, objectifs, périmètre et livrables du "
+         "projet. Jalons principaux, budget prévisionnel, risques identifiés et gouvernance "
+         "(comité de pilotage mensuel)."),
+        ("Compte rendu COPIL.txt", "Compte rendu du comité de pilotage\n\nAvancement par lot, "
+         "points bloquants, décisions prises et prochaines échéances. Budget consommé et reste à "
+         "faire."),
+        ("Planning previsionnel.txt", "Planning prévisionnel\n\nPhases : cadrage, conception, "
+         "réalisation, recette, déploiement. Dates clés et dépendances entre les lots."),
+    ],
+    "changement": [
+        ("Analyse d'impact.txt", "Analyse d'impact\n\nApplications et agences concernées, fenêtre "
+         "de maintenance, indisponibilité attendue et populations impactées."),
+        ("Plan de retour arriere.txt", "Plan de retour arrière\n\nProcédure de restauration en cas "
+         "d'échec, points de contrôle et critères de décision de rollback."),
+        ("Plan de deploiement.txt", "Plan de déploiement\n\nÉtapes ordonnées, prérequis, "
+         "responsables et vérifications post-bascule."),
+    ],
+    "audit": [
+        ("Plan d'action.txt", "Plan d'action\n\nRecommandation, actions correctives, responsables, "
+         "échéances et indicateurs de suivi."),
+        ("Justificatif de mise en oeuvre.txt", "Justificatif de mise en œuvre\n\nPreuves de "
+         "réalisation jointes pour la validation de clôture de la recommandation."),
+    ],
+    "cybersecurite": [
+        ("Rapport de scan.txt", "Rapport de scan de vulnérabilités\n\nVulnérabilités détectées par "
+         "criticité, systèmes concernés et correctifs recommandés."),
+        ("Procedure de remediation.txt", "Procédure de remédiation\n\nÉtapes d'application du "
+         "correctif, fenêtre d'intervention et vérification post-correctif."),
+    ],
+    "gouvernance": [
+        ("Compte rendu de comite.txt", "Compte rendu de comité\n\nOrdre du jour, décisions, "
+         "engagements pris et responsables, date de la prochaine réunion."),
+    ],
+}
 
 # Jalons de projet (dates clés) — cf. module Projets.
 JALONS_TITRES = [
-    "Cadrage validé", "Lancement officiel", "Fin de la recette", "Go-live",
-    "Bilan de clôture",
+    "Cadrage validé", "Lancement officiel", "Fin de la conception", "Fin de la recette",
+    "Go-live", "Bilan de clôture",
 ]
 # Champs RFC (SI-12.04) pour les changements.
 RFC_TEXTES = {
@@ -514,14 +550,16 @@ async def _creer_taches(
 
 
 async def _pieces_jointes(
-    conn: asyncpg.Connection, activite_id: str, email: str, nb: int
+    conn: asyncpg.Connection, activite_id: str, email: str, nb: int, module: str
 ) -> None:
-    for i in range(nb):
+    docs = DOCS_MODULE.get(module, [])
+    for nom, texte in random.sample(docs, min(nb, len(docs))):
+        contenu = texte.encode("utf-8")
         await conn.execute(
             "INSERT INTO core.document "
             "(activite_id, nom, type_mime, taille, contenu, depose_par) "
             "VALUES ($1,$2,'text/plain',$3,$4,$5)",
-            activite_id, f"note-demo-{i + 1}.txt", len(DOC_TXT), DOC_TXT, email,
+            activite_id, nom, len(contenu), contenu, email,
         )
 
 
@@ -780,7 +818,15 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         "UPDATE core.activite SET donnees = donnees || $2::jsonb WHERE id=$1",
                         activite_id, json.dumps({"avancement": avancement}),
                     )
-                    await _pieces_jointes(conn, activite_id, EMAILS_DEMO[0], random.randint(0, 2))
+                    await _pieces_jointes(
+                        conn, activite_id, EMAILS_DEMO[0], random.randint(1, 2), module
+                    )
+
+                # Documents sur audit / cybersécurité / gouvernance (justificatifs, rapports, CR).
+                if module in ("audit", "cybersecurite", "gouvernance") and random.random() < 0.7:
+                    await _pieces_jointes(
+                        conn, activite_id, EMAILS_DEMO[0], random.randint(1, 2), module
+                    )
 
                 # Jalons (dates clés) sur les projets.
                 if module == "projet":
