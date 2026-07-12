@@ -237,34 +237,6 @@ export function TableauBordAgent({ stats }: { stats: MesStats }): JSX.Element {
       </section>
 
       <section className={styles.dash}>
-        <div className={styles.carte} data-visuel="Mes tâches">
-          <BoutonExportPng nom="Mes tâches" />
-          <h2 className={styles.carteTitre}>Mes tâches</h2>
-          <p className={styles.carteSous}>Vos tâches assignées (projets, changements).</p>
-          <div className={styles.tachesResume}>
-            <div className={styles.tacheStat}>
-              <span className={styles.tacheVal}>{stats.taches.a_faire}</span>
-              <span className={styles.tacheLib}>À faire</span>
-            </div>
-            <div className={styles.tacheStat}>
-              <span className={styles.tacheVal} style={{ color: 'var(--cat-1)' }}>
-                {stats.taches.en_cours}
-              </span>
-              <span className={styles.tacheLib}>En cours</span>
-            </div>
-            <div className={styles.tacheStat}>
-              <span
-                className={styles.tacheVal}
-                style={{
-                  color: stats.taches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text)',
-                }}
-              >
-                {stats.taches.en_retard}
-              </span>
-              <span className={styles.tacheLib}>En retard</span>
-            </div>
-          </div>
-        </div>
         <div className={styles.carte} data-visuel="Respect du SLA">
           <BoutonExportPng nom="Respect du SLA" />
           <h2 className={styles.carteTitre}>Respect du SLA</h2>

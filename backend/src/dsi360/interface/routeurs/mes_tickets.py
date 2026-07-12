@@ -263,11 +263,6 @@ async def mes_stats(
 ) -> dict[str, Any]:
     maintenant = datetime.now(UTC)
     debut, fin = _fenetre_periode(jours, du, au, maintenant)
-    # Résumé des tâches assignées (l'onglet Analyse tient compte des tâches, pas que des tickets).
-    taches_actives = await tache_repo.lister_pour_utilisateur(
-        session, courant["id"], inclure_terminees=False
-    )
-    stats_taches = _stats_taches(taches_actives, maintenant.date())
     ouverts = (
         await session.execute(_OUVERTS, {"id": courant["id"], "regles": _REGLES})
     ).mappings().all()
@@ -325,5 +320,4 @@ async def mes_stats(
         "par_module": _comptes([r["module"] for r in ouverts]),
         "par_statut": _comptes([r["statut"] for r in ouverts]),
         "tendance": tendance,
-        "taches": stats_taches,
     }

@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Inbox, List, LayoutGrid, BarChart3, ListChecks, Search, X } from 'lucide-react';
+import {
+  Inbox,
+  List,
+  LayoutGrid,
+  BarChart3,
+  ListChecks,
+  Search,
+  X,
+  Circle,
+  Clock,
+  AlertTriangle,
+} from 'lucide-react';
 import { Table, StatusBadge, useToast, type Colonne } from '@/design-system/primitives';
 import { COULEUR_STATUT_TACHE, type StatutTache } from '@/common/tacheTypes';
 import { BadgeStatut, BadgePriorite, couleurStatut } from '@/common/statuts';
@@ -408,44 +419,58 @@ export function MesTicketsPage(): JSX.Element {
       ) : onglet === 'taches' ? (
         <>
           {statsTaches !== null && (
-            <div className={local.tachesEntete} role="tablist" aria-label="Filtrer mes tâches">
+            <div className={local.tachesFiltres} role="tablist" aria-label="Filtrer mes tâches">
               {(
                 [
+                  {
+                    cle: null,
+                    lib: 'Toutes',
+                    val: statsTaches.a_faire + statsTaches.en_cours,
+                    icone: <ListChecks size={15} />,
+                    couleur: 'var(--text)',
+                  },
                   {
                     cle: 'a_faire',
                     lib: 'À faire',
                     val: statsTaches.a_faire,
+                    icone: <Circle size={15} />,
                     couleur: 'var(--text)',
                   },
                   {
                     cle: 'en_cours',
                     lib: 'En cours',
                     val: statsTaches.en_cours,
+                    icone: <Clock size={15} />,
                     couleur: 'var(--cat-1)',
                   },
                   {
                     cle: 'en_retard',
                     lib: 'En retard',
                     val: statsTaches.en_retard,
-                    couleur: statsTaches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text)',
+                    icone: <AlertTriangle size={15} />,
+                    couleur:
+                      statsTaches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
                   },
                 ] as const
               ).map((s) => (
                 <button
-                  key={s.cle}
+                  key={s.lib}
                   type="button"
                   role="tab"
                   aria-selected={filtreTache === s.cle}
-                  className={cx(local.tacheStat, filtreTache === s.cle && local.tacheStatOn)}
+                  className={cx(local.statPastille, filtreTache === s.cle && local.statPastilleOn)}
                   onClick={() => {
-                    setFiltreTache((f) => (f === s.cle ? null : s.cle));
+                    setFiltreTache(s.cle);
                     setPageTaches(1);
                   }}
                 >
-                  <span className={local.tacheVal} style={{ color: s.couleur }}>
+                  <span className={local.statIcone} style={{ color: s.couleur }}>
+                    {s.icone}
+                  </span>
+                  <span className={local.statValeur} style={{ color: s.couleur }}>
                     {s.val}
                   </span>
-                  <span className={local.tacheLib}>{s.lib}</span>
+                  <span className={local.statLibelle}>{s.lib}</span>
                 </button>
               ))}
             </div>

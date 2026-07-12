@@ -393,53 +393,23 @@
   color: var(--text);
 }
 
-/* Résumé des tâches (onglet Analyse + en-tête de l'onglet Tâches). */
-.tachesResume {
+/* En-tête de l'onglet Tâches : mêmes pastilles que le bandeau tickets, mais cliquables (filtres). */
+.tachesFiltres {
   display: flex;
-  gap: var(--space-4);
-}
-.tacheStat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.tacheVal {
-  font-size: 1.6rem;
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-.tacheLib {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-/* Barre de stats en tête de l'onglet Tâches. */
-.tachesEntete {
-  display: flex;
-  gap: var(--space-5);
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-2);
+  flex-wrap: wrap;
   margin-bottom: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
 }
-
-/* Dans l'en-tête de l'onglet Tâches, les tuiles sont des filtres cliquables. */
-.tachesEntete .tacheStat {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  background: none;
-  border: 1px solid transparent;
+.tachesFiltres .statPastille {
   cursor: pointer;
-  text-align: left;
   transition:
     background-color 0.12s ease,
     border-color 0.12s ease;
 }
-.tachesEntete .tacheStat:hover {
+.tachesFiltres .statPastille:hover {
   background: var(--bg-subtle);
 }
-.tachesEntete .tacheStatOn {
-  background: var(--secondary-subtle);
+.statPastilleOn {
   border-color: var(--secondary);
+  background: var(--secondary-subtle);
 }

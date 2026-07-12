@@ -38,7 +38,6 @@ export interface MesStats {
   par_module: CompteLibelle[];
   par_statut: CompteLibelle[];
   tendance: JourResolus[];
-  taches: StatsTaches;
 }
 
 export type SegmentTicket = 'actifs' | 'a_valider' | 'resolus' | 'termines' | 'tout';

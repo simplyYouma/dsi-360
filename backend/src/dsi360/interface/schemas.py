@@ -350,7 +350,6 @@ class MesStats(BaseModel):
     par_module: list[CompteLibelle]
     par_statut: list[CompteLibelle]
     tendance: list[JourResolus]
-    taches: StatsTaches
 
 
 class CreationReponse(BaseModel):
