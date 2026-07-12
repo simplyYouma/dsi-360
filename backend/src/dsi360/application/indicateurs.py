@@ -140,7 +140,7 @@ WHERE a.resolu_le >= now() - interval '30 days'
 # refléter le maintenant, pas la fenêtre de création (sinon on masque les vieux dossiers en retard).
 _SIGNAUX = """
 SELECT
-  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL) AS ouverts_total,
+  count(*) FILTER (WHERE a.cloture_le IS NULL) AS ouverts_total,
   count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
     AND a.cree_le < now() - interval '30 days') AS ouverts_30j,
   count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
