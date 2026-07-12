@@ -195,6 +195,18 @@ def _comptes(valeurs: list[Any]) -> list[dict[str, Any]]:
     return [{"libelle": k, "valeur": n} for k, n in compte.most_common()]
 
 
+def _stats_taches(lignes: list[Any], aujourdhui: date) -> dict[str, int]:
+    """Répartition des tâches actives : à faire, en cours, en retard (échéance dépassée)."""
+    a_faire = sum(1 for r in lignes if r["statut"] == "À faire")
+    en_cours = sum(1 for r in lignes if r["statut"] == "En cours")
+    en_retard = sum(
+        1
+        for r in lignes
+        if r["echeance"] is not None and r["echeance"] < aujourdhui and r["statut"] != "Terminée"
+    )
+    return {"a_faire": a_faire, "en_cours": en_cours, "en_retard": en_retard}
+
+
 @routeur.get("/taches", response_model=PageMesTaches)
 async def mes_taches(
     courant: Courant,
@@ -204,14 +216,16 @@ async def mes_taches(
     q: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
-    lignes = await tache_repo.lister_pour_utilisateur(
+    toutes = await tache_repo.lister_pour_utilisateur(
         session, courant["id"], inclure_terminees=inclure_terminees
     )
+    stats = _stats_taches(toutes, datetime.now(UTC).date())
+    lignes = toutes
     if q and q.strip():
         terme = q.strip().lower()
         lignes = [
             r
-            for r in lignes
+            for r in toutes
             if terme in (r["titre"] or "").lower()
             or terme in (r["reference"] or "").lower()
             or terme in (r["activite_titre"] or "").lower()
@@ -220,6 +234,7 @@ async def mes_taches(
     return {
         "elements": [dict(r) for r in lignes[debut : debut + _TAILLE_PAGE]],
         "total": len(lignes),
+        "stats": stats,
     }
 
 
@@ -233,6 +248,11 @@ async def mes_stats(
 ) -> dict[str, Any]:
     maintenant = datetime.now(UTC)
     debut, fin = _fenetre_periode(jours, du, au, maintenant)
+    # Résumé des tâches assignées (l'onglet Analyse tient compte des tâches, pas que des tickets).
+    taches_actives = await tache_repo.lister_pour_utilisateur(
+        session, courant["id"], inclure_terminees=False
+    )
+    stats_taches = _stats_taches(taches_actives, maintenant.date())
     ouverts = (
         await session.execute(_OUVERTS, {"id": courant["id"], "regles": _REGLES})
     ).mappings().all()
@@ -290,4 +310,5 @@ async def mes_stats(
         "par_module": _comptes([r["module"] for r in ouverts]),
         "par_statut": _comptes([r["statut"] for r in ouverts]),
         "tendance": tendance,
+        "taches": stats_taches,
     }

@@ -322,9 +322,16 @@ class PageMesTickets(BaseModel):
     a_valider: int = 0  # nombre d'activités où ma décision de valideur est attendue (badge)
 
 
+class StatsTaches(BaseModel):
+    a_faire: int
+    en_cours: int
+    en_retard: int
+
+
 class PageMesTaches(BaseModel):
     elements: list[MaTache]
     total: int
+    stats: StatsTaches
 
 
 class MesStats(BaseModel):
@@ -343,6 +350,7 @@ class MesStats(BaseModel):
     par_module: list[CompteLibelle]
     par_statut: list[CompteLibelle]
     tendance: list[JourResolus]
+    taches: StatsTaches
 
 
 class CreationReponse(BaseModel):

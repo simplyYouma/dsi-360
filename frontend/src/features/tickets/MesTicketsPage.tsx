@@ -30,6 +30,7 @@ import {
   type MesStats,
   type SegmentTicket,
   type MaTache,
+  type StatsTaches,
 } from './mesTicketsApi';
 
 const SEGMENTS: { cle: SegmentTicket; libelle: string }[] = [
@@ -175,6 +176,7 @@ export function MesTicketsPage(): JSX.Element {
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
   const [aValider, setAValider] = useState(0);
   const [recherche, setRecherche] = useState('');
+  const [statsTaches, setStatsTaches] = useState<StatsTaches | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pageTaches, setPageTaches] = useState(1);
@@ -265,6 +267,7 @@ export function MesTicketsPage(): JSX.Element {
     void mesTicketsApi.taches(false, pageTaches, recherche).then((p) => {
       setTaches(p.elements);
       setTotalTaches(p.total);
+      setStatsTaches(p.stats);
     });
   }, [onglet, pageTaches, recherche]);
 
@@ -401,14 +404,41 @@ export function MesTicketsPage(): JSX.Element {
           </>
         )
       ) : onglet === 'taches' ? (
-        <Table
-          colonnes={COLONNES_TACHE}
-          lignes={taches}
-          cleLigne={(t) => t.id}
-          vide="Aucune tâche ne vous est assignée pour le moment."
-          onLigne={(t) => navigate(`${ROUTE_MODULE[t.module] ?? ''}/${t.activite_id}`)}
-          pagination={{ page: pageTaches, total: totalTaches, taille: 15, onPage: setPageTaches }}
-        />
+        <>
+          {statsTaches !== null && (
+            <div className={local.tachesEntete}>
+              <div className={local.tacheStat}>
+                <span className={local.tacheVal}>{statsTaches.a_faire}</span>
+                <span className={local.tacheLib}>À faire</span>
+              </div>
+              <div className={local.tacheStat}>
+                <span className={local.tacheVal} style={{ color: 'var(--cat-1)' }}>
+                  {statsTaches.en_cours}
+                </span>
+                <span className={local.tacheLib}>En cours</span>
+              </div>
+              <div className={local.tacheStat}>
+                <span
+                  className={local.tacheVal}
+                  style={{
+                    color: statsTaches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text)',
+                  }}
+                >
+                  {statsTaches.en_retard}
+                </span>
+                <span className={local.tacheLib}>En retard</span>
+              </div>
+            </div>
+          )}
+          <Table
+            colonnes={COLONNES_TACHE}
+            lignes={taches}
+            cleLigne={(t) => t.id}
+            vide="Aucune tâche ne vous est assignée pour le moment."
+            onLigne={(t) => navigate(`${ROUTE_MODULE[t.module] ?? ''}/${t.activite_id}`)}
+            pagination={{ page: pageTaches, total: totalTaches, taille: 15, onPage: setPageTaches }}
+          />
+        </>
       ) : (
         <>
           {stats !== null && <BandeauAgent stats={stats} />}
