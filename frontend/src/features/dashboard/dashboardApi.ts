@@ -6,6 +6,7 @@ export interface TableauBord {
     incidents_ouverts: number;
     incidents_critiques: number;
     respect_sla: number;
+    respect_sla_base: number;
     demandes_en_cours: number;
     projets_en_retard: number;
     risques_critiques: number;

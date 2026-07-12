@@ -72,9 +72,15 @@ const META_CARTES: MetaCarte[] = [
     route: '/analyses',
     icone: Timer,
     couleur: 'var(--cat-2)',
-    valeur: (c) => `${c.respect_sla} %`,
-    note: (c) => (c.respect_sla >= 90 ? 'Objectif tenu' : "Sous l'objectif"),
-    tonNote: (c) => (c.respect_sla >= 90 ? 'ok' : 'warn'),
+    valeur: (c) => (c.respect_sla_base === 0 ? '—' : `${c.respect_sla} %`),
+    // Sous 5 tickets mesurés, un taux n'est pas significatif : on montre l'échantillon, ton neutre.
+    note: (c) =>
+      c.respect_sla_base < 5
+        ? `Sur ${c.respect_sla_base} mesuré${c.respect_sla_base > 1 ? 's' : ''}`
+        : c.respect_sla >= 90
+          ? 'Objectif tenu'
+          : "Sous l'objectif",
+    tonNote: (c) => (c.respect_sla_base < 5 ? undefined : c.respect_sla >= 90 ? 'ok' : 'warn'),
   },
   {
     libelle: 'Demandes en cours',
@@ -349,11 +355,6 @@ export function DashboardPage(): JSX.Element {
         couleur: MODULE_META[r.module]?.couleur ?? '#94a3b8',
       }))
     : [];
-  const ticketsOuverts = tableau
-    ? tableau.repartition
-        .filter((r) => r.module === 'incident' || r.module === 'demande')
-        .reduce((s, r) => s + r.valeur, 0)
-    : 0;
   const sla: Segment[] = tableau
     ? [
         { nom: "À l'heure", valeur: tableau.sla.a_lheure, couleur: '#1f9d55' },
@@ -507,12 +508,12 @@ export function DashboardPage(): JSX.Element {
                   detail={
                     tableau.dbs_ouverts === 0
                       ? 'Rien parti chez DBS.'
-                      : `${pctDe(tableau.dbs_ouverts, ticketsOuverts)} % des ouverts` +
+                      : `${pctDe(tableau.dbs_ouverts, tableau.ouverts_total)} % des ouverts` +
                         (tableau.dbs_age_jours !== null
                           ? ` · ${Math.round(tableau.dbs_age_jours)} j en moyenne`
                           : '')
                   }
-                  pct={pctDe(tableau.dbs_ouverts, ticketsOuverts)}
+                  pct={pctDe(tableau.dbs_ouverts, tableau.ouverts_total)}
                 />
                 <JaugeSignal
                   valeur={tableau.rouverts_30j}

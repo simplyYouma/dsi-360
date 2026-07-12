@@ -108,7 +108,7 @@ const KPIS: MetaKpi[] = [
     icone: Gauge,
     couleur: '#15a394',
     format: (v) => `${v} %`,
-    note: 'Sur échéances en cours',
+    note: 'Sur tickets résolus (durées réelles)',
   },
   {
     cle: 'mttr_jours',

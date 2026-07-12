@@ -78,7 +78,7 @@ SELECT to_char(date_trunc('week', a.cree_le), 'DD/MM') AS periode,
   count(*) FILTER (WHERE a.sla_resolution_le < now()) AS depasse
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.sla_resolution_le IS NOT NULL
+WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL AND a.resolu_le IS NULL
 """
 # Fenêtre par défaut de la tendance quand aucune période n'est demandée (« Tout »).
 _SERIE_DEFAUT = " AND a.cree_le >= now() - interval '8 weeks'"
@@ -134,15 +134,24 @@ SELECT count(*) FROM core.activite a LEFT JOIN core.direction d ON d.id = a.dire
 WHERE a.resolu_le >= now() - interval '30 days'
 """
 
-# Signaux « état courant » (jamais filtrés par période) : stock qui traîne et tickets en attente
-# de première prise en charge — deux alertes de gouvernance au-delà des volumes.
+# Signaux « état courant » (jamais filtrés par période) : stock qui traîne, tickets en attente de
+# prise en charge, ET la répartition SLA du stock ouvert (à l'heure / approche / dépassé). Ces
+# derniers alimentent le signal « Échéances dépassées » et la légende de la tendance : ils doivent
+# refléter le maintenant, pas la fenêtre de création (sinon on masque les vieux dossiers en retard).
 _SIGNAUX = """
 SELECT
   count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL) AS ouverts_total,
   count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
     AND a.cree_le < now() - interval '30 days') AS ouverts_30j,
   count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
-    AND a.pris_en_charge_le IS NULL) AS non_pris_en_charge
+    AND a.pris_en_charge_le IS NULL) AS non_pris_en_charge,
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
+    AND a.resolu_le IS NULL AND a.sla_resolution_le > now() + interval '2 hours') AS a_lheure,
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
+    AND a.resolu_le IS NULL AND a.sla_resolution_le <= now() + interval '2 hours'
+    AND a.sla_resolution_le >= now()) AS approche,
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
+    AND a.resolu_le IS NULL AND a.sla_resolution_le < now()) AS depasse
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE 1=1
 """
@@ -166,14 +175,19 @@ async def tableau_de_bord(
 
     ligne = (await session.execute(text(_CARTES + cond_p), params)).mappings().one()
     # Respect SLA réel (durées mesurées des tickets importés) ; repli sur les échéances en cours.
+    # `respect_base` = taille de l'échantillon réellement mesuré (le front neutralise un 100 % sur
+    # trop peu de cas, comme ailleurs).
     reel_total = ligne["sla_reel_total"] or 0
     total_sla = ligne["sla_total"] or 0
     if reel_total:
         respect = round(100 * (ligne["sla_reel_ok"] or 0) / reel_total)
+        respect_base = reel_total
     elif total_sla:
         respect = round(100 * (ligne["sla_ok"] or 0) / total_sla)
+        respect_base = total_sla
     else:
         respect = 100
+        respect_base = 0
 
     repartition = (
         (await session.execute(text(_REPARTITION + cond_p + " GROUP BY a.module"), params))
@@ -233,15 +247,18 @@ async def tableau_de_bord(
             "incidents_ouverts": ligne["incidents_ouverts"],
             "incidents_critiques": ligne["incidents_critiques"],
             "respect_sla": respect,
+            "respect_sla_base": respect_base,
             "demandes_en_cours": ligne["demandes_en_cours"],
             "projets_en_retard": ligne["projets_en_retard"],
             "risques_critiques": ligne["risques_critiques"],
             "risques_ouverts": ligne["risques_ouverts"],
         },
+        # Répartition SLA du stock ouvert MAINTENANT (état courant, jamais filtré par période) :
+        # alimente le signal « Échéances dépassées » et la légende de la tendance.
         "sla": {
-            "a_lheure": ligne["sla_a_lheure"],
-            "approche": ligne["sla_approche"],
-            "depasse": ligne["sla_depasse"],
+            "a_lheure": sig["a_lheure"],
+            "approche": sig["approche"],
+            "depasse": sig["depasse"],
         },
         "repartition": [{"module": r["module"], "valeur": r["valeur"]} for r in repartition],
         "serie": [

@@ -326,8 +326,9 @@ async def analyses(
         if r["resolus"] > 0 or rouverts.get(r["libelle"], 0) > 0
     ]
 
-    # Le vieillissement suit la période : ancienneté du stock ouvert créé dans la fenêtre choisie.
-    vieillissement = await _lignes(session, _VIEILLISSEMENT.format(cond_dir=cond), params)
+    # Vieillissement : INSTANTANÉ de l'âge du stock ouvert (jamais filtré par période — filtrer sur
+    # la date de création ferait disparaître le vieux stock, l'inverse du but du visuel).
+    vieillissement = await _lignes(session, _VIEILLISSEMENT.format(cond_dir=cond_dir), params)
 
     ligne_dbs = (await session.execute(text(_DBS.format(cond=cond)), params)).mappings().one()
     dbs = {

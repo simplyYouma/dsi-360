@@ -781,6 +781,7 @@ class CartesBord(BaseModel):
     incidents_ouverts: int
     incidents_critiques: int
     respect_sla: int
+    respect_sla_base: int  # nombre de tickets réellement mesurés (pour neutraliser les petits n)
     demandes_en_cours: int
     projets_en_retard: int
     risques_critiques: int
