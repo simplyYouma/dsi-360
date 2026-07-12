@@ -780,26 +780,31 @@ export function AnalysesPage(): JSX.Element {
                 Tickets rouverts après résolution — le taux dit la qualité, pas la vitesse.
               </p>
               <ul className={styles.stack}>
-                {(a?.reouvertures ?? []).map((r) => (
-                  <li key={r.libelle} className={styles.stackLigne}>
-                    <span className={styles.stackNom}>{MODULE_LABEL[r.libelle] ?? r.libelle}</span>
-                    <div className={styles.stackBarre}>
-                      {r.taux > 0 && (
-                        <span
-                          className={styles.stackSeg}
-                          style={{ width: `${Math.max(3, r.taux)}%`, background: '#d64545' }}
-                          title={`${r.rouverts} rouvert(s) / ${r.resolus} résolu(s)`}
-                        />
-                      )}
-                    </div>
-                    <span
-                      className={styles.stackTot}
-                      style={{ color: r.taux > 10 ? '#d64545' : 'var(--text-muted)' }}
-                    >
-                      {r.taux} %
-                    </span>
-                  </li>
-                ))}
+                {(a?.reouvertures ?? []).map((r) => {
+                  // Sous 5 résolutions, un taux n'est pas significatif (100 % sur 1 cas ≠ alerte) :
+                  // on l'affiche en gris et on montre la fraction pour ne pas tromper.
+                  const alerte = r.resolus >= 5 && r.taux > 10;
+                  const couleur = alerte ? '#d64545' : 'var(--text-muted)';
+                  return (
+                    <li key={r.libelle} className={styles.stackLigne}>
+                      <span className={styles.stackNom}>
+                        {MODULE_LABEL[r.libelle] ?? r.libelle}
+                      </span>
+                      <div className={styles.stackBarre}>
+                        {r.taux > 0 && (
+                          <span
+                            className={styles.stackSeg}
+                            style={{ width: `${Math.max(3, r.taux)}%`, background: couleur }}
+                            title={`${r.rouverts} rouvert(s) / ${r.resolus} résolu(s)`}
+                          />
+                        )}
+                      </div>
+                      <span className={styles.stackTot} style={{ color: couleur }}>
+                        {r.taux} % · {r.rouverts}/{r.resolus}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </Card>
 
