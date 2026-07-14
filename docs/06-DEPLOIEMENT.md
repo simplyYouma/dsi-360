@@ -25,7 +25,7 @@ Références : [ADR-0002 exécution native](adr/0002-execution-native-sans-docke
 | **Certificat** | `C:\MY_APPS\DSI360\cert\cert.pem` / `key.pem` — **jamais** versionné |
 | **Préfixe des variables** | `DSI360_` (ex. `DSI360_JWT_SECRET_KEY`, `DSI360_DATABASE_URL`) |
 | **Tâches planifiées** | `DSI360` (app), `DSI360-Sauvegarde` (pg_dump) — **préfixées, jamais génériques** |
-| **Lanceur bureau** | **`maj-prod.bat`** — mise à jour un-clic (double-clic, élévation admin automatique) |
+| **Lanceurs bureau** | **`installer-tache.bat`** — démarrage auto avec Windows (une fois) · **`maj-prod.bat`** — mise à jour un-clic. Les deux s'élèvent en admin tout seuls. |
 | **PWA** | Oui — installable (manifest + service worker). Le SW ne met **jamais** `/api` en cache et sert la navigation en réseau-d'abord ; après un `git pull` + rebuild, il se met à jour tout seul au prochain chargement en ligne. |
 | **Reverse-proxy** | **Facultatif** : l'API termine elle-même le TLS (voir §1) |
 
@@ -48,7 +48,7 @@ La règle d'or : **chaque projet ne touche que lui-même.**
   `_ordonnanceur`, ADR-0002). Deux workers = deux ordonnanceurs = **notifications et e-mails en
   double**. La charge interne ne le justifie pas ; on reste mono-process.
 - **Runtime isolé** : venv propre à DSI 360, dossier propre, base propre. Rien de partagé.
-- **Scripts qui ne visent que DSI 360.** `start-prod.ps1` refuse de démarrer si le port est déjà
+- **Scripts qui ne visent que DSI 360.** `start-prod.sh` refuse de démarrer si le port est déjà
   pris (au lieu d'écraser un voisin). **Jamais** de `Get-Process python | Stop-Process` global :
   cibler la tâche `DSI360` ou le port 8453.
 
@@ -158,19 +158,33 @@ Import-Certificate -FilePath "C:\MY_APPS\DSI360\cert\cert.pem" -CertStoreLocatio
 ```
 > Grande échelle : distribuer le `.crt` par **GPO** (Autorités de certification racines de confiance).
 
-### 3.7 Lancement automatique (tâche planifiée `DSI360`)
+### 3.7 Lancement automatique au démarrage de Windows (tâche planifiée `DSI360`)
 
-`start-prod.ps1` applique déjà les points non négociables : `--no-server-header` (bannière
-masquée), `--ssl-*` (TLS), bind `0.0.0.0`, **pas** de `--reload`, **pas** de `--workers`.
+Le lanceur de production est **`infra/local/start-prod.sh`** (Git Bash — prérequis serveur §2). Il
+applique les points non négociables : `--no-server-header` (bannière masquée), `--ssl-*` (TLS), bind
+`0.0.0.0`, **pas** de `--reload`, **pas** de `--workers`. Il termine par `exec` : python **remplace**
+le shell, donc la tâche surveille l'API elle-même, sans processus intermédiaire.
 
-```powershell
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument @'
--NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\MY_APPS\DSI360\infra\local\start-prod.ps1" -Port 8453 -Certificat "C:\MY_APPS\DSI360\cert\cert.pem" -CleCertificat "C:\MY_APPS\DSI360\cert\key.pem"
-'@
-$decl = New-ScheduledTaskTrigger -AtStartup
-Register-ScheduledTask -TaskName "DSI360" -Action $action -Trigger $decl -RunLevel Highest -User "SYSTEM"
-```
-> **Vérifier ce que lance réellement la tâche** (piège fréquent) :
+**En un clic** — double-cliquer **`infra\local\installer-tache.bat`** (élévation admin automatique).
+Il installe la tâche, ouvre le port au pare-feu, démarre l'app et contrôle sa santé. Idempotent :
+réexécutable, il remplace la tâche existante. Options : `-Port`, `-SansPareFeu`, `-SansDemarrer`.
+
+Il refuse d'installer la tâche si le déploiement est incomplet (venv, `.env`, `frontend\dist`,
+certificat) : une tâche posée sur un déploiement bancal échoue à **chaque** démarrage, sans que
+personne ne le voie.
+
+Ce que fait `installer-tache.ps1`, et pourquoi :
+
+| Réglage | Raison |
+|---|---|
+| Déclencheur **au démarrage**, compte **SYSTEM**, `RunLevel Highest` | l'app tourne sans session ouverte, dès le boot |
+| Délai **1 min** sur le déclencheur + **3 relances** (1 min) | au boot, PostgreSQL n'écoute pas encore ; l'API migre au démarrage et s'arrêterait si la base était injoignable |
+| **`ExecutionTimeLimit = 0`** | **indispensable** : la valeur Windows par défaut est **3 jours** — sans ce réglage, le planificateur **tue l'application au bout de 72 h** |
+| `MultipleInstances = IgnoreNew` | jamais deux uvicorn sur le port 8453 (cf. §1) |
+| Règle de pare-feu entrante sur le port | sans elle, l'app ne répond qu'en local |
+
+> **Vérifier ce que lance réellement la tâche** (piège fréquent) — **en session élevée** : sur ce
+> serveur, une session non élevée ne *voit pas* les tâches SYSTEM et croit à tort qu'elles sont absentes.
 > ```powershell
 > (Get-ScheduledTask -TaskName "DSI360").Actions | Format-List Execute, Arguments
 > ```
@@ -257,11 +271,11 @@ Start-ScheduledTask -TaskName "DSI360"
 | 1 | `openssl … No such file` (génération du cert) | `MSYS_NO_PATHCONV=1` casse la conversion de `/c/...` | Se placer dans le dossier, **chemins relatifs** (`cert/key.pem`). |
 | 2 | « Votre connexion n'est pas privée » alors que le cert est importé | Cert sans **SAN=IP** ou sans **EKU serverAuth** | Régénérer avec `subjectAltName=IP:<IP>` + `extendedKeyUsage=serverAuth` ; vérifier via `certutil -dump`. |
 | 3 | Nouveau cert importé, toujours pas de cadenas | Ancien cert chargé **en mémoire** | **Redémarrer la tâche** `DSI360` après tout changement de certificat. |
-| 4 | La tâche démarre « autrement » que prévu (HTTP au lieu d'HTTPS) | L'action pointe le mauvais script / sans `-Certificat` | `(Get-ScheduledTask …).Actions | Format-List` puis corriger (§3.7). |
-| 5 | En-tête `server: uvicorn` visible | Bannière non masquée | `start-prod.ps1` passe déjà `--no-server-header` — vérifier qu'il est bien le script lancé. |
-| 6 | Variables d'env « oubliées » | `$env:VAR=…` est temporaire | Tout vit dans `infra\local\.env`, lu par la tâche via `start-prod.ps1`. |
-| 7 | **Notifications / e-mails en double** | Plusieurs workers uvicorn → plusieurs ordonnanceurs | **Un seul process** : jamais `--workers`. (Déjà garanti par `start-prod.ps1`.) |
-| 8 | Deux backends se battent pour 8453 | Ancien process encore vivant | `start-prod.ps1` refuse de démarrer ; libérer le port (ci-dessous) puis relancer. |
+| 4 | La tâche démarre « autrement » que prévu (HTTP au lieu d'HTTPS) | L'action pointe le mauvais script / sans `--cert` | `(Get-ScheduledTask …).Actions | Format-List` **en session élevée** puis corriger (§3.7). **Déjà vu sur ce serveur** : un uvicorn lancé à la main en HTTP squattait 8453, exposé au réseau — vérifier la ligne de commande du process : `Get-CimInstance Win32_Process -Filter "ProcessId=<PID>"`. |
+| 5 | En-tête `server: uvicorn` visible | Bannière non masquée | `start-prod.sh` passe déjà `--no-server-header` — vérifier qu'il est bien le script lancé. |
+| 6 | Variables d'env « oubliées » | `$env:VAR=…` est temporaire | Tout vit dans `infra\local\.env`, lu par la tâche via `start-prod.sh`. |
+| 7 | **Notifications / e-mails en double** | Plusieurs workers uvicorn → plusieurs ordonnanceurs | **Un seul process** : jamais `--workers`. (Déjà garanti par `start-prod.sh`.) |
+| 8 | Deux backends se battent pour 8453 | Ancien process encore vivant | `start-prod.sh` refuse de démarrer ; libérer le port (ci-dessous) puis relancer. |
 | 9 | 503 aux requêtes après un plantage Postgres | Base momentanément absente | **Normal et voulu** : l'app rend un 503 propre et se rétablit seule dès que la base revient (`pool_pre_ping`). Aucune action. |
 
 **Libérer le port 8453** :
@@ -318,7 +332,7 @@ Remplacer `<IP>` et `<URL_DU_DEPOT>` par les valeurs réelles.
 5. **Frontend** : `infra\local\front-build.ps1`.
 6. **Certificat** : générer SAN=IP + EKU serverAuth dans `cert\` (Git Bash, chemins **relatifs**),
    **vérifier `certutil -dump`**, puis importer dans `LocalMachine\Root` + `CurrentUser\Root`.
-7. **Tâche `DSI360`** : `start-prod.ps1` (HTTPS + bannière masquée + un seul process), au
+7. **Tâche `DSI360`** : `installer-tache.bat` → `start-prod.sh` (HTTPS + bannière masquée + un seul process), au
    démarrage ; **vérifier l'action réellement enregistrée** ; `Start-ScheduledTask`.
 8. **Tâche `DSI360-Sauvegarde`** : `sauvegarde-db.ps1` quotidien ; **tester une restauration**.
 9. **Vérifier** : port en écoute + `curl -I -k https://<IP>:8453/` (200, HSTS, CSP, DENY, **pas** de
@@ -335,6 +349,6 @@ Remplacer `<IP>` et `<URL_DU_DEPOT>` par les valeurs réelles.
 ## Annexe — Option reverse-proxy (si un jour requis)
 
 Si l'app doit être publiée par **nom d'hôte** ou sur le **443 standard**, placer IIS/Nginx devant et
-démarrer l'API **en HTTP** (`start-prod.ps1` sans `-Certificat`). Le proxy termine le TLS et
+démarrer l'API **en HTTP** (`start-prod.sh` sans `--cert`). Le proxy termine le TLS et
 transmet ; garder **un seul process** applicatif. Ce montage n'est pas nécessaire pour l'accès
 interne par IP:port, qui est le standard AFG.

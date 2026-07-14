@@ -50,8 +50,8 @@ Les `.ps1` de ce dossier sont en **UTF-8 avec BOM**, et doivent le rester. Un do
 deviennent du charabia et le script ne compile plus. `start-dev.ps1` se relance de lui-même
 sous **pwsh 7** ; il doit d'abord pouvoir être lu par 5.1 pour y parvenir.
 
-> Les `.bat` (lanceurs bureau, ex. `maj-prod.bat`) sont au contraire **sans BOM** : un BOM
-> casserait `cmd`. Ils sont écrits en ASCII pur.
+> Les `.bat` (lanceurs bureau : `start-dev.bat`, `maj-prod.bat`) sont au contraire **sans BOM** :
+> un BOM casserait `cmd`. Ils sont écrits en ASCII pur, fins de ligne CRLF.
 
 Corollaire : **jamais d'accent dans un nom de variable** PowerShell.
 
@@ -66,24 +66,39 @@ npm run dev
 
 Ouvrir **http://localhost:5290** (le front proxifie `/api` vers l'API sur 8011).
 
-> **Un seul geste** : double-cliquer **`infra\local\start-dev.ps1`** démarre l'API + le front **et
+> **Un seul geste** : double-cliquer **`infra\local\start-dev.bat`** démarre l'API + le front **et
 > ouvre l'application tout seul** dès qu'elle répond, dans une fenêtre autonome façon PWA
-> (Chrome/Edge `--app`). Ajouter `-SansOuvrir` pour ne pas ouvrir la fenêtre.
+> (Chrome/Edge `--app`). Ctrl+C dans la fenêtre arrête les deux. Placez-en un raccourci sur le
+> bureau. Ajouter `-SansOuvrir` pour ne pas ouvrir la fenêtre.
+>
+> Le `.bat` n'est qu'un lanceur : il appelle `start-dev.ps1`, qui fait le travail. Il existe parce
+> qu'un `.ps1` double-cliqué s'ouvre dans l'éditeur au lieu de s'exécuter. **PowerShell 7 (pwsh)
+> est requis** (`winget install Microsoft.PowerShell`) : les deux scripts le visent.
 >
 > `npm run dev` exécute `frontend/dev.mjs`, qui lance uvicorn (avec `infra/local/.env`) et Vite.
 > Besoin de ne lancer qu'une brique ? `npm run web` (front seul) ou `infra\local\api.ps1` (API seule).
 
-## Production (poste/serveur)
+## Production (serveur)
 
-Un seul processus sert tout : l'API FastAPI publie aussi le build du frontend.
+Un seul processus sert tout : l'API FastAPI publie aussi le build du frontend, en HTTPS.
+Le lanceur de production est **`start-prod.sh`** (Git Bash) — c'est lui que lance la tâche planifiée.
 
 ```powershell
-infra\local\front-build.ps1                     # génère frontend/dist
-# dans infra\local\.env : DSI360_SERVIR_FRONTEND=true
-infra\local\api.ps1                             # sert l'API + la SPA sur le même port
+infra\local\front-build.ps1        # génère frontend/dist
+infra\local\installer-tache.bat    # double-clic : tâche DSI360 (démarrage Windows) + pare-feu + contrôle
 ```
 
-Derrière un reverse-proxy (IIS/Nginx) pour le TLS. Aucune image ni conteneur requis.
+`installer-tache.bat` installe la tâche `DSI360` (compte SYSTEM, déclencheur « au démarrage »), qui
+exécute :
+
+```bash
+infra/local/start-prod.sh --port 8453 --cert <…>/cert/cert.pem --key <…>/cert/key.pem
+```
+
+Le script peut aussi se lancer à la main depuis Git Bash. Sans `--cert`, il démarre en HTTP — à
+réserver au cas « derrière un reverse-proxy qui termine le TLS ». Aucune image ni conteneur requis.
+
+> Procédure serveur complète (base, secrets, certificat, sauvegardes) : [`docs/06-DEPLOIEMENT.md`](../../docs/06-DEPLOIEMENT.md).
 
 ## Vérifications qualité
 

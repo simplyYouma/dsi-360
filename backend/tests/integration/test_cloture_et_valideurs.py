@@ -22,7 +22,9 @@ _RFC_COMPLET = {
 }
 
 
-async def _remplir_donnees(session: AsyncSession, activite_id: str, donnees: dict[str, str]) -> None:
+async def _remplir_donnees(
+    session: AsyncSession, activite_id: str, donnees: dict[str, str]
+) -> None:
     await session.execute(
         text("UPDATE core.activite SET donnees = cast(:d as jsonb) WHERE id = cast(:id as uuid)"),
         {"d": json.dumps(donnees), "id": activite_id},

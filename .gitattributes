@@ -1,0 +1,6 @@
+# Fins de ligne imposees pour les scripts d'infra (cf. infra/local/README.md).
+# Les .sh doivent rester en LF : un CRLF casse le shebang (« bad interpreter »).
+*.sh  text eol=lf
+# Les .bat/.cmd sont lus par cmd.exe : CRLF obligatoire, jamais de BOM.
+*.bat text eol=crlf
+*.cmd text eol=crlf

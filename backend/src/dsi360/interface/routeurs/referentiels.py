@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,7 +61,11 @@ async def etats(
     module: Annotated[str, Query()],
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
 ) -> list[str]:
-    return ordre_etats(module)
+    # Un module inconnu est une erreur du client (mauvaise clé), pas du serveur : 404, pas 500.
+    try:
+        return ordre_etats(module)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
 
 @routeur.get("/sla", response_model=list[SlaRegleItem])

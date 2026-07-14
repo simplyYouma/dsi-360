@@ -31,6 +31,9 @@ npm install   # première fois
 npm run dev   # lance l'API (uvicorn) ET le frontend (Vite) dans le même terminal
 ```
 
+> **En un clic** : double-cliquer `infra\local\start-dev.bat` (ou un raccourci sur le bureau) fait
+> l'étape 5 et ouvre l'application dès qu'elle répond. Ctrl+C arrête l'API et le frontend.
+
 - Application (dev) : http://localhost:5290 (Vite, HMR) — proxifie `/api` vers l'API
 - API : http://127.0.0.1:8011/api/v1 — santé : `/healthz`, `/readyz`
 - Prod native : `infra\local\front-build.ps1` puis `DSI360_SERVIR_FRONTEND=true` → l'API sert la SPA
