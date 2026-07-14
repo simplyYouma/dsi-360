@@ -17,12 +17,12 @@ Références : [ADR-0002 exécution native](adr/0002-execution-native-sans-docke
 
 | Champ | Valeur DSI 360 |
 |---|---|
-| **Nom / dossier serveur** | `DSI360` — `C:\MY_APPS\DSI360` |
+| **Dossier serveur** | `C:\MY_APPS\dsi-360` (le *nom des tâches* reste `DSI360`, sans tiret) |
 | **Runtime backend** | Python **3.12+**, venv `backend\.venv`, FastAPI/uvicorn |
 | **Base de données** | **PostgreSQL 16+ native** (rôle applicatif `dsi360`, base `dsi360`) |
 | **Frontend** | React + Vite → `frontend\dist`, **servi par l'API** (même origine) |
 | **Port** | **8453** (HTTPS) — cf. registre des ports §1 ; à ouvrir au pare-feu par un admin |
-| **Certificat** | `C:\MY_APPS\DSI360\cert\cert.pem` / `key.pem` — **jamais** versionné |
+| **Certificat** | `C:\MY_APPS\dsi-360\cert\cert.pem` / `key.pem` — **jamais** versionné |
 | **Préfixe des variables** | `DSI360_` (ex. `DSI360_JWT_SECRET_KEY`, `DSI360_DATABASE_URL`) |
 | **Tâches planifiées** | `DSI360` (app), `DSI360-Sauvegarde` (pg_dump) — **préfixées, jamais génériques** |
 | **Lanceurs bureau** | **`installer-tache.bat`** — démarrage auto avec Windows (une fois) · **`maj-prod.bat`** — mise à jour un-clic. Les deux s'élèvent en admin tout seuls. |
@@ -72,7 +72,7 @@ La règle d'or : **chaque projet ne touche que lui-même.**
 2. **Python 3.12+** et **Node 20+** installés.
 3. **Git** installé (avec Git Bash pour la génération du certificat).
 4. **Port 8453 ouvert au pare-feu** (demander à l'admin — une seule fois).
-5. Dossier `C:\MY_APPS\DSI360` créé.
+5. Dossier `C:\MY_APPS\dsi-360` créé.
 
 ---
 
@@ -81,8 +81,8 @@ La règle d'or : **chaque projet ne touche que lui-même.**
 ### 3.1 Récupérer le code
 ```powershell
 cd C:\MY_APPS
-git clone <URL_DU_DEPOT> DSI360
-cd C:\MY_APPS\DSI360
+git clone <URL_DU_DEPOT> dsi-360
+cd C:\MY_APPS\dsi-360
 ```
 
 ### 3.2 Base de données (native)
@@ -132,7 +132,7 @@ infra\local\front-build.ps1     # génère frontend\dist
 Chrome ignore le `CN` et exige un **SAN** avec l'IP **et** l'usage `serverAuth`. Dans **Git Bash**,
 au dossier de l'app (chemins **relatifs** — sinon openssl Windows ne comprend pas `/c/...`) :
 ```bash
-cd /c/MY_APPS/DSI360
+cd /c/MY_APPS/dsi-360
 mkdir -p cert
 MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
   -keyout cert/key.pem -out cert/cert.pem \
@@ -143,7 +143,7 @@ MSYS_NO_PATHCONV=1 openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
 ```
 Vérifier :
 ```powershell
-certutil -dump "C:\MY_APPS\DSI360\cert\cert.pem"
+certutil -dump "C:\MY_APPS\dsi-360\cert\cert.pem"
 # Doit montrer :  Subject Alternative Name -> IP Address=<IP>
 #                 Enhanced Key Usage       -> Server Authentication
 ```
@@ -153,8 +153,8 @@ certutil -dump "C:\MY_APPS\DSI360\cert\cert.pem"
 ### 3.6 Rendre le certificat de confiance (par poste, ou par GPO)
 **PowerShell administrateur** :
 ```powershell
-Import-Certificate -FilePath "C:\MY_APPS\DSI360\cert\cert.pem" -CertStoreLocation Cert:\LocalMachine\Root
-Import-Certificate -FilePath "C:\MY_APPS\DSI360\cert\cert.pem" -CertStoreLocation Cert:\CurrentUser\Root
+Import-Certificate -FilePath "C:\MY_APPS\dsi-360\cert\cert.pem" -CertStoreLocation Cert:\LocalMachine\Root
+Import-Certificate -FilePath "C:\MY_APPS\dsi-360\cert\cert.pem" -CertStoreLocation Cert:\CurrentUser\Root
 ```
 > Grande échelle : distribuer le `.crt` par **GPO** (Autorités de certification racines de confiance).
 
@@ -197,7 +197,7 @@ Ce que fait `installer-tache.ps1`, et pourquoi :
 ### 3.8 Sauvegarde planifiée (tâche `DSI360-Sauvegarde`)
 ```powershell
 $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument @'
--NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\MY_APPS\DSI360\infra\local\sauvegarde-db.ps1" -Destination "C:\MY_APPS\logs\DSI360\backups" -RetentionJours 30
+-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\MY_APPS\dsi-360\infra\local\sauvegarde-db.ps1" -Destination "C:\MY_APPS\logs\DSI360\backups" -RetentionJours 30
 '@
 $t = New-ScheduledTaskTrigger -Daily -At 2am
 Register-ScheduledTask -TaskName "DSI360-Sauvegarde" -Action $a -Trigger $t -RunLevel Highest -User "SYSTEM"
@@ -252,7 +252,7 @@ En cas d'anomalie, le script s'arrête net sur l'étape fautive et l'affiche.
 
 ### À la main (équivalent, si besoin)
 ```powershell
-cd C:\MY_APPS\DSI360
+cd C:\MY_APPS\dsi-360
 git pull --ff-only
 backend\.venv\Scripts\python.exe -m pip install -e ".\backend"   # si dépendances changées
 infra\local\front-build.ps1                                       # rebuild du front
@@ -323,9 +323,9 @@ fonctionnent sans SMTP. Pour activer les e-mails, quand la banque fournit un rel
 
 Remplacer `<IP>` et `<URL_DU_DEPOT>` par les valeurs réelles.
 
-1. **Contexte** : Windows, accès par **IP:8453** (pas de nom d'hôte), dossier `C:\MY_APPS\DSI360`,
+1. **Contexte** : Windows, accès par **IP:8453** (pas de nom d'hôte), dossier `C:\MY_APPS\dsi-360`,
    port 8453 ouvert au pare-feu.
-2. **Code** : `git clone`/`git pull` dans `C:\MY_APPS\DSI360`.
+2. **Code** : `git clone`/`git pull` dans `C:\MY_APPS\dsi-360`.
 3. **Base** : `provisionner-db.sql` (1re fois), puis `infra\local\migrer.ps1`.
 4. **Backend** : venv + `pip install -e .\backend` ; `.env.example` → `.env`, y injecter un **secret
    fort**, `DSI360_ENVIRONNEMENT=prod`, la DSN, `DSI360_URL_APP=https://<IP>:8453`.

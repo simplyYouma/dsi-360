@@ -9,10 +9,10 @@ Deux niveaux de garde, à ne pas confondre :
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, Final
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,8 +42,13 @@ _NON_AUTH = HTTPException(
     headers={"WWW-Authenticate": "Bearer"},
 )
 
+# Seules routes joignables tant que le mot de passe n'a pas été renouvelé : lire son propre profil
+# (l'écran doit pouvoir savoir qu'il doit rediriger), changer son mot de passe, et se déconnecter.
+_CHEMINS_SANS_MDP_A_JOUR: Final = ("/moi", "/auth/mot-de-passe", "/auth/logout")
+
 
 async def utilisateur_courant(
+    requete: Request,
     creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     session: Annotated[AsyncSession, Depends(session_scope)],
 ) -> dict[str, Any]:
@@ -59,6 +64,22 @@ async def utilisateur_courant(
     if u is None or not compte_actif(u):
         raise _NON_AUTH
     incarne_par = charge.get("incarne_par")
+    # Mot de passe à renouveler (compte semé, ou créé/réinitialisé par l'administrateur) : le
+    # serveur ferme l'application, il ne se contente pas d'une redirection à l'écran. Sinon le
+    # mot de passe initial — celui du `.env`, connu de l'exploitant — resterait un accès complet
+    # et permanent à l'API, hors de tout écran. Contrôle côté serveur : incontournable.
+    #
+    # Exception : l'incarnation (dev). Regarder les écrans d'un agent qui n'a pas encore renouvelé
+    # son mot de passe doit rester possible — l'écran ne redirige pas non plus dans ce cas.
+    if (
+        u["doit_changer_mdp"]
+        and incarne_par is None
+        and not requete.url.path.endswith(_CHEMINS_SANS_MDP_A_JOUR)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Renouvelez votre mot de passe avant d'utiliser l'application.",
+        )
     return {
         **await profil_complet(session, u),
         "incarne_par": str(incarne_par) if incarne_par else None,
