@@ -98,13 +98,23 @@ export function ReinitialiserPage(): JSX.Element {
             </label>
             <label className={styles.champ}>
               <span className={styles.label}>Confirmer</span>
-              <input
-                type={visible ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-                required
-              />
+              <div className={styles.motDePasse}>
+                <input
+                  type={visible ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className={styles.oeil}
+                  onClick={() => setVisible((v) => !v)}
+                  aria-label={visible ? 'Masquer' : 'Afficher'}
+                >
+                  {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
             {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
             <Button type="submit" pleineLargeur disabled={envoi}>

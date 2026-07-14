@@ -109,13 +109,23 @@ export function ChangerMotDePasse(): JSX.Element {
 
         <label className={styles.champ}>
           <span className={styles.label}>Confirmer</span>
-          <input
-            type={visible ? 'text' : 'password'}
-            value={confirme}
-            onChange={(e) => setConfirme(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
+          <div className={styles.motDePasse}>
+            <input
+              type={visible ? 'text' : 'password'}
+              value={confirme}
+              onChange={(e) => setConfirme(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              className={styles.oeil}
+              onClick={() => setVisible((v) => !v)}
+              aria-label={visible ? 'Masquer' : 'Afficher'}
+            >
+              {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </label>
 
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}

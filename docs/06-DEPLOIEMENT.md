@@ -222,7 +222,7 @@ Attendu :
 
 Puis **dérouler le test d'intrusion** avant d'ouvrir aux utilisateurs :
 ```powershell
-infra\local\pentest.ps1 -Url https://<IP>:8453/api/v1
+infra\local\pentest.ps1 -Url https://<IP>:8453/api/v1 -SansVerifTls
 ```
 Attendu : `21 contrôles franchis, 0 faille(s)` (détail : [04-SECURITY.md](04-SECURITY.md) §6).
 
@@ -337,7 +337,9 @@ Remplacer `<IP>` et `<URL_DU_DEPOT>` par les valeurs réelles.
 8. **Tâche `DSI360-Sauvegarde`** : `sauvegarde-db.ps1` quotidien ; **tester une restauration**.
 9. **Vérifier** : port en écoute + `curl -I -k https://<IP>:8453/` (200, HSTS, CSP, DENY, **pas** de
    `server:`) + `/readyz` `db:ok`.
-10. **Test d'intrusion** : `pentest.ps1 -Url https://<IP>:8453/api/v1` → **21/21, 0 faille**.
+10. **Test d'intrusion** : `pentest.ps1 -Url https://<IP>:8453/api/v1 -SansVerifTls` → **21/21,
+    0 faille**. (`-SansVerifTls` : le certificat est auto-signé — sans l'option, le client refuse
+    la connexion et le test ne démarre même pas.)
 11. **Anomalie** : dérouler le tableau des **pièges (§5)** — surtout #2 (SAN/EKU), #3 (relancer
     après changement de cert), #4 (script réellement lancé), #7 (jamais plusieurs workers).
 12. **Règles permanentes** : ne **jamais** commiter `.env`/`cert/`/`/data/` ; **redémarrer la tâche

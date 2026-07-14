@@ -14,6 +14,7 @@ Lancement : ``python -m dsi360.infrastructure.db.donnees_demo``.
 
 import asyncio
 import json
+import os
 import random
 import sys
 from datetime import UTC, datetime, timedelta
@@ -657,8 +658,18 @@ async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) ->
 
 
 async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de démo
-    if get_settings().environnement != "dev":
-        print("REFUS : les données de démonstration ne sont créées qu'en environnement 'dev'.")
+    # Garde-fou *fail-closed* : ce script EFFACE toutes les activités avant de régénérer la démo.
+    # `environnement` vaut « dev » par défaut : se fier à cette valeur laisserait le script détruire
+    # une base de prod dès qu'il tourne sans configuration chargée (DSN par défaut = base de prod).
+    # On exige donc que DSI360_ENVIRONNEMENT soit **explicitement** présent ET égal à « dev ». En
+    # dev, env.ps1 le charge depuis .env ; ailleurs, son absence suffit à refuser.
+    declare = os.environ.get("DSI360_ENVIRONNEMENT")
+    if declare != "dev" or get_settings().environnement != "dev":
+        print(
+            "REFUS : les données de démonstration ne se créent qu'en 'dev' (elles EFFACENT les\n"
+            "activités existantes). DSI360_ENVIRONNEMENT doit valoir explicitement 'dev' — "
+            f"trouvé : {declare!r}. En prod, ce script ne doit jamais être lancé."
+        )
         sys.exit(1)
 
     maintenant = datetime.now(UTC)
