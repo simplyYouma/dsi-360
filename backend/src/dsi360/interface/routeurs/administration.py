@@ -456,6 +456,35 @@ async def modifier_utilisateur(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Vous ne pouvez pas bloquer ou faire expirer votre propre compte.",
         )
+    # Garde « dernier administrateur » : personne n'est au-dessus des autres, tous les admins sont
+    # égaux — mais le système ne doit jamais tomber à zéro admin (plus personne ne pourrait alors
+    # administrer). On refuse de bloquer ou de rétrograder le dernier administrateur actif.
+    perd_admin = corps.profil_code != PROFIL_ADMIN or not corps.actif
+    if perd_admin:
+        est_admin_actif = await session.scalar(
+            text(
+                "SELECT u.actif FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+                "WHERE u.id::text = :id AND p.code = :admin"
+            ),
+            {"id": ident, "admin": PROFIL_ADMIN},
+        )
+        if est_admin_actif:
+            autres = await session.scalar(
+                text(
+                    "SELECT count(*) FROM core.utilisateur u "
+                    "JOIN core.profil p ON p.id = u.profil_id "
+                    "WHERE p.code = :admin AND u.actif AND u.id::text <> :id"
+                ),
+                {"id": ident, "admin": PROFIL_ADMIN},
+            )
+            if not autres:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Dernier administrateur actif : désignez d'abord un autre administrateur "
+                        "avant de bloquer ou de rétrograder celui-ci."
+                    ),
+                )
     await session.execute(
         text(
             "UPDATE core.utilisateur SET nom = :nom, prenom = :prenom, actif = :actif, "

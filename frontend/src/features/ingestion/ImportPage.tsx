@@ -11,6 +11,7 @@ export function ImportPage(): JSX.Element {
   const [rapport, setRapport] = useState<RapportImport | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [nomFichier, setNomFichier] = useState<string | null>(null);
+  const [survol, setSurvol] = useState(false);
   const champ = useRef<HTMLInputElement>(null);
   const { notifier } = useToast();
 
@@ -42,6 +43,21 @@ export function ImportPage(): JSX.Element {
     e.target.value = ''; // permet de recharger le même fichier
   };
 
+  // Un fichier lâché sur la zone : sans preventDefault, le navigateur l'ouvrirait à la place.
+  const surDepot = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.preventDefault();
+    setSurvol(false);
+    if (enCours) return;
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    if (!f.name.toLowerCase().endsWith('.xlsx')) {
+      setErreur('Format attendu : un fichier Excel (.xlsx).');
+      notifier('Format attendu : un fichier Excel (.xlsx).', 'erreur');
+      return;
+    }
+    void traiter(f);
+  };
+
   const tuiles = rapport
     ? [
         { libelle: 'Tickets traités', valeur: rapport.total, couleur: '#4f6bed' },
@@ -65,10 +81,16 @@ export function ImportPage(): JSX.Element {
 
       <Card>
         <div
-          className={styles.zone}
+          className={survol ? `${styles.zone} ${styles.zoneSurvol}` : styles.zone}
           onClick={() => {
             if (!enCours) champ.current?.click();
           }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!enCours) setSurvol(true);
+          }}
+          onDragLeave={() => setSurvol(false)}
+          onDrop={surDepot}
         >
           <input
             ref={champ}

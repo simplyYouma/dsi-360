@@ -16,6 +16,12 @@
 .zone:hover {
   border-color: var(--secondary);
 }
+/* Un fichier survole la zone pendant un glisser-déposer : on le signale clairement. */
+.zoneSurvol {
+  border-color: var(--secondary);
+  border-style: solid;
+  background: var(--secondary-subtle);
+}
 .zoneIcone {
   width: 56px;
   height: 56px;

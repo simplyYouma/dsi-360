@@ -20,7 +20,7 @@ interface Props {
 }
 
 const MARGE = 4;
-const LARGEUR = 210;
+const LARGEUR = 244;
 
 /** Menu d'actions déroulant (kebab) — popover en position fixe, aucun composant natif. */
 export function MenuActions({ actions, etiquette = 'Actions' }: Props): JSX.Element {
