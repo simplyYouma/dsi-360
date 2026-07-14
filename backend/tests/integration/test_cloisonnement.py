@@ -75,6 +75,25 @@ async def test_activite_sans_direction_visible_par_tous(
     assert r.status_code == 200, r.text
 
 
+async def test_la_liste_montre_les_activites_sans_direction(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Régression : les tickets importés (sans direction) doivent apparaître dans la LISTE d'un
+    agent non transverse, pas seulement dans leur fiche. Le filtre de liste excluait les lignes
+    sans direction (``d.code = 'DSI'`` est faux quand la direction est NULL) — un agent ne voyait
+    donc aucun incident importé, alors que sa fiche restait ouverte."""
+    await _creer_incident(session, reference="INC-TEST-IMP-1", direction=None)
+    await _creer_incident(session, reference="INC-TEST-DSI-1", direction="DSI")
+    uid = await creer_utilisateur(session, email="dsi.import@afgbank.ml", direction="DSI")
+
+    r = await client.get("/incidents", headers=entetes(uid))
+
+    assert r.status_code == 200, r.text
+    references = {a["reference"] for a in r.json()["elements"]}
+    assert "INC-TEST-IMP-1" in references, "un ticket importé (sans direction) doit être listé"
+    assert "INC-TEST-DSI-1" in references
+
+
 async def test_administrateur_transverse_voit_toutes_les_directions(
     client: AsyncClient, session: AsyncSession
 ) -> None:

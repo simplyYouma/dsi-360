@@ -157,7 +157,10 @@ async def analyses(
     cond_dir = ""
     params: dict[str, Any] = dict(_pparams(jours, du, au))
     if not courant["transverse"]:
-        cond_dir = " AND d.code = :dir"
+        # Activité sans direction (tickets importés : l'import n'en pose pas) = visible par tous,
+        # comme dans les listes et `_visible`. Sinon le tableau de bord d'un agent non transverse
+        # ignorerait tous les incidents/demandes importés.
+        cond_dir = " AND (d.code = :dir OR a.direction_id IS NULL)"
         params["dir"] = courant["direction"]
     # Filtre période (sur la date de création) appliqué aux agrégations, hors tendance.
     cond = cond_dir + _periode(jours, du, au)

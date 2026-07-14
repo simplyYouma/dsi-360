@@ -129,7 +129,10 @@ async def lister(
     params: dict[str, Any] = {"module": module, "moi": moi}
     filtres = ""
     if direction is not None:
-        filtres += " AND d.code = :direction"
+        # Une activité sans direction (tickets importés : l'import n'en pose pas) appartient à
+        # tout le monde — cohérent avec `_visible`. Sans le OR, elle disparaîtrait de la liste
+        # d'un agent non transverse, alors que sa fiche reste ouverte : incohérence.
+        filtres += " AND (d.code = :direction OR a.direction_id IS NULL)"
         params["direction"] = direction
     if statut is not None:
         filtres += " AND a.statut = :statut"
@@ -168,7 +171,8 @@ async def lister_tout(
     params: dict[str, Any] = {"module": module, "limite": limite, "moi": moi}
     cond = ""
     if direction is not None:
-        cond = " AND d.code = :direction"
+        # Activité sans direction (tickets importés) = visible par tous (cf. `_visible`).
+        cond = " AND (d.code = :direction OR a.direction_id IS NULL)"
         params["direction"] = direction
     lignes = await session.execute(
         text(f"SELECT {_LISTE_CHAMPS} {_BASE}{cond} ORDER BY a.cree_le DESC LIMIT :limite"),
