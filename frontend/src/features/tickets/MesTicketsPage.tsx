@@ -354,64 +354,63 @@ export function MesTicketsPage(): JSX.Element {
                 : 'Analyse complète de votre activité : SLA, charge et rythme de résolution.'}
           </p>
         </div>
-        <div className={local.onglets} role="tablist" aria-label="Vues de la page">
-          <button
-            role="tab"
-            aria-selected={onglet === 'tickets'}
-            className={cx(local.onglet, onglet === 'tickets' && local.ongletOn)}
-            onClick={() => setOnglet('tickets')}
-          >
-            <Inbox size={15} />
-            Tickets
-          </button>
-          <button
-            role="tab"
-            aria-selected={onglet === 'taches'}
-            className={cx(local.onglet, onglet === 'taches' && local.ongletOn)}
-            onClick={() => setOnglet('taches')}
-          >
-            <ListChecks size={15} />
-            Mes tâches
-          </button>
-          <button
-            role="tab"
-            aria-selected={onglet === 'analyse'}
-            className={cx(local.onglet, onglet === 'analyse' && local.ongletOn)}
-            onClick={() => setOnglet('analyse')}
-          >
-            <BarChart3 size={15} />
-            Analyse
-          </button>
+        <div className={local.ongletsBarre}>
+          <div className={local.onglets} role="tablist" aria-label="Vues de la page">
+            <button
+              role="tab"
+              aria-selected={onglet === 'tickets'}
+              className={cx(local.onglet, onglet === 'tickets' && local.ongletOn)}
+              onClick={() => setOnglet('tickets')}
+            >
+              <Inbox size={15} />
+              Tickets
+            </button>
+            <button
+              role="tab"
+              aria-selected={onglet === 'taches'}
+              className={cx(local.onglet, onglet === 'taches' && local.ongletOn)}
+              onClick={() => setOnglet('taches')}
+            >
+              <ListChecks size={15} />
+              {agentCible === null ? 'Mes tâches' : agentCible === 'tous' ? 'Tâches' : 'Ses tâches'}
+            </button>
+            <button
+              role="tab"
+              aria-selected={onglet === 'analyse'}
+              className={cx(local.onglet, onglet === 'analyse' && local.ongletOn)}
+              onClick={() => setOnglet('analyse')}
+            >
+              <BarChart3 size={15} />
+              Analyse
+            </button>
+          </div>
+          {estAdmin && (
+            <div className={local.consulterSelecteur}>
+              <SelecteurListe
+                options={[
+                  { valeur: 'tous', libelle: 'Tous les agents (vue globale)' },
+                  ...agents.map((ag) => ({ valeur: ag.id, libelle: ag.nom })),
+                ]}
+                valeur={agentCible}
+                onChange={choisirAgent}
+                placeholder="Ma file"
+                permettreVide
+                libelleVide="Ma file"
+              />
+            </div>
+          )}
         </div>
       </header>
 
-      {estAdmin && (
-        <div className={local.consulter}>
-          <span className={local.consulterLabel}>Consulter la file de</span>
-          <div className={local.consulterSelecteur}>
-            <SelecteurListe
-              options={[
-                { valeur: 'tous', libelle: 'Tous les agents (vue globale)' },
-                ...agents.map((ag) => ({ valeur: ag.id, libelle: ag.nom })),
-              ]}
-              valeur={agentCible}
-              onChange={choisirAgent}
-              placeholder="Ma file"
-              permettreVide
-              libelleVide="Ma file (administrateur)"
-            />
-          </div>
-          {agentCible !== null && (
-            <span className={local.consulterBandeau}>
-              <Eye size={14} /> Vue en lecture —{' '}
-              <strong>
-                {agentCible === 'tous'
-                  ? 'tous les agents'
-                  : (agents.find((x) => x.id === agentCible)?.nom ?? 'cet agent')}
-              </strong>
-            </span>
-          )}
-        </div>
+      {agentCible !== null && (
+        <span className={local.consulterBandeau}>
+          <Eye size={14} /> Vue en lecture —{' '}
+          <strong>
+            {agentCible === 'tous'
+              ? 'tous les agents'
+              : (agents.find((x) => x.id === agentCible)?.nom ?? 'cet agent')}
+          </strong>
+        </span>
       )}
 
       {onglet !== 'analyse' && (

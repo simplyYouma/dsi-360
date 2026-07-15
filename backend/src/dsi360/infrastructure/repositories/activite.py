@@ -151,7 +151,18 @@ async def lister(
     if non_assigne:
         filtres += " AND a.responsable_id IS NULL"
     if q is not None and q.strip() != "":
-        filtres += " AND (a.reference ILIKE :q OR a.titre ILIKE :q)"
+        # Recherche élargie : référence, titre, mais aussi les personnes — gestionnaire (compte DSI
+        # ou nom importé), demandeur, et contributeurs. On cherche « qui » autant que « quoi ».
+        filtres += (
+            " AND (a.reference ILIKE :q OR a.titre ILIKE :q"
+            " OR (r.prenom || ' ' || r.nom) ILIKE :q"
+            " OR a.donnees->>'gestionnaire' ILIKE :q"
+            " OR dem.nom_complet ILIKE :q"
+            " OR EXISTS (SELECT 1 FROM core.activite_acteur aa"
+            "            JOIN core.utilisateur cu ON cu.id = aa.utilisateur_id"
+            "            WHERE aa.activite_id = a.id"
+            "              AND (cu.prenom || ' ' || cu.nom) ILIKE :q))"
+        )
         params["q"] = f"%{q.strip()}%"
     filtres += _clause_etat(etat, params)
 

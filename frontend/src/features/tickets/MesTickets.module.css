@@ -356,35 +356,22 @@
   text-align: center;
 }
 
-/* Bandeau admin : consulter la file d'un gestionnaire (tickets/tâches/analyses) en lecture. */
-.consulter {
+/* Onglets + sélecteur « Ma file » (admin) sur la même ligne. */
+.ongletsBarre {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(
-    120deg,
-    var(--surface),
-    color-mix(in srgb, var(--secondary) 5%, var(--surface))
-  );
-}
-.consulterLabel {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--text-muted);
 }
 .consulterSelecteur {
-  min-width: 240px;
+  min-width: 200px;
 }
+/* Bandeau « vue en lecture » quand l'admin consulte la file d'un autre agent. */
 .consulterBandeau {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin-left: auto;
+  margin-bottom: var(--space-4);
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   background: var(--secondary-subtle);
