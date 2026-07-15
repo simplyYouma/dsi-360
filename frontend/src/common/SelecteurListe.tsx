@@ -113,11 +113,13 @@ export function SelecteurListe({
       setOuvert(false);
     };
     const surResize = (): void => setOuvert(false);
-    document.addEventListener('mousedown', fermer);
+    // Capture : une modale stoppe la propagation du `mousedown` sur son contenu ; en phase bubble
+    // le listener ne verrait jamais ces clics et le menu resterait ouvert. La capture les voit tous.
+    document.addEventListener('mousedown', fermer, true);
     window.addEventListener('scroll', surScroll, true);
     window.addEventListener('resize', surResize);
     return () => {
-      document.removeEventListener('mousedown', fermer);
+      document.removeEventListener('mousedown', fermer, true);
       window.removeEventListener('scroll', surScroll, true);
       window.removeEventListener('resize', surResize);
     };

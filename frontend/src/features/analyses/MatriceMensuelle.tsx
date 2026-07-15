@@ -109,6 +109,11 @@ const STATUT_LIGNE: Record<string, keyof CelluleEntite> = {
   ferme: 'fermes',
   rejete: 'rejetes',
 };
+const STATUT_TEXTE: Record<string, string> = {
+  ouvert: 'ouverts',
+  ferme: 'fermés',
+  rejete: 'rejetés',
+};
 
 interface MatriceProps {
   data: AnalysesMensuelles | null;
@@ -124,6 +129,14 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
   const { mois, priorites, total_priorites, entites, niveaux, granularite } = data;
   const ligneFiltree = statut ? STATUT_LIGNE[statut] : undefined;
   const pas = PAR_PAS[granularite];
+  // Colonnes d'état du tableau par gestionnaire : un filtre d'état ne garde que la colonne concernée
+  // (rejeté n'a ni ouverts ni fermés → aucune colonne d'état).
+  const colsEtat = (
+    [
+      { cle: 'ouverts', libelle: 'Ouverts' },
+      { cle: 'fermes', libelle: 'Fermés' },
+    ] as const
+  ).filter((c) => statut == null || STATUT_LIGNE[statut] === c.cle);
   const dsi = entites.find((e) => e.cle === 'DSI');
   const dbs = entites.find((e) => e.cle === 'DBS');
 
@@ -268,64 +281,51 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
         </div>
       </Card>
 
-      {/* ---- 3. Répartition par niveau de support ---- */}
-      <Card data-visuel="Répartition par niveau de support">
-        <BoutonExportPng nom="Répartition par niveau de support" />
-        <h2 className={styles.titre}>Répartition par niveau de support</h2>
+      {/* ---- 3. Répartition par gestionnaire ---- */}
+      <Card data-visuel="Répartition par gestionnaire">
+        <BoutonExportPng nom="Répartition par gestionnaire" />
+        <h2 className={styles.titre}>Répartition par gestionnaire</h2>
         <p className={styles.sous}>
-          Incidents et demandes selon le niveau du gestionnaire (N1, N2, DBS), {pas}.
+          Les 5 gestionnaires les plus actifs (incidents et demandes)
+          {ligneFiltree !== undefined ? `, état : ${STATUT_TEXTE[statut ?? ''] ?? ''}` : ''}.
         </p>
         <div className={styles.zone}>
           <table className={styles.matrice}>
             <thead>
               <tr>
-                <th className={styles.figee}>Niveau</th>
-                {mois.map((m) => (
-                  <th key={m.cle}>{m.libelle}</th>
+                <th className={styles.figee}>Gestionnaire</th>
+                <th>Incidents</th>
+                <th>Demandes</th>
+                <th>Total</th>
+                {colsEtat.map((c) => (
+                  <th key={c.cle}>{c.libelle}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {niveaux.map((n) => (
-                <Fragment key={n.cle}>
-                  <tr className={styles.ligneTotale}>
-                    <td className={styles.figee}>{n.libelle}</td>
-                    {n.cellules.map((c) => (
-                      <td key={c.mois}>
-                        <span className={styles.volume}>{c.total || '—'}</span>
-                      </td>
-                    ))}
-                  </tr>
-                  {(
-                    [
-                      { cle: 'fermes', libelle: 'Fermés', icone: <CheckCircle2 size={13} /> },
-                      { cle: 'ouverts', libelle: 'Ouverts', icone: <CircleDot size={13} /> },
-                      {
-                        cle: 'incidents',
-                        libelle: 'Incidents',
-                        icone: <AlertTriangle size={13} />,
-                        sep: true,
-                      },
-                      { cle: 'demandes', libelle: 'Demandes', icone: <FileText size={13} /> },
-                    ] as const
-                  ).map((sl) => (
-                    <tr
-                      key={`${n.cle}-${sl.cle}`}
-                      className={'sep' in sl && sl.sep ? styles.debutGroupe : undefined}
-                    >
-                      <td className={`${styles.figee} ${styles.sousLigne}`}>
-                        <span className={styles.slIcone}>{sl.icone}</span>
-                        {sl.libelle}
-                      </td>
-                      {n.cellules.map((c) => (
-                        <td key={c.mois} className={styles.discret}>
-                          {c[sl.cle] || '—'}
-                        </td>
-                      ))}
-                    </tr>
+              {niveaux.slice(0, 5).map((n) => (
+                <tr key={n.cle}>
+                  <td className={styles.figee}>{n.libelle}</td>
+                  <td className={styles.discret}>{n.incidents || '—'}</td>
+                  <td className={styles.discret}>{n.demandes || '—'}</td>
+                  <td>
+                    <span className={styles.volume}>{n.total || '—'}</span>
+                  </td>
+                  {colsEtat.map((c) => (
+                    <td key={c.cle} className={styles.discret}>
+                      {n[c.cle] || '—'}
+                    </td>
                   ))}
-                </Fragment>
+                </tr>
               ))}
+              {niveaux.length === 0 && (
+                <tr>
+                  <td className={styles.figee}>—</td>
+                  <td colSpan={3 + colsEtat.length} className={styles.discret}>
+                    Aucun gestionnaire sur la période.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

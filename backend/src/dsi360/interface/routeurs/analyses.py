@@ -666,14 +666,12 @@ WHERE a.source = 'IMPORT_SD'
 GROUP BY 1, 2
 """
 
-# Répartition par niveau de support, par bucket. Le niveau se déduit du gestionnaire : son
-# niveau_support si c'est un compte DSI, DBS (N3) s'il n'y a pas de responsable (ADR-0005).
+# Répartition PAR GESTIONNAIRE, par bucket. Le gestionnaire est le compte DSI responsable, sinon
+# le nom porté par le ticket importé, sinon DBS (N3) — aucun compte, traité hors DSI (ADR-0005).
 _MENSUEL_NIVEAU = """
 SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
-       CASE WHEN a.responsable_id IS NULL THEN 'DBS'
-            WHEN u.niveau_support = 1 THEN 'N1'
-            WHEN u.niveau_support = 2 THEN 'N2'
-            ELSE 'Autre' END AS niveau,
+       coalesce(nullif(u.prenom || ' ' || u.nom, ' '),
+                nullif(a.donnees->>'gestionnaire', ''), 'DBS (N3)') AS gestionnaire,
        count(*) AS total,
        count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
        count(*) FILTER (
@@ -829,26 +827,32 @@ async def analyses_mensuelles(
             }
         )
 
-    # --- Niveau de support (N1 / N2 / DBS) × bucket ---
+    # --- Par gestionnaire × bucket --- (une ligne par gestionnaire, classée par volume décroissant)
     lignes_n = await _lignes(
         session, _MENSUEL_NIVEAU.format(trunc=trunc, fmt=fmt, cond=cond_agg), params
     )
-    par_n = {(str(r["niveau"]), str(r["bucket"])): r for r in lignes_n}
+    par_n = {(str(r["gestionnaire"]), str(r["bucket"])): r for r in lignes_n}
     champs_n = ("total", "fermes", "ouverts", "incidents", "demandes")
+    totaux_g: dict[str, int] = {}
+    for r in lignes_n:
+        g = str(r["gestionnaire"])
+        totaux_g[g] = totaux_g.get(g, 0) + int(r["total"])
+    # Nom en second critère : ordre stable quand deux gestionnaires ont le même volume.
+    noms_g = sorted(totaux_g, key=lambda n: (-totaux_g[n], n))
     niveaux = []
-    for cle_n, libelle_n in (("N1", "Niveau 1"), ("N2", "Niveau 2"), ("DBS", "DBS (N3)")):
+    for nom in noms_g:
         cellules = []
         cumuls_n: dict[str, int] = dict.fromkeys(champs_n, 0)
         for cle in cles:
-            r = par_n.get((cle_n, cle))
+            r = par_n.get((nom, cle))
             vals = {ch: (int(r[ch]) if r else 0) for ch in champs_n}
             for ch in champs_n:
                 cumuls_n[ch] += vals[ch]
             cellules.append({"mois": cle, **vals})
         niveaux.append(
             {
-                "cle": cle_n,
-                "libelle": libelle_n,
+                "cle": nom,
+                "libelle": nom,
                 "total": cumuls_n["total"],
                 "fermes": cumuls_n["fermes"],
                 "ouverts": cumuls_n["ouverts"],
