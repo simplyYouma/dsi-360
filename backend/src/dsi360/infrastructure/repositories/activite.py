@@ -138,7 +138,15 @@ async def lister(
         filtres += " AND a.statut = :statut"
         params["statut"] = statut
     if responsable_id is not None:
-        filtres += " AND a.responsable_id = cast(:resp as uuid)"
+        # Filtrer sur une personne, c'est vouloir « ce dont elle s'occupe » : ce qu'elle gère, mais
+        # aussi ce à quoi elle contribue. Sans le contributeur, une activité qu'on lui a confiée en
+        # renfort disparaîtrait du filtre alors qu'elle est bien dans sa file.
+        filtres += (
+            " AND (a.responsable_id = cast(:resp as uuid)"
+            " OR EXISTS (SELECT 1 FROM core.activite_acteur aa"
+            "            WHERE aa.activite_id = a.id AND aa.utilisateur_id = cast(:resp as uuid)"
+            "              AND aa.role = 'CONTRIBUTEUR'))"
+        )
         params["resp"] = responsable_id
     if non_assigne:
         filtres += " AND a.responsable_id IS NULL"
