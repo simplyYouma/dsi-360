@@ -8,10 +8,11 @@ from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.config.acces import PROFIL_ADMIN
 from dsi360.domain.etats import STATUTS_TERMINAUX, etats_terminaux
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
@@ -23,6 +24,58 @@ routeur = APIRouter(prefix="/mes-tickets", tags=["mes-tickets"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(utilisateur_courant)]
 _FENETRE = timedelta(hours=2)
+
+
+async def _id_cible(session: AsyncSession, courant: dict[str, Any], agent: str | None) -> str:
+    """File que l'on regarde : la sienne, ou celle d'un agent choisi (réservé à l'administrateur).
+
+    Un admin n'a presque jamais de tickets ; il doit pouvoir consulter la file d'un gestionnaire
+    — ses tickets, tâches et analyses — comme si c'était lui, en lecture. Personne d'autre ne
+    peut viser un autre agent : chacun ne voit que sa propre file.
+    """
+    if agent is None or agent == courant["id"]:
+        return str(courant["id"])
+    if courant["profil"] != PROFIL_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Consulter la file d'un autre agent est réservé à l'administrateur.",
+        )
+    existe = await session.scalar(
+        text("SELECT 1 FROM core.utilisateur WHERE id::text = :id AND actif"), {"id": agent}
+    )
+    if existe is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent introuvable.")
+    return agent
+
+
+async def _bloc_agent(
+    session: AsyncSession, courant: dict[str, Any], cible: str
+) -> dict[str, Any]:
+    """Identité affichée dans les analyses : soi, ou l'agent dont on consulte la file."""
+    if cible == str(courant["id"]):
+        return {
+            "nom": f"{courant['prenom']} {courant['nom']}".strip(),
+            "profil": courant.get("profil_libelle") or courant["profil"],
+            "direction": courant["direction"],
+        }
+    r = (
+        await session.execute(
+            text(
+                "SELECT u.prenom, u.nom, p.libelle AS profil, d.code AS direction "
+                "FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+                "LEFT JOIN core.direction d ON d.id = u.direction_id "
+                "WHERE u.id::text = :id"
+            ),
+            {"id": cible},
+        )
+    ).mappings().first()
+    if r is None:
+        return {"nom": "", "profil": "", "direction": None}
+    return {
+        "nom": f"{r['prenom']} {r['nom']}".strip(),
+        "profil": r["profil"],
+        "direction": r["direction"],
+    }
 
 _MODULES = "('incident','demande','changement','audit','cybersecurite','gouvernance')"
 _MODULES_LISTE = ("incident", "demande", "changement", "audit", "cybersecurite", "gouvernance")
@@ -118,11 +171,13 @@ async def mes_tickets(
     segment: Annotated[str, Query()] = "actifs",
     page: Annotated[int, Query(ge=1)] = 1,
     q: Annotated[str | None, Query()] = None,
+    agent: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     if segment not in _SEGMENTS:
         segment = "actifs"
+    cible = await _id_cible(session, courant, agent)
     recherche = bool(q and q.strip())
-    params: dict[str, Any] = {"id": courant["id"], "regles": _REGLES, "termines": _TERMINES}
+    params: dict[str, Any] = {"id": cible, "regles": _REGLES, "termines": _TERMINES}
     if recherche:
         params["q"] = f"%{q.strip()}%"  # type: ignore[union-attr]
     total = await session.scalar(_requete_total(segment, recherche), params) or 0
@@ -222,11 +277,13 @@ async def mes_taches(
     page: Annotated[int, Query(ge=1)] = 1,
     q: Annotated[str | None, Query()] = None,
     filtre: Annotated[str | None, Query()] = None,
+    agent: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
+    cible = await _id_cible(session, courant, agent)
     aujourdhui = datetime.now(UTC).date()
     toutes = await tache_repo.lister_pour_utilisateur(
-        session, courant["id"], inclure_terminees=inclure_terminees
+        session, cible, inclure_terminees=inclure_terminees
     )
     stats = _stats_taches(toutes, aujourdhui)  # compté sur TOUTES : les tuiles ne bougent pas.
     lignes = toutes
@@ -267,16 +324,16 @@ async def mes_stats(
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
     du: date | None = None,
     au: date | None = None,
+    agent: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
+    cible = await _id_cible(session, courant, agent)
     maintenant = datetime.now(UTC)
     debut, fin = _fenetre_periode(jours, du, au, maintenant)
     ouverts = (
-        await session.execute(_OUVERTS, {"id": courant["id"], "regles": _REGLES})
+        await session.execute(_OUVERTS, {"id": cible, "regles": _REGLES})
     ).mappings().all()
     resolus = (
-        await session.execute(
-            _RESOLUS, {"id": courant["id"], "depuis": debut, "jusqua": fin}
-        )
+        await session.execute(_RESOLUS, {"id": cible, "depuis": debut, "jusqua": fin})
     ).mappings().all()
 
     # --- File ouverte : SLA, ancienneté, répartitions ---
@@ -310,11 +367,7 @@ async def mes_stats(
     tendance = _tendance_resolus(list(resolus), dernier, max(7, portee))
 
     return {
-        "agent": {
-            "nom": f"{courant['prenom']} {courant['nom']}".strip(),
-            "profil": courant.get("profil_libelle") or courant["profil"],
-            "direction": courant["direction"],
-        },
+        "agent": await _bloc_agent(session, courant, cible),
         "ouverts": len(ouverts),
         "a_lheure": sla["a_lheure"],
         "approche": sla["approche"],

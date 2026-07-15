@@ -10,6 +10,7 @@ import {
   Circle,
   Clock,
   AlertTriangle,
+  Eye,
 } from 'lucide-react';
 import { Table, StatusBadge, useToast, type Colonne } from '@/design-system/primitives';
 import { COULEUR_STATUT_TACHE, type StatutTache } from '@/common/tacheTypes';
@@ -32,6 +33,9 @@ import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
 import { PERIODE_TOUT, type Periode } from '@/common/periode';
 import { BandeauAgent } from './BandeauAgent';
+import { useAuth } from '@/lib/auth';
+import { SelecteurListe } from '@/common/SelecteurListe';
+import { chargerAgents, type Agent } from '@/common/agentsApi';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import local from './MesTickets.module.css';
 import { useRafraichissement } from '@/common/useRafraichissement';
@@ -202,13 +206,30 @@ export function MesTicketsPage(): JSX.Element {
   const analyseRef = useRef<HTMLDivElement>(null);
   const { notifier } = useToast();
   const navigate = useNavigate();
+  const { moi } = useAuth();
+
+  // Un administrateur n'a presque jamais de tickets. Il peut consulter la file d'un gestionnaire
+  // (tickets, tâches, analyses) comme si c'était lui, en lecture. Réservé à l'admin (garde serveur).
+  const estAdmin = moi?.profil === 'ADMIN';
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentCible, setAgentCible] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (estAdmin) void chargerAgents().then(setAgents);
+  }, [estAdmin]);
+
+  const choisirAgent = (id: string | null): void => {
+    setAgentCible(id);
+    setPage(1);
+    setPageTaches(1);
+  };
 
   const charger = useCallback(
     // `silencieux` : rafraîchissement de fond — pas de squelette, la liste ne doit pas clignoter.
     (silencieux = false): void => {
       if (!silencieux) setChargement(true);
       void mesTicketsApi
-        .lister(segment, page, recherche)
+        .lister(segment, page, recherche, agentCible)
         .then((p) => {
           setItems(p.elements);
           setTotal(p.total);
@@ -218,7 +239,7 @@ export function MesTicketsPage(): JSX.Element {
           if (!silencieux) setChargement(false);
         });
     },
-    [segment, page, recherche],
+    [segment, page, recherche, agentCible],
   );
 
   const baseDe = useCallback(
@@ -282,17 +303,17 @@ export function MesTicketsPage(): JSX.Element {
 
   useEffect(() => {
     if (onglet !== 'taches') return;
-    void mesTicketsApi.taches(false, pageTaches, recherche, filtreTache).then((p) => {
+    void mesTicketsApi.taches(false, pageTaches, recherche, filtreTache, agentCible).then((p) => {
       setTaches(p.elements);
       setTotalTaches(p.total);
       setStatsTaches(p.stats);
     });
-  }, [onglet, pageTaches, recherche, filtreTache]);
+  }, [onglet, pageTaches, recherche, filtreTache, agentCible]);
 
   // Les indicateurs de l'onglet Analyse suivent la période choisie.
   useEffect(() => {
-    void mesTicketsApi.stats(periodeAnalyse).then(setStats);
-  }, [periodeAnalyse]);
+    void mesTicketsApi.stats(periodeAnalyse, agentCible).then(setStats);
+  }, [periodeAnalyse, agentCible]);
 
   // Kanban : une colonne par statut présent (ordre d'apparition : déjà trié priorité/SLA).
   const statutsPresents = [...new Set(items.map((t) => t.statut))];
@@ -363,6 +384,28 @@ export function MesTicketsPage(): JSX.Element {
           </button>
         </div>
       </header>
+
+      {estAdmin && (
+        <div className={local.consulter}>
+          <span className={local.consulterLabel}>Consulter la file de</span>
+          <div className={local.consulterSelecteur}>
+            <SelecteurListe
+              options={agents.map((ag) => ({ valeur: ag.id, libelle: ag.nom }))}
+              valeur={agentCible}
+              onChange={choisirAgent}
+              placeholder="Ma file"
+              permettreVide
+              libelleVide="Ma file (administrateur)"
+            />
+          </div>
+          {agentCible !== null && (
+            <span className={local.consulterBandeau}>
+              <Eye size={14} /> Vue en lecture de la file de{' '}
+              <strong>{agents.find((x) => x.id === agentCible)?.nom ?? 'cet agent'}</strong>
+            </span>
+          )}
+        </div>
+      )}
 
       {onglet !== 'analyse' && (
         <div className={local.recherche}>

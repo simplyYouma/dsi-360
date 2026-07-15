@@ -77,19 +77,33 @@ export interface MaTache {
 const q = (recherche: string): string =>
   recherche.trim() ? `&q=${encodeURIComponent(recherche.trim())}` : '';
 
+// Agent visé : un administrateur consulte la file d'un gestionnaire (tickets/tâches/analyses).
+const a = (agent: string | null): string => (agent ? `&agent=${agent}` : '');
+
 export const mesTicketsApi = {
-  lister: (segment: SegmentTicket = 'actifs', page = 1, recherche = ''): Promise<PageMesTickets> =>
-    api.get(`/mes-tickets?segment=${segment}&page=${page}${q(recherche)}`),
-  stats: (p: Periode): Promise<MesStats> => api.get(`/mes-tickets/stats${requetePeriode(p)}`),
+  lister: (
+    segment: SegmentTicket = 'actifs',
+    page = 1,
+    recherche = '',
+    agent: string | null = null,
+  ): Promise<PageMesTickets> =>
+    api.get(`/mes-tickets?segment=${segment}&page=${page}${q(recherche)}${a(agent)}`),
+  stats: (p: Periode, agent: string | null = null): Promise<MesStats> => {
+    const base = `/mes-tickets/stats${requetePeriode(p)}`;
+    const sep = base.includes('?') ? '&' : '?';
+    return api.get(agent ? `${base}${sep}agent=${agent}` : base);
+  },
   taches: (
     inclureTerminees = false,
     page = 1,
     recherche = '',
     filtre: FiltreTache = null,
+    agent: string | null = null,
   ): Promise<PageMesTaches> =>
     api.get(
       `/mes-tickets/taches?inclure_terminees=${inclureTerminees}&page=${page}${q(recherche)}` +
-        (filtre ? `&filtre=${filtre}` : ''),
+        (filtre ? `&filtre=${filtre}` : '') +
+        a(agent),
     ),
 };
 
