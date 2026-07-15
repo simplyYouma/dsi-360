@@ -7,11 +7,24 @@
 }
 .zone {
   overflow-x: auto;
-  scrollbar-width: none; /* scroller discret/invisible (défilement conservé) */
+  /* Scroller horizontal SUBTIL : discret mais visible, pour signaler qu'on peut défiler. Il
+     n'apparaît que si le tableau déborde de son cadre — donc jamais sur un grand écran, toujours
+     sur un petit. Firefox : fin + teinte douce ; WebKit/Chromium : réglé ci-dessous. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border) 85%, transparent) transparent;
 }
 .zone::-webkit-scrollbar {
-  height: 0;
-  display: none;
+  height: 8px;
+}
+.zone::-webkit-scrollbar-track {
+  background: transparent;
+}
+.zone::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: var(--radius-pill);
+}
+.zone::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 .table {
   width: 100%;

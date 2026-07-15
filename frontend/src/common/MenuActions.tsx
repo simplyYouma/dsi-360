@@ -20,12 +20,11 @@ interface Props {
 }
 
 const MARGE = 4;
-const LARGEUR = 244;
 
 /** Menu d'actions déroulant (kebab) — popover en position fixe, aucun composant natif. */
 export function MenuActions({ actions, etiquette = 'Actions' }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
-  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const declencheur = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -37,12 +36,14 @@ export function MenuActions({ actions, etiquette = 'Actions' }: Props): JSX.Elem
     const dessous = window.innerHeight - r.bottom;
     const hauteurEstimee = visibles.length * 40 + 12;
     const versHaut = dessous < hauteurEstimee && r.top > dessous;
-    // Aligne le bord droit du menu sur le bord droit du déclencheur, sans déborder de la fenêtre.
-    const left = Math.max(MARGE, Math.min(r.right - LARGEUR, window.innerWidth - LARGEUR - MARGE));
+    // Ancré par la DROITE, sur le bord droit du déclencheur : le menu grandit vers la gauche selon
+    // son contenu (cf. CSS : largeur = contenu, bornée). Il ne déborde donc jamais à droite, et un
+    // long libellé tient sur une seule ligne au lieu de passer à la ligne.
+    const right = Math.max(MARGE, window.innerWidth - r.right);
     setPos(
       versHaut
-        ? { bottom: window.innerHeight - r.top + MARGE, left }
-        : { top: r.bottom + MARGE, left },
+        ? { bottom: window.innerHeight - r.top + MARGE, right }
+        : { top: r.bottom + MARGE, right },
     );
   };
 
@@ -95,8 +96,7 @@ export function MenuActions({ actions, etiquette = 'Actions' }: Props): JSX.Elem
               position: 'fixed',
               top: pos.top,
               bottom: pos.bottom,
-              left: pos.left,
-              width: LARGEUR,
+              right: pos.right,
             }}
           >
             {visibles.map((a) => (
