@@ -778,7 +778,7 @@ def creer_routeur(
                 )
             await audit.consigner(
                 session,
-                action="MODIFICATION",
+                action="APPROBATION" if corps.decision == "APPROUVE" else "REJET",
                 acteur_id=courant["id"],
                 acteur_email=courant["email"],
                 module=module,

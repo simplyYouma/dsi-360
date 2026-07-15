@@ -510,6 +510,38 @@ function OngletAcces(): JSX.Element {
 
 // ---------------------------------------------------------------- Journal
 
+// Codes d'action journalisés → libellé lisible (« REINITIALISATION_MDP » → « Réinitialisation mdp »).
+const LIBELLE_ACTION: Record<string, string> = {
+  CREATION: 'Création',
+  MODIFICATION: 'Modification',
+  SUPPRESSION: 'Suppression',
+  TRANSITION: 'Transition',
+  ASSIGNATION: 'Assignation',
+  ASSIGNATION_LOT: 'Assignation en lot',
+  APPROBATION: 'Approbation',
+  REJET: 'Rejet',
+  ESCALADE: 'Escalade',
+  COMMENTAIRE: 'Commentaire',
+  IMPORT: 'Import',
+  CONNEXION: 'Connexion',
+  CONNEXION_ECHOUEE: 'Connexion échouée',
+  CONNEXION_BLOQUEE: 'Connexion bloquée',
+  DECONNEXION: 'Déconnexion',
+  INCARNATION: 'Incarnation',
+  CHANGEMENT_MDP: 'Changement mot de passe',
+  RESET_MDP: 'Réinitialisation mot de passe',
+  REINITIALISATION_MDP: 'Réinitialisation mot de passe',
+  REVUE_EFFECTUEE: 'Revue effectuée',
+  MAJ_SLA: 'Mise à jour SLA',
+};
+
+function libelleAction(code: string): string {
+  const connu = LIBELLE_ACTION[code];
+  if (connu) return connu;
+  const brut = code.replace(/_/g, ' ').toLowerCase();
+  return brut.charAt(0).toUpperCase() + brut.slice(1);
+}
+
 function OngletJournal(): JSX.Element {
   const [items, setItems] = useState<EntreeJournal[]>([]);
   const [total, setTotal] = useState(0);
@@ -539,7 +571,7 @@ function OngletJournal(): JSX.Element {
     {
       cle: 'action',
       entete: 'Action',
-      rendu: (e) => <StatusBadge couleur="var(--cat-7)">{e.action}</StatusBadge>,
+      rendu: (e) => <StatusBadge couleur="var(--cat-7)">{libelleAction(e.action)}</StatusBadge>,
     },
     { cle: 'cible', entete: 'Cible', rendu: (e) => e.cible ?? '—' },
   ];

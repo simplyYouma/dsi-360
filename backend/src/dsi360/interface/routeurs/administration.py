@@ -511,7 +511,7 @@ async def modifier_utilisateur(
         acteur_email=courant["email"],
         module="administration",
         cible_type="utilisateur",
-        cible_id=ident,
+        cible_id=avant["email"],
     )
     # Notifie l'utilisateur si son accès vient d'être bloqué.
     if avant["actif"] and not corps.actif:
@@ -604,6 +604,36 @@ async def definir_acces(corps: MajAcces, courant: Courant, session: Session) -> 
 # --- Journal d'audit ---
 
 
+# Libellé lisible du type d'objet visé, pour la colonne « Cible » du journal. La cible brute (une
+# référence, un e-mail, un code) devient « Incident · INC-2026-0001 » : le lecteur voit de quoi il
+# s'agit sans connaître les codes internes.
+_LIBELLE_CIBLE = {
+    "incident": "Incident",
+    "demande": "Demande",
+    "projet": "Projet",
+    "changement": "Changement",
+    "audit": "Audit",
+    "risque": "Risque",
+    "tache": "Tâche",
+    "note": "Note",
+    "activite": "Activité",
+    "profil": "Profil",
+    "utilisateur": "Utilisateur",
+    "categorie": "Catégorie",
+    "acces_role": "Accès",
+    "sla_regle": "Règle SLA",
+    "rapport_tickets": "Import",
+}
+
+
+def _cible_lisible(cible_type: str | None, cible_id: str | None) -> str | None:
+    """« Incident · INC-2026-0001 » à partir du type et de l'identifiant journalisés."""
+    libelle = _LIBELLE_CIBLE.get(cible_type or "", cible_type or "")
+    if cible_id and libelle:
+        return f"{libelle} · {cible_id}"
+    return cible_id or libelle or None
+
+
 @routeur.get("/journal", response_model=PageJournal)
 async def lister_journal(
     courant: Courant, session: Session, page: Annotated[int, Query(ge=1)] = 1
@@ -612,13 +642,22 @@ async def lister_journal(
     lignes = await session.execute(
         text(
             "SELECT horodatage, acteur_email AS acteur, module, action, "
-            "coalesce(cible_id, cible_type) AS cible FROM audit.journal "
+            "cible_type, cible_id FROM audit.journal "
             "ORDER BY id DESC LIMIT :l OFFSET :o"
         ),
         {"l": _TAILLE, "o": (page - 1) * _TAILLE},
     )
     return {
-        "elements": [dict(x) for x in lignes.mappings().all()],
+        "elements": [
+            {
+                "horodatage": e["horodatage"],
+                "acteur": e["acteur"],
+                "module": e["module"],
+                "action": e["action"],
+                "cible": _cible_lisible(e["cible_type"], e["cible_id"]),
+            }
+            for e in lignes.mappings().all()
+        ],
         "total": total,
         "page": page,
         "taille": _TAILLE,
