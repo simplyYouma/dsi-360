@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button, Modale, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { BandeauStats } from '@/common/BandeauStats';
+import { SaisieLiens, persisterLiens, type LienSaisi } from '@/common/SaisieLiens';
 import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
@@ -99,6 +100,7 @@ export function RisquesPage(): JSX.Element {
   const [gestionnaire, setGestionnaire] = useState<string | null>(null);
   const [probabilite, setProbabilite] = useState(3);
   const [impact, setImpact] = useState(3);
+  const [liens, setLiens] = useState<LienSaisi[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -136,7 +138,7 @@ export function RisquesPage(): JSX.Element {
     setErreur(null);
     setEnvoi(true);
     try {
-      await risquesApi.creer({
+      const cree = await risquesApi.creer({
         titre: titre.trim(),
         description: description.trim(),
         probabilite,
@@ -144,6 +146,7 @@ export function RisquesPage(): JSX.Element {
         categorie_id: categorie,
         responsable_id: gestionnaire,
       });
+      await persisterLiens((l) => risquesApi.creerLien(cree.id, l.libelle, l.url), liens);
       setModale(false);
       setTitre('');
       setDescription('');
@@ -151,6 +154,7 @@ export function RisquesPage(): JSX.Element {
       setGestionnaire(null);
       setProbabilite(3);
       setImpact(3);
+      setLiens([]);
       if (page === 1) await charger(1);
       else setPage(1);
     } catch (err) {
@@ -271,6 +275,10 @@ export function RisquesPage(): JSX.Element {
         <div className={styles.champ}>
           <span>Criticité estimée</span>
           <BadgeCriticite niveau={criticite} />
+        </div>
+        <div className={styles.champ}>
+          <span>Liens utiles</span>
+          <SaisieLiens valeur={liens} onChange={setLiens} />
         </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>

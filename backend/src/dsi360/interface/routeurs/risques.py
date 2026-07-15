@@ -16,6 +16,7 @@ from dsi360.domain.revue import prochaine_revue
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.interface.routeurs.liens_communs import enregistrer_liens
 from dsi360.interface.schemas import (
     AssignationDemande,
     CategorieDemande,
@@ -32,6 +33,7 @@ from dsi360.interface.securite import (
     exiger_acces,
     exiger_agent_designable,
     exiger_role_activite,
+    exiger_role_activite_courant,
 )
 
 MODULE = "risque"
@@ -45,6 +47,10 @@ Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 CtxAdmin = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, {ADMIN}))]
 # Faire avancer le risque : gestionnaire, contributeurs et administrateur.
 CtxActeur = Annotated[ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, {ACTEUR}))]
+# Acteur (dict courant) pour les liens utiles : lire reste ouvert, écrire est réservé aux acteurs.
+ActeurLien = Annotated[
+    dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))
+]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -337,3 +343,13 @@ async def marquer_revue_effectuee(ident: str, ctx: CtxActeur, session: Session) 
     )
     await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
+
+
+enregistrer_liens(
+    routeur,
+    module=MODULE,
+    charger=_charger,
+    Courant=Courant,
+    Session=Session,
+    CourantEcriture=ActeurLien,
+)

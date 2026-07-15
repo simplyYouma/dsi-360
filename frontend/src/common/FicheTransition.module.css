@@ -473,3 +473,9 @@
 .wfAttente[data-ton='alerte'] {
   color: var(--status-warn);
 }
+/* Attente normale : orange discret et texte compact, pour tenir sur une seule ligne. */
+.wfAttente[data-ton='attente'] {
+  color: var(--status-warn);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}

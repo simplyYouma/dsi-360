@@ -883,10 +883,10 @@ export function FicheTransition({
                   );
                 }
                 return (
-                  <p className={styles.wfAttente}>
-                    <Clock size={14} />
-                    En attente de la décision {attendus > 1 ? 'des valideurs' : 'du valideur'} —
-                    l’étape suivante se déclenche dès qu’ils ont tranché.
+                  <p className={styles.wfAttente} data-ton="attente">
+                    <Clock size={13} />
+                    En attente {attendus > 1 ? 'des valideurs' : 'du valideur'} — étape suivante dès
+                    {attendus > 1 ? ' leur' : ' sa'} décision.
                   </p>
                 );
               })()}
