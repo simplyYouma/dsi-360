@@ -802,14 +802,14 @@ class PageRisques(BaseModel):
 
 
 class CartesBord(BaseModel):
-    incidents_ouverts: int
-    incidents_critiques: int
+    # État général transverse (tous modules), pas centré incidents.
+    activites_ouvertes: int
+    critiques: int
+    charge_dsi: int
+    en_retard: int
+    resolues: int
     respect_sla: int
     respect_sla_base: int  # nombre de tickets réellement mesurés (pour neutraliser les petits n)
-    demandes_en_cours: int
-    projets_en_retard: int
-    risques_critiques: int
-    risques_ouverts: int
 
 
 class SlaBuckets(BaseModel):

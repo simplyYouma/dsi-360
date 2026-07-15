@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TriangleAlert, ShieldAlert, Timer, Inbox, FolderKanban, Flame } from 'lucide-react';
+import { TriangleAlert, ShieldAlert, Timer, Inbox, CheckCircle2, Activity } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   PieChart,
@@ -49,23 +49,30 @@ interface Segment {
 
 const META_CARTES: MetaCarte[] = [
   {
-    libelle: 'Incidents ouverts',
-    route: '/incidents',
-    spark: (t) => t.creations_hebdo['incident'] ?? [],
-    icone: TriangleAlert,
+    libelle: 'Activités ouvertes',
+    route: '/analyses',
+    icone: Inbox,
     couleur: 'var(--cat-1)',
-    valeur: (c) => String(c.incidents_ouverts),
-    note: (c) => `${c.incidents_critiques} critique(s)`,
-    tonNote: (c) => (c.incidents_critiques > 0 ? 'danger' : undefined),
+    valeur: (c) => String(c.activites_ouvertes),
+    note: () => 'Tous modules confondus',
   },
   {
-    libelle: 'Incidents critiques',
-    route: '/incidents',
+    libelle: 'Critiques',
+    route: '/analyses',
     icone: ShieldAlert,
     couleur: 'var(--cat-4)',
-    valeur: (c) => String(c.incidents_critiques),
-    note: () => 'Priorité P1',
-    tonNote: () => 'danger',
+    valeur: (c) => String(c.critiques),
+    note: () => 'P1 ou criticité élevée',
+    tonNote: (c) => (c.critiques > 0 ? 'danger' : 'ok'),
+  },
+  {
+    libelle: 'En retard',
+    route: '/analyses',
+    icone: TriangleAlert,
+    couleur: 'var(--cat-3)',
+    valeur: (c) => String(c.en_retard),
+    note: (c) => (c.en_retard > 0 ? 'Échéance SLA dépassée' : 'Dans les temps'),
+    tonNote: (c) => (c.en_retard > 0 ? 'warn' : 'ok'),
   },
   {
     libelle: 'Respect SLA',
@@ -83,31 +90,21 @@ const META_CARTES: MetaCarte[] = [
     tonNote: (c) => (c.respect_sla_base < 5 ? undefined : c.respect_sla >= 90 ? 'ok' : 'warn'),
   },
   {
-    libelle: 'Demandes en cours',
-    route: '/demandes',
-    spark: (t) => t.creations_hebdo['demande'] ?? [],
-    icone: Inbox,
+    libelle: 'Résolues',
+    route: '/analyses',
+    icone: CheckCircle2,
+    couleur: 'var(--cat-6)',
+    valeur: (c) => String(c.resolues),
+    note: () => 'Sur la période',
+    tonNote: () => 'ok',
+  },
+  {
+    libelle: 'Charge de la DSI',
+    route: '/analyses',
+    icone: Activity,
     couleur: 'var(--cat-7)',
-    valeur: (c) => String(c.demandes_en_cours),
-    note: () => 'À traiter',
-  },
-  {
-    libelle: 'Projets en retard',
-    route: '/projets',
-    icone: FolderKanban,
-    couleur: 'var(--cat-3)',
-    valeur: (c) => String(c.projets_en_retard),
-    note: (c) => (c.projets_en_retard > 0 ? 'À surveiller' : 'Dans les temps'),
-    tonNote: (c) => (c.projets_en_retard > 0 ? 'warn' : 'ok'),
-  },
-  {
-    libelle: 'Risques critiques',
-    route: '/risques',
-    icone: Flame,
-    couleur: 'var(--cat-5)',
-    valeur: (c) => String(c.risques_critiques),
-    note: (c) => `Sur ${c.risques_ouverts} ouvert(s)`,
-    tonNote: (c) => (c.risques_critiques > 0 ? 'danger' : 'ok'),
+    valeur: (c) => String(c.charge_dsi),
+    note: () => 'Ouvertes, prises en charge',
   },
 ];
 

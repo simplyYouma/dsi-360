@@ -241,8 +241,8 @@ async def test_risques_critiques_ne_compte_que_les_critiques(
     assert r.status_code == 200, r.text
     cartes = r.json()["cartes"]
 
-    assert cartes["risques_critiques"] == 1
-    assert cartes["risques_ouverts"] == 2
+    # La carte « Critiques » est transverse : seul le risque à criticité élevée (>= 4) compte.
+    assert cartes["critiques"] == 1
 
 
 async def test_a_traiter_met_le_plus_urgent_en_tete(
@@ -431,15 +431,15 @@ async def test_le_tableau_de_bord_filtre_par_periode(
     await session.commit()
 
     tout = (await client.get("/tableau-de-bord", headers=entetes(admin))).json()
-    assert tout["cartes"]["incidents_ouverts"] == 2  # sans filtre : les deux
+    assert tout["cartes"]["activites_ouvertes"] == 2  # sans filtre : les deux
 
     sur7j = (await client.get("/tableau-de-bord?jours=7", headers=entetes(admin))).json()
-    assert sur7j["cartes"]["incidents_ouverts"] == 1  # 7 j : l'ancien (60 j) sort
+    assert sur7j["cartes"]["activites_ouvertes"] == 1  # 7 j : l'ancien (60 j) sort
 
     # Plage de dates personnalisée : la requête s'exécute (200) et englobe les deux.
     r = await client.get("/tableau-de-bord?du=2000-01-01&au=2099-01-01", headers=entetes(admin))
     assert r.status_code == 200, r.text
-    assert r.json()["cartes"]["incidents_ouverts"] == 2
+    assert r.json()["cartes"]["activites_ouvertes"] == 2
 
 
 async def test_mes_stats_suivent_la_periode(

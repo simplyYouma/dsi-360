@@ -27,30 +27,20 @@ def _clause_periode(
         return " AND a.cree_le >= now() - make_interval(days => :jours)", {"jours": jours}
     return "", {}
 
+# Cartes du tableau de bord : un ÉTAT GÉNÉRAL, transverse à tous les modules (pas centré incidents).
 _CARTES = """
 SELECT
-  count(*) FILTER (WHERE a.module='incident' AND a.cloture_le IS NULL AND a.statut<>'Annulé')
-    AS incidents_ouverts,
-  count(*) FILTER (WHERE a.module='incident' AND a.priorite=1 AND a.cloture_le IS NULL)
-    AS incidents_critiques,
-  count(*) FILTER (WHERE a.module='demande' AND a.cloture_le IS NULL AND a.statut<>'Rejetée')
-    AS demandes_en_cours,
-  count(*) FILTER (WHERE a.module='projet' AND a.cloture_le IS NULL
-    AND (a.donnees->>'date_fin') IS NOT NULL AND (a.donnees->>'date_fin')::date < current_date)
-    AS projets_en_retard,
-  count(*) FILTER (WHERE a.module='risque' AND a.cloture_le IS NULL
-    AND nullif(a.donnees->>'criticite','')::int >= 4) AS risques_critiques,
-  count(*) FILTER (WHERE a.module='risque' AND a.cloture_le IS NULL) AS risques_ouverts,
+  count(*) FILTER (WHERE a.cloture_le IS NULL
+    AND a.statut NOT IN ('Annulé','Rejeté','Rejetée','Reporté')) AS activites_ouvertes,
+  count(*) FILTER (WHERE a.cloture_le IS NULL
+    AND (a.priorite = 1 OR nullif(a.donnees->>'criticite','')::int >= 4)) AS critiques,
+  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.responsable_id IS NOT NULL) AS charge_dsi,
+  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
+    AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()) AS en_retard,
+  count(*) FILTER (WHERE a.resolu_le IS NOT NULL OR a.cloture_le IS NOT NULL) AS resolues,
   count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL) AS sla_total,
   count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
     AND a.sla_resolution_le >= now()) AS sla_ok,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.sla_resolution_le > now() + interval '2 hours') AS sla_a_lheure,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.sla_resolution_le <= now() + interval '2 hours' AND a.sla_resolution_le >= now())
-    AS sla_approche,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.sla_resolution_le < now()) AS sla_depasse,
   count(*) FILTER (WHERE a.source='IMPORT_SD'
     AND nullif(a.donnees->>'ttr_minutes','')::numeric > 0) AS sla_reel_total,
   count(*) FILTER (WHERE a.source='IMPORT_SD'
@@ -244,14 +234,13 @@ async def tableau_de_bord(
         "non_pris_en_charge": sig["non_pris_en_charge"],
         "ouverts_total": sig["ouverts_total"],
         "cartes": {
-            "incidents_ouverts": ligne["incidents_ouverts"],
-            "incidents_critiques": ligne["incidents_critiques"],
+            "activites_ouvertes": ligne["activites_ouvertes"],
+            "critiques": ligne["critiques"],
+            "charge_dsi": ligne["charge_dsi"],
+            "en_retard": ligne["en_retard"],
+            "resolues": ligne["resolues"],
             "respect_sla": respect,
             "respect_sla_base": respect_base,
-            "demandes_en_cours": ligne["demandes_en_cours"],
-            "projets_en_retard": ligne["projets_en_retard"],
-            "risques_critiques": ligne["risques_critiques"],
-            "risques_ouverts": ligne["risques_ouverts"],
         },
         # Répartition SLA du stock ouvert MAINTENANT (état courant, jamais filtré par période) :
         # alimente le signal « Échéances dépassées » et la légende de la tendance.
