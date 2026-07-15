@@ -253,6 +253,21 @@ async def transition(
         message=f"L'activité {courant['reference']} est passée à l'état « {vers} ».",
         exclure_id=acteur["id"],
     )
+    # Entrée en validation (CAB/ECAB, validation de demande) : chaque valideur reçoit une demande
+    # de décision dédiée — notification interne ET e-mail (selon sa préférence), pour qu'il agisse.
+    if est_porte_validation(module, vers):
+        for v in await repo.lister_valideurs(session, identifiant):
+            await notifier(
+                session,
+                destinataire_id=str(v["id"]),
+                activite_id=identifiant,
+                type_="VALIDATION_REQUISE",
+                titre=f"{courant['reference']} — à valider",
+                message=(
+                    f"Votre décision est attendue sur {courant['reference']} "
+                    f"(état « {vers} ») : approuver ou rejeter."
+                ),
+            )
     await audit.consigner(
         session,
         action="TRANSITION",
