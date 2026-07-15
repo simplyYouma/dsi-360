@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
 from dsi360.application.autorisations import ACTEUR, capacites, charger_roles
+from dsi360.application.notifications import notifier
 from dsi360.application.projets import creer_projet, maj_projet
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
 from dsi360.domain.etats import est_etat_terminal, transitions_possibles
@@ -168,6 +169,43 @@ async def lister(
     }
 
 
+async def _notifier_chef(
+    session: AsyncSession,
+    ident: str,
+    chef_id: str | None,
+    courant: dict[str, Any],
+    *,
+    retire: bool = False,
+) -> None:
+    """Prévient (interne + e-mail) un chef de projet qu'on lui confie — ou retire — un projet."""
+    if not chef_id or chef_id == courant["id"]:
+        return
+    r = (
+        await session.execute(
+            text("SELECT reference, titre FROM core.activite WHERE id = cast(:id as uuid)"),
+            {"id": ident},
+        )
+    ).mappings().first()
+    if r is None:
+        return
+    if retire:
+        titre = f"Projet réattribué — {r['reference']}"
+        message = f"Le projet {r['reference']} ne vous est plus confié."
+    else:
+        titre = f"Projet confié — {r['reference']}"
+        message = (
+            f"Le projet {r['reference']} « {r['titre']} » vous a été confié comme chef de projet."
+        )
+    await notifier(
+        session,
+        destinataire_id=chef_id,
+        activite_id=ident,
+        type_="ASSIGNATION",
+        titre=titre,
+        message=message,
+    )
+
+
 @routeur.post("", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)
 async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> dict[str, str]:
     """Ouvrir un projet est permis à tout profil du module ; en nommer le chef ne l'est pas.
@@ -189,6 +227,9 @@ async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> di
         date_fin=corps.date_fin,
         acteur=courant,
     )
+    if corps.responsable_id is not None:
+        await _notifier_chef(session, ident, corps.responsable_id, courant)
+        await session.commit()
     return {"id": ident}
 
 
@@ -196,7 +237,7 @@ async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> di
 async def modifier(
     ident: str, corps: ProjetMaj, courant: Acteur, session: Session
 ) -> dict[str, Any]:
-    await _charger(session, ident, courant)
+    avant = await _charger(session, ident, courant)
     champs = corps.model_dump(exclude_unset=True)
     # Changer de chef de projet, c'est redistribuer le travail : réservé à l'administrateur.
     # Le reste du cadrage (titre, sponsor, budget, dates) reste ouvert aux acteurs.
@@ -206,6 +247,13 @@ async def modifier(
     if champs:
         await maj_projet(session, ident, champs, courant)
         await session.commit()
+        if "responsable_id" in champs:
+            nouveau = champs["responsable_id"]
+            ancien = str(avant["resp_id"]) if avant["resp_id"] is not None else None
+            if nouveau != ancien:
+                await _notifier_chef(session, ident, nouveau, courant)
+                await _notifier_chef(session, ident, ancien, courant, retire=True)
+                await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
