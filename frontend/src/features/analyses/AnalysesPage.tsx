@@ -6,8 +6,11 @@ import {
   AlertTriangle,
   Layers,
   Users,
+  Trophy,
+  Medal,
   type LucideIcon,
 } from 'lucide-react';
+import { cx } from '@/common/cx';
 import {
   Cell,
   XAxis,
@@ -202,6 +205,14 @@ function couleurTaux(taux: number): string {
 function couleurMttr(jours: number | null): string {
   if (jours === null) return 'var(--cat-1)';
   return jours <= 5 ? '#1f9d55' : jours <= 20 ? '#c77700' : '#d64545';
+}
+
+/** Initiales (2 lettres) d'un nom, pour l'avatar du classement. */
+function initiales(nom: string): string {
+  const mots = nom.trim().split(/\s+/);
+  const a = mots[0]?.[0] ?? '';
+  const b = mots.length > 1 ? (mots[mots.length - 1]?.[0] ?? '') : '';
+  return (a + b).toUpperCase() || '?';
 }
 
 interface BulleData {
@@ -536,15 +547,12 @@ export function AnalysesPage(): JSX.Element {
     .map((e) => ({ ...e, score: scoreGest(e) }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 8);
-  const scoreMax = Math.max(1, ...top.map((t) => t.score));
-  const chargeTotale = Math.max(
-    1,
-    evals.reduce((s, e) => s + (e.charge ?? 0), 0),
-  );
+  // Charges : par gestionnaire, on empile traités + en cours ; on classe par volume total.
   const charges = evals
-    .filter((e) => (e.charge ?? 0) > 0)
-    .sort((a, b) => (b.charge ?? 0) - (a.charge ?? 0))
-    .slice(0, 10);
+    .filter((e) => (e.resolus ?? 0) + (e.charge ?? 0) > 0)
+    .sort((a, b) => (b.resolus ?? 0) + (b.charge ?? 0) - ((a.resolus ?? 0) + (a.charge ?? 0)))
+    .slice(0, 12);
+  const chargeMax = Math.max(1, ...charges.map((e) => (e.resolus ?? 0) + (e.charge ?? 0)));
 
   return (
     <div className={incidents.page}>
@@ -967,30 +975,34 @@ export function AnalysesPage(): JSX.Element {
                   <BoutonExportPng nom="Top gestionnaires" />
                   <h2 className={styles.chartTitre}>Top gestionnaires</h2>
                   <p className={styles.chartSous}>
-                    Classement par débit traité, pondéré par le respect SLA et la vitesse de
-                    résolution — « beaucoup, et à temps ».
+                    Classement par débit traité, pondéré par le respect SLA et la vitesse — «
+                    beaucoup, et à temps ».
                   </p>
                   {top.length === 0 ? (
                     <p className={styles.vide}>Aucune donnée.</p>
                   ) : (
-                    <ol className={styles.topListe}>
+                    <ol className={styles.classement}>
                       {top.map((t, i) => (
-                        <li key={t.id} className={styles.topItem}>
-                          <span className={styles.topRang} data-rang={i + 1}>
-                            {i + 1}
+                        <li
+                          key={t.id}
+                          className={cx(styles.classItem, i < 3 && styles.classPodium)}
+                          data-rang={i + 1}
+                        >
+                          <span className={styles.classRang}>
+                            {i === 0 ? <Trophy size={18} /> : i < 3 ? <Medal size={16} /> : i + 1}
                           </span>
-                          <div className={styles.topCorps}>
-                            <div className={styles.topTete}>
-                              <span className={styles.topNom}>{t.gestionnaire}</span>
-                              <span className={styles.topStats}>
-                                {t.resolus} traités · SLA {t.respect_sla ?? '—'}%
-                                {t.mttr_jours != null ? ` · ${t.mttr_jours} j` : ''}
-                              </span>
-                            </div>
-                            <span className={styles.topBarre}>
-                              <span style={{ width: `${(t.score / scoreMax) * 100}%` }} />
+                          <span className={styles.classAvatar}>{initiales(t.gestionnaire)}</span>
+                          <div className={styles.classCorps}>
+                            <span className={styles.classNom}>{t.gestionnaire}</span>
+                            <span className={styles.classStats}>
+                              {t.resolus} traités · SLA {t.respect_sla ?? '—'}%
+                              {t.mttr_jours != null ? ` · ${t.mttr_jours} j` : ''}
                             </span>
                           </div>
+                          <span className={styles.classScore}>
+                            {t.score}
+                            <small>pts</small>
+                          </span>
                         </li>
                       ))}
                     </ol>
@@ -1001,22 +1013,51 @@ export function AnalysesPage(): JSX.Element {
                   <BoutonExportPng nom="Répartition des charges" />
                   <h2 className={styles.chartTitre}>Répartition des charges</h2>
                   <p className={styles.chartSous}>
-                    Tickets encore ouverts par gestionnaire — qui porte la charge en ce moment.
+                    Par gestionnaire : ce qui est déjà traité et ce qui reste en cours.
                   </p>
                   {charges.length === 0 ? (
-                    <p className={styles.vide}>Aucune charge ouverte.</p>
+                    <p className={styles.vide}>Aucune donnée.</p>
                   ) : (
-                    <ul className={styles.chargeListe}>
-                      {charges.map((e) => (
-                        <li key={e.id} className={styles.chargeItem}>
-                          <span className={styles.chargeNom}>{e.gestionnaire}</span>
-                          <span className={styles.chargeBarre}>
-                            <span style={{ width: `${((e.charge ?? 0) / chargeTotale) * 100}%` }} />
-                          </span>
-                          <span className={styles.chargeVal}>{e.charge}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <div className={styles.chargesLegende}>
+                        <span>
+                          <i style={{ background: 'var(--status-ok)' }} /> Traités
+                        </span>
+                        <span>
+                          <i style={{ background: 'var(--cat-3)' }} /> En cours
+                        </span>
+                      </div>
+                      <div className={styles.chargesGraphe}>
+                        {charges.map((e) => {
+                          const somme = (e.resolus ?? 0) + (e.charge ?? 0);
+                          return (
+                            <div
+                              key={e.id}
+                              className={styles.chargeCol}
+                              title={`${e.gestionnaire} — ${e.resolus} traités, ${e.charge} en cours`}
+                            >
+                              <span className={styles.chargeColVal}>{somme}</span>
+                              <div
+                                className={styles.chargeBarreV}
+                                style={{ height: `${(somme / chargeMax) * 100}%` }}
+                              >
+                                <span
+                                  className={styles.chargeEnCours}
+                                  style={{ flexGrow: e.charge ?? 0 }}
+                                />
+                                <span
+                                  className={styles.chargeTraite}
+                                  style={{ flexGrow: e.resolus ?? 0 }}
+                                />
+                              </div>
+                              <span className={styles.chargeColNom}>
+                                {initiales(e.gestionnaire)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </Card>
 

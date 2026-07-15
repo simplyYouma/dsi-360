@@ -298,19 +298,21 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
                   </tr>
                   {(
                     [
+                      { cle: 'fermes', libelle: 'Fermés', icone: <CheckCircle2 size={13} /> },
+                      { cle: 'ouverts', libelle: 'Ouverts', icone: <CircleDot size={13} /> },
                       {
-                        cle: 'incidents' as const,
+                        cle: 'incidents',
                         libelle: 'Incidents',
                         icone: <AlertTriangle size={13} />,
+                        sep: true,
                       },
-                      {
-                        cle: 'demandes' as const,
-                        libelle: 'Demandes',
-                        icone: <FileText size={13} />,
-                      },
+                      { cle: 'demandes', libelle: 'Demandes', icone: <FileText size={13} /> },
                     ] as const
                   ).map((sl) => (
-                    <tr key={`${n.cle}-${sl.cle}`}>
+                    <tr
+                      key={`${n.cle}-${sl.cle}`}
+                      className={'sep' in sl && sl.sep ? styles.debutGroupe : undefined}
+                    >
                       <td className={`${styles.figee} ${styles.sousLigne}`}>
                         <span className={styles.slIcone}>{sl.icone}</span>
                         {sl.libelle}

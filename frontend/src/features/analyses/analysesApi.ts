@@ -151,6 +151,8 @@ export type Granularite = 'heure' | 'jour' | 'semaine' | 'mois' | 'annee';
 export interface CelluleNiveau {
   mois: string;
   total: number;
+  fermes: number;
+  ouverts: number;
   incidents: number;
   demandes: number;
 }
@@ -158,6 +160,8 @@ export interface LigneNiveau {
   cle: string;
   libelle: string;
   total: number;
+  fermes: number;
+  ouverts: number;
   incidents: number;
   demandes: number;
   cellules: CelluleNiveau[];

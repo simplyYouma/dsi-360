@@ -1027,6 +1027,8 @@ class LigneEntite(BaseModel):
 class CelluleNiveau(BaseModel):
     mois: str
     total: int
+    fermes: int
+    ouverts: int
     incidents: int
     demandes: int
 
@@ -1035,6 +1037,8 @@ class LigneNiveau(BaseModel):
     cle: str  # N1 | N2 | DBS
     libelle: str
     total: int
+    fermes: int
+    ouverts: int
     incidents: int
     demandes: int
     cellules: list[CelluleNiveau]

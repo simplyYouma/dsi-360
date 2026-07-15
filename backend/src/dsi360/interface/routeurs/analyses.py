@@ -719,6 +719,10 @@ SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
             WHEN u.niveau_support = 2 THEN 'N2'
             ELSE 'Autre' END AS niveau,
        count(*) AS total,
+       count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
+       count(*) FILTER (
+         WHERE a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')
+       ) AS ouverts,
        count(*) FILTER (WHERE a.module = 'incident') AS incidents,
        count(*) FILTER (WHERE a.module = 'demande') AS demandes
 FROM core.activite a
@@ -874,7 +878,7 @@ async def analyses_mensuelles(
         session, _MENSUEL_NIVEAU.format(trunc=trunc, fmt=fmt, cond=cond_agg), params
     )
     par_n = {(str(r["niveau"]), str(r["bucket"])): r for r in lignes_n}
-    champs_n = ("total", "incidents", "demandes")
+    champs_n = ("total", "fermes", "ouverts", "incidents", "demandes")
     niveaux = []
     for cle_n, libelle_n in (("N1", "Niveau 1"), ("N2", "Niveau 2"), ("DBS", "DBS (N3)")):
         cellules = []
@@ -890,6 +894,8 @@ async def analyses_mensuelles(
                 "cle": cle_n,
                 "libelle": libelle_n,
                 "total": cumuls_n["total"],
+                "fermes": cumuls_n["fermes"],
+                "ouverts": cumuls_n["ouverts"],
                 "incidents": cumuls_n["incidents"],
                 "demandes": cumuls_n["demandes"],
                 "cellules": cellules,
