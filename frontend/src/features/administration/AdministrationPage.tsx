@@ -10,6 +10,7 @@ import {
 } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
+import { BoutonsExport } from '@/common/BoutonsExport';
 import { ChampInline } from '@/common/ChampInline';
 import { MenuActions } from '@/common/MenuActions';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -577,14 +578,25 @@ function OngletJournal(): JSX.Element {
   ];
 
   return (
-    <Table
-      colonnes={colonnes}
-      lignes={items}
-      cleLigne={(e) => `${e.horodatage}-${e.action}-${e.cible ?? ''}`}
-      chargement={chargement}
-      vide="Journal vide."
-      pagination={{ page, total, taille: 15, onPage: setPage }}
-    />
+    <>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: 'var(--space-3)',
+        }}
+      >
+        <BoutonsExport base="/admin/journal" />
+      </div>
+      <Table
+        colonnes={colonnes}
+        lignes={items}
+        cleLigne={(e) => `${e.horodatage}-${e.action}-${e.cible ?? ''}`}
+        chargement={chargement}
+        vide="Journal vide."
+        pagination={{ page, total, taille: 15, onPage: setPage }}
+      />
+    </>
   );
 }
 

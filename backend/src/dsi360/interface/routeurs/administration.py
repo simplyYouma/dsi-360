@@ -4,7 +4,7 @@ import re
 import unicodedata
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from dsi360.domain.sla import MODULES_SLA
 from dsi360.domain.texte import nom_propre
 from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.interface.schemas import (
@@ -632,6 +633,64 @@ def _cible_lisible(cible_type: str | None, cible_id: str | None) -> str | None:
     if cible_id and libelle:
         return f"{libelle} · {cible_id}"
     return cible_id or libelle or None
+
+
+# Libellés lisibles des actions journalisées (mêmes intitulés que l'écran) ; repli sur le code brut.
+_LIBELLE_ACTION = {
+    "CREATION": "Création",
+    "MODIFICATION": "Modification",
+    "SUPPRESSION": "Suppression",
+    "TRANSITION": "Changement d'état",
+    "ASSIGNATION": "Assignation",
+    "EVALUATION": "Évaluation",
+    "APPROBATION": "Approbation",
+    "REJET": "Rejet",
+    "ESCALADE": "Escalade",
+    "REVUE_EFFECTUEE": "Revue effectuée",
+    "IMPORT": "Import",
+    "REINITIALISATION_MDP": "Réinitialisation mot de passe",
+    "ACTIVATION": "Activation",
+    "DESACTIVATION": "Désactivation",
+    "CONNEXION": "Connexion",
+    "INCARNATION": "Incarnation",
+}
+
+
+@routeur.get("/journal/export")
+async def exporter_journal(
+    courant: Courant,
+    session: Session,
+    format: Annotated[str, Query(alias="format")] = "xlsx",
+) -> Response:
+    """Export du journal d'audit (Excel ou CSV) — colonnes lisibles, comme à l'écran."""
+    entetes = ["Date et heure", "Acteur", "Module", "Action", "Cible"]
+    lignes = await session.execute(
+        text(
+            "SELECT horodatage, acteur_email AS acteur, module, action, "
+            "cible_type, cible_id FROM audit.journal ORDER BY id DESC LIMIT 50000"
+        )
+    )
+    donnees = [
+        [
+            e["horodatage"].strftime("%Y-%m-%d %H:%M:%S") if e["horodatage"] else "",
+            e["acteur"] or "",
+            e["module"] or "",
+            _LIBELLE_ACTION.get(e["action"], e["action"] or ""),
+            _cible_lisible(e["cible_type"], e["cible_id"]) or "",
+        ]
+        for e in lignes.mappings().all()
+    ]
+    if format == "csv":
+        return Response(
+            content=vers_csv(entetes, donnees),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=journal-audit.csv"},
+        )
+    return Response(
+        content=vers_xlsx(entetes, donnees, "Journal d'audit"),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=journal-audit.xlsx"},
+    )
 
 
 @routeur.get("/journal", response_model=PageJournal)
