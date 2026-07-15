@@ -487,6 +487,7 @@ export function FicheTransition({
               <button
                 type="button"
                 className={styles.exportDiscussion}
+                style={{ color: 'var(--status-ok)' }}
                 title="Exporter la discussion (Excel)"
                 onClick={() => void telecharger(`/commentaires/${id}/export?format=xlsx`)}
               >

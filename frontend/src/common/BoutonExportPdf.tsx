@@ -29,7 +29,16 @@ export function BoutonExportPdf({ cible, titre, nomFichier }: Props): JSX.Elemen
   };
 
   return (
-    <Button variante="secondaire" onClick={() => void exporter()} disabled={enCours}>
+    <Button
+      variante="secondaire"
+      onClick={() => void exporter()}
+      disabled={enCours}
+      // Rouge « PDF » : la couleur au service du sens (charte).
+      style={{
+        color: 'var(--status-danger)',
+        borderColor: 'color-mix(in srgb, var(--status-danger) 45%, var(--border))',
+      }}
+    >
       <FileDown size={16} />
       {enCours ? 'Export…' : 'Exporter PDF'}
     </Button>
