@@ -29,7 +29,7 @@ import {
   ZAxis,
 } from 'recharts';
 import { Card } from '@/design-system/primitives';
-import { AvatarPersonnage } from '@/common/AvatarPersonnage';
+import { AvatarPersonnage, avatarDataUri } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
@@ -223,6 +223,48 @@ interface BulleData {
   nom: string;
   couleur: string;
   suivis: number;
+  avatar: string;
+}
+
+/** Point de la cartographie : l'avatar de l'agent, cerclé de la couleur de son délai (légende). */
+function FormeAvatar(props: unknown): JSX.Element {
+  const {
+    cx: x,
+    cy: y,
+    payload,
+  } = props as {
+    cx?: number;
+    cy?: number;
+    payload?: BulleData;
+  };
+  if (x === undefined || y === undefined || payload === undefined) return <g />;
+  const r = 17;
+  const clip = `clip-${payload.id}`;
+  return (
+    <g style={{ cursor: 'pointer' }}>
+      <defs>
+        <clipPath id={clip}>
+          <circle cx={x} cy={y} r={r - 2} />
+        </clipPath>
+      </defs>
+      <circle
+        cx={x}
+        cy={y}
+        r={r}
+        fill="var(--surface)"
+        stroke={payload.couleur}
+        strokeWidth={2.5}
+      />
+      <image
+        href={payload.avatar}
+        x={x - (r - 2)}
+        y={y - (r - 2)}
+        width={(r - 2) * 2}
+        height={(r - 2) * 2}
+        clipPath={`url(#${clip})`}
+      />
+    </g>
+  );
 }
 
 function BulleTooltip({
@@ -530,6 +572,7 @@ export function AnalysesPage(): JSX.Element {
     nom: e.gestionnaire,
     couleur: couleurMttr(e.mttr_jours),
     suivis: e.suivis,
+    avatar: avatarDataUri(e.id, 30),
   }));
   const detailTaux =
     gestDetail && gestDetail.volume > 0
@@ -991,7 +1034,9 @@ export function AnalysesPage(): JSX.Element {
                           <span className={styles.classRang}>
                             {i === 0 ? <Trophy size={18} /> : i < 3 ? <Medal size={16} /> : i + 1}
                           </span>
-                          <span className={styles.classAvatar}>{initiales(t.gestionnaire)}</span>
+                          <span className={styles.classAvatar}>
+                            <AvatarPersonnage seed={t.id} taille={34} />
+                          </span>
                           <div className={styles.classCorps}>
                             <span className={styles.classNom}>{t.gestionnaire}</span>
                             <span className={styles.classStats}>
@@ -1050,6 +1095,9 @@ export function AnalysesPage(): JSX.Element {
                                   style={{ flexGrow: e.resolus ?? 0 }}
                                 />
                               </div>
+                              <span className={styles.chargeColAvatar}>
+                                <AvatarPersonnage seed={e.id} taille={26} />
+                              </span>
                               <span className={styles.chargeColNom}>
                                 {initiales(e.gestionnaire)}
                               </span>
@@ -1112,21 +1160,13 @@ export function AnalysesPage(): JSX.Element {
                         />
                         <Scatter
                           data={bulles}
+                          shape={FormeAvatar}
                           onClick={(e: unknown) => {
                             const o = e as { id?: string; payload?: { id?: string } };
                             const id = o.id ?? o.payload?.id;
                             if (id !== undefined) setGestSel(id);
                           }}
-                        >
-                          {bulles.map((b) => (
-                            <Cell
-                              key={b.id}
-                              fill={b.couleur}
-                              fillOpacity={0.75}
-                              stroke={b.couleur}
-                            />
-                          ))}
-                        </Scatter>
+                        />
                       </ScatterChart>
                     </ResponsiveContainer>
                   )}
@@ -1140,6 +1180,10 @@ export function AnalysesPage(): JSX.Element {
                     <li>
                       <span className={styles.tiret} style={{ background: '#d64545' }} />
                       &gt; 20 j
+                    </li>
+                    <li>
+                      <span className={styles.tiret} style={{ background: 'var(--cat-1)' }} />
+                      Sans délai mesuré
                     </li>
                   </ul>
                 </Card>
