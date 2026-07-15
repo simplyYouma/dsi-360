@@ -68,6 +68,12 @@
 .table tbody tr.ligneCochee td.figee {
   background: var(--secondary-subtle);
 }
+/* Ligne au SLA dépassé : la cellule figée garde la teinte (opaque) même au survol, sinon elle
+   grisait toute seule pendant que le reste de la ligne restait rose. */
+.table tbody tr:global(.ligne-sla-depasse) td.figee,
+.table tbody tr:global(.ligne-sla-depasse):hover td.figee {
+  background: color-mix(in srgb, var(--status-danger) 8%, var(--surface));
+}
 /* Filet de séparation : marque la colonne épinglée quand le reste glisse dessous. */
 .figee::after {
   content: '';

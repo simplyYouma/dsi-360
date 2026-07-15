@@ -59,7 +59,9 @@ a {
   background-clip: padding-box;
 }
 
-/* Mise en évidence d'une ligne de tableau dont le SLA est dépassé (réutilisable). */
+/* Mise en évidence d'une ligne de tableau dont le SLA est dépassé (réutilisable).
+   Fond OPAQUE (mélangé à la surface, pas à `transparent`) : sinon la première colonne figée
+   laisse transparaître le texte qui défile dessous au scroll horizontal. Même teinte à l'œil. */
 tr.ligne-sla-depasse td {
-  background: color-mix(in srgb, var(--status-danger) 8%, transparent);
+  background: color-mix(in srgb, var(--status-danger) 8%, var(--surface));
 }
