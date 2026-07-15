@@ -29,6 +29,7 @@ from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.config import get_settings
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.interface.schemas import (
     CommentaireCreation,
     CommentaireItem,
@@ -184,6 +185,54 @@ async def _exiger_tache_de_l_activite(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable sur cette activité."
         )
     return str(titre)
+
+
+@routeur.get("/{activite_id}/export")
+async def exporter_discussion(
+    activite_id: str,
+    courant: Courant,
+    session: Session,
+    format: Annotated[str, Query(alias="format")] = "csv",
+) -> Response:
+    """Exporte la discussion interne d'une activité (activité + tâches) en CSV ou Excel."""
+    reference = await _exiger_activite_visible(session, courant, activite_id)
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT c.cree_le, "
+                "coalesce(u.prenom || ' ' || u.nom, c.auteur_email) AS auteur, "
+                "c.texte, t.titre AS tache "
+                "FROM core.commentaire c LEFT JOIN core.utilisateur u ON u.id = c.auteur_id "
+                "LEFT JOIN core.tache t ON t.id = c.tache_id "
+                "WHERE c.activite_id = cast(:id as uuid) ORDER BY c.cree_le"
+            ),
+            {"id": activite_id},
+        )
+    ).mappings().all()
+    entetes = ["Date", "Auteur", "Rattaché à", "Message"]
+    donnees = [
+        [
+            r["cree_le"].strftime("%Y-%m-%d %H:%M"),
+            r["auteur"],
+            r["tache"] or "Discussion générale",
+            r["texte"],
+        ]
+        for r in lignes
+    ]
+    nom = f"discussion-{reference}"
+    if format == "xlsx":
+        contenu = vers_xlsx(entetes, donnees, "Discussion")
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    else:
+        contenu = vers_csv(entetes, donnees)
+        media = "text/csv"
+        ext = "csv"
+    return Response(
+        content=contenu,
+        media_type=media,
+        headers={"Content-Disposition": f"attachment; filename={nom}.{ext}"},
+    )
 
 
 @routeur.get("/{activite_id}", response_model=list[CommentaireItem])

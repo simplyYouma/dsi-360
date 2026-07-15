@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock, Download, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { ChampInline } from '@/common/ChampInline';
@@ -481,7 +481,19 @@ export function FicheTransition({
       largeurPanneau={450}
       panneau={
         <div className={styles.panneauDiscussion}>
-          <span className={styles.panneauTitre}>Discussion interne (DSI)</span>
+          <div className={styles.panneauEntete}>
+            <span className={styles.panneauTitre}>Discussion interne (DSI)</span>
+            {id !== null && commentaires.length > 0 && (
+              <button
+                type="button"
+                className={styles.exportDiscussion}
+                title="Exporter la discussion (Excel)"
+                onClick={() => void telecharger(`/commentaires/${id}/export?format=xlsx`)}
+              >
+                <Download size={14} /> Exporter
+              </button>
+            )}
+          </div>
           <div className={styles.panneauFil}>
             {commentaires.length === 0 ? (
               <p className={styles.commVide}>Aucun échange pour le moment.</p>
