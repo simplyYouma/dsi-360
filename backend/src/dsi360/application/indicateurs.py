@@ -1,11 +1,20 @@
 """Indicateurs du tableau de bord : agrégations sur les activités (cloisonnées par direction)."""
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.application.granularite_temps import (
+    FMT_SQL,
+    UNIT_SQL,
+    ajouter,
+    cle_bucket,
+    granularite,
+    libelle_bucket,
+    suite_buckets,
+)
 from dsi360.domain.activite import PREFIXE_REFERENCE
 from dsi360.domain.etats import STATUTS_TERMINAUX, etats_terminaux
 
@@ -59,9 +68,10 @@ LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.cloture_le IS NULL
 """
 
-# Tendance hebdomadaire (8 dernières semaines) des activités par état SLA courant.
+# Tendance des activités ouvertes par état SLA courant, regroupées par bucket de temps. La
+# granularité (jour/mois/année) suit la période choisie, comme la synthèse des analyses.
 _SERIE = """
-SELECT to_char(date_trunc('week', a.cree_le), 'DD/MM') AS periode,
+SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
   count(*) FILTER (WHERE a.sla_resolution_le > now() + interval '2 hours') AS a_lheure,
   count(*) FILTER (WHERE a.sla_resolution_le <= now() + interval '2 hours'
     AND a.sla_resolution_le >= now()) AS approche,
@@ -69,9 +79,8 @@ SELECT to_char(date_trunc('week', a.cree_le), 'DD/MM') AS periode,
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL AND a.resolu_le IS NULL
+  AND a.cree_le >= :s_debut AND a.cree_le < :s_fin
 """
-# Fenêtre par défaut de la tendance quand aucune période n'est demandée (« Tout »).
-_SERIE_DEFAUT = " AND a.cree_le >= now() - interval '8 weeks'"
 
 
 # Les activités à traiter en premier : échéance la plus proche (ou la plus dépassée) d'abord.
@@ -185,23 +194,41 @@ async def tableau_de_bord(
         .all()
     )
 
-    # Tendance : sur la période demandée ; à défaut (« Tout »), fenêtre glissante de 8 semaines.
-    serie = (
+    # Tendance : sur la période demandée, à la granularité jour/mois/année (comme la synthèse) ; à
+    # défaut (« Tout »), fenêtre glissante de 30 jours pour garder une courbe lisible.
+    maintenant = datetime.now(UTC)
+    if du is not None or au is not None:
+        s_debut = datetime(du.year, du.month, du.day, tzinfo=UTC) if du else maintenant
+        s_fin = datetime(au.year, au.month, au.day, tzinfo=UTC) if au else maintenant
+    elif jours is not None:
+        s_debut, s_fin = maintenant - timedelta(days=jours), maintenant
+    else:
+        s_debut, s_fin = maintenant - timedelta(days=30), maintenant
+    unit = granularite(max(0, (s_fin - s_debut).days))
+    seaux = suite_buckets(unit, s_debut, s_fin)
+    sparams = {**params, "s_debut": seaux[0], "s_fin": ajouter(unit, seaux[-1])}
+    lignes_serie = (
         (
             await session.execute(
-                text(
-                    _SERIE
-                    + (perio or _SERIE_DEFAUT)
-                    + cond
-                    + " GROUP BY date_trunc('week', a.cree_le)"
-                    + " ORDER BY date_trunc('week', a.cree_le)"
-                ),
-                params,
+                text(_SERIE.format(trunc=UNIT_SQL[unit], fmt=FMT_SQL[unit]) + cond + " GROUP BY 1"),
+                sparams,
             )
         )
         .mappings()
         .all()
     )
+    par_bucket = {r["bucket"]: r for r in lignes_serie}
+    serie = []
+    for b in seaux:
+        r = par_bucket.get(cle_bucket(unit, b))
+        serie.append(
+            {
+                "periode": libelle_bucket(unit, b),
+                "a_lheure": r["a_lheure"] if r else 0,
+                "approche": r["approche"] if r else 0,
+                "depasse": r["depasse"] if r else 0,
+            }
+        )
 
     requete_a_traiter = text(
         _A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"
@@ -250,13 +277,5 @@ async def tableau_de_bord(
             "depasse": sig["depasse"],
         },
         "repartition": [{"module": r["module"], "valeur": r["valeur"]} for r in repartition],
-        "serie": [
-            {
-                "periode": s["periode"],
-                "a_lheure": s["a_lheure"],
-                "approche": s["approche"],
-                "depasse": s["depasse"],
-            }
-            for s in serie
-        ],
+        "serie": serie,
     }

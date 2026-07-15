@@ -12,6 +12,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.application.granularite_temps import FMT_SQL as _FMT_SQL
+from dsi360.application.granularite_temps import UNIT_SQL as _UNIT_SQL
+from dsi360.application.granularite_temps import ajouter as _ajouter
+from dsi360.application.granularite_temps import cle_bucket as _cle_bucket
+from dsi360.application.granularite_temps import granularite as _granularite
+from dsi360.application.granularite_temps import libelle_bucket as _libelle_bucket
+from dsi360.application.granularite_temps import tronquer as _tronquer
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import (
     AnalysesMensuelles,
@@ -248,36 +255,62 @@ async def analyses(
         params,
     )
 
-    # La tendance suit la période : semaines couvrant la fenêtre choisie ; à défaut, 8 dernières.
+    # La tendance suit la période choisie, avec la même granularité que la synthèse : jour (nom du
+    # jour), mois ou année selon l'étendue. L'axe et les libellés sont donc cohérents entre onglets.
+    maintenant = datetime.now(UTC)
     if du is not None or au is not None:
-        borne_debut = (
-            "date_trunc('week', cast(:du as date))"
-            if du is not None
-            else "date_trunc('week', now()) - interval '7 weeks'"
-        )
-        borne_fin = (
-            "date_trunc('week', cast(:au as date))"
-            if au is not None
-            else "date_trunc('week', now())"
-        )
+        t_debut = datetime(du.year, du.month, du.day, tzinfo=UTC) if du else maintenant
+        t_fin = datetime(au.year, au.month, au.day, tzinfo=UTC) if au else maintenant
     elif jours is not None:
-        borne_debut = "date_trunc('week', now() - make_interval(days => :jours))"
-        borne_fin = "date_trunc('week', now())"
+        t_debut, t_fin = maintenant - timedelta(days=jours), maintenant
     else:
-        borne_debut = "date_trunc('week', now()) - interval '7 weeks'"
-        borne_fin = "date_trunc('week', now())"
-    tendance = await _lignes(
-        session,
-        "WITH semaines AS ("
-        f"  SELECT generate_series({borne_debut}, {borne_fin}, interval '1 week') AS debut) "
-        "SELECT to_char(s.debut, 'DD/MM') AS periode, "
-        f"  (SELECT count(*) {_JOINTURE} WHERE a.cree_le >= s.debut "
-        f"    AND a.cree_le < s.debut + interval '1 week'{cond_dir}) AS crees, "
-        f"  (SELECT count(*) {_JOINTURE} WHERE a.resolu_le >= s.debut "
-        f"    AND a.resolu_le < s.debut + interval '1 week'{cond_dir}) AS resolus "
-        "FROM semaines s ORDER BY s.debut",
-        params,
-    )
+        # « Tout » : on cadre sur l'étendue réelle des données importées (repli 12 mois si vide).
+        bornes = (await session.execute(text(_PLAGE_IMPORT.format(cond=cond_dir)), params)).first()
+        t_debut = (bornes.mini if bornes is not None else None) or (
+            maintenant - timedelta(days=365)
+        )
+        t_fin = (bornes.maxi if bornes is not None else None) or maintenant
+
+    unit = _granularite(max(0, (t_fin - t_debut).days))
+    trunc, fmt = _UNIT_SQL[unit], _FMT_SQL[unit]
+    b_dep, b_der = _tronquer(unit, t_debut), _tronquer(unit, t_fin)
+    seaux: list[datetime] = []
+    b_cur = b_dep
+    while b_cur <= b_der and len(seaux) < 400:
+        seaux.append(b_cur)
+        b_cur = _ajouter(unit, b_cur)
+    if not seaux:
+        seaux = [b_dep]
+    tparams: dict[str, Any] = {"t_debut": seaux[0], "t_fin": _ajouter(unit, seaux[-1])}
+    if "dir" in params:
+        tparams["dir"] = params["dir"]
+    crees_par = {
+        r["bucket"]: r["n"]
+        for r in await _lignes(
+            session,
+            f"SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket, count(*) AS n "
+            f"{_JOINTURE} WHERE a.cree_le >= :t_debut AND a.cree_le < :t_fin{cond_dir} GROUP BY 1",
+            tparams,
+        )
+    }
+    resolus_par = {
+        r["bucket"]: r["n"]
+        for r in await _lignes(
+            session,
+            f"SELECT to_char(date_trunc('{trunc}', a.resolu_le), '{fmt}') AS bucket, count(*) AS n "
+            f"{_JOINTURE} WHERE a.resolu_le >= :t_debut AND a.resolu_le < :t_fin{cond_dir} "
+            "GROUP BY 1",
+            tparams,
+        )
+    }
+    tendance = [
+        {
+            "periode": _libelle_bucket(unit, b),
+            "crees": crees_par.get(_cle_bucket(unit, b), 0),
+            "resolus": resolus_par.get(_cle_bucket(unit, b), 0),
+        }
+        for b in seaux
+    ]
 
     # SLA réel : respect = durée de résolution <= cible de la priorité (données importées).
     sla_prio = await _lignes(
@@ -598,84 +631,7 @@ async def gestionnaire_detail(
 
 
 # --- Répartition mensuelle (tableaux croisés par mois) -------------------------------------------
-
-_MOIS_FR = (
-    "janv.", "févr.", "mars", "avr.", "mai", "juin",
-    "juil.", "août", "sept.", "oct.", "nov.", "déc.",
-)
-
-
-_JOURS_FR = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
-
-# Granularité d'un axe de temps selon l'étendue de la période choisie. Le tableau « suit » le
-# filtre : quelques heures → par heure ; une semaine → par jour ; un trimestre → par semaine ;
-# jusqu'à deux ans → par mois ; au-delà → par année.
-_UNIT_SQL = {"heure": "hour", "jour": "day", "semaine": "week", "mois": "month", "annee": "year"}
-_FMT_SQL = {
-    "heure": "YYYY-MM-DD HH24",
-    "jour": "YYYY-MM-DD",
-    "semaine": "YYYY-MM-DD",
-    "mois": "YYYY-MM",
-    "annee": "YYYY",
-}
-
-
-def _granularite(span_jours: int) -> str:
-    # Trois pas seulement, à la demande : jour (avec le nom du jour) → mois → année.
-    if span_jours <= 31:
-        return "jour"
-    if span_jours <= 731:
-        return "mois"
-    return "annee"
-
-
-def _tronquer(unit: str, d: datetime) -> datetime:
-    minuit = d.replace(minute=0, second=0, microsecond=0)
-    if unit == "heure":
-        return minuit
-    minuit = minuit.replace(hour=0)
-    if unit == "jour":
-        return minuit
-    if unit == "semaine":
-        return minuit - timedelta(days=minuit.weekday())
-    if unit == "mois":
-        return minuit.replace(day=1)
-    return minuit.replace(month=1, day=1)
-
-
-def _ajouter(unit: str, d: datetime) -> datetime:
-    if unit == "heure":
-        return d + timedelta(hours=1)
-    if unit == "jour":
-        return d + timedelta(days=1)
-    if unit == "semaine":
-        return d + timedelta(days=7)
-    if unit == "mois":
-        return d.replace(year=d.year + (d.month == 12), month=(d.month % 12) + 1)
-    return d.replace(year=d.year + 1)
-
-
-def _cle_bucket(unit: str, d: datetime) -> str:
-    if unit == "heure":
-        return d.strftime("%Y-%m-%d %H")
-    if unit in ("jour", "semaine"):
-        return d.strftime("%Y-%m-%d")
-    if unit == "mois":
-        return d.strftime("%Y-%m")
-    return d.strftime("%Y")
-
-
-def _libelle_bucket(unit: str, d: datetime) -> str:
-    if unit == "heure":
-        return f"{d.hour:02d} h"
-    if unit == "jour":
-        return f"{_JOURS_FR[d.weekday()]} {d.day:02d}/{d.month:02d}"
-    if unit == "semaine":
-        return f"sem. {d.day:02d}/{d.month:02d}"
-    if unit == "mois":
-        return f"{_MOIS_FR[d.month - 1]} {d.year % 100:02d}"
-    return str(d.year)
-
+# Granularité (jour/mois/année) partagée avec le dashboard : cf. application.granularite_temps.
 
 # Volumétrie par priorité et respect SLA, par bucket de temps. TTR = durée réelle importée ; la
 # cible vient de la règle SLA du module/priorité. `population` = tickets à durée mesurable.
