@@ -217,6 +217,15 @@ class PageActivites(BaseModel):
     taille: int
 
 
+class StatsListe(BaseModel):
+    """Comptes par état pour l'en-tête d'une liste de module."""
+
+    total: int
+    en_cours: int
+    termines: int
+    en_retard: int
+
+
 class TransitionDemande(BaseModel):
     vers: str = Field(min_length=1)
     # Justification (obligatoire pour certaines transitions : suspension/clôture d'un projet).

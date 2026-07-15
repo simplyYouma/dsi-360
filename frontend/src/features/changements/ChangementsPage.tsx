@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { BandeauStats } from '@/common/BandeauStats';
 import { CelluleActeur } from '@/common/CelluleActeur';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgeStatut } from '@/common/statuts';
@@ -128,6 +129,8 @@ export function ChangementsPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <BandeauStats base="/changements" signal={total} />
 
       <FiltreTickets
         module="changement"

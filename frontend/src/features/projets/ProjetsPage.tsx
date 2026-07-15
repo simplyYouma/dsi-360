@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { BandeauStats } from '@/common/BandeauStats';
 import { SablierSla } from '@/common/SablierSla';
 import { BadgeStatut } from '@/common/statuts';
 import { BarreAvancement } from '@/common/BarreAvancement';
@@ -121,6 +122,8 @@ export function ProjetsPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <BandeauStats base="/projets" signal={total} />
 
       <FiltreTickets
         module="projet"

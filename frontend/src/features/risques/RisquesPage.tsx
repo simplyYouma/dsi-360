@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { BandeauStats } from '@/common/BandeauStats';
 import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
@@ -170,6 +171,8 @@ export function RisquesPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <BandeauStats base="/risques" signal={total} />
 
       <FiltreTickets
         module="risque"

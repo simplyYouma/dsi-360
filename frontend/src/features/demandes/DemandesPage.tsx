@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { BandeauStats } from '@/common/BandeauStats';
 import { CelluleActeur } from '@/common/CelluleActeur';
 import { FicheTransition } from '@/common/FicheTransition';
 import { useFicheUrl } from '@/common/useFicheUrl';
@@ -123,6 +124,8 @@ export function DemandesPage(): JSX.Element {
         </div>
         <BoutonsExport base="/demandes" />
       </header>
+
+      <BandeauStats base="/demandes" signal={total} />
 
       <FiltreTickets
         module="demande"

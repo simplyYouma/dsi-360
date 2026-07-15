@@ -63,6 +63,7 @@ from dsi360.interface.schemas import (
     ReordreTaches,
     ResultatAssignationLot,
     RevueDemande,
+    StatsListe,
     Tache,
     TacheCreation,
     TacheMaj,
@@ -365,6 +366,12 @@ def creer_routeur(
             "page": page,
             "taille": _TAILLE,
         }
+
+    @routeur.get("/stats", response_model=StatsListe)
+    async def stats(courant: Courant, session: Session) -> dict[str, int]:
+        """Comptes par état pour l'en-tête de la liste (mêmes règles de visibilité)."""
+        direction = None if courant["transverse"] else courant["direction"]
+        return await repo.compter_etats(session, module, direction=direction)
 
     if not import_uniquement:
 

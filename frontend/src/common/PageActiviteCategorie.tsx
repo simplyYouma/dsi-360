@@ -19,6 +19,7 @@ import { SablierSla } from '@/common/SablierSla';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
 import { useRafraichissement } from '@/common/useRafraichissement';
+import { BandeauStats } from '@/common/BandeauStats';
 
 interface Props {
   titre: string;
@@ -213,6 +214,8 @@ export function PageActiviteCategorie({
           </Button>
         </div>
       </header>
+
+      <BandeauStats base={base} signal={total} />
 
       <FiltreTickets
         module={module}

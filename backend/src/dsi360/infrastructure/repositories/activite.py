@@ -178,6 +178,41 @@ async def lister(
     return list(lignes.mappings().all()), total
 
 
+async def compter_etats(
+    session: AsyncSession, module: str, *, direction: str | None
+) -> dict[str, int]:
+    """Comptes par état pour l'en-tête de liste : total, en cours, terminés, en retard.
+
+    Respecte le même cloisonnement par direction que `lister` (une activité sans direction —
+    ticket importé — reste visible par tous).
+    """
+    params: dict[str, Any] = {"module": module}
+    cond = ""
+    if direction is not None:
+        cond = " AND (d.code = :direction OR a.direction_id IS NULL)"
+        params["direction"] = direction
+    termes = sorted(STATUTS_TERMINAUX)
+    ph = ", ".join(f":t{i}" for i in range(len(termes)))
+    for i, t in enumerate(termes):
+        params[f"t{i}"] = t
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT count(*) AS total, "
+                f"count(*) FILTER (WHERE a.statut NOT IN ({ph})) AS en_cours, "
+                f"count(*) FILTER (WHERE a.statut IN ({ph})) AS termines, "
+                f"count(*) FILTER (WHERE a.statut NOT IN ({ph}) "
+                "  AND a.sla_resolution_le IS NOT NULL AND a.resolu_le IS NULL "
+                "  AND a.sla_resolution_le < now()) AS en_retard "
+                f"FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id "
+                f"WHERE a.module = :module{cond}"
+            ),
+            params,
+        )
+    ).mappings().one()
+    return {k: int(ligne[k]) for k in ("total", "en_cours", "termines", "en_retard")}
+
+
 async def lister_tout(
     session: AsyncSession,
     module: str,

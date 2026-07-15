@@ -34,6 +34,7 @@ from dsi360.interface.schemas import (
     ProjetDetail,
     ProjetMaj,
     ReordreTaches,
+    StatsListe,
     Tache,
     TacheCreation,
     TacheMaj,
@@ -135,6 +136,13 @@ async def _charger(session: AsyncSession, ident: str, courant: dict[str, Any]) -
     if r is None or not _visible(r, courant):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
     return r
+
+
+@routeur.get("/stats", response_model=StatsListe)
+async def stats(courant: Courant, session: Session) -> dict[str, int]:
+    """Comptes par état pour l'en-tête de la liste des projets."""
+    direction = None if courant["transverse"] else courant["direction"]
+    return await repo.compter_etats(session, MODULE, direction=direction)
 
 
 @routeur.get("", response_model=PageProjets)

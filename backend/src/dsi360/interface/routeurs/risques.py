@@ -24,6 +24,7 @@ from dsi360.interface.schemas import (
     RevueDemande,
     RisqueCreation,
     RisqueDetail,
+    StatsListe,
     TransitionDemande,
 )
 from dsi360.interface.securite import (
@@ -138,6 +139,13 @@ async def lister(
         "page": page,
         "taille": _TAILLE,
     }
+
+
+@routeur.get("/stats", response_model=StatsListe)
+async def stats(courant: Courant, session: Session) -> dict[str, int]:
+    """Comptes par état pour l'en-tête de la liste des risques."""
+    direction = None if courant["transverse"] else courant["direction"]
+    return await repo.compter_etats(session, MODULE, direction=direction)
 
 
 @routeur.post("", response_model=CreationReponse, status_code=status.HTTP_201_CREATED)

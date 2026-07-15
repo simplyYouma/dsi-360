@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
+import { BandeauStats } from '@/common/BandeauStats';
 import { CelluleActeur } from '@/common/CelluleActeur';
 import { CelluleReference } from '@/common/CelluleReference';
 import { FicheTransition } from '@/common/FicheTransition';
@@ -180,6 +181,8 @@ export function AuditPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      <BandeauStats base="/audit" signal={total} />
 
       <FiltreTickets
         module="audit"

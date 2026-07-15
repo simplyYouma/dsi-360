@@ -12,6 +12,7 @@ import { BadgeStatut } from '@/common/statuts';
 import { incidentsApi, type Incident, type FiltresListe } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
 import { useRafraichissement } from '@/common/useRafraichissement';
+import { BandeauStats } from '@/common/BandeauStats';
 
 const PRIORITE_COULEUR: Record<number, string> = {
   1: 'var(--status-danger)',
@@ -132,6 +133,8 @@ export function IncidentsPage(): JSX.Element {
         </div>
         <BoutonsExport base="/incidents" />
       </header>
+
+      <BandeauStats base="/incidents" signal={total} />
 
       <FiltreTickets
         module="incident"
