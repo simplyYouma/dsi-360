@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { ChampInline } from '@/common/ChampInline';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { PastilleEcheance } from '@/common/PastilleEcheance';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
@@ -345,6 +346,17 @@ export function FicheTransition({
       setErreur(err instanceof ErreurApi ? err.message : 'Enregistrement impossible.');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  // Description d'un incident/demande importé : saisie par un acteur, jamais écrasée à l'import.
+  const modifierDescription = async (valeur: string): Promise<void> => {
+    if (id === null) return;
+    try {
+      setDetail(await api.patch<Detail>(`${base}/${id}/description`, { description: valeur }));
+      onChange();
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Enregistrement impossible.');
     }
   };
 
@@ -787,8 +799,19 @@ export function FicheTransition({
             )}
           </dl>
 
-          {detail.description !== null && detail.description !== '' && (
-            <p className={styles.description}>{detail.description}</p>
+          {permissions.peut_editer_description ? (
+            <div className={styles.description}>
+              <ChampInline
+                valeur={detail.description ?? ''}
+                onValider={(val) => void modifierDescription(val)}
+                multiligne
+                placeholder="Ajouter une description…"
+                aria-label="Description"
+              />
+            </div>
+          ) : (
+            detail.description !== null &&
+            detail.description !== '' && <p className={styles.description}>{detail.description}</p>
           )}
 
           <div className={styles.workflow}>

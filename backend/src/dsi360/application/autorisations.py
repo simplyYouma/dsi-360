@@ -88,6 +88,8 @@ def capacites(
         # Une exception : l'administrateur y désigne des contributeurs, pour que la DSI suive un
         # ticket qu'elle ne traite pas — y compris quand le rapport a mis DBS au gestionnaire.
         # Close, même cette désignation se ferme : plus rien ne bouge sur un ticket terminé.
+        # La description reste saisissable par les acteurs (gestionnaire, contributeurs, admin) :
+        # le rapport importé n'a pas de colonne description, on ne l'écrase donc jamais (ADR-0005).
         return {
             "peut_assigner": False,
             "peut_evaluer": False,
@@ -95,6 +97,7 @@ def capacites(
             "peut_travailler": False,
             "peut_decider": False,
             "peut_completer_dossier": False,
+            "peut_editer_description": acteur,
         }
     if clos:
         return {
@@ -104,6 +107,7 @@ def capacites(
             "peut_travailler": False,
             "peut_decider": False,
             "peut_completer_dossier": acteur,
+            "peut_editer_description": False,
         }
     return {
         "peut_assigner": roles.est_admin,
@@ -112,6 +116,8 @@ def capacites(
         "peut_travailler": acteur,
         "peut_decider": roles.est_valideur,
         "peut_completer_dossier": acteur,
+        # Modules pilotés (changement…) : la description passe par le PATCH principal.
+        "peut_editer_description": False,
     }
 
 

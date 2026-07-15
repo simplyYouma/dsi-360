@@ -174,6 +174,8 @@ class PermissionsActivite(BaseModel):
     peut_decider: bool = False  # approuver / rejeter
     # analyses/plans (RFC) et liens — restent ouverts même après clôture
     peut_completer_dossier: bool = False
+    # description d'un incident/demande importé — saisissable par les acteurs (jamais écrasée)
+    peut_editer_description: bool = False
 
 
 class ActiviteDetail(ActiviteResume):
@@ -255,6 +257,12 @@ class AssignationDemande(BaseModel):
 
 class CategorieDemande(BaseModel):
     categorie_id: str | None = None
+
+
+class DescriptionMaj(BaseModel):
+    """Saisie de la description d'un ticket importé (incident/demande) par un acteur."""
+
+    description: str | None = None
 
 
 class ActiviteMaj(BaseModel):

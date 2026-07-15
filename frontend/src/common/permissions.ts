@@ -18,6 +18,8 @@ export interface Permissions {
   /** Analyses/plans (RFC) et liens : restent ouverts même après clôture (le bilan post-
    *  implémentation se remplit après la mise en production). */
   peut_completer_dossier: boolean;
+  /** Description d'un incident/demande importé : saisissable par les acteurs (jamais écrasée). */
+  peut_editer_description: boolean;
 }
 
 /** Aucune capacité : ce qu'on affiche tant que le détail n'est pas chargé. */
@@ -28,4 +30,5 @@ export const AUCUNE_PERMISSION: Permissions = {
   peut_travailler: false,
   peut_decider: false,
   peut_completer_dossier: false,
+  peut_editer_description: false,
 };

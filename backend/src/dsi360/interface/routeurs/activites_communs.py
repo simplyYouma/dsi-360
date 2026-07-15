@@ -55,6 +55,7 @@ from dsi360.interface.schemas import (
     ContributeurDemande,
     CreationReponse,
     DecisionDemande,
+    DescriptionMaj,
     EvaluationDemande,
     NoteCreation,
     NoteItem,
@@ -487,6 +488,39 @@ def creer_routeur(
         await session.commit()
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session, courant)
+
+    # Incident/demande importé : la description est le seul champ de contenu qu'on saisit ici. Le
+    # rapport n'en porte pas, l'import ne l'écrase donc jamais. Réservé aux acteurs de travail
+    # (gestionnaire, contributeurs, admin) ; ouvert même sur un ticket clos (c'est une annotation).
+    if import_uniquement:
+
+        @routeur.patch("/{ident}/description", response_model=ActiviteDetail)
+        async def modifier_description(
+            ident: str, corps: DescriptionMaj, ctx: CtxDossier, session: Session
+        ) -> dict[str, Any]:
+            if not ctx.roles.est_acteur_travail:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Réservé au gestionnaire, aux contributeurs et à l'administrateur.",
+                )
+            courant, avant = ctx.courant, ctx.activite
+            await session.execute(
+                text("UPDATE core.activite SET description = :d WHERE id = cast(:id as uuid)"),
+                {"d": corps.description, "id": ident},
+            )
+            await audit.consigner(
+                session,
+                action="MODIFICATION",
+                acteur_id=courant["id"],
+                acteur_email=courant["email"],
+                module=module,
+                cible_type=module,
+                cible_id=avant["reference"],
+                nouvelle={"description": (corps.description or "")[:200]},
+            )
+            await session.commit()
+            r = await charger_visible(session, ident, courant)
+            return await detail_complet(r, session, courant)
 
     # Incidents et demandes ne se pilotent pas ici : ils sont traités dans un autre système,
     # et l'import du lendemain effacerait toute modification. On observe, on n'agit pas.
