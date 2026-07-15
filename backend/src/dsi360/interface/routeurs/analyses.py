@@ -613,12 +613,9 @@ _FMT_SQL = {
 
 
 def _granularite(span_jours: int) -> str:
-    if span_jours <= 1:
-        return "heure"
+    # Trois pas seulement, à la demande : jour (avec le nom du jour) → mois → année.
     if span_jours <= 31:
         return "jour"
-    if span_jours <= 92:
-        return "semaine"
     if span_jours <= 731:
         return "mois"
     return "annee"

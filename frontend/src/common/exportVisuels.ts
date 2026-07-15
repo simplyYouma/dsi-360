@@ -124,7 +124,9 @@ export async function exporterVisuelsPdf(
   let y = await dessinerEntete(pdf, titre, largeurPage);
 
   for (const bloc of blocs) {
-    const canvas = await capturer(bloc, 2);
+    // Capture à 3× : à la largeur d'une page A4, 2× rendait le texte flou (résolution trop basse
+    // une fois l'image posée). 3× donne ~380 dpi — net à l'impression comme à l'écran.
+    const canvas = await capturer(bloc, 3);
     let imgL = largeur;
     let imgH = (canvas.height / canvas.width) * largeur;
     if (imgH > basUtile - MARGE) {
