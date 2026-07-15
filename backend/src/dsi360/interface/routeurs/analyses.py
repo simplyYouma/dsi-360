@@ -597,47 +597,85 @@ _MOIS_FR = (
 )
 
 
-def _debut_mois(d: date) -> date:
-    return d.replace(day=1)
+_JOURS_FR = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
+
+# Granularité d'un axe de temps selon l'étendue de la période choisie. Le tableau « suit » le
+# filtre : quelques heures → par heure ; une semaine → par jour ; un trimestre → par semaine ;
+# jusqu'à deux ans → par mois ; au-delà → par année.
+_UNIT_SQL = {"heure": "hour", "jour": "day", "semaine": "week", "mois": "month", "annee": "year"}
+_FMT_SQL = {
+    "heure": "YYYY-MM-DD HH24",
+    "jour": "YYYY-MM-DD",
+    "semaine": "YYYY-MM-DD",
+    "mois": "YYYY-MM",
+    "annee": "YYYY",
+}
 
 
-def _mois_suivant(d: date) -> date:
-    return date(d.year + (d.month == 12), (d.month % 12) + 1, 1)
+def _granularite(span_jours: int) -> str:
+    if span_jours <= 1:
+        return "heure"
+    if span_jours <= 31:
+        return "jour"
+    if span_jours <= 92:
+        return "semaine"
+    if span_jours <= 731:
+        return "mois"
+    return "annee"
 
 
-def _mois_periode(jours: int | None, du: date | None, au: date | None) -> list[date]:
-    """Liste des premiers-de-mois couverts par la période (défaut : 12 derniers mois).
-
-    Bornée à 24 mois pour garder le tableau lisible et la requête raisonnable.
-    """
-    aujourdhui = datetime.now(UTC).date()
-    if du is not None or au is not None:
-        debut = _debut_mois(du) if du is not None else _debut_mois(aujourdhui)
-        fin = _debut_mois(au) if au is not None else _debut_mois(aujourdhui)
-    elif jours is not None:
-        debut = _debut_mois(aujourdhui - timedelta(days=jours))
-        fin = _debut_mois(aujourdhui)
-    else:
-        fin = _debut_mois(aujourdhui)
-        debut = fin
-        for _ in range(11):
-            debut = _debut_mois(debut - timedelta(days=1))
-    mois: list[date] = []
-    courant = debut
-    while courant <= fin and len(mois) < 24:
-        mois.append(courant)
-        courant = _mois_suivant(courant)
-    return mois or [fin]
+def _tronquer(unit: str, d: datetime) -> datetime:
+    minuit = d.replace(minute=0, second=0, microsecond=0)
+    if unit == "heure":
+        return minuit
+    minuit = minuit.replace(hour=0)
+    if unit == "jour":
+        return minuit
+    if unit == "semaine":
+        return minuit - timedelta(days=minuit.weekday())
+    if unit == "mois":
+        return minuit.replace(day=1)
+    return minuit.replace(month=1, day=1)
 
 
-def _entete_mois(d: date) -> dict[str, str]:
-    return {"cle": d.strftime("%Y-%m"), "libelle": f"{_MOIS_FR[d.month - 1]} {d.year % 100:02d}"}
+def _ajouter(unit: str, d: datetime) -> datetime:
+    if unit == "heure":
+        return d + timedelta(hours=1)
+    if unit == "jour":
+        return d + timedelta(days=1)
+    if unit == "semaine":
+        return d + timedelta(days=7)
+    if unit == "mois":
+        return d.replace(year=d.year + (d.month == 12), month=(d.month % 12) + 1)
+    return d.replace(year=d.year + 1)
 
 
-# Volumétrie par priorité et respect SLA, par mois. TTR = durée réelle importée ; la cible vient de
-# la règle SLA du module/priorité. `population` = tickets à durée mesurable (base du taux).
+def _cle_bucket(unit: str, d: datetime) -> str:
+    if unit == "heure":
+        return d.strftime("%Y-%m-%d %H")
+    if unit in ("jour", "semaine"):
+        return d.strftime("%Y-%m-%d")
+    if unit == "mois":
+        return d.strftime("%Y-%m")
+    return d.strftime("%Y")
+
+
+def _libelle_bucket(unit: str, d: datetime) -> str:
+    if unit == "heure":
+        return f"{d.hour:02d} h"
+    if unit == "jour":
+        return f"{_JOURS_FR[d.weekday()]} {d.day:02d}/{d.month:02d}"
+    if unit == "semaine":
+        return f"sem. {d.day:02d}/{d.month:02d}"
+    if unit == "mois":
+        return f"{_MOIS_FR[d.month - 1]} {d.year % 100:02d}"
+    return str(d.year)
+
+
+# Volumétrie par priorité et respect SLA, par bucket de temps. TTR = durée réelle importée ; la
+# cible vient de la règle SLA du module/priorité. `population` = tickets à durée mesurable.
 _MENSUEL_PRIORITE = """
-SELECT to_char(date_trunc('month', a.cree_le), 'YYYY-MM') AS mois, a.priorite AS niveau,
+SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket, a.priorite AS niveau,
        count(*) AS total,
        count(*) FILTER (WHERE {ttr} > 0) AS population,
        count(*) FILTER (WHERE {ttr} > 0 AND {ttr} <= {cible}) AS dans_delai
@@ -645,13 +683,13 @@ FROM core.activite a
 JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL
-  AND a.cree_le >= :m_debut AND a.cree_le < :m_fin{cond}
+  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
 GROUP BY 1, 2
 """
 
-# Répartition DSI (compte rattaché) vs DBS (sans responsable, ADR-0005), par mois.
+# Répartition DSI (compte rattaché) vs DBS (sans responsable, ADR-0005), par bucket de temps.
 _MENSUEL_ENTITE = """
-SELECT to_char(date_trunc('month', a.cree_le), 'YYYY-MM') AS mois,
+SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
        (a.responsable_id IS NOT NULL) AS dsi,
        count(*) AS total,
        count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
@@ -663,8 +701,14 @@ SELECT to_char(date_trunc('month', a.cree_le), 'YYYY-MM') AS mois,
        count(*) FILTER (WHERE a.module = 'demande') AS demandes
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD'
-  AND a.cree_le >= :m_debut AND a.cree_le < :m_fin{cond}
+  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
 GROUP BY 1, 2
+"""
+
+_PLAGE_IMPORT = """
+SELECT min(a.cree_le) AS mini, max(a.cree_le) AS maxi
+FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD'{cond}
 """
 
 
@@ -676,15 +720,40 @@ async def analyses_mensuelles(
     du: date | None = None,
     au: date | None = None,
 ) -> dict[str, Any]:
-    """Tableaux croisés par mois : volumétrie/priorité + respect SLA, et répartition DSI vs DBS."""
-    mois = _mois_periode(jours, du, au)
+    """Tableaux croisés dont l'axe de temps suit le filtre (heure → jour → … → année)."""
     cond_dir = ""
-    params: dict[str, Any] = {"m_debut": mois[0], "m_fin": _mois_suivant(mois[-1])}
+    pdir: dict[str, Any] = {}
     if not courant["transverse"]:
         cond_dir = " AND (d.code = :dir OR a.direction_id IS NULL)"
-        params["dir"] = courant["direction"]
+        pdir["dir"] = courant["direction"]
 
-    entetes = [_entete_mois(m) for m in mois]
+    maintenant = datetime.now(UTC)
+    if du is not None or au is not None:
+        debut = datetime(du.year, du.month, du.day, tzinfo=UTC) if du else maintenant
+        fin = datetime(au.year, au.month, au.day, tzinfo=UTC) if au else maintenant
+    elif jours is not None:
+        debut, fin = maintenant - timedelta(days=jours), maintenant
+    else:
+        # « Tout » : on cadre sur l'étendue réelle des données importées (repli 12 mois si vide).
+        bornes = (await session.execute(text(_PLAGE_IMPORT.format(cond=cond_dir)), pdir)).first()
+        mini = bornes.mini if bornes is not None else None
+        maxi = bornes.maxi if bornes is not None else None
+        debut = mini or (maintenant - timedelta(days=365))
+        fin = maxi or maintenant
+
+    unit = _granularite(max(0, (fin - debut).days))
+    trunc, fmt = _UNIT_SQL[unit], _FMT_SQL[unit]
+    depart, dernier = _tronquer(unit, debut), _tronquer(unit, fin)
+    buckets: list[datetime] = []
+    courant_b = depart
+    while courant_b <= dernier and len(buckets) < 400:
+        buckets.append(courant_b)
+        courant_b = _ajouter(unit, courant_b)
+    if not buckets:
+        buckets = [depart]
+
+    params: dict[str, Any] = {"b_debut": buckets[0], "b_fin": _ajouter(unit, buckets[-1]), **pdir}
+    entetes = [{"cle": _cle_bucket(unit, b), "libelle": _libelle_bucket(unit, b)} for b in buckets]
     cles = [e["cle"] for e in entetes]
 
     # Cible SLA par priorité (pour l'infobulle « P1 (SLA: 4h) »), module incident par défaut.
@@ -706,11 +775,13 @@ async def analyses_mensuelles(
             "sla_taux": round(ok * 100 / pop, 1) if pop else None,
         }
 
-    # --- Priorités × mois --- (+ accumulateurs pour la ligne d'en-tête « toutes priorités »)
+    # --- Priorités × bucket --- (+ accumulateurs pour la ligne d'en-tête « toutes priorités »)
     lignes_p = await _lignes(
-        session, _MENSUEL_PRIORITE.format(ttr=_TTR, cible=_CIBLE, cond=cond_dir), params
+        session,
+        _MENSUEL_PRIORITE.format(trunc=trunc, fmt=fmt, ttr=_TTR, cible=_CIBLE, cond=cond_dir),
+        params,
     )
-    par = {(int(r["niveau"]), str(r["mois"])): r for r in lignes_p}
+    par = {(int(r["niveau"]), str(r["bucket"])): r for r in lignes_p}
     tot_mois: dict[str, int] = dict.fromkeys(cles, 0)
     pop_mois: dict[str, int] = dict.fromkeys(cles, 0)
     ok_mois: dict[str, int] = dict.fromkeys(cles, 0)
@@ -731,9 +802,11 @@ async def analyses_mensuelles(
         )
     total_p = [_cell_sla(tot_mois[c], pop_mois[c], ok_mois[c], c) for c in cles]
 
-    # --- Entités (DSI / DBS) × mois ---
-    lignes_e = await _lignes(session, _MENSUEL_ENTITE.format(cond=cond_dir), params)
-    par_e = {(bool(r["dsi"]), str(r["mois"])): r for r in lignes_e}
+    # --- Entités (DSI / DBS) × bucket ---
+    lignes_e = await _lignes(
+        session, _MENSUEL_ENTITE.format(trunc=trunc, fmt=fmt, cond=cond_dir), params
+    )
+    par_e = {(bool(r["dsi"]), str(r["bucket"])): r for r in lignes_e}
     champs = ("total", "fermes", "ouverts", "rejetes", "incidents", "demandes")
     entites = []
     for dsi, cle_e, libelle in ((True, "DSI", "DSI AFG"), (False, "DBS", "DBS")):
@@ -759,6 +832,7 @@ async def analyses_mensuelles(
         )
 
     return {
+        "granularite": unit,
         "mois": entetes,
         "total_priorites": total_p,
         "priorites": priorites,

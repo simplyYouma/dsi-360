@@ -144,7 +144,10 @@ export interface LigneEntite {
   demandes: number;
   cellules: CelluleEntite[];
 }
+export type Granularite = 'heure' | 'jour' | 'semaine' | 'mois' | 'annee';
+
 export interface AnalysesMensuelles {
+  granularite: Granularite;
   mois: MoisEntete[];
   total_priorites: CelluleSla[];
   priorites: LignePriorite[];

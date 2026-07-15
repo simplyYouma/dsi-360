@@ -1015,7 +1015,9 @@ class LigneEntite(BaseModel):
 
 
 class AnalysesMensuelles(BaseModel):
-    mois: list[MoisEntete]
+    # Granularité de l'axe de temps : heure | jour | semaine | mois | annee (selon la période).
+    granularite: str
+    mois: list[MoisEntete]  # colonnes de l'axe de temps (nom historique)
     total_priorites: list[CelluleSla]  # ligne d'en-tête (toutes priorités confondues)
     priorites: list[LignePriorite]
     entites: list[LigneEntite]

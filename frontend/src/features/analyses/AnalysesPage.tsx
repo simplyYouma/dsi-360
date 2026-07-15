@@ -83,7 +83,7 @@ const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
   { cle: 'apercu', libelle: "Vue d'ensemble" },
   { cle: 'flux', libelle: 'Flux & qualité' },
   { cle: 'priorites', libelle: 'Risques & priorités' },
-  { cle: 'mensuel', libelle: 'Répartition mensuelle' },
+  { cle: 'mensuel', libelle: 'Synthèse périodique' },
   { cle: 'equipe', libelle: 'Équipe & gestionnaires' },
 ];
 // ---------------------------------------------------------------- KPI

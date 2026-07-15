@@ -56,27 +56,41 @@ async def test_repartition_mensuelle(client: AsyncClient, session: AsyncSession)
         ttr_minutes=6000, responsable_id=None, ferme=True,
     )
 
+    # Étendue > 3 mois → granularité mensuelle ; les deux tickets tombent dans le bucket « mars ».
     r = await client.get(
-        "/analyses/mensuel?du=2023-03-01&au=2023-03-31", headers=entetes(admin)
+        "/analyses/mensuel?du=2023-01-01&au=2023-06-30", headers=entetes(admin)
     )
     assert r.status_code == 200, r.text
     data = r.json()
 
-    assert [m["cle"] for m in data["mois"]] == ["2023-03"]
-    assert data["mois"][0]["libelle"] == "mars 23"
+    assert data["granularite"] == "mois"
+    cles = [m["cle"] for m in data["mois"]]
+    assert "2023-03" in cles
+    i = cles.index("2023-03")
+    assert data["mois"][i]["libelle"] == "mars 23"
 
     p1 = next(p for p in data["priorites"] if p["priorite"] == 1)
-    cell = p1["cellules"][0]
+    cell = p1["cellules"][i]
     assert cell["total"] == 2
     assert cell["population_sla"] == 2
     assert cell["sla_taux"] == 50.0  # 1 des 2 dans les temps
 
-    total = data["total_priorites"][0]
+    total = data["total_priorites"][i]
     assert total["total"] == 2
     assert total["sla_taux"] == 50.0
 
     par_entite = {e["cle"]: e for e in data["entites"]}
-    assert par_entite["DSI"]["cellules"][0]["total"] == 1
-    assert par_entite["DBS"]["cellules"][0]["total"] == 1
+    assert par_entite["DSI"]["cellules"][i]["total"] == 1
+    assert par_entite["DBS"]["cellules"][i]["total"] == 1
     assert par_entite["DSI"]["total"] == 1
     assert par_entite["DBS"]["incidents"] == 1
+
+
+async def test_granularite_suit_le_filtre(client: AsyncClient, session: AsyncSession) -> None:
+    admin = await creer_utilisateur(session, email="admin.gran@afgbank.ml", profil="ADMIN")
+    # Une semaine → granularité journalière (un bucket par jour).
+    r = await client.get("/analyses/mensuel?du=2023-03-01&au=2023-03-07", headers=entetes(admin))
+    assert r.json()["granularite"] == "jour"
+    # Deux ans et demi → granularité annuelle.
+    r = await client.get("/analyses/mensuel?du=2021-01-01&au=2023-06-30", headers=entetes(admin))
+    assert r.json()["granularite"] == "annee"

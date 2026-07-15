@@ -112,36 +112,84 @@
   background: color-mix(in srgb, var(--secondary) 6%, var(--surface));
 }
 
-/* Tuiles de synthèse par entité. */
-.tuiles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-.tuile {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 180px;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-.tuileNom {
+/* Pastille du taux SLA (fond léger de la couleur du sens). */
+.pastille {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
   font-size: var(--text-xs);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.tuileTotal {
-  font-size: 1.6rem;
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
 }
-.tuileDetail {
+
+/* Cartes de synthèse : trois, pleine largeur, dégradé par entité. */
+.cartes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+@media (max-width: 760px) {
+  .cartes {
+    grid-template-columns: 1fr;
+  }
+}
+.carte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.carteTete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cartePoint {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.carteNom {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.carteTotal {
+  font-size: 2.1rem;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
   font-size: var(--text-xs);
   color: var(--text-muted);
+}
+.badge strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.badgeIcone {
+  display: inline-flex;
 }
