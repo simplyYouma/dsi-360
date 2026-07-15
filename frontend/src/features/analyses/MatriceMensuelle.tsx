@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { CheckCircle2, CircleDot, AlertTriangle, FileText } from 'lucide-react';
+import { CheckCircle2, CircleDot, XCircle, AlertTriangle, FileText } from 'lucide-react';
 import { Card } from '@/design-system/primitives';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import type { AnalysesMensuelles, CelluleEntite, Granularite, LigneEntite } from './analysesApi';
@@ -73,10 +73,9 @@ function CarteSynthese({ s }: { s: Synthese }): JSX.Element {
         borderColor: `color-mix(in srgb, ${s.accent} 35%, var(--border))`,
       }}
     >
-      <div className={styles.carteTete}>
-        <span className={styles.cartePoint} style={{ background: s.accent }} />
-        <span className={styles.carteNom}>{s.libelle}</span>
-      </div>
+      <span className={styles.carteNom} style={{ color: s.accent }}>
+        {s.libelle}
+      </span>
       <span className={styles.carteTotal}>{s.total}</span>
       <div className={styles.badges}>
         {badges.map((b) => (
@@ -128,12 +127,22 @@ export function MatriceMensuelle({ data }: { data: AnalysesMensuelles | null }):
     },
   ];
 
-  const sousLignes: { cle: keyof CelluleEntite; libelle: string }[] = [
-    { cle: 'fermes', libelle: 'Fermés' },
-    { cle: 'ouverts', libelle: 'Ouverts' },
-    { cle: 'rejetes', libelle: 'Rejetés' },
-    { cle: 'incidents', libelle: 'Incidents' },
-    { cle: 'demandes', libelle: 'Demandes' },
+  const sousLignes: {
+    cle: keyof CelluleEntite;
+    libelle: string;
+    icone: JSX.Element;
+    groupe: 'statut' | 'nature';
+  }[] = [
+    { cle: 'fermes', libelle: 'Fermés', icone: <CheckCircle2 size={13} />, groupe: 'statut' },
+    { cle: 'ouverts', libelle: 'Ouverts', icone: <CircleDot size={13} />, groupe: 'statut' },
+    { cle: 'rejetes', libelle: 'Rejetés', icone: <XCircle size={13} />, groupe: 'statut' },
+    {
+      cle: 'incidents',
+      libelle: 'Incidents',
+      icone: <AlertTriangle size={13} />,
+      groupe: 'nature',
+    },
+    { cle: 'demandes', libelle: 'Demandes', icone: <FileText size={13} />, groupe: 'nature' },
   ];
 
   return (
@@ -215,16 +224,26 @@ export function MatriceMensuelle({ data }: { data: AnalysesMensuelles | null }):
                       </td>
                     ))}
                   </tr>
-                  {sousLignes.map((sl) => (
-                    <tr key={`${e.cle}-${sl.cle}`}>
-                      <td className={`${styles.figee} ${styles.sousLigne}`}>{sl.libelle}</td>
-                      {e.cellules.map((c) => (
-                        <td key={c.mois} className={styles.discret}>
-                          {c[sl.cle] || '—'}
+                  {sousLignes.map((sl, idx) => {
+                    const debutNature =
+                      sl.groupe === 'nature' && sousLignes[idx - 1]?.groupe !== 'nature';
+                    return (
+                      <tr
+                        key={`${e.cle}-${sl.cle}`}
+                        className={debutNature ? styles.debutGroupe : undefined}
+                      >
+                        <td className={`${styles.figee} ${styles.sousLigne}`}>
+                          <span className={styles.slIcone}>{sl.icone}</span>
+                          {sl.libelle}
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                        {e.cellules.map((c) => (
+                          <td key={c.mois} className={styles.discret}>
+                            {c[sl.cle] || '—'}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </Fragment>
               ))}
             </tbody>
@@ -253,25 +272,44 @@ export function MatriceMensuelle({ data }: { data: AnalysesMensuelles | null }):
               <tbody>
                 {(
                   [
-                    { libelle: 'Fermés · DSI', champ: 'fermes' as const, ent: dsi, autre: dbs },
-                    { libelle: 'Fermés · DBS', champ: 'fermes' as const, ent: dbs, autre: dsi },
-                    { libelle: 'Ouverts · DSI', champ: 'ouverts' as const, ent: dsi, autre: dbs },
-                    { libelle: 'Ouverts · DBS', champ: 'ouverts' as const, ent: dbs, autre: dsi },
+                    { libelle: 'Fermés', champ: 'fermes' as const },
+                    { champ: 'ouverts' as const, libelle: 'Ouverts' },
                   ] as const
-                ).map((r) => (
-                  <tr key={r.libelle}>
-                    <td className={styles.figee}>{r.libelle}</td>
-                    {r.ent.cellules.map((c, i) => {
-                      const part = c[r.champ];
-                      const tout = part + (r.autre.cellules[i]?.[r.champ] ?? 0);
-                      const p = pct(part, tout);
-                      return (
-                        <td key={c.mois} className={styles.discret}>
-                          {p === null ? '—' : `${p}%`}
-                        </td>
-                      );
-                    })}
-                  </tr>
+                ).map((g) => (
+                  <Fragment key={g.champ}>
+                    {/* Ligne globale : le total des deux entités (base des pourcentages). */}
+                    <tr className={styles.ligneTotale}>
+                      <td className={styles.figee}>{g.libelle} · Ensemble</td>
+                      {dsi.cellules.map((c, i) => {
+                        const tout = c[g.champ] + (dbs.cellules[i]?.[g.champ] ?? 0);
+                        return (
+                          <td key={c.mois}>
+                            <span className={styles.volume}>{tout || '—'}</span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {(
+                      [
+                        { nom: 'DSI', ent: dsi, autre: dbs },
+                        { nom: 'DBS', ent: dbs, autre: dsi },
+                      ] as const
+                    ).map((r) => (
+                      <tr key={`${g.champ}-${r.nom}`}>
+                        <td className={`${styles.figee} ${styles.sousLigne}`}>{r.nom}</td>
+                        {r.ent.cellules.map((c, i) => {
+                          const part = c[g.champ];
+                          const tout = part + (r.autre.cellules[i]?.[g.champ] ?? 0);
+                          const p = pct(part, tout);
+                          return (
+                            <td key={c.mois} className={styles.discret}>
+                              {p === null ? '—' : `${p}%`}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
