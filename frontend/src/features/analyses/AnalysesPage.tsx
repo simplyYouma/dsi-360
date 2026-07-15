@@ -1268,19 +1268,24 @@ export function AnalysesPage(): JSX.Element {
 
         {onglet === 'mensuel' && (
           <>
-            <div style={{ maxWidth: 280, marginBottom: 'var(--space-2)' }}>
-              <SelecteurListe
-                options={[
-                  { valeur: 'ouvert', libelle: 'Ouvert' },
-                  { valeur: 'ferme', libelle: 'Fermé' },
-                  { valeur: 'rejete', libelle: 'Rejeté' },
-                ]}
-                valeur={statutMensuel}
-                onChange={setStatutMensuel}
-                placeholder="Tous les états"
-                permettreVide
-                libelleVide="Tous les états"
-              />
+            <div className={styles.segments} role="group" aria-label="Filtrer par état">
+              {(
+                [
+                  { v: null, l: 'Tous' },
+                  { v: 'ouvert', l: 'Ouverts' },
+                  { v: 'ferme', l: 'Fermés' },
+                  { v: 'rejete', l: 'Rejetés' },
+                ] as const
+              ).map((o) => (
+                <button
+                  key={o.l}
+                  type="button"
+                  className={statutMensuel === o.v ? styles.segmentOn : styles.segment}
+                  onClick={() => setStatutMensuel(o.v)}
+                >
+                  {o.l}
+                </button>
+              ))}
             </div>
             <MatriceMensuelle data={mensuel} statut={statutMensuel} />
           </>

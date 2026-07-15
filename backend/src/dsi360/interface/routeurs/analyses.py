@@ -672,6 +672,10 @@ _MENSUEL_NIVEAU = """
 SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
        coalesce(nullif(u.prenom || ' ' || u.nom, ' '),
                 nullif(a.donnees->>'gestionnaire', ''), 'DBS (N3)') AS gestionnaire,
+       CASE WHEN a.responsable_id IS NULL THEN 'DBS'
+            WHEN u.niveau_support = 1 THEN 'N1'
+            WHEN u.niveau_support = 2 THEN 'N2'
+            ELSE 'Autre' END AS niveau,
        count(*) AS total,
        count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
        count(*) FILTER (
@@ -684,7 +688,7 @@ LEFT JOIN core.utilisateur u ON u.id = a.responsable_id
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD' AND a.module IN ('incident','demande')
   AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
-GROUP BY 1, 2
+GROUP BY 1, 2, 3
 """
 
 # Familles d'état d'un ticket (le filtre de la synthèse) : ouvert / fermé / rejeté.
@@ -834,9 +838,11 @@ async def analyses_mensuelles(
     par_n = {(str(r["gestionnaire"]), str(r["bucket"])): r for r in lignes_n}
     champs_n = ("total", "fermes", "ouverts", "incidents", "demandes")
     totaux_g: dict[str, int] = {}
+    niveau_g: dict[str, str] = {}
     for r in lignes_n:
         g = str(r["gestionnaire"])
         totaux_g[g] = totaux_g.get(g, 0) + int(r["total"])
+        niveau_g[g] = str(r["niveau"])
     # Nom en second critère : ordre stable quand deux gestionnaires ont le même volume.
     noms_g = sorted(totaux_g, key=lambda n: (-totaux_g[n], n))
     niveaux = []
@@ -853,6 +859,7 @@ async def analyses_mensuelles(
             {
                 "cle": nom,
                 "libelle": nom,
+                "niveau": niveau_g.get(nom, "Autre"),
                 "total": cumuls_n["total"],
                 "fermes": cumuls_n["fermes"],
                 "ouverts": cumuls_n["ouverts"],

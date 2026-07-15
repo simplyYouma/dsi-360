@@ -136,6 +136,15 @@ const STATUT_TEXTE: Record<string, string> = {
   rejete: 'rejetés',
 };
 
+/** Ordre et libellés des groupes de niveau du tableau par gestionnaire (le niveau divise la liste). */
+const ORDRE_NIVEAU = ['N1', 'N2', 'DBS', 'Autre'] as const;
+const LIBELLE_NIVEAU: Record<string, string> = {
+  N1: 'Niveau 1 · N1',
+  N2: 'Niveau 2 · N2',
+  DBS: 'DBS · N3',
+  Autre: 'Autre',
+};
+
 interface MatriceProps {
   data: AnalysesMensuelles | null;
   /** Filtre d'état actif (ouvert|ferme|rejete) : ne montre que la sous-ligne concernée. */
@@ -307,7 +316,7 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
         <BoutonExportPng nom="Répartition par gestionnaire" />
         <h2 className={styles.titre}>Répartition par gestionnaire</h2>
         <p className={styles.sous}>
-          Les 5 gestionnaires les plus actifs (incidents et demandes)
+          Tous les gestionnaires (incidents et demandes), divisés par niveau de support
           {ligneFiltree !== undefined ? `, état : ${STATUT_TEXTE[statut ?? ''] ?? ''}` : ''}.
         </p>
         <div className={styles.zone}>
@@ -324,25 +333,38 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {niveaux.slice(0, 5).map((n) => (
-                <tr key={n.cle}>
-                  <td className={styles.figee}>{n.libelle}</td>
-                  <td>
-                    <Cas v={n.incidents} couleur={CAS_COULEUR.incidents} />
-                  </td>
-                  <td>
-                    <Cas v={n.demandes} couleur={CAS_COULEUR.demandes} />
-                  </td>
-                  <td>
-                    <span className={styles.volume}>{n.total || '—'}</span>
-                  </td>
-                  {colsEtat.map((c) => (
-                    <td key={c.cle}>
-                      <Cas v={n[c.cle]} couleur={CAS_COULEUR[c.cle]} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {ORDRE_NIVEAU.map((niv) => {
+                const lignes = niveaux.filter((n) => n.niveau === niv);
+                if (lignes.length === 0) return null;
+                return (
+                  <Fragment key={niv}>
+                    <tr className={styles.groupeNiveau}>
+                      <td className={styles.figee} colSpan={4 + colsEtat.length}>
+                        {LIBELLE_NIVEAU[niv]} · {lignes.length}
+                      </td>
+                    </tr>
+                    {lignes.map((n) => (
+                      <tr key={n.cle}>
+                        <td className={styles.figee}>{n.libelle}</td>
+                        <td>
+                          <Cas v={n.incidents} couleur={CAS_COULEUR.incidents} />
+                        </td>
+                        <td>
+                          <Cas v={n.demandes} couleur={CAS_COULEUR.demandes} />
+                        </td>
+                        <td>
+                          <span className={styles.volume}>{n.total || '—'}</span>
+                        </td>
+                        {colsEtat.map((c) => (
+                          <td key={c.cle}>
+                            <Cas v={n[c.cle]} couleur={CAS_COULEUR[c.cle]} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </Fragment>
+                );
+              })}
               {niveaux.length === 0 && (
                 <tr>
                   <td className={styles.figee}>—</td>

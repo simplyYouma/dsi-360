@@ -1053,8 +1053,9 @@ class CelluleNiveau(BaseModel):
 
 
 class LigneNiveau(BaseModel):
-    cle: str  # N1 | N2 | DBS
+    cle: str  # nom du gestionnaire
     libelle: str
+    niveau: str  # N1 | N2 | DBS | Autre — pour regrouper les gestionnaires
     total: int
     fermes: int
     ouverts: int

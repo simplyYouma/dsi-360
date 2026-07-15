@@ -757,6 +757,35 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+
+/* Filtre d'état segmenté (pilule), aligné — à la place d'un sélecteur déroulant. */
+.segments {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: var(--space-3);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+}
+.segment,
+.segmentOn {
+  padding: 6px 16px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.segment:hover {
+  color: var(--text);
+}
+.segmentOn {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgb(0 0 0 / 0.08));
+}
 .classItem {
   display: flex;
   align-items: center;

@@ -159,6 +159,7 @@ export interface CelluleNiveau {
 export interface LigneNiveau {
   cle: string;
   libelle: string;
+  niveau: string;
   total: number;
   fermes: number;
   ouverts: number;
