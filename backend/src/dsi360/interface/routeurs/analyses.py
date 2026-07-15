@@ -5,7 +5,7 @@ retards), répartitions (module, priorité, direction, charge), matrice des risq
 (probabilité × impact) et tendance hebdomadaire création vs résolution.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
@@ -13,7 +13,12 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import AnalysesReponse, GestionnaireDetail, GestionnaireEval
+from dsi360.interface.schemas import (
+    AnalysesMensuelles,
+    AnalysesReponse,
+    GestionnaireDetail,
+    GestionnaireEval,
+)
 from dsi360.interface.securite import exiger_acces
 
 routeur = APIRouter(prefix="/analyses", tags=["analyses"])
@@ -582,3 +587,180 @@ async def gestionnaire_detail(
             "activite": activite,
         }
     return {**_eval_dict({**ligne, "id": ident}), "suivis": nb_suivis, "activite": activite}
+
+
+# --- Répartition mensuelle (tableaux croisés par mois) -------------------------------------------
+
+_MOIS_FR = (
+    "janv.", "févr.", "mars", "avr.", "mai", "juin",
+    "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+)
+
+
+def _debut_mois(d: date) -> date:
+    return d.replace(day=1)
+
+
+def _mois_suivant(d: date) -> date:
+    return date(d.year + (d.month == 12), (d.month % 12) + 1, 1)
+
+
+def _mois_periode(jours: int | None, du: date | None, au: date | None) -> list[date]:
+    """Liste des premiers-de-mois couverts par la période (défaut : 12 derniers mois).
+
+    Bornée à 24 mois pour garder le tableau lisible et la requête raisonnable.
+    """
+    aujourdhui = datetime.now(UTC).date()
+    if du is not None or au is not None:
+        debut = _debut_mois(du) if du is not None else _debut_mois(aujourdhui)
+        fin = _debut_mois(au) if au is not None else _debut_mois(aujourdhui)
+    elif jours is not None:
+        debut = _debut_mois(aujourdhui - timedelta(days=jours))
+        fin = _debut_mois(aujourdhui)
+    else:
+        fin = _debut_mois(aujourdhui)
+        debut = fin
+        for _ in range(11):
+            debut = _debut_mois(debut - timedelta(days=1))
+    mois: list[date] = []
+    courant = debut
+    while courant <= fin and len(mois) < 24:
+        mois.append(courant)
+        courant = _mois_suivant(courant)
+    return mois or [fin]
+
+
+def _entete_mois(d: date) -> dict[str, str]:
+    return {"cle": d.strftime("%Y-%m"), "libelle": f"{_MOIS_FR[d.month - 1]} {d.year % 100:02d}"}
+
+
+# Volumétrie par priorité et respect SLA, par mois. TTR = durée réelle importée ; la cible vient de
+# la règle SLA du module/priorité. `population` = tickets à durée mesurable (base du taux).
+_MENSUEL_PRIORITE = """
+SELECT to_char(date_trunc('month', a.cree_le), 'YYYY-MM') AS mois, a.priorite AS niveau,
+       count(*) AS total,
+       count(*) FILTER (WHERE {ttr} > 0) AS population,
+       count(*) FILTER (WHERE {ttr} > 0 AND {ttr} <= {cible}) AS dans_delai
+FROM core.activite a
+JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL
+  AND a.cree_le >= :m_debut AND a.cree_le < :m_fin{cond}
+GROUP BY 1, 2
+"""
+
+# Répartition DSI (compte rattaché) vs DBS (sans responsable, ADR-0005), par mois.
+_MENSUEL_ENTITE = """
+SELECT to_char(date_trunc('month', a.cree_le), 'YYYY-MM') AS mois,
+       (a.responsable_id IS NOT NULL) AS dsi,
+       count(*) AS total,
+       count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
+       count(*) FILTER (
+         WHERE a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')
+       ) AS ouverts,
+       count(*) FILTER (WHERE a.statut IN ('Rejeté','Rejetée')) AS rejetes,
+       count(*) FILTER (WHERE a.module = 'incident') AS incidents,
+       count(*) FILTER (WHERE a.module = 'demande') AS demandes
+FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD'
+  AND a.cree_le >= :m_debut AND a.cree_le < :m_fin{cond}
+GROUP BY 1, 2
+"""
+
+
+@routeur.get("/mensuel", response_model=AnalysesMensuelles)
+async def analyses_mensuelles(
+    courant: Courant,
+    session: Session,
+    jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
+    du: date | None = None,
+    au: date | None = None,
+) -> dict[str, Any]:
+    """Tableaux croisés par mois : volumétrie/priorité + respect SLA, et répartition DSI vs DBS."""
+    mois = _mois_periode(jours, du, au)
+    cond_dir = ""
+    params: dict[str, Any] = {"m_debut": mois[0], "m_fin": _mois_suivant(mois[-1])}
+    if not courant["transverse"]:
+        cond_dir = " AND (d.code = :dir OR a.direction_id IS NULL)"
+        params["dir"] = courant["direction"]
+
+    entetes = [_entete_mois(m) for m in mois]
+    cles = [e["cle"] for e in entetes]
+
+    # Cible SLA par priorité (pour l'infobulle « P1 (SLA: 4h) »), module incident par défaut.
+    cibles = {
+        r["priorite"]: r["resolution_minutes"]
+        for r in await _lignes(
+            session,
+            "SELECT priorite, min(resolution_minutes) AS resolution_minutes "
+            "FROM core.sla_regle GROUP BY priorite",
+            {},
+        )
+    }
+
+    def _cell_sla(total: int, pop: int, ok: int, cle: str) -> dict[str, Any]:
+        return {
+            "mois": cle,
+            "total": total,
+            "population_sla": pop,
+            "sla_taux": round(ok * 100 / pop, 1) if pop else None,
+        }
+
+    # --- Priorités × mois --- (+ accumulateurs pour la ligne d'en-tête « toutes priorités »)
+    lignes_p = await _lignes(
+        session, _MENSUEL_PRIORITE.format(ttr=_TTR, cible=_CIBLE, cond=cond_dir), params
+    )
+    par = {(int(r["niveau"]), str(r["mois"])): r for r in lignes_p}
+    tot_mois: dict[str, int] = dict.fromkeys(cles, 0)
+    pop_mois: dict[str, int] = dict.fromkeys(cles, 0)
+    ok_mois: dict[str, int] = dict.fromkeys(cles, 0)
+    priorites = []
+    for niveau in (1, 2, 3, 4, 5):
+        cellules = []
+        for cle in cles:
+            r = par.get((niveau, cle))
+            total = int(r["total"]) if r else 0
+            pop = int(r["population"]) if r else 0
+            ok = int(r["dans_delai"]) if r else 0
+            tot_mois[cle] += total
+            pop_mois[cle] += pop
+            ok_mois[cle] += ok
+            cellules.append(_cell_sla(total, pop, ok, cle))
+        priorites.append(
+            {"priorite": niveau, "cible_minutes": cibles.get(niveau), "cellules": cellules}
+        )
+    total_p = [_cell_sla(tot_mois[c], pop_mois[c], ok_mois[c], c) for c in cles]
+
+    # --- Entités (DSI / DBS) × mois ---
+    lignes_e = await _lignes(session, _MENSUEL_ENTITE.format(cond=cond_dir), params)
+    par_e = {(bool(r["dsi"]), str(r["mois"])): r for r in lignes_e}
+    champs = ("total", "fermes", "ouverts", "rejetes", "incidents", "demandes")
+    entites = []
+    for dsi, cle_e, libelle in ((True, "DSI", "DSI AFG"), (False, "DBS", "DBS")):
+        cellules = []
+        cumuls: dict[str, int] = dict.fromkeys(champs, 0)
+        for cle in cles:
+            r = par_e.get((dsi, cle))
+            vals = {ch: (int(r[ch]) if r else 0) for ch in champs}
+            for ch in champs:
+                cumuls[ch] += vals[ch]
+            cellules.append({"mois": cle, **vals})
+        entites.append(
+            {
+                "cle": cle_e,
+                "libelle": libelle,
+                "total": cumuls["total"],
+                "fermes": cumuls["fermes"],
+                "ouverts": cumuls["ouverts"],
+                "incidents": cumuls["incidents"],
+                "demandes": cumuls["demandes"],
+                "cellules": cellules,
+            }
+        )
+
+    return {
+        "mois": entetes,
+        "total_priorites": total_p,
+        "priorites": priorites,
+        "entites": entites,
+    }

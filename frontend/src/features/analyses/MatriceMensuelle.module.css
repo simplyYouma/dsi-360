@@ -1,0 +1,147 @@
+.pile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.vide {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  padding: var(--space-6) 0;
+  text-align: center;
+}
+.titre {
+  font-size: var(--text-md, 1rem);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+}
+.sous {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: 2px 0 var(--space-4);
+}
+
+/* Zone défilable : scroller horizontal subtil, comme les listes. */
+.zone {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border) 85%, transparent) transparent;
+}
+.zone::-webkit-scrollbar {
+  height: 8px;
+}
+.zone::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: var(--radius-pill);
+}
+
+.matrice {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.matrice th,
+.matrice td {
+  padding: var(--space-2) var(--space-3);
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+.matrice thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--bg-subtle);
+}
+/* Première colonne (libellé de ligne) figée à gauche, opaque. */
+.figee {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  text-align: left;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.matrice thead th.figee {
+  z-index: 3;
+  background: var(--bg-subtle);
+}
+.matrice tbody tr:hover td {
+  background: var(--bg-subtle);
+}
+.matrice tbody tr:hover td.figee {
+  background: var(--bg-subtle);
+}
+
+/* Cellule volume + taux SLA empilés. */
+.volume {
+  display: block;
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.taux {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+.cible {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--weight-regular, 400);
+}
+.discret {
+  color: var(--text);
+}
+.sousLigne {
+  padding-left: var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Ligne de total (toutes priorités / entité) : légèrement appuyée. */
+.ligneTotale td {
+  background: color-mix(in srgb, var(--secondary) 6%, var(--surface));
+  font-weight: var(--weight-semibold);
+}
+.ligneTotale td.figee {
+  background: color-mix(in srgb, var(--secondary) 6%, var(--surface));
+}
+
+/* Tuiles de synthèse par entité. */
+.tuiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.tuile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 180px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.tuileNom {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tuileTotal {
+  font-size: 1.6rem;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.tuileDetail {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

@@ -966,3 +966,56 @@ class AnalysesReponse(BaseModel):
     dbs: DbsSynthese
     pareto_categories: list[ParetoItem]
     pec_par_priorite: list[SlaPrioriteItem]
+
+
+# --- Répartition mensuelle (tableaux croisés par mois) -------------------------------------------
+
+
+class MoisEntete(BaseModel):
+    """Une colonne de mois : clé technique (tri) + libellé court affiché."""
+
+    cle: str  # ex. "2023-03"
+    libelle: str  # ex. "mars 23"
+
+
+class CelluleSla(BaseModel):
+    """Cellule d'un mois pour la volumétrie par priorité : volume + respect SLA."""
+
+    mois: str
+    total: int
+    population_sla: int  # tickets à durée mesurée (base du taux)
+    sla_taux: float | None  # None = pas de population mesurable ce mois-là
+
+
+class LignePriorite(BaseModel):
+    priorite: int
+    cible_minutes: int | None
+    cellules: list[CelluleSla]
+
+
+class CelluleEntite(BaseModel):
+    mois: str
+    total: int
+    fermes: int
+    ouverts: int
+    rejetes: int
+    incidents: int
+    demandes: int
+
+
+class LigneEntite(BaseModel):
+    cle: str  # DSI | DBS
+    libelle: str
+    total: int
+    fermes: int
+    ouverts: int
+    incidents: int
+    demandes: int
+    cellules: list[CelluleEntite]
+
+
+class AnalysesMensuelles(BaseModel):
+    mois: list[MoisEntete]
+    total_priorites: list[CelluleSla]  # ligne d'en-tête (toutes priorités confondues)
+    priorites: list[LignePriorite]
+    entites: list[LigneEntite]

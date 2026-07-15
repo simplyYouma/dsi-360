@@ -110,10 +110,53 @@ export interface GestionnaireDetail extends GestionnaireEval {
   activite: PointActivite[];
 }
 
+export interface MoisEntete {
+  cle: string;
+  libelle: string;
+}
+export interface CelluleSla {
+  mois: string;
+  total: number;
+  population_sla: number;
+  sla_taux: number | null;
+}
+export interface LignePriorite {
+  priorite: number;
+  cible_minutes: number | null;
+  cellules: CelluleSla[];
+}
+export interface CelluleEntite {
+  mois: string;
+  total: number;
+  fermes: number;
+  ouverts: number;
+  rejetes: number;
+  incidents: number;
+  demandes: number;
+}
+export interface LigneEntite {
+  cle: string;
+  libelle: string;
+  total: number;
+  fermes: number;
+  ouverts: number;
+  incidents: number;
+  demandes: number;
+  cellules: CelluleEntite[];
+}
+export interface AnalysesMensuelles {
+  mois: MoisEntete[];
+  total_priorites: CelluleSla[];
+  priorites: LignePriorite[];
+  entites: LigneEntite[];
+}
+
 export const analysesApi = {
   charger: (p: Periode): Promise<Analyses> => api.get(`/analyses${requetePeriode(p)}`),
   gestionnaires: (p: Periode): Promise<GestionnaireEval[]> =>
     api.get(`/analyses/gestionnaires${requetePeriode(p)}`),
   gestionnaire: (id: string, p: Periode): Promise<GestionnaireDetail> =>
     api.get(`/analyses/gestionnaire/${id}${requetePeriode(p)}`),
+  mensuel: (p: Periode): Promise<AnalysesMensuelles> =>
+    api.get(`/analyses/mensuel${requetePeriode(p)}`),
 };

@@ -30,6 +30,8 @@ import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
+import { MatriceMensuelle } from './MatriceMensuelle';
+import type { AnalysesMensuelles } from './analysesApi';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
 import { PERIODE_TOUT, type Periode } from '@/common/periode';
 import { infobulle } from '@/common/infobulle';
@@ -76,11 +78,12 @@ const SLA_SEGMENTS = [
   { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
 ] as const;
 
-type CleOnglet = 'apercu' | 'flux' | 'priorites' | 'equipe';
+type CleOnglet = 'apercu' | 'flux' | 'priorites' | 'equipe' | 'mensuel';
 const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
   { cle: 'apercu', libelle: "Vue d'ensemble" },
   { cle: 'flux', libelle: 'Flux & qualité' },
   { cle: 'priorites', libelle: 'Risques & priorités' },
+  { cle: 'mensuel', libelle: 'Répartition mensuelle' },
   { cle: 'equipe', libelle: 'Équipe & gestionnaires' },
 ];
 // ---------------------------------------------------------------- KPI
@@ -474,11 +477,16 @@ export function AnalysesPage(): JSX.Element {
   const [onglet, setOnglet] = useState<CleOnglet>('apercu');
   const [gestSel, setGestSel] = useState<string | null>(null);
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
+  const [mensuel, setMensuel] = useState<AnalysesMensuelles | null>(null);
   const contenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void analysesApi.charger(periode).then(setA);
   }, [periode]);
+  // Onglet mensuel chargé à la demande (requête plus lourde), et rechargé au changement de période.
+  useEffect(() => {
+    if (onglet === 'mensuel') void analysesApi.mensuel(periode).then(setMensuel);
+  }, [onglet, periode]);
   useEffect(() => {
     void analysesApi.gestionnaires(periode).then(setEvals);
   }, [periode]);
@@ -1093,6 +1101,8 @@ export function AnalysesPage(): JSX.Element {
             )}
           </>
         )}
+
+        {onglet === 'mensuel' && <MatriceMensuelle data={mensuel} />}
       </div>
     </div>
   );
