@@ -49,6 +49,7 @@ const COLONNES: Colonne<Recommandation>[] = [
   {
     cle: 'categorie',
     entete: 'Source',
+    valeur: (r) => r.categorie ?? '',
     rendu: (r) =>
       r.categorie ? <StatusBadge couleur="var(--cat-5)">{r.categorie}</StatusBadge> : '—',
   },
@@ -58,10 +59,16 @@ const COLONNES: Colonne<Recommandation>[] = [
     valeur: (r) => r.priorite,
     rendu: (r) => <BadgePriorite priorite={r.priorite} />,
   },
-  { cle: 'statut', entete: 'Statut', rendu: (r) => <BadgeStatut statut={r.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (r) => r.statut,
+    rendu: (r) => <BadgeStatut statut={r.statut} />,
+  },
   {
     cle: 'responsable',
     entete: 'Responsable',
+    valeur: (r) => (r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : ''),
     rendu: (r) => (
       <CelluleActeur
         nom={r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : null}

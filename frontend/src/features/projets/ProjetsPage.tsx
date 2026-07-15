@@ -37,10 +37,16 @@ const COLONNES: Colonne<Projet>[] = [
     rendu: (p) => <strong title={p.titre}>{p.titre}</strong>,
     valeur: (p) => p.titre,
   },
-  { cle: 'statut', entete: 'Statut', rendu: (p) => <BadgeStatut statut={p.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (p) => p.statut,
+    rendu: (p) => <BadgeStatut statut={p.statut} />,
+  },
   {
     cle: 'chef',
     entete: 'Chef de projet',
+    valeur: (p) => (p.chef ? `${p.chef.prenom} ${p.chef.nom}` : ''),
     rendu: (p) => (
       <CelluleActeur
         nom={p.chef ? `${p.chef.prenom} ${p.chef.nom}` : null}

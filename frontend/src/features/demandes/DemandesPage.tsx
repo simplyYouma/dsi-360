@@ -43,15 +43,22 @@ const COLONNES: Colonne<Demande>[] = [
   {
     cle: 'categorie',
     entete: 'Catégorie',
+    valeur: (d) => d.categorie ?? '',
     rendu: (d) =>
       d.categorie ? <StatusBadge couleur="var(--cat-1)">{d.categorie}</StatusBadge> : '—',
   },
-  { cle: 'statut', entete: 'Statut', rendu: (d) => <BadgeStatut statut={d.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (d) => d.statut,
+    rendu: (d) => <BadgeStatut statut={d.statut} />,
+  },
   {
     // Où se trouve le ticket, sans ouvrir la fiche : déduit du gestionnaire à chaque import.
     cle: 'niveau',
     entete: 'Niveau',
     largeur: '90px',
+    valeur: (d) => d.niveau_support ?? 99,
     rendu: (d) => (
       <NiveauSupport niveau={d.niveau_support} transfereDbs={d.transfere_dbs} compact />
     ),
@@ -59,6 +66,7 @@ const COLONNES: Colonne<Demande>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
+    valeur: (d) => d.sla_resolution_le ?? '',
     rendu: (d) => (
       <SablierSla
         echeance={d.sla_resolution_le}
@@ -71,6 +79,7 @@ const COLONNES: Colonne<Demande>[] = [
   {
     cle: 'gestionnaire',
     entete: 'Gestionnaire',
+    valeur: (d) => d.gestionnaire ?? '',
     rendu: (d) => <CelluleActeur nom={d.gestionnaire} contributeur={d.contributeur} />,
   },
   {

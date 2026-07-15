@@ -62,10 +62,16 @@ const COLONNES: Colonne<Risque>[] = [
     valeur: (r) => r.criticite,
     rendu: (r) => <BadgeCriticite niveau={r.criticite} />,
   },
-  { cle: 'statut', entete: 'Statut', rendu: (r) => <BadgeStatut statut={r.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (r) => r.statut,
+    rendu: (r) => <BadgeStatut statut={r.statut} />,
+  },
   {
     cle: 'responsable',
     entete: 'Responsable',
+    valeur: (r) => (r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : ''),
     rendu: (r) => (r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : '—'),
   },
   {

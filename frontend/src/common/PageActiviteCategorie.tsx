@@ -99,6 +99,7 @@ export function PageActiviteCategorie({
     {
       cle: 'categorie',
       entete: labelCategorie,
+      valeur: (a) => a.categorie ?? '',
       rendu: (a) =>
         a.categorie ? <StatusBadge couleur={couleurCategorie}>{a.categorie}</StatusBadge> : '—',
     },
@@ -108,10 +109,16 @@ export function PageActiviteCategorie({
       valeur: (a) => a.priorite,
       rendu: (a) => <BadgePriorite priorite={a.priorite} />,
     },
-    { cle: 'statut', entete: 'Statut', rendu: (a) => <BadgeStatut statut={a.statut} /> },
+    {
+      cle: 'statut',
+      entete: 'Statut',
+      valeur: (a) => a.statut,
+      rendu: (a) => <BadgeStatut statut={a.statut} />,
+    },
     {
       cle: 'responsable',
       entete: 'Responsable',
+      valeur: (a) => (a.responsable ? `${a.responsable.prenom} ${a.responsable.nom}` : ''),
       rendu: (a) => (
         <CelluleActeur
           nom={a.responsable ? `${a.responsable.prenom} ${a.responsable.nom}` : null}

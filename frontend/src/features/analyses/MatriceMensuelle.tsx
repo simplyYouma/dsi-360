@@ -103,6 +103,27 @@ function synthese(e: LigneEntite | undefined, libelle: string, accent: string): 
   };
 }
 
+/** Couleur sémantique d'un cas du tableau par gestionnaire (la couleur porte le sens). */
+const CAS_COULEUR = {
+  incidents: 'var(--cat-1)',
+  demandes: 'var(--secondary)',
+  ouverts: 'var(--status-warn)',
+  fermes: 'var(--status-ok)',
+} as const;
+
+/** Valeur d'un cas, teintée de sa couleur ; tiret discret quand nul. */
+function Cas({ v, couleur }: { v: number; couleur: string }): JSX.Element {
+  if (!v) return <span className={styles.discret}>—</span>;
+  return (
+    <span
+      className={styles.cas}
+      style={{ color: couleur, background: `color-mix(in srgb, ${couleur} 12%, transparent)` }}
+    >
+      {v}
+    </span>
+  );
+}
+
 /** Répartition d'un filtre d'état vers la sous-ligne correspondante du tableau DSI/DBS. */
 const STATUT_LIGNE: Record<string, keyof CelluleEntite> = {
   ouvert: 'ouverts',
@@ -306,14 +327,18 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
               {niveaux.slice(0, 5).map((n) => (
                 <tr key={n.cle}>
                   <td className={styles.figee}>{n.libelle}</td>
-                  <td className={styles.discret}>{n.incidents || '—'}</td>
-                  <td className={styles.discret}>{n.demandes || '—'}</td>
+                  <td>
+                    <Cas v={n.incidents} couleur={CAS_COULEUR.incidents} />
+                  </td>
+                  <td>
+                    <Cas v={n.demandes} couleur={CAS_COULEUR.demandes} />
+                  </td>
                   <td>
                     <span className={styles.volume}>{n.total || '—'}</span>
                   </td>
                   {colsEtat.map((c) => (
-                    <td key={c.cle} className={styles.discret}>
-                      {n[c.cle] || '—'}
+                    <td key={c.cle}>
+                      <Cas v={n[c.cle]} couleur={CAS_COULEUR[c.cle]} />
                     </td>
                   ))}
                 </tr>
@@ -357,8 +382,16 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
                   ] as const
                 ).map((g) => (
                   <Fragment key={g.champ}>
-                    {/* Ligne globale : le total des deux entités (base des pourcentages). */}
-                    <tr className={styles.ligneTotale}>
+                    {/* Ligne globale : le total des deux entités (base des pourcentages).
+                        Fermés en rouge, ouverts en vert — la couleur porte l'état. */}
+                    <tr
+                      className={styles.ligneTotale}
+                      style={{
+                        background: `color-mix(in srgb, ${
+                          g.champ === 'fermes' ? 'var(--status-danger)' : 'var(--status-ok)'
+                        } 12%, transparent)`,
+                      }}
+                    >
                       <td className={styles.figee}>{g.libelle} · Ensemble</td>
                       {dsi.cellules.map((c, i) => {
                         const tout = c[g.champ] + (dbs.cellules[i]?.[g.champ] ?? 0);

@@ -40,6 +40,7 @@ const COLONNES: Colonne<Changement>[] = [
   {
     cle: 'categorie',
     entete: 'Type',
+    valeur: (c) => c.categorie ?? '',
     rendu: (c) =>
       c.categorie ? <StatusBadge couleur="var(--cat-5)">{c.categorie}</StatusBadge> : '—',
   },
@@ -53,10 +54,16 @@ const COLONNES: Colonne<Changement>[] = [
       </StatusBadge>
     ),
   },
-  { cle: 'statut', entete: 'Statut', rendu: (c) => <BadgeStatut statut={c.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (c) => c.statut,
+    rendu: (c) => <BadgeStatut statut={c.statut} />,
+  },
   {
     cle: 'responsable',
     entete: 'Responsable',
+    valeur: (c) => (c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : ''),
     rendu: (c) => (
       <CelluleActeur
         nom={c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : null}

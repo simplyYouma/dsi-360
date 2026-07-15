@@ -57,12 +57,18 @@ const COLONNES: Colonne<Incident>[] = [
       </StatusBadge>
     ),
   },
-  { cle: 'statut', entete: 'Statut', rendu: (i) => <BadgeStatut statut={i.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (i) => i.statut,
+    rendu: (i) => <BadgeStatut statut={i.statut} />,
+  },
   {
     // Où se trouve le ticket, sans ouvrir la fiche : déduit du gestionnaire à chaque import.
     cle: 'niveau',
     entete: 'Niveau',
     largeur: '90px',
+    valeur: (i) => i.niveau_support ?? 99,
     rendu: (i) => (
       <NiveauSupport niveau={i.niveau_support} transfereDbs={i.transfere_dbs} compact />
     ),
@@ -70,6 +76,7 @@ const COLONNES: Colonne<Incident>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
+    valeur: (i) => i.sla_resolution_le ?? '',
     rendu: (i) => (
       <SablierSla
         echeance={i.sla_resolution_le}
@@ -82,6 +89,7 @@ const COLONNES: Colonne<Incident>[] = [
   {
     cle: 'gestionnaire',
     entete: 'Gestionnaire',
+    valeur: (i) => i.gestionnaire ?? '',
     rendu: (i) => <CelluleActeur nom={i.gestionnaire} contributeur={i.contributeur} />,
   },
   {

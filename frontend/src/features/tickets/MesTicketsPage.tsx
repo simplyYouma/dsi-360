@@ -79,6 +79,7 @@ const COLONNES: Colonne<MonTicket>[] = [
     cle: 'module',
     entete: 'Type',
     largeur: '130px',
+    valeur: (t) => LIBELLE_MODULE[t.module] ?? t.module,
     rendu: (t) => (
       <StatusBadge couleur={MODULE_COULEUR[t.module] ?? 'var(--text-muted)'}>
         {LIBELLE_MODULE[t.module] ?? t.module}
@@ -110,6 +111,7 @@ const COLONNES: Colonne<MonTicket>[] = [
   {
     cle: 'sla',
     entete: 'SLA',
+    valeur: (t) => t.sla_resolution_le ?? '',
     rendu: (t) => (
       <SablierSla
         echeance={t.sla_resolution_le}
@@ -119,7 +121,12 @@ const COLONNES: Colonne<MonTicket>[] = [
       />
     ),
   },
-  { cle: 'statut', entete: 'Statut', rendu: (t) => <BadgeStatut statut={t.statut} /> },
+  {
+    cle: 'statut',
+    entete: 'Statut',
+    valeur: (t) => t.statut,
+    rendu: (t) => <BadgeStatut statut={t.statut} />,
+  },
   {
     cle: 'cree_le',
     entete: 'Reçu le',
@@ -133,6 +140,7 @@ const COLONNES_TACHE: Colonne<MaTache>[] = [
     cle: 'statut',
     entete: 'Statut',
     largeur: '120px',
+    valeur: (t) => t.statut,
     rendu: (t) => (
       <StatusBadge couleur={COULEUR_STATUT_TACHE[t.statut as StatutTache] ?? 'var(--text-muted)'}>
         {t.statut}
@@ -163,6 +171,7 @@ const COLONNES_TACHE: Colonne<MaTache>[] = [
     cle: 'role',
     entete: 'Mon rôle',
     largeur: '150px',
+    valeur: (t) => libelleRole(t.role_activite, t.module),
     rendu: (t) => <span className="tabular">{libelleRole(t.role_activite, t.module)}</span>,
   },
   {

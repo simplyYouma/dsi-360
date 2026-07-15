@@ -97,6 +97,14 @@
 .discret {
   color: var(--text);
 }
+.cas {
+  display: inline-block;
+  min-width: 26px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+}
 .sousLigne {
   padding-left: var(--space-5);
   color: var(--text-muted);
