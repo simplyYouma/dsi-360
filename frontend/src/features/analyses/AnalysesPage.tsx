@@ -28,7 +28,6 @@ import {
 import { Card } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
-import { api } from '@/lib/api';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { MatriceMensuelle } from './MatriceMensuelle';
@@ -480,16 +479,7 @@ export function AnalysesPage(): JSX.Element {
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
   const [mensuel, setMensuel] = useState<AnalysesMensuelles | null>(null);
   const [statutMensuel, setStatutMensuel] = useState<string | null>(null);
-  const [etatsMensuel, setEtatsMensuel] = useState<string[]>([]);
   const contenuRef = useRef<HTMLDivElement>(null);
-
-  // Statuts proposés au filtre : ceux des incidents et demandes (le périmètre de la synthèse).
-  useEffect(() => {
-    void Promise.all([
-      api.get<string[]>('/referentiels/etats?module=incident'),
-      api.get<string[]>('/referentiels/etats?module=demande'),
-    ]).then(([i, d]) => setEtatsMensuel([...new Set([...i, ...d])]));
-  }, []);
 
   useEffect(() => {
     void analysesApi.charger(periode).then(setA);
@@ -1117,15 +1107,19 @@ export function AnalysesPage(): JSX.Element {
           <>
             <div style={{ maxWidth: 280, marginBottom: 'var(--space-2)' }}>
               <SelecteurListe
-                options={etatsMensuel.map((s) => ({ valeur: s, libelle: s }))}
+                options={[
+                  { valeur: 'ouvert', libelle: 'Ouvert' },
+                  { valeur: 'ferme', libelle: 'Fermé' },
+                  { valeur: 'rejete', libelle: 'Rejeté' },
+                ]}
                 valeur={statutMensuel}
                 onChange={setStatutMensuel}
-                placeholder="Tous les statuts"
+                placeholder="Tous les états"
                 permettreVide
-                libelleVide="Tous les statuts"
+                libelleVide="Tous les états"
               />
             </div>
-            <MatriceMensuelle data={mensuel} />
+            <MatriceMensuelle data={mensuel} statut={statutMensuel} />
           </>
         )}
       </div>

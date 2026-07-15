@@ -702,6 +702,13 @@ WHERE a.source = 'IMPORT_SD'
 GROUP BY 1, 2
 """
 
+# Familles d'état d'un ticket (le filtre de la synthèse) : ouvert / fermé / rejeté.
+_STATUT_BUCKET = {
+    "ouvert": " AND a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')",
+    "ferme": " AND a.cloture_le IS NOT NULL",
+    "rejete": " AND a.statut IN ('Rejeté','Rejetée')",
+}
+
 _PLAGE_IMPORT = """
 SELECT min(a.cree_le) AS mini, max(a.cree_le) AS maxi
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
@@ -720,7 +727,8 @@ async def analyses_mensuelles(
 ) -> dict[str, Any]:
     """Tableaux croisés dont l'axe de temps suit le filtre (jour → mois → année).
 
-    ``statut`` restreint les agrégats à un statut donné (l'axe de temps, lui, ne bouge pas).
+    ``statut`` : ``ouvert`` | ``ferme`` | ``rejete`` — restreint les agrégats à cet état (l'axe de
+    temps ne bouge pas). Ce sont les trois familles d'état d'un ticket, pas des statuts bruts.
     """
     cond_dir = ""
     pdir: dict[str, Any] = {}
@@ -728,7 +736,7 @@ async def analyses_mensuelles(
         cond_dir = " AND (d.code = :dir OR a.direction_id IS NULL)"
         pdir["dir"] = courant["direction"]
     # Filtre statut : appliqué aux agrégats seulement (pas à la plage, pour garder le même axe).
-    cond_agg = cond_dir + (" AND a.statut = :statut" if statut else "")
+    cond_agg = cond_dir + _STATUT_BUCKET.get(statut or "", "")
 
     maintenant = datetime.now(UTC)
     if du is not None or au is not None:
@@ -756,8 +764,6 @@ async def analyses_mensuelles(
         buckets = [depart]
 
     params: dict[str, Any] = {"b_debut": buckets[0], "b_fin": _ajouter(unit, buckets[-1]), **pdir}
-    if statut:
-        params["statut"] = statut
     entetes = [{"cle": _cle_bucket(unit, b), "libelle": _libelle_bucket(unit, b)} for b in buckets]
     cles = [e["cle"] for e in entetes]
 

@@ -205,18 +205,30 @@ export function SelecteurDate({
                 );
               })}
             </div>
-            {valeur && (
+            <div className={styles.pied}>
               <button
                 type="button"
-                className={styles.effacer}
+                className={styles.aujourdhui}
                 onClick={() => {
-                  onChange(null);
+                  onChange(aujourdhui);
                   setOuvert(false);
                 }}
               >
-                Effacer
+                Aujourd’hui
               </button>
-            )}
+              {valeur && (
+                <button
+                  type="button"
+                  className={styles.effacer}
+                  onClick={() => {
+                    onChange(null);
+                    setOuvert(false);
+                  }}
+                >
+                  Effacer
+                </button>
+              )}
+            </div>
           </div>,
           document.body,
         )}

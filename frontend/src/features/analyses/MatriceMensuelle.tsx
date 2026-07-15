@@ -103,12 +103,26 @@ function synthese(e: LigneEntite | undefined, libelle: string, accent: string): 
   };
 }
 
+/** Répartition d'un filtre d'état vers la sous-ligne correspondante du tableau DSI/DBS. */
+const STATUT_LIGNE: Record<string, keyof CelluleEntite> = {
+  ouvert: 'ouverts',
+  ferme: 'fermes',
+  rejete: 'rejetes',
+};
+
+interface MatriceProps {
+  data: AnalysesMensuelles | null;
+  /** Filtre d'état actif (ouvert|ferme|rejete) : ne montre que la sous-ligne concernée. */
+  statut?: string | null;
+}
+
 /** Les trois tableaux croisés dans le style maison — volumétrie/SLA et DSI vs DBS, par période. */
-export function MatriceMensuelle({ data }: { data: AnalysesMensuelles | null }): JSX.Element {
+export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
   if (data === null || data.mois.length === 0) {
     return <p className={styles.vide}>Aucune donnée importée sur la période.</p>;
   }
   const { mois, priorites, total_priorites, entites, granularite } = data;
+  const ligneFiltree = statut ? STATUT_LIGNE[statut] : undefined;
   const pas = PAR_PAS[granularite];
   const dsi = entites.find((e) => e.cle === 'DSI');
   const dbs = entites.find((e) => e.cle === 'DBS');
@@ -127,7 +141,7 @@ export function MatriceMensuelle({ data }: { data: AnalysesMensuelles | null }):
     },
   ];
 
-  const sousLignes: {
+  const toutesLignes: {
     cle: keyof CelluleEntite;
     libelle: string;
     icone: JSX.Element;
@@ -144,6 +158,9 @@ export function MatriceMensuelle({ data }: { data: AnalysesMensuelles | null }):
     },
     { cle: 'demandes', libelle: 'Demandes', icone: <FileText size={13} />, groupe: 'nature' },
   ];
+  const sousLignes = toutesLignes.filter(
+    (sl) => ligneFiltree === undefined || sl.cle === ligneFiltree,
+  );
 
   return (
     <div className={styles.pile}>

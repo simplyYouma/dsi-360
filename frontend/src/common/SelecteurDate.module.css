@@ -134,14 +134,24 @@
 .jourSel:hover {
   background: var(--accent);
 }
-.effacer {
-  width: 100%;
+.pied {
+  display: flex;
+  gap: var(--space-2);
   margin-top: var(--space-2);
+}
+.aujourdhui,
+.effacer {
+  flex: 1 1 0;
   padding: var(--space-2);
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
+.aujourdhui {
+  color: var(--secondary);
+  font-weight: var(--weight-medium);
+}
+.aujourdhui:hover,
 .effacer:hover {
   background: var(--bg-subtle);
   color: var(--text);
