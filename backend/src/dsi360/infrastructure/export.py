@@ -6,6 +6,7 @@ from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 
 def vers_csv(entetes: list[str], lignes: list[list[Any]]) -> bytes:
@@ -34,8 +35,10 @@ def vers_xlsx(entetes: list[str], lignes: list[list[Any]], titre: str) -> bytes:
         feuille.append(ligne)
 
     for i, entete in enumerate(entetes, start=1):
-        longueur = max([len(str(entete))] + [len(str(lg[i - 1])) for lg in lignes], default=10)
-        feuille.column_dimensions[chr(64 + i)].width = min(longueur + 2, 50)
+        # get_column_letter gère au-delà de 26 colonnes (AA, AB…) ; chr(64+i) produisait des
+        # lettres invalides. lignes ragged : on ne lit la cellule que si elle existe.
+        largeurs = [len(entete)] + [len(str(lg[i - 1])) for lg in lignes if len(lg) >= i]
+        feuille.column_dimensions[get_column_letter(i)].width = min(max(largeurs) + 2, 50)
 
     tampon = io.BytesIO()
     classeur.save(tampon)
