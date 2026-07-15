@@ -121,7 +121,7 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
   if (data === null || data.mois.length === 0) {
     return <p className={styles.vide}>Aucune donnée importée sur la période.</p>;
   }
-  const { mois, priorites, total_priorites, entites, granularite } = data;
+  const { mois, priorites, total_priorites, entites, niveaux, granularite } = data;
   const ligneFiltree = statut ? STATUT_LIGNE[statut] : undefined;
   const pas = PAR_PAS[granularite];
   const dsi = entites.find((e) => e.cle === 'DSI');
@@ -268,7 +268,68 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
         </div>
       </Card>
 
-      {/* ---- 3. Part fermés / ouverts par gestionnaire ---- */}
+      {/* ---- 3. Répartition par niveau de support ---- */}
+      <Card data-visuel="Répartition par niveau de support">
+        <BoutonExportPng nom="Répartition par niveau de support" />
+        <h2 className={styles.titre}>Répartition par niveau de support</h2>
+        <p className={styles.sous}>
+          Incidents et demandes selon le niveau du gestionnaire (N1, N2, DBS), {pas}.
+        </p>
+        <div className={styles.zone}>
+          <table className={styles.matrice}>
+            <thead>
+              <tr>
+                <th className={styles.figee}>Niveau</th>
+                {mois.map((m) => (
+                  <th key={m.cle}>{m.libelle}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {niveaux.map((n) => (
+                <Fragment key={n.cle}>
+                  <tr className={styles.ligneTotale}>
+                    <td className={styles.figee}>{n.libelle}</td>
+                    {n.cellules.map((c) => (
+                      <td key={c.mois}>
+                        <span className={styles.volume}>{c.total || '—'}</span>
+                      </td>
+                    ))}
+                  </tr>
+                  {(
+                    [
+                      {
+                        cle: 'incidents' as const,
+                        libelle: 'Incidents',
+                        icone: <AlertTriangle size={13} />,
+                      },
+                      {
+                        cle: 'demandes' as const,
+                        libelle: 'Demandes',
+                        icone: <FileText size={13} />,
+                      },
+                    ] as const
+                  ).map((sl) => (
+                    <tr key={`${n.cle}-${sl.cle}`}>
+                      <td className={`${styles.figee} ${styles.sousLigne}`}>
+                        <span className={styles.slIcone}>{sl.icone}</span>
+                        {sl.libelle}
+                      </td>
+                      {n.cellules.map((c) => (
+                        <td key={c.mois} className={styles.discret}>
+                          {c[sl.cle] || '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* ---- 4. Part fermés / ouverts par gestionnaire ---- */}
       {dsi && dbs && (
         <Card data-visuel="Part par statut et gestionnaire">
           <BoutonExportPng nom="Part par statut et gestionnaire" />

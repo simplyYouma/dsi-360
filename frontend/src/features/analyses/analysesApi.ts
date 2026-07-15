@@ -146,12 +146,27 @@ export interface LigneEntite {
 }
 export type Granularite = 'heure' | 'jour' | 'semaine' | 'mois' | 'annee';
 
+export interface CelluleNiveau {
+  mois: string;
+  total: number;
+  incidents: number;
+  demandes: number;
+}
+export interface LigneNiveau {
+  cle: string;
+  libelle: string;
+  total: number;
+  incidents: number;
+  demandes: number;
+  cellules: CelluleNiveau[];
+}
 export interface AnalysesMensuelles {
   granularite: Granularite;
   mois: MoisEntete[];
   total_priorites: CelluleSla[];
   priorites: LignePriorite[];
   entites: LigneEntite[];
+  niveaux: LigneNiveau[];
 }
 
 export const analysesApi = {

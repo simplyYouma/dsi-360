@@ -702,6 +702,25 @@ WHERE a.source = 'IMPORT_SD'
 GROUP BY 1, 2
 """
 
+# Répartition par niveau de support, par bucket. Le niveau se déduit du gestionnaire : son
+# niveau_support si c'est un compte DSI, DBS (N3) s'il n'y a pas de responsable (ADR-0005).
+_MENSUEL_NIVEAU = """
+SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
+       CASE WHEN a.responsable_id IS NULL THEN 'DBS'
+            WHEN u.niveau_support = 1 THEN 'N1'
+            WHEN u.niveau_support = 2 THEN 'N2'
+            ELSE 'Autre' END AS niveau,
+       count(*) AS total,
+       count(*) FILTER (WHERE a.module = 'incident') AS incidents,
+       count(*) FILTER (WHERE a.module = 'demande') AS demandes
+FROM core.activite a
+LEFT JOIN core.utilisateur u ON u.id = a.responsable_id
+LEFT JOIN core.direction d ON d.id = a.direction_id
+WHERE a.source = 'IMPORT_SD' AND a.module IN ('incident','demande')
+  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
+GROUP BY 1, 2
+"""
+
 # Familles d'état d'un ticket (le filtre de la synthèse) : ouvert / fermé / rejeté.
 _STATUT_BUCKET = {
     "ouvert": " AND a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')",
@@ -842,10 +861,38 @@ async def analyses_mensuelles(
             }
         )
 
+    # --- Niveau de support (N1 / N2 / DBS) × bucket ---
+    lignes_n = await _lignes(
+        session, _MENSUEL_NIVEAU.format(trunc=trunc, fmt=fmt, cond=cond_agg), params
+    )
+    par_n = {(str(r["niveau"]), str(r["bucket"])): r for r in lignes_n}
+    champs_n = ("total", "incidents", "demandes")
+    niveaux = []
+    for cle_n, libelle_n in (("N1", "Niveau 1"), ("N2", "Niveau 2"), ("DBS", "DBS (N3)")):
+        cellules = []
+        cumuls_n: dict[str, int] = dict.fromkeys(champs_n, 0)
+        for cle in cles:
+            r = par_n.get((cle_n, cle))
+            vals = {ch: (int(r[ch]) if r else 0) for ch in champs_n}
+            for ch in champs_n:
+                cumuls_n[ch] += vals[ch]
+            cellules.append({"mois": cle, **vals})
+        niveaux.append(
+            {
+                "cle": cle_n,
+                "libelle": libelle_n,
+                "total": cumuls_n["total"],
+                "incidents": cumuls_n["incidents"],
+                "demandes": cumuls_n["demandes"],
+                "cellules": cellules,
+            }
+        )
+
     return {
         "granularite": unit,
         "mois": entetes,
         "total_priorites": total_p,
         "priorites": priorites,
         "entites": entites,
+        "niveaux": niveaux,
     }

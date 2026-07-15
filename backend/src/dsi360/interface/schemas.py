@@ -1022,6 +1022,22 @@ class LigneEntite(BaseModel):
     cellules: list[CelluleEntite]
 
 
+class CelluleNiveau(BaseModel):
+    mois: str
+    total: int
+    incidents: int
+    demandes: int
+
+
+class LigneNiveau(BaseModel):
+    cle: str  # N1 | N2 | DBS
+    libelle: str
+    total: int
+    incidents: int
+    demandes: int
+    cellules: list[CelluleNiveau]
+
+
 class AnalysesMensuelles(BaseModel):
     # Granularité de l'axe de temps : heure | jour | semaine | mois | annee (selon la période).
     granularite: str
@@ -1029,3 +1045,4 @@ class AnalysesMensuelles(BaseModel):
     total_priorites: list[CelluleSla]  # ligne d'en-tête (toutes priorités confondues)
     priorites: list[LignePriorite]
     entites: list[LigneEntite]
+    niveaux: list[LigneNiveau]  # répartition par niveau de support (N1/N2/DBS), incidents+demandes
