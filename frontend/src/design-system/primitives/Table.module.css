@@ -28,10 +28,43 @@
 }
 
 /* ---- Sélection de lignes ---- */
-.selCol {
+/* Largeur fixe et déterministe : sert d'ancrage à la colonne figée (offset = 44px). */
+.table thead th.selCol,
+.table tbody td.selCol {
   width: 44px;
+  box-sizing: border-box;
+  padding: var(--space-3) 0;
   text-align: center;
-  padding-left: var(--space-3);
+}
+
+/* ---- Première colonne figée (référence) : reste visible au défilement horizontal ---- */
+/* `left` est posé en ligne (0, ou 44px derrière la case de sélection). Le fond est opaque pour
+   que le contenu défilant passe DESSOUS, jamais au travers. */
+.figee {
+  position: sticky;
+  z-index: 2;
+  background: var(--surface);
+}
+.table thead th.figee {
+  z-index: 3;
+  background: var(--bg-subtle);
+}
+.table tbody tr:hover td.figee {
+  background: var(--bg-subtle);
+}
+.table tbody tr.ligneCochee td.figee {
+  background: var(--secondary-subtle);
+}
+/* Filet de séparation : marque la colonne épinglée quand le reste glisse dessous. */
+.figee::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
 }
 .case,
 .caseCochee {

@@ -59,7 +59,12 @@ const COLONNES: Colonne<Demande>[] = [
     cle: 'sla',
     entete: 'SLA',
     rendu: (d) => (
-      <SablierSla echeance={d.sla_resolution_le} debut={d.cree_le} statut={d.statut_sla} />
+      <SablierSla
+        echeance={d.sla_resolution_le}
+        debut={d.cree_le}
+        statut={d.statut_sla}
+        arrete={d.sla_arrete}
+      />
     ),
   },
   {

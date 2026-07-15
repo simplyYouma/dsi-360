@@ -81,9 +81,19 @@ _TAILLE = 15
 _FENETRE_APPROCHE = timedelta(hours=2)
 
 
-def _statut_sla(resolution_le: datetime | None, maintenant: datetime) -> str:
+def _statut_sla(
+    resolution_le: datetime | None, maintenant: datetime, arret: datetime | None = None
+) -> str:
+    """Statut de l'échéance de résolution.
+
+    ``arret`` (résolu/clôturé le) fige le compteur : une activité terminée ne « court » plus. On
+    ne garde alors que le verdict — respecté ou dépassé, mesuré à l'instant où le travail a cessé.
+    Sans ``arret``, le compteur tourne contre l'instant courant (à l'heure / approche / dépassé).
+    """
     if resolution_le is None:
         return "a_lheure"
+    if arret is not None:
+        return "depasse" if arret >= resolution_le else "a_lheure"
     return statut_sla(resolution_le, maintenant, _FENETRE_APPROCHE)
 
 
@@ -109,6 +119,9 @@ def _gestionnaire(r: RowMapping) -> str | None:
 
 
 def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[str, Any]:
+    # Compteur SLA figé dès que le travail a cessé (résolu, sinon clôturé) : on n'affiche plus un
+    # temps qui court sur une activité terminée, seulement le verdict au moment de l'arrêt.
+    arret = r["resolu_le"] or r["cloture_le"]
     return {
         "id": r["id"],
         "reference": r["reference"],
@@ -118,7 +131,8 @@ def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[
         "categorie": r["categorie"],
         "direction": r["direction"],
         "sla_resolution_le": r["sla_resolution_le"],
-        "statut_sla": _statut_sla(r["sla_resolution_le"], maintenant),
+        "statut_sla": _statut_sla(r["sla_resolution_le"], maintenant, arret),
+        "sla_arrete": arret is not None,
         "cree_le": r["cree_le"],
         "responsable": _responsable(r),
         "demandeur": r["demandeur_nom"],

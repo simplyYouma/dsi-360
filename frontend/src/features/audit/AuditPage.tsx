@@ -77,6 +77,7 @@ const COLONNES: Colonne<Recommandation>[] = [
         echeance={r.sla_resolution_le}
         debut={r.cree_le}
         statut={r.statut_sla ?? 'a_lheure'}
+        arrete={r.sla_arrete}
       />
     ),
   },

@@ -84,7 +84,7 @@ def _requete_liste(segment: str, recherche: bool = False) -> Any:
     cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"]) + _clause_q(recherche)
     sql = (
         "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
-        "a.sla_resolution_le, a.cree_le, dem.nom_complet AS demandeur, "
+        "a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, dem.nom_complet AS demandeur, "
         "(SELECT count(*) FROM core.commentaire cm "
         " WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires, "
         "(SELECT count(*) FROM core.commentaire cm "
@@ -138,8 +138,15 @@ async def mes_tickets(
     elements: list[dict[str, Any]] = []
     for r in lignes:
         echeance = r["sla_resolution_le"]
-        etat = statut_sla(echeance, maintenant, _FENETRE) if echeance is not None else "a_lheure"
-        elements.append({**dict(r), "statut_sla": etat})
+        # Compteur figé dès que le travail a cessé : on ne garde que le verdict à l'arrêt.
+        arret = r["resolu_le"] or r["cloture_le"]
+        if echeance is None:
+            etat = "a_lheure"
+        elif arret is not None:
+            etat = "depasse" if arret >= echeance else "a_lheure"
+        else:
+            etat = statut_sla(echeance, maintenant, _FENETRE)
+        elements.append({**dict(r), "statut_sla": etat, "sla_arrete": arret is not None})
     return {"elements": elements, "total": total, "a_valider": a_valider}
 
 

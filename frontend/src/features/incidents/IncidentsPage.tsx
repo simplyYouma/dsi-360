@@ -70,7 +70,12 @@ const COLONNES: Colonne<Incident>[] = [
     cle: 'sla',
     entete: 'SLA',
     rendu: (i) => (
-      <SablierSla echeance={i.sla_resolution_le} debut={i.cree_le} statut={i.statut_sla} />
+      <SablierSla
+        echeance={i.sla_resolution_le}
+        debut={i.cree_le}
+        statut={i.statut_sla}
+        arrete={i.sla_arrete}
+      />
     ),
   },
   {

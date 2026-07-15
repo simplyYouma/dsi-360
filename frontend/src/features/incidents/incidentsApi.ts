@@ -16,6 +16,8 @@ export interface Incident {
   direction: string | null;
   sla_resolution_le: string | null;
   statut_sla: 'a_lheure' | 'approche' | 'depasse';
+  /** Compteur figé : l'activité est terminée, le SLA ne court plus (verdict à l'arrêt). */
+  sla_arrete: boolean;
   cree_le: string;
   responsable: ResponsableBref | null;
   demandeur: string | null;

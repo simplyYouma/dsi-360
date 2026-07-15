@@ -73,6 +73,7 @@ const COLONNES: Colonne<Changement>[] = [
         echeance={c.sla_resolution_le}
         debut={c.cree_le}
         statut={c.statut_sla ?? 'a_lheure'}
+        arrete={c.sla_arrete}
       />
     ),
   },

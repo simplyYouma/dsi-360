@@ -126,6 +126,7 @@ export function PageActiviteCategorie({
           echeance={a.sla_resolution_le}
           debut={a.cree_le}
           statut={a.statut_sla ?? 'a_lheure'}
+          arrete={a.sla_arrete}
         />
       ),
     },

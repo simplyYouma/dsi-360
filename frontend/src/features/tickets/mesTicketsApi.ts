@@ -9,6 +9,7 @@ export interface MonTicket {
   statut: string;
   priorite: number | null;
   statut_sla: 'a_lheure' | 'approche' | 'depasse';
+  sla_arrete: boolean;
   sla_resolution_le: string | null;
   demandeur: string | null;
   cree_le: string;

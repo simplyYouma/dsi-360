@@ -12,6 +12,10 @@
 .na {
   color: var(--text-muted);
 }
+/* Compteur arrêté (activité terminée) : légèrement estompé pour se distinguer d'un SLA qui court. */
+.gele {
+  opacity: 0.75;
+}
 
 /* Le sable est redessiné à chaque seconde : la transition relie les deux formes, et l'écoulement
    se voit couler au lieu de sauter. */

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { cx } from './cx';
 import styles from './SablierSla.module.css';
 
 type EtatSla = 'a_lheure' | 'approche' | 'depasse';
@@ -8,6 +9,9 @@ interface Props {
   debut?: string | null; // base de l'écoulement (création…) ; par défaut, 14 j avant l'échéance
   /** État imposé ; sinon déduit du temps restant (approche < 48 h, dépassé si négatif). */
   statut?: EtatSla;
+  /** Activité terminée : le compteur ne court plus. Le sablier se fige et n'affiche que le verdict
+   *  (respecté / dépassé) au moment de l'arrêt, sans battement ni sable qui tombe. */
+  arrete?: boolean;
 }
 
 const COULEUR: Record<EtatSla, string> = {
@@ -21,9 +25,12 @@ const COULEUR: Record<EtatSla, string> = {
 const abonnes = new Set<() => void>();
 let minuteur: number | null = null;
 
-function useBattement(): void {
+// `actif` : un sablier figé (activité terminée) ne s'abonne pas — inutile de le réveiller chaque
+// seconde, son temps ne bouge plus.
+function useBattement(actif: boolean): void {
   const [, rafraichir] = useState(0);
   useEffect(() => {
+    if (!actif) return;
     const reveiller = (): void => rafraichir((n) => n + 1);
     abonnes.add(reveiller);
     minuteur ??= window.setInterval(() => abonnes.forEach((f) => f()), 1000);
@@ -34,7 +41,7 @@ function useBattement(): void {
         minuteur = null;
       }
     };
-  }, []);
+  }, [actif]);
 }
 
 // Deux ampoules bombées qui se rejoignent au goulot (12, 12). Le sable prend la forme du verre :
@@ -84,10 +91,11 @@ function sableBas(part: number): string {
 /** Sablier du SLA : le sable descend au fil du temps, la couleur dit l'urgence. */
 const JOUR = 86_400_000;
 
-export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
+export function SablierSla({ echeance, debut, statut, arrete }: Props): JSX.Element {
   const clipHaut = useId();
   const clipBas = useId();
-  useBattement();
+  const gele = arrete === true;
+  useBattement(!gele && echeance !== null);
 
   if (echeance === null) return <span className={styles.na}>—</span>;
 
@@ -99,17 +107,21 @@ export function SablierSla({ echeance, debut, statut }: Props): JSX.Element {
   const etat: EtatSla =
     statut ?? (restant < 0 ? 'depasse' : restant < 2 * JOUR ? 'approche' : 'a_lheure');
   const total = Math.max(1, fin - depart);
-  const reste = Math.max(0, Math.min(1, restant / total)); // ce qui est encore en haut
+  // Figé : le sable est au repos (tout tombé), plus rien ne coule. Sinon, proportion du temps.
+  const reste = gele ? 0 : Math.max(0, Math.min(1, restant / total)); // ce qui est encore en haut
   const ecoule = 1 - reste; // ce qui est tombé
   const couleur = COULEUR[etat];
-  const coule = reste > 0.005 && ecoule > 0.005;
-  const enRetard = restant < 0;
-  const libelle = enRetard
-    ? `${formaterEcheance(echeance)} · Dépassé · ${duree(-restant)}`
-    : formaterEcheance(echeance);
+  const coule = !gele && reste > 0.005 && ecoule > 0.005;
+  const enRetard = etat === 'depasse';
+  const libelle = gele
+    ? `${formaterEcheance(echeance)} · ${etat === 'depasse' ? 'Dépassé' : 'Respecté'}`
+    : enRetard
+      ? `${formaterEcheance(echeance)} · Dépassé · ${duree(-restant)}`
+      : formaterEcheance(echeance);
+  const infobulle = gele ? `SLA arrêté (activité terminée) : ${libelle}` : `Échéance : ${libelle}`;
 
   return (
-    <span className={styles.sablier} title={`Échéance : ${libelle}`}>
+    <span className={cx(styles.sablier, gele && styles.gele)} title={infobulle}>
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <defs>
           <clipPath id={clipHaut}>

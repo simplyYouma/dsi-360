@@ -144,6 +144,8 @@ class ActiviteResume(BaseModel):
     direction: str | None
     sla_resolution_le: datetime | None
     statut_sla: str
+    # Compteur figé : l'activité est terminée, le SLA ne court plus (verdict à l'arrêt).
+    sla_arrete: bool = False
     cree_le: datetime
     responsable: ResponsableBref | None
     demandeur: str | None
@@ -298,6 +300,7 @@ class MonTicket(BaseModel):
     statut: str
     priorite: int | None
     statut_sla: str
+    sla_arrete: bool = False
     sla_resolution_le: datetime | None
     demandeur: str | None
     cree_le: datetime

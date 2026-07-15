@@ -63,6 +63,9 @@ interface TableProps<T> {
   classeLigne?: (ligne: T) => string | undefined;
 }
 
+// Largeur exacte de la colonne de sélection (cf. Table.module.css) : décalage de la colonne figée.
+const LARGEUR_SELECTION = 44;
+
 function pagesAffichees(courante: number, nb: number): (number | '…')[] {
   if (nb <= 7) return Array.from({ length: nb }, (_, i) => i + 1);
   const set = new Set([1, nb, courante, courante - 1, courante + 1]);
@@ -129,20 +132,26 @@ export function Table<T>({
           <thead>
             <tr>
               {selection && (
-                <th className={styles.selCol}>
+                <th className={cx(styles.selCol, styles.figee)} style={{ left: 0 }}>
                   <Case coche={toutCoche} onClick={() => selection.onTout(idsPage, !toutCoche)} />
                 </th>
               )}
-              {colonnes.map((c) => {
+              {colonnes.map((c, i) => {
                 const actif = tri?.cle === c.cle;
+                // La première colonne (souvent la référence) reste visible au défilement.
+                const figee = i === 0;
+                const styleEntete: Record<string, string | number> = {};
+                if (c.largeur !== undefined) styleEntete.width = c.largeur;
+                if (figee) styleEntete.left = selection ? LARGEUR_SELECTION : 0;
                 return (
                   <th
                     key={c.cle}
-                    style={c.largeur !== undefined ? { width: c.largeur } : undefined}
+                    style={styleEntete}
                     className={cx(
                       c.aligne === 'droite' && styles.droite,
                       c.aligne === 'centre' && styles.centre,
                       c.valeur !== undefined && styles.triable,
+                      figee && styles.figee,
                     )}
                     onClick={() => basculerTri(c)}
                   >
@@ -195,7 +204,7 @@ export function Table<T>({
                     onClick={onLigne ? () => onLigne(ligne) : undefined}
                   >
                     {selection && (
-                      <td className={styles.selCol}>
+                      <td className={cx(styles.selCol, styles.figee)} style={{ left: 0 }}>
                         <Case
                           coche={coche}
                           onClick={(e) => {
@@ -205,20 +214,25 @@ export function Table<T>({
                         />
                       </td>
                     )}
-                    {colonnes.map((c) => (
-                      <td
-                        key={c.cle}
-                        className={cx(
-                          c.aligne === 'droite' && styles.droite,
-                          c.aligne === 'centre' && styles.centre,
-                          c.tronque && styles.tronque,
-                        )}
-                      >
-                        {c.rendu
-                          ? c.rendu(ligne)
-                          : String((ligne as Record<string, unknown>)[c.cle] ?? '')}
-                      </td>
-                    ))}
+                    {colonnes.map((c, i) => {
+                      const figee = i === 0;
+                      return (
+                        <td
+                          key={c.cle}
+                          style={figee ? { left: selection ? LARGEUR_SELECTION : 0 } : undefined}
+                          className={cx(
+                            c.aligne === 'droite' && styles.droite,
+                            c.aligne === 'centre' && styles.centre,
+                            c.tronque && styles.tronque,
+                            figee && styles.figee,
+                          )}
+                        >
+                          {c.rendu
+                            ? c.rendu(ligne)
+                            : String((ligne as Record<string, unknown>)[c.cle] ?? '')}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })
