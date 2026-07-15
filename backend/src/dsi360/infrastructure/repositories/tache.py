@@ -41,10 +41,16 @@ async def lister(
 
 
 async def lister_pour_utilisateur(
-    session: AsyncSession, utilisateur_id: str, *, inclure_terminees: bool = False
+    session: AsyncSession,
+    utilisateur_id: str,
+    *,
+    inclure_terminees: bool = False,
+    tous: bool = False,
 ) -> list[RowMapping]:
-    """Tâches assignées à un utilisateur, avec leur activité parente (pour la navigation)."""
+    """Tâches assignées à un utilisateur (ou de tous, en vue globale admin), avec leur activité."""
     filtre_statut = "" if inclure_terminees else "AND t.statut <> 'Terminée' "
+    # Vue globale : toutes les tâches assignées, quel que soit l'assigné.
+    filtre_assigne = "t.assigne_id IS NOT NULL" if tous else "t.assigne_id = cast(:u as uuid)"
     lignes = await session.execute(
         text(
             "SELECT t.id::text AS id, t.titre, t.statut, t.echeance, t.cree_le, "
@@ -58,7 +64,7 @@ async def lister_pour_utilisateur(
             "                          AND aa.role = 'CONTRIBUTEUR') THEN 'CONTRIBUTEUR' "
             "            ELSE 'ASSIGNE' END AS role_activite "
             "FROM core.tache t JOIN core.activite a ON a.id = t.activite_id "
-            "WHERE t.assigne_id = cast(:u as uuid) "
+            f"WHERE {filtre_assigne} "
             f"{filtre_statut}"
             "ORDER BY (t.echeance IS NULL), t.echeance, t.cree_le"
         ),

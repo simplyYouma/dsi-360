@@ -36,6 +36,27 @@ async def test_admin_consulte_la_file_d_un_agent(
     assert r.json()["ouverts"] >= 1
 
 
+async def test_admin_vue_globale_tous(client: AsyncClient, session: AsyncSession) -> None:
+    admin = await creer_utilisateur(session, email="admin.tous@afgbank.ml", profil="ADMIN")
+    a1 = await creer_utilisateur(session, email="a1.tous@afgbank.ml")
+    a2 = await creer_utilisateur(session, email="a2.tous@afgbank.ml")
+    await creer_activite(session, module="changement", reference="CHG-TOUS-1", responsable_id=a1)
+    await creer_activite(session, module="changement", reference="CHG-TOUS-2", responsable_id=a2)
+
+    # Vue globale : les deux files, réunies.
+    r = await client.get("/mes-tickets?agent=tous", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    refs = {e["reference"] for e in r.json()["elements"]}
+    assert {"CHG-TOUS-1", "CHG-TOUS-2"} <= refs
+
+    r = await client.get("/mes-tickets/stats?agent=tous", headers=entetes(admin))
+    assert r.json()["agent"]["nom"] == "Tous les agents"
+
+    # Réservé à l'admin.
+    r = await client.get("/mes-tickets?agent=tous", headers=entetes(a1))
+    assert r.status_code == 403, r.text
+
+
 async def test_un_non_admin_ne_voit_pas_la_file_d_autrui(
     client: AsyncClient, session: AsyncSession
 ) -> None:

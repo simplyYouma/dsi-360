@@ -390,7 +390,10 @@ export function MesTicketsPage(): JSX.Element {
           <span className={local.consulterLabel}>Consulter la file de</span>
           <div className={local.consulterSelecteur}>
             <SelecteurListe
-              options={agents.map((ag) => ({ valeur: ag.id, libelle: ag.nom }))}
+              options={[
+                { valeur: 'tous', libelle: 'Tous les agents (vue globale)' },
+                ...agents.map((ag) => ({ valeur: ag.id, libelle: ag.nom })),
+              ]}
               valeur={agentCible}
               onChange={choisirAgent}
               placeholder="Ma file"
@@ -400,8 +403,12 @@ export function MesTicketsPage(): JSX.Element {
           </div>
           {agentCible !== null && (
             <span className={local.consulterBandeau}>
-              <Eye size={14} /> Vue en lecture de la file de{' '}
-              <strong>{agents.find((x) => x.id === agentCible)?.nom ?? 'cet agent'}</strong>
+              <Eye size={14} /> Vue en lecture —{' '}
+              <strong>
+                {agentCible === 'tous'
+                  ? 'tous les agents'
+                  : (agents.find((x) => x.id === agentCible)?.nom ?? 'cet agent')}
+              </strong>
             </span>
           )}
         </div>

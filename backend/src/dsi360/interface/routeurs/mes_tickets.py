@@ -48,6 +48,23 @@ async def _id_cible(session: AsyncSession, courant: dict[str, Any], agent: str |
     return agent
 
 
+async def _resoudre(
+    session: AsyncSession, courant: dict[str, Any], agent: str | None
+) -> tuple[str, bool]:
+    """(file à lire, vue globale ?). ``agent='tous'`` = toutes les files (admin uniquement).
+
+    Un admin n'a presque pas de tickets ; il consulte la file d'un agent, ou la file de *tous*.
+    """
+    if agent == "tous":
+        if courant["profil"] != PROFIL_ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="La vue globale (tous les agents) est réservée à l'administrateur.",
+            )
+        return str(courant["id"]), True
+    return await _id_cible(session, courant, agent), False
+
+
 async def _bloc_agent(
     session: AsyncSession, courant: dict[str, Any], cible: str
 ) -> dict[str, Any]:
@@ -133,7 +150,12 @@ def _clause_q(recherche: bool) -> str:
     return " AND (a.reference ILIKE :q OR a.titre ILIKE :q)" if recherche else ""
 
 
-def _requete_liste(segment: str, recherche: bool = False) -> Any:
+def _base(tous: bool) -> str:
+    """Restriction de périmètre : ma file (`_A_MOI`), ou toutes les activités (vue globale)."""
+    return "TRUE" if tous else _A_MOI
+
+
+def _requete_liste(segment: str, recherche: bool = False, tous: bool = False) -> Any:
     cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"]) + _clause_q(recherche)
     sql = (
         "SELECT a.module, a.id::text AS id, a.reference, a.titre, a.statut, a.priorite, "
@@ -147,7 +169,7 @@ def _requete_liste(segment: str, recherche: bool = False) -> Any:
         "                   WHERE v.commentaire_id = cm.id "
         "                     AND v.utilisateur_id = cast(:id as uuid))) AS nb_non_vus "
         "FROM core.activite a LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id "
-        f"WHERE {_A_MOI} AND a.module IN {_MODULES} AND {cond} "
+        f"WHERE {_base(tous)} AND a.module IN {_MODULES} AND {cond} "
         "ORDER BY a.priorite NULLS LAST, a.sla_resolution_le NULLS LAST "
         "LIMIT :taille OFFSET :decalage"
     )
@@ -157,9 +179,9 @@ def _requete_liste(segment: str, recherche: bool = False) -> Any:
 _TAILLE_PAGE = 15
 
 
-def _requete_total(segment: str, recherche: bool = False) -> Any:
+def _requete_total(segment: str, recherche: bool = False, tous: bool = False) -> Any:
     cond = _SEGMENTS.get(segment, _SEGMENTS["actifs"]) + _clause_q(recherche)
-    requete = text(f"SELECT count(*) FROM core.activite a WHERE {_A_MOI} "
+    requete = text(f"SELECT count(*) FROM core.activite a WHERE {_base(tous)} "
                    f"AND a.module IN {_MODULES} AND {cond}")
     return _lier(requete, cond)
 
@@ -175,17 +197,17 @@ async def mes_tickets(
 ) -> dict[str, Any]:
     if segment not in _SEGMENTS:
         segment = "actifs"
-    cible = await _id_cible(session, courant, agent)
+    cible, tous = await _resoudre(session, courant, agent)
     recherche = bool(q and q.strip())
     params: dict[str, Any] = {"id": cible, "regles": _REGLES, "termines": _TERMINES}
     if recherche:
         params["q"] = f"%{q.strip()}%"  # type: ignore[union-attr]
-    total = await session.scalar(_requete_total(segment, recherche), params) or 0
+    total = await session.scalar(_requete_total(segment, recherche, tous), params) or 0
     # Compteur du segment « À valider » (badge) — sur toute la liste, indépendant de la recherche.
-    a_valider = await session.scalar(_requete_total("a_valider"), params) or 0
+    a_valider = await session.scalar(_requete_total("a_valider", tous=tous), params) or 0
     lignes = (
         await session.execute(
-            _requete_liste(segment, recherche),
+            _requete_liste(segment, recherche, tous),
             {**params, "taille": _TAILLE_PAGE, "decalage": (page - 1) * _TAILLE_PAGE},
         )
     ).mappings().all()
@@ -205,16 +227,20 @@ async def mes_tickets(
     return {"elements": elements, "total": total, "a_valider": a_valider}
 
 
-_OUVERTS = text(
-    "SELECT a.module, a.priorite, a.statut, a.sla_resolution_le, a.cree_le FROM core.activite a "
-    f"WHERE {_A_MOI} AND a.cloture_le IS NULL AND a.resolu_le IS NULL AND a.module IN {_MODULES} "
-    "AND a.statut NOT IN :regles"
-).bindparams(bindparam("regles", expanding=True))
-_RESOLUS = text(
-    "SELECT a.cree_le, a.resolu_le, a.sla_resolution_le FROM core.activite a "
-    f"WHERE {_A_MOI} AND a.resolu_le IS NOT NULL AND a.module IN {_MODULES} "
-    "AND a.resolu_le >= :depuis AND a.resolu_le < :jusqua"
-)
+def _ouverts(tous: bool = False) -> Any:
+    return text(
+        "SELECT a.module, a.priorite, a.statut, a.sla_resolution_le, a.cree_le "
+        f"FROM core.activite a WHERE {_base(tous)} AND a.cloture_le IS NULL "
+        f"AND a.resolu_le IS NULL AND a.module IN {_MODULES} AND a.statut NOT IN :regles"
+    ).bindparams(bindparam("regles", expanding=True))
+
+
+def _resolus(tous: bool = False) -> Any:
+    return text(
+        "SELECT a.cree_le, a.resolu_le, a.sla_resolution_le FROM core.activite a "
+        f"WHERE {_base(tous)} AND a.resolu_le IS NOT NULL AND a.module IN {_MODULES} "
+        "AND a.resolu_le >= :depuis AND a.resolu_le < :jusqua"
+    )
 
 
 def _fenetre_periode(
@@ -280,10 +306,10 @@ async def mes_taches(
     agent: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """Les tâches assignées à l'agent connecté, à travers tous les projets et changements."""
-    cible = await _id_cible(session, courant, agent)
+    cible, tous = await _resoudre(session, courant, agent)
     aujourdhui = datetime.now(UTC).date()
     toutes = await tache_repo.lister_pour_utilisateur(
-        session, cible, inclure_terminees=inclure_terminees
+        session, cible, inclure_terminees=inclure_terminees, tous=tous
     )
     stats = _stats_taches(toutes, aujourdhui)  # compté sur TOUTES : les tuiles ne bougent pas.
     lignes = toutes
@@ -326,14 +352,14 @@ async def mes_stats(
     au: date | None = None,
     agent: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
-    cible = await _id_cible(session, courant, agent)
+    cible, tous = await _resoudre(session, courant, agent)
     maintenant = datetime.now(UTC)
     debut, fin = _fenetre_periode(jours, du, au, maintenant)
     ouverts = (
-        await session.execute(_OUVERTS, {"id": cible, "regles": _REGLES})
+        await session.execute(_ouverts(tous), {"id": cible, "regles": _REGLES})
     ).mappings().all()
     resolus = (
-        await session.execute(_RESOLUS, {"id": cible, "depuis": debut, "jusqua": fin})
+        await session.execute(_resolus(tous), {"id": cible, "depuis": debut, "jusqua": fin})
     ).mappings().all()
 
     # --- File ouverte : SLA, ancienneté, répartitions ---
@@ -367,7 +393,11 @@ async def mes_stats(
     tendance = _tendance_resolus(list(resolus), dernier, max(7, portee))
 
     return {
-        "agent": await _bloc_agent(session, courant, cible),
+        "agent": (
+            {"nom": "Tous les agents", "profil": "Vue globale", "direction": None}
+            if tous
+            else await _bloc_agent(session, courant, cible)
+        ),
         "ouverts": len(ouverts),
         "a_lheure": sla["a_lheure"],
         "approche": sla["approche"],
