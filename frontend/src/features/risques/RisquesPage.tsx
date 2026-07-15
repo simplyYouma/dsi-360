@@ -208,6 +208,7 @@ export function RisquesPage(): JSX.Element {
         id={ficheId}
         assignable
         avecRevue
+        avecLiens
         moduleCategorie="risque"
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}

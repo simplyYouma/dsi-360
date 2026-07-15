@@ -45,15 +45,23 @@ export function TexteMentions({ texte, agents }: Props): JSX.Element {
       // On laisse la ponctuation finale hors du lien (elle appartient à la phrase, pas à l'URL).
       const suffixe = brut.match(/[.,;:!?)\]]+$/)?.[0] ?? '';
       const url = suffixe ? brut.slice(0, -suffixe.length) : brut;
+      // Un lien long ne doit pas casser la mise en page : on tronque l'affichage (l'URL réelle
+      // reste dans le href et l'infobulle), façon messagerie.
+      const affiche = url.length > 48 ? `${url.slice(0, 45)}…` : url;
       morceaux.push(
         <a
           key={i}
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: 'var(--secondary)', textDecoration: 'underline' }}
+          title={url}
+          style={{
+            color: 'var(--secondary)',
+            textDecoration: 'underline',
+            wordBreak: 'break-all',
+          }}
         >
-          {url}
+          {affiche}
         </a>,
       );
       if (suffixe) morceaux.push(suffixe);

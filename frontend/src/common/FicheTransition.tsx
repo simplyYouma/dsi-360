@@ -11,6 +11,7 @@ import { chargerAgents, moduleDeLaBase, type Agent } from '@/common/agentsApi';
 import { GestionActeurs, type Acteur } from '@/common/GestionActeurs';
 import { AUCUNE_PERMISSION, type Permissions } from '@/common/permissions';
 import { PiecesJointes } from '@/common/PiecesJointes';
+import { LiensActivite } from '@/common/LiensActivite';
 import { SelecteurCategorie, type OptionCategorie } from '@/common/SelecteurCategorie';
 import { ComposeurDiscussion } from '@/common/ComposeurDiscussion';
 import { LigneCommentaire } from '@/common/LigneCommentaire';
@@ -89,6 +90,8 @@ interface FicheTransitionProps {
   avecDocuments?: boolean;
   /** Active la revue périodique (périodicité + prochaine revue). */
   avecRevue?: boolean;
+  /** Active la section « Liens utiles » (modules avec liens : risques, audit, cyber, gouvernance…). */
+  avecLiens?: boolean;
   /** Gestionnaire figé (tickets importés) : affiché (compte lié ou nom importé), non modifiable. */
   gestionnaireFige?: boolean;
   /** Affiche le niveau de support, déduit du gestionnaire (tickets importés : incidents, demandes). */
@@ -147,6 +150,7 @@ export function FicheTransition({
   avecDocuments = false,
   gestionnaireFige = false,
   avecRevue = false,
+  avecLiens = false,
   avecNiveauSupport = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -891,6 +895,18 @@ export function FicheTransition({
                 );
               })()}
           </div>
+
+          {avecLiens && id !== null && (
+            <div className={styles.histo}>
+              <span className={styles.wfTitre}>Liens utiles</span>
+              <LiensActivite
+                charger={() => api.get(`${base}/${id}/liens`)}
+                creer={(libelle, url) => api.post(`${base}/${id}/liens`, { libelle, url })}
+                supprimer={(lienId) => api.del(`${base}/${id}/liens/${lienId}`)}
+                modifiable={permissions.peut_travailler}
+              />
+            </div>
+          )}
 
           {avecDocuments && id !== null && (
             <div className={styles.histo}>

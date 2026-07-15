@@ -756,17 +756,6 @@
   flex-direction: column;
   gap: var(--space-2);
   margin-top: var(--space-3);
-  max-height: 340px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border) 85%, transparent) transparent;
-}
-.classement::-webkit-scrollbar {
-  width: 6px;
-}
-.classement::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--border) 85%, transparent);
-  border-radius: var(--radius-pill);
 }
 .classItem {
   display: flex;

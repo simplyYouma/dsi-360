@@ -253,6 +253,7 @@ export function PageActiviteCategorie({
         assignable
         avecDocuments
         avecRevue
+        avecLiens
         labelCategorie={labelCategorie}
         moduleCategorie={module}
         onFermer={() => setFicheId(null)}

@@ -589,7 +589,7 @@ export function AnalysesPage(): JSX.Element {
   const top = evals
     .map((e) => ({ ...e, score: scoreGest(e) }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+    .slice(0, 5);
   // Charges : par gestionnaire, on empile traités + en cours ; on classe par volume total.
   const charges = evals
     .filter((e) => (e.resolus ?? 0) + (e.charge ?? 0) > 0)
