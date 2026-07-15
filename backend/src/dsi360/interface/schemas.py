@@ -912,6 +912,8 @@ class GestionnaireEval(BaseModel):
     resolus: int
     mttr_jours: float | None
     prise_en_charge_h: float | None
+    # Respect SLA (%) : part des tickets résolus dans les temps parmi ceux à durée mesurée.
+    respect_sla: int | None = None
     # Activités que l'agent suit comme contributeur : elles comptent dans sa file, pas dans
     # son volume traité — suivre n'est pas résoudre.
     suivis: int = 0

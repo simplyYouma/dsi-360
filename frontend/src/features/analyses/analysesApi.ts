@@ -102,6 +102,8 @@ export interface GestionnaireEval {
   resolus: number;
   mttr_jours: number | null;
   prise_en_charge_h: number | null;
+  /** Respect SLA (%) : part des tickets résolus dans les temps. */
+  respect_sla: number | null;
   /** Activités suivies comme contributeur : dans sa file, hors de son volume traité. */
   suivis: number;
 }

@@ -457,7 +457,10 @@ _AGREGATS_GEST = (
     "count(*) FILTER (WHERE s.cloture_le IS NULL) AS charge, "
     "count(*) FILTER (WHERE s.resolu_le IS NOT NULL OR s.cloture_le IS NOT NULL) AS resolus, "
     "round(avg(s.ttr) FILTER (WHERE s.ttr > 0) / 1440.0, 1) AS mttr_jours, "
-    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h"
+    "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h, "
+    # Respect SLA : parmi les tickets à durée mesurée et cible connue, part résolue à temps.
+    "count(*) FILTER (WHERE s.ttr > 0 AND s.cible IS NOT NULL) AS base_sla, "
+    "count(*) FILTER (WHERE s.ttr > 0 AND s.cible IS NOT NULL AND s.ttr <= s.cible) AS sla_ok"
 )
 
 
@@ -465,8 +468,10 @@ def _src_gest(extra: str) -> str:
     return (
         "SELECT r.id::text AS id, r.prenom, r.nom, a.cloture_le, a.resolu_le, "
         "  nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
-        "  nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep "
+        "  nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep, "
+        "  sr.resolution_minutes AS cible "
         "FROM core.activite a JOIN core.utilisateur r ON r.id = a.responsable_id "
+        "  LEFT JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module "
         f"WHERE a.source = 'IMPORT_SD'{extra}"
     )
 
@@ -481,6 +486,9 @@ def _eval_dict(r: Any) -> dict[str, Any]:
         "mttr_jours": float(r["mttr_jours"]) if r["mttr_jours"] is not None else None,
         "prise_en_charge_h": float(r["prise_en_charge_h"])
         if r["prise_en_charge_h"] is not None
+        else None,
+        "respect_sla": round(int(r["sla_ok"]) * 100 / int(r["base_sla"]))
+        if r["base_sla"]
         else None,
     }
 

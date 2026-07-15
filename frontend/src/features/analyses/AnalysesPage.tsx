@@ -525,6 +525,27 @@ export function AnalysesPage(): JSX.Element {
       ? Math.round((gestDetail.resolus * 100) / gestDetail.volume)
       : 0;
 
+  // Top gestionnaires : le débit traité, pondéré par le respect SLA (qualité) et un léger bonus de
+  // vitesse (délai court). Ni le volume seul, ni le SLA seul : on récompense « beaucoup ET à temps ».
+  const scoreGest = (e: GestionnaireEval): number => {
+    const sla = e.respect_sla ?? 0;
+    const vitesse = e.mttr_jours != null ? 1 / (1 + e.mttr_jours) : 0.5;
+    return Math.round(e.resolus * (0.5 + (0.5 * sla) / 100) * (0.7 + 0.3 * vitesse));
+  };
+  const top = evals
+    .map((e) => ({ ...e, score: scoreGest(e) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+  const scoreMax = Math.max(1, ...top.map((t) => t.score));
+  const chargeTotale = Math.max(
+    1,
+    evals.reduce((s, e) => s + (e.charge ?? 0), 0),
+  );
+  const charges = evals
+    .filter((e) => (e.charge ?? 0) > 0)
+    .sort((a, b) => (b.charge ?? 0) - (a.charge ?? 0))
+    .slice(0, 10);
+
   return (
     <div className={incidents.page}>
       <header className={incidents.entete}>
@@ -942,6 +963,63 @@ export function AnalysesPage(): JSX.Element {
 
             {gestSel === null ? (
               <section className={styles.grille}>
+                <Card className={styles.span2} data-visuel="Top gestionnaires">
+                  <BoutonExportPng nom="Top gestionnaires" />
+                  <h2 className={styles.chartTitre}>Top gestionnaires</h2>
+                  <p className={styles.chartSous}>
+                    Classement par débit traité, pondéré par le respect SLA et la vitesse de
+                    résolution — « beaucoup, et à temps ».
+                  </p>
+                  {top.length === 0 ? (
+                    <p className={styles.vide}>Aucune donnée.</p>
+                  ) : (
+                    <ol className={styles.topListe}>
+                      {top.map((t, i) => (
+                        <li key={t.id} className={styles.topItem}>
+                          <span className={styles.topRang} data-rang={i + 1}>
+                            {i + 1}
+                          </span>
+                          <div className={styles.topCorps}>
+                            <div className={styles.topTete}>
+                              <span className={styles.topNom}>{t.gestionnaire}</span>
+                              <span className={styles.topStats}>
+                                {t.resolus} traités · SLA {t.respect_sla ?? '—'}%
+                                {t.mttr_jours != null ? ` · ${t.mttr_jours} j` : ''}
+                              </span>
+                            </div>
+                            <span className={styles.topBarre}>
+                              <span style={{ width: `${(t.score / scoreMax) * 100}%` }} />
+                            </span>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </Card>
+
+                <Card className={styles.span2} data-visuel="Répartition des charges">
+                  <BoutonExportPng nom="Répartition des charges" />
+                  <h2 className={styles.chartTitre}>Répartition des charges</h2>
+                  <p className={styles.chartSous}>
+                    Tickets encore ouverts par gestionnaire — qui porte la charge en ce moment.
+                  </p>
+                  {charges.length === 0 ? (
+                    <p className={styles.vide}>Aucune charge ouverte.</p>
+                  ) : (
+                    <ul className={styles.chargeListe}>
+                      {charges.map((e) => (
+                        <li key={e.id} className={styles.chargeItem}>
+                          <span className={styles.chargeNom}>{e.gestionnaire}</span>
+                          <span className={styles.chargeBarre}>
+                            <span style={{ width: `${((e.charge ?? 0) / chargeTotale) * 100}%` }} />
+                          </span>
+                          <span className={styles.chargeVal}>{e.charge}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+
                 <Card className={styles.span2} data-visuel="Cartographie des gestionnaires">
                   <BoutonExportPng nom="Cartographie des gestionnaires" />
                   <h2 className={styles.chartTitre}>Cartographie des gestionnaires</h2>
