@@ -5,7 +5,8 @@ import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { ImagesCommentaire } from '@/common/ImagesCommentaire';
 import { cx } from '@/common/cx';
 import { ChampMention } from '@/common/ChampMention';
-import { TexteMentions } from '@/common/TexteMentions';
+import { TexteMentions, premiereUrl } from '@/common/TexteMentions';
+import { ApercuLien } from '@/common/ApercuLien';
 import {
   commentairesApi,
   type Commentaire,
@@ -200,6 +201,7 @@ export function LigneCommentaire({
               <TexteMentions texte={c.texte} agents={agents} />
             </p>
           )}
+          {premiereUrl(c.texte) !== null && <ApercuLien url={premiereUrl(c.texte) as string} />}
           <ImagesCommentaire commentaireId={c.id} images={c.images} />
         </>
       )}

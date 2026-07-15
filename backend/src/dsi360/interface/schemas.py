@@ -226,6 +226,16 @@ class StatsListe(BaseModel):
     en_retard: int
 
 
+class ApercuLien(BaseModel):
+    """Métadonnées d'aperçu d'une URL (unfurl) pour la discussion."""
+
+    url: str
+    titre: str | None = None
+    description: str | None = None
+    image: str | None = None
+    site: str | None = None
+
+
 class TransitionDemande(BaseModel):
     vers: str = Field(min_length=1)
     # Justification (obligatoire pour certaines transitions : suspension/clôture d'un projet).

@@ -11,9 +11,10 @@ import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurGestionnaire } from '@/common/SelecteurGestionnaire';
 import { ApercuEcheance } from '@/common/ApercuEcheance';
+import { SaisieLiens, persisterLiens, type LienSaisi } from '@/common/SaisieLiens';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
-import { ErreurApi } from '@/lib/api';
+import { api, ErreurApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -107,6 +108,7 @@ export function AuditPage(): JSX.Element {
   const [gestionnaire, setGestionnaire] = useState<string | null>(null);
   const [impact, setImpact] = useState(3);
   const [urgence, setUrgence] = useState(3);
+  const [liens, setLiens] = useState<LienSaisi[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -142,7 +144,7 @@ export function AuditPage(): JSX.Element {
     setErreur(null);
     setEnvoi(true);
     try {
-      await auditApi.creer({
+      const cree = await auditApi.creer({
         titre: titre.trim(),
         description: description.trim(),
         impact,
@@ -150,6 +152,7 @@ export function AuditPage(): JSX.Element {
         categorie_id: categorie,
         responsable_id: gestionnaire,
       });
+      await persisterLiens((l) => api.post(`/audit/${cree.id}/liens`, l), liens);
       setModale(false);
       setTitre('');
       setDescription('');
@@ -157,6 +160,7 @@ export function AuditPage(): JSX.Element {
       setGestionnaire(null);
       setImpact(3);
       setUrgence(3);
+      setLiens([]);
       if (page === 1) await charger(1);
       else setPage(1);
     } catch (err) {
@@ -274,6 +278,10 @@ export function AuditPage(): JSX.Element {
           </div>
         </div>
         <ApercuEcheance impact={impact} urgence={urgence} module="audit" />
+        <div className={styles.champ}>
+          <span>Liens utiles</span>
+          <SaisieLiens valeur={liens} onChange={setLiens} />
+        </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
     </div>

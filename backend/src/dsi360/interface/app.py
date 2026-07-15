@@ -25,6 +25,7 @@ from dsi360.infrastructure.db.migrate import appliquer as appliquer_migrations
 from dsi360.interface.routeurs import (
     administration,
     analyses,
+    apercu,
     audit_reco,
     auth,
     changements,
@@ -198,6 +199,7 @@ def creer_app() -> FastAPI:
     v1.include_router(notifications.routeur)
     v1.include_router(tableau_de_bord.routeur)
     v1.include_router(analyses.routeur)
+    v1.include_router(apercu.routeur)
     v1.include_router(recherche.routeur)
     v1.include_router(ingestion.routeur)
     v1.include_router(demandeurs.routeur)

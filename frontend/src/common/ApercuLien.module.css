@@ -1,0 +1,54 @@
+.carte {
+  display: flex;
+  margin-top: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  max-width: 420px;
+  transition: border-color 0.12s ease;
+}
+.carte:hover {
+  border-color: color-mix(in srgb, var(--secondary) 45%, var(--border));
+}
+.image {
+  flex: none;
+  width: 84px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-subtle);
+}
+.corps {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.site {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.titre {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.description {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

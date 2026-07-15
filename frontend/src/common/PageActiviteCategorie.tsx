@@ -20,6 +20,7 @@ import { chaineFiltres, type FiltresListe, type Incident } from '@/features/inci
 import type { Categorie } from '@/features/demandes/demandesApi';
 import { useRafraichissement } from '@/common/useRafraichissement';
 import { BandeauStats } from '@/common/BandeauStats';
+import { SaisieLiens, persisterLiens, type LienSaisi } from '@/common/SaisieLiens';
 
 interface Props {
   titre: string;
@@ -67,6 +68,7 @@ export function PageActiviteCategorie({
   const [gestionnaire, setGestionnaire] = useState<string | null>(null);
   const [impact, setImpact] = useState(3);
   const [urgence, setUrgence] = useState(3);
+  const [liens, setLiens] = useState<LienSaisi[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -175,7 +177,7 @@ export function PageActiviteCategorie({
     setErreur(null);
     setEnvoi(true);
     try {
-      await api.post(base, {
+      const cree = await api.post<{ id: string }>(base, {
         titre: objet.trim(),
         description: description.trim(),
         impact,
@@ -183,6 +185,7 @@ export function PageActiviteCategorie({
         categorie_id: categorie,
         responsable_id: gestionnaire,
       });
+      await persisterLiens((l) => api.post(`${base}/${cree.id}/liens`, l), liens);
       setModale(false);
       setObjet('');
       setDescription('');
@@ -190,6 +193,7 @@ export function PageActiviteCategorie({
       setGestionnaire(null);
       setImpact(3);
       setUrgence(3);
+      setLiens([]);
       if (page === 1) await charger(1);
       else setPage(1);
     } catch (err) {
@@ -304,6 +308,10 @@ export function PageActiviteCategorie({
           </div>
         </div>
         <ApercuEcheance impact={impact} urgence={urgence} module={module} />
+        <div className={styles.champ}>
+          <span>Liens utiles</span>
+          <SaisieLiens valeur={liens} onChange={setLiens} />
+        </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
     </div>
