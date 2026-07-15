@@ -160,6 +160,9 @@ export const analysesApi = {
     api.get(`/analyses/gestionnaires${requetePeriode(p)}`),
   gestionnaire: (id: string, p: Periode): Promise<GestionnaireDetail> =>
     api.get(`/analyses/gestionnaire/${id}${requetePeriode(p)}`),
-  mensuel: (p: Periode): Promise<AnalysesMensuelles> =>
-    api.get(`/analyses/mensuel${requetePeriode(p)}`),
+  mensuel: (p: Periode, statut: string | null = null): Promise<AnalysesMensuelles> => {
+    const base = `/analyses/mensuel${requetePeriode(p)}`;
+    const sep = base.includes('?') ? '&' : '?';
+    return api.get(statut ? `${base}${sep}statut=${encodeURIComponent(statut)}` : base);
+  },
 };

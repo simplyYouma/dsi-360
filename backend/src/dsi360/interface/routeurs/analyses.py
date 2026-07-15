@@ -716,13 +716,19 @@ async def analyses_mensuelles(
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
     du: date | None = None,
     au: date | None = None,
+    statut: Annotated[str | None, Query(max_length=60)] = None,
 ) -> dict[str, Any]:
-    """Tableaux croisés dont l'axe de temps suit le filtre (heure → jour → … → année)."""
+    """Tableaux croisés dont l'axe de temps suit le filtre (jour → mois → année).
+
+    ``statut`` restreint les agrégats à un statut donné (l'axe de temps, lui, ne bouge pas).
+    """
     cond_dir = ""
     pdir: dict[str, Any] = {}
     if not courant["transverse"]:
         cond_dir = " AND (d.code = :dir OR a.direction_id IS NULL)"
         pdir["dir"] = courant["direction"]
+    # Filtre statut : appliqué aux agrégats seulement (pas à la plage, pour garder le même axe).
+    cond_agg = cond_dir + (" AND a.statut = :statut" if statut else "")
 
     maintenant = datetime.now(UTC)
     if du is not None or au is not None:
@@ -750,6 +756,8 @@ async def analyses_mensuelles(
         buckets = [depart]
 
     params: dict[str, Any] = {"b_debut": buckets[0], "b_fin": _ajouter(unit, buckets[-1]), **pdir}
+    if statut:
+        params["statut"] = statut
     entetes = [{"cle": _cle_bucket(unit, b), "libelle": _libelle_bucket(unit, b)} for b in buckets]
     cles = [e["cle"] for e in entetes]
 
@@ -775,7 +783,7 @@ async def analyses_mensuelles(
     # --- Priorités × bucket --- (+ accumulateurs pour la ligne d'en-tête « toutes priorités »)
     lignes_p = await _lignes(
         session,
-        _MENSUEL_PRIORITE.format(trunc=trunc, fmt=fmt, ttr=_TTR, cible=_CIBLE, cond=cond_dir),
+        _MENSUEL_PRIORITE.format(trunc=trunc, fmt=fmt, ttr=_TTR, cible=_CIBLE, cond=cond_agg),
         params,
     )
     par = {(int(r["niveau"]), str(r["bucket"])): r for r in lignes_p}
@@ -801,7 +809,7 @@ async def analyses_mensuelles(
 
     # --- Entités (DSI / DBS) × bucket ---
     lignes_e = await _lignes(
-        session, _MENSUEL_ENTITE.format(trunc=trunc, fmt=fmt, cond=cond_dir), params
+        session, _MENSUEL_ENTITE.format(trunc=trunc, fmt=fmt, cond=cond_agg), params
     )
     par_e = {(bool(r["dsi"]), str(r["bucket"])): r for r in lignes_e}
     champs = ("total", "fermes", "ouverts", "rejetes", "incidents", "demandes")

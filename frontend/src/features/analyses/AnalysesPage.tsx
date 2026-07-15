@@ -28,6 +28,7 @@ import {
 import { Card } from '@/design-system/primitives';
 import { AvatarPersonnage } from '@/common/AvatarPersonnage';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { api } from '@/lib/api';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { MatriceMensuelle } from './MatriceMensuelle';
@@ -478,15 +479,25 @@ export function AnalysesPage(): JSX.Element {
   const [gestSel, setGestSel] = useState<string | null>(null);
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
   const [mensuel, setMensuel] = useState<AnalysesMensuelles | null>(null);
+  const [statutMensuel, setStatutMensuel] = useState<string | null>(null);
+  const [etatsMensuel, setEtatsMensuel] = useState<string[]>([]);
   const contenuRef = useRef<HTMLDivElement>(null);
+
+  // Statuts proposés au filtre : ceux des incidents et demandes (le périmètre de la synthèse).
+  useEffect(() => {
+    void Promise.all([
+      api.get<string[]>('/referentiels/etats?module=incident'),
+      api.get<string[]>('/referentiels/etats?module=demande'),
+    ]).then(([i, d]) => setEtatsMensuel([...new Set([...i, ...d])]));
+  }, []);
 
   useEffect(() => {
     void analysesApi.charger(periode).then(setA);
   }, [periode]);
   // Onglet mensuel chargé à la demande (requête plus lourde), et rechargé au changement de période.
   useEffect(() => {
-    if (onglet === 'mensuel') void analysesApi.mensuel(periode).then(setMensuel);
-  }, [onglet, periode]);
+    if (onglet === 'mensuel') void analysesApi.mensuel(periode, statutMensuel).then(setMensuel);
+  }, [onglet, periode, statutMensuel]);
   useEffect(() => {
     void analysesApi.gestionnaires(periode).then(setEvals);
   }, [periode]);
@@ -1102,7 +1113,21 @@ export function AnalysesPage(): JSX.Element {
           </>
         )}
 
-        {onglet === 'mensuel' && <MatriceMensuelle data={mensuel} />}
+        {onglet === 'mensuel' && (
+          <>
+            <div style={{ maxWidth: 280, marginBottom: 'var(--space-2)' }}>
+              <SelecteurListe
+                options={etatsMensuel.map((s) => ({ valeur: s, libelle: s }))}
+                valeur={statutMensuel}
+                onChange={setStatutMensuel}
+                placeholder="Tous les statuts"
+                permettreVide
+                libelleVide="Tous les statuts"
+              />
+            </div>
+            <MatriceMensuelle data={mensuel} />
+          </>
+        )}
       </div>
     </div>
   );
