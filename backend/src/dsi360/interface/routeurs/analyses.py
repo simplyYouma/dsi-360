@@ -100,16 +100,26 @@ WHERE TRUE{cond_dir}
 GROUP BY b.libelle, b.de ORDER BY b.de
 """
 
-# DSI vs DBS (tickets importés) : sans responsable chez nous = chez DBS (ADR-0005).
-_DBS = """
+# Chez DBS : un gestionnaire est nommé, mais ce n'est aucun de nos comptes (ADR-0005). Sans nom
+# renseigné, le ticket n'est chez personne — surtout pas chez DBS. L'import normalise les absences
+# écrites en toutes lettres (« None », « N/A »…) : ici, tester la présence suffit.
+_EST_DBS = "(a.responsable_id IS NULL AND nullif(trim(a.donnees->>'gestionnaire'), '') IS NOT NULL)"
+# Entité qui traite le ticket : nous (DSI), DBS, ou personne (NR = non renseigné).
+_ENTITE_SQL = (
+    "CASE WHEN a.responsable_id IS NOT NULL THEN 'DSI' "
+    f"WHEN {_EST_DBS} THEN 'DBS' ELSE 'NR' END"
+)
+
+# DSI vs DBS (tickets importés).
+_DBS = f"""
 SELECT count(*) FILTER (WHERE a.responsable_id IS NOT NULL) AS dsi,
-       count(*) FILTER (WHERE a.responsable_id IS NULL) AS dbs,
-       count(*) FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL) AS dbs_ouverts,
+       count(*) FILTER (WHERE {_EST_DBS}) AS dbs,
+       count(*) FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL) AS dbs_ouverts,
        round((avg(extract(epoch FROM now() - a.cree_le) / 86400)
-         FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL))::numeric, 1)
+         FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL))::numeric, 1)
          AS dbs_age_jours
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.source = 'IMPORT_SD'{cond}
+WHERE a.source = 'IMPORT_SD'{{cond}}
 """
 
 # Pareto des catégories : ce qui casse le plus, en volume et en part cumulée.
@@ -648,10 +658,10 @@ WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL
 GROUP BY 1, 2
 """
 
-# Répartition DSI (compte rattaché) vs DBS (sans responsable, ADR-0005), par bucket de temps.
-_MENSUEL_ENTITE = """
-SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
-       (a.responsable_id IS NOT NULL) AS dsi,
+# Répartition DSI (compte rattaché) / DBS (gestionnaire externe) / non renseigné, par bucket.
+_MENSUEL_ENTITE = f"""
+SELECT to_char(date_trunc('{{trunc}}', a.cree_le), '{{fmt}}') AS bucket,
+       {_ENTITE_SQL} AS entite,
        count(*) AS total,
        count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
        count(*) FILTER (
@@ -662,17 +672,18 @@ SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
        count(*) FILTER (WHERE a.module = 'demande') AS demandes
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD'
-  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
+  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{{cond}}
 GROUP BY 1, 2
 """
 
 # Répartition PAR GESTIONNAIRE, par bucket. Le gestionnaire est le compte DSI responsable, sinon
-# le nom porté par le ticket importé, sinon DBS (N3) — aucun compte, traité hors DSI (ADR-0005).
-_MENSUEL_NIVEAU = """
-SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
+# le nom porté par le ticket importé ; sans nom renseigné, le ticket n'est chez personne.
+_MENSUEL_NIVEAU = f"""
+SELECT to_char(date_trunc('{{trunc}}', a.cree_le), '{{fmt}}') AS bucket,
        coalesce(nullif(u.prenom || ' ' || u.nom, ' '),
-                nullif(a.donnees->>'gestionnaire', ''), 'DBS (N3)') AS gestionnaire,
-       CASE WHEN a.responsable_id IS NULL THEN 'DBS'
+                nullif(trim(a.donnees->>'gestionnaire'), ''), 'Non renseigné') AS gestionnaire,
+       CASE WHEN {_EST_DBS} THEN 'DBS'
+            WHEN a.responsable_id IS NULL THEN 'NR'
             WHEN u.niveau_support = 1 THEN 'N1'
             WHEN u.niveau_support = 2 THEN 'N2'
             ELSE 'Autre' END AS niveau,
@@ -687,7 +698,7 @@ FROM core.activite a
 LEFT JOIN core.utilisateur u ON u.id = a.responsable_id
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD' AND a.module IN ('incident','demande')
-  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
+  AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{{cond}}
 GROUP BY 1, 2, 3
 """
 
@@ -806,18 +817,22 @@ async def analyses_mensuelles(
     lignes_e = await _lignes(
         session, _MENSUEL_ENTITE.format(trunc=trunc, fmt=fmt, cond=cond_agg), params
     )
-    par_e = {(bool(r["dsi"]), str(r["bucket"])): r for r in lignes_e}
+    par_e = {(str(r["entite"]), str(r["bucket"])): r for r in lignes_e}
     champs = ("total", "fermes", "ouverts", "rejetes", "incidents", "demandes")
     entites = []
-    for dsi, cle_e, libelle in ((True, "DSI", "DSI AFG"), (False, "DBS", "DBS")):
+    # « Non renseigné » : ni chez nous, ni chez DBS. Ligne affichée seulement si elle existe, pour
+    # ne pas laisser une ligne vide en permanence quand les fichiers sont bien remplis.
+    for cle_e, libelle in (("DSI", "DSI AFG"), ("DBS", "DBS"), ("NR", "Non renseigné")):
         cellules = []
         cumuls: dict[str, int] = dict.fromkeys(champs, 0)
         for cle in cles:
-            r = par_e.get((dsi, cle))
+            r = par_e.get((cle_e, cle))
             vals = {ch: (int(r[ch]) if r else 0) for ch in champs}
             for ch in champs:
                 cumuls[ch] += vals[ch]
             cellules.append({"mois": cle, **vals})
+        if cle_e == "NR" and cumuls["total"] == 0:
+            continue
         entites.append(
             {
                 "cle": cle_e,

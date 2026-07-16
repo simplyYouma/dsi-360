@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import PREFIXE_REFERENCE
 from dsi360.domain.sla import CiblesSla, echeances
-from dsi360.domain.texte import nom_propre, phrase_propre
+from dsi360.domain.texte import nom_propre, nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.ingestion import analyser_classeur
 from dsi360.infrastructure.repositories import sla as sla_repo
@@ -181,7 +181,9 @@ async def importer_tickets(
     agents_avant = await session.scalar(text("SELECT count(*) FROM core.utilisateur")) or 0
 
     for t in tickets:
-        gest = t["gestionnaire"]
+        # « None », « N/A », « - »… ne sont pas des gestionnaires : le ticket reste non renseigné,
+        # et n'est donc pas compté chez DBS. Un import ultérieur qui renseigne le nom corrigera.
+        gest = nom_significatif(t["gestionnaire"])
         responsable_id = _gestionnaire_id(cache_gest, gest)
         reference = f"{PREFIXE_REFERENCE[t['module']]}-{t['source_id']}"
         statut_avant = statuts_avant.get((t["module"], t["source_id"]))

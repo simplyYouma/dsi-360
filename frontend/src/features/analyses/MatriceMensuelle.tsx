@@ -137,12 +137,14 @@ const STATUT_TEXTE: Record<string, string> = {
 };
 
 /** Ordre et libellés des groupes de niveau du tableau par gestionnaire (le niveau divise la liste). */
-const ORDRE_NIVEAU = ['N1', 'N2', 'DBS', 'Autre'] as const;
+const ORDRE_NIVEAU = ['N1', 'N2', 'DBS', 'Autre', 'NR'] as const;
 const LIBELLE_NIVEAU: Record<string, string> = {
   N1: 'Niveau 1 · N1',
   N2: 'Niveau 2 · N2',
   DBS: 'DBS · N3',
   Autre: 'Autre',
+  // Aucun gestionnaire dans le rapport importé : ni chez nous, ni chez DBS.
+  NR: 'Gestionnaire non renseigné',
 };
 
 interface MatriceProps {

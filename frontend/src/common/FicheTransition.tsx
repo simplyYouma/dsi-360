@@ -62,7 +62,7 @@ interface Detail {
   ma_decision?: string | null;
   /** Un valideur a déjà tranché (ou activité close) : la liste des valideurs est figée. */
   valideurs_verrouilles?: boolean;
-  niveau_support?: number;
+  niveau_support?: number | null;
   /** Transféré à DBS (N3) : traité hors plateforme, le gestionnaire reste référent du suivi. */
   transfere_dbs?: boolean;
   /** Ce que l'appelant peut faire ici, calculé par le serveur. */
@@ -664,7 +664,7 @@ export function FicheTransition({
                 <dt>Support</dt>
                 <dd>
                   <NiveauSupport
-                    niveau={detail.niveau_support ?? 1}
+                    niveau={detail.niveau_support ?? null}
                     transfereDbs={detail.transfere_dbs ?? false}
                   />
                 </dd>

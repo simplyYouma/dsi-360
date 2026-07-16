@@ -27,7 +27,7 @@ export interface Incident {
   nb_commentaires: number;
   nb_non_vus: number;
   /** Déduit du gestionnaire : N1/N2 s'il est des nôtres, sinon DBS (niveau 3). */
-  niveau_support: number;
+  niveau_support: number | null;
   transfere_dbs: boolean;
 }
 

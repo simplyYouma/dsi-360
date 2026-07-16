@@ -37,7 +37,7 @@ from dsi360.domain.etats import (
 )
 from dsi360.domain.revue import prochaine_revue
 from dsi360.domain.sla import statut_sla
-from dsi360.domain.texte import phrase_propre
+from dsi360.domain.texte import nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
@@ -113,11 +113,14 @@ def _donnees(r: RowMapping) -> dict[str, Any]:
 
 
 def _gestionnaire(r: RowMapping) -> str | None:
-    """Gestionnaire DSI : compte rattaché si présent, sinon nom conservé à l'import."""
+    """Gestionnaire DSI : compte rattaché si présent, sinon nom conservé à l'import.
+
+    Les absences écrites en toutes lettres par le fichier (« None », « N/A »…) ne sont pas des
+    noms : le ticket est alors sans gestionnaire.
+    """
     if r["resp_email"] is not None:
         return f"{r['resp_prenom']} {r['resp_nom']}"
-    valeur = _donnees(r).get("gestionnaire")
-    return str(valeur) if valeur else None
+    return nom_significatif(_donnees(r).get("gestionnaire"))
 
 
 def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[str, Any]:
@@ -195,24 +198,29 @@ NIVEAU_DBS = 3
 NIVEAU_DEFAUT = 1
 
 
-def _niveau_support(r: RowMapping, importe: bool) -> int:
+def _niveau_support(r: RowMapping, importe: bool) -> int | None:
     """Niveau du ticket, **déduit** de son gestionnaire (ADR-0005).
 
     Le gestionnaire vient du fichier importé. Rapproché d'un compte DSI, le ticket est à son
-    niveau ; sinon c'est DBS — tout ce qui n'est pas nous est DBS — et le ticket est au niveau 3.
+    niveau ; s'il porte un autre nom, c'est DBS (niveau 3) — tout ce qui n'est pas nous est DBS.
+    Sans gestionnaire renseigné, le niveau est inconnu (``None``) : on ne l'attribue pas à DBS,
+    personne n'ayant été désigné. Un import ultérieur qui renseigne le nom tranchera.
     Les modules qui ne viennent pas de l'import n'ont pas de niveau de support.
     """
     if not importe:
         return NIVEAU_DEFAUT
     if r["resp_id"] is None:
-        return NIVEAU_DBS
+        return NIVEAU_DBS if _gestionnaire(r) is not None else None
     niveau = r["resp_niveau"] if "resp_niveau" in r else None
     return int(niveau) if niveau is not None else NIVEAU_DEFAUT
 
 
 def _transfere_dbs(r: RowMapping, importe: bool) -> bool:
-    """Chez DBS : le gestionnaire du fichier n'est aucun des nôtres."""
-    return importe and r["resp_id"] is None
+    """Chez DBS : le ticket porte un gestionnaire, mais aucun des nôtres.
+
+    Un ticket sans gestionnaire renseigné n'est pas chez DBS : il n'est chez personne.
+    """
+    return importe and r["resp_id"] is None and _gestionnaire(r) is not None
 
 
 def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:

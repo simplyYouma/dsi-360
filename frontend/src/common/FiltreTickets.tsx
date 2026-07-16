@@ -14,6 +14,8 @@ interface Agent {
 const NON_ASSIGNE = '__non_assigne__';
 const ETATS_VUE: { cle: string; libelle: string }[] = [
   { cle: 'en_cours', libelle: 'En cours' },
+  // Ce qui a dépassé son échéance SLA et n'est toujours pas résolu : la file à traiter d'abord.
+  { cle: 'en_retard', libelle: 'En retard' },
   { cle: 'termines', libelle: 'Terminés' },
   { cle: 'tous', libelle: 'Tous' },
 ];

@@ -19,8 +19,13 @@ async def _incident_importe(
     ttr_minutes: int,
     responsable_id: str | None,
     ferme: bool,
+    gestionnaire: str | None = None,
 ) -> None:
     quand = datetime.fromisoformat(cree_le)
+    donnees: dict[str, object] = {"ttr_minutes": ttr_minutes}
+    # Le nom porté par le fichier : c'est lui qui range le ticket chez DBS (ADR-0005).
+    if gestionnaire is not None:
+        donnees["gestionnaire"] = gestionnaire
     await session.execute(
         text(
             "INSERT INTO core.activite "
@@ -36,7 +41,7 @@ async def _incident_importe(
             "resp": responsable_id,
             "cree": quand,
             "cloture": quand if ferme else None,
-            "d": json.dumps({"ttr_minutes": ttr_minutes}),
+            "d": json.dumps(donnees),
         },
     )
     await session.commit()
@@ -53,7 +58,7 @@ async def test_repartition_mensuelle(client: AsyncClient, session: AsyncSession)
     )
     await _incident_importe(
         session, reference="IMP-M2", cree_le="2023-03-20", priorite=1,
-        ttr_minutes=6000, responsable_id=None, ferme=True,
+        ttr_minutes=6000, responsable_id=None, ferme=True, gestionnaire="Agent DBS",
     )
 
     # Étendue > 3 mois → granularité mensuelle ; les deux tickets tombent dans le bucket « mars ».

@@ -3,7 +3,9 @@
 Ce n'est plus une action : après chaque import, le support lit où se trouve le ticket.
 
 Le gestionnaire du fichier est-il l'un des nôtres ? Alors le ticket est à son niveau (N1 ou N2).
-Sinon, c'est DBS — tout ce qui n'est pas nous est DBS — et le ticket est au niveau 3.
+S'il porte un autre nom, c'est DBS — tout ce qui n'est pas nous est DBS — et le ticket est au
+niveau 3. Si le fichier ne nomme personne, le ticket n'est chez personne : niveau inconnu, et
+surtout pas DBS.
 """
 
 import pytest
@@ -22,6 +24,18 @@ async def _agent(session: AsyncSession, email: str, niveau: int | None) -> str:
     )
     await session.commit()
     return uid
+
+
+async def _poser_gestionnaire(session: AsyncSession, ident: str, nom: str) -> None:
+    """Ce que l'import écrit : le nom du gestionnaire porté par le fichier."""
+    await session.execute(
+        text(
+            "UPDATE core.activite SET donnees = donnees || "
+            "jsonb_build_object('gestionnaire', cast(:n as text)) WHERE id = cast(:i as uuid)"
+        ),
+        {"n": nom, "i": ident},
+    )
+    await session.commit()
 
 
 async def _detail(client: AsyncClient, ident: str, uid: str) -> dict[str, object]:
@@ -60,17 +74,37 @@ async def test_un_gestionnaire_sans_niveau_declare_entre_au_n1(
     assert d["transfere_dbs"] is False
 
 
-async def test_sans_gestionnaire_le_ticket_est_chez_dbs(
+async def test_un_gestionnaire_hors_dsi_met_le_ticket_chez_dbs(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Le nom du fichier n'a été rapproché d'aucun compte : ce n'est pas nous, donc DBS."""
     lecteur = await creer_utilisateur(session, email="lecteur.niv@afgbank.ml")
     incident = await creer_activite(session, module="incident", reference="INC-NIV-DBS")
+    await _poser_gestionnaire(session, incident, "Agent DBS")
 
     d = await _detail(client, incident, lecteur)
 
     assert d["niveau_support"] == 3
     assert d["transfere_dbs"] is True
+
+
+@pytest.mark.parametrize("valeur", ["None", "N/A", "  ", "-", "inconnu"])
+async def test_un_gestionnaire_non_renseigne_n_est_pas_dbs(
+    client: AsyncClient, session: AsyncSession, valeur: str
+) -> None:
+    """Le fichier ne nomme personne : le ticket n'est chez personne, surtout pas chez DBS.
+
+    « None », « N/A », « - »… sont des absences écrites en toutes lettres, pas des gestionnaires.
+    """
+    lecteur = await creer_utilisateur(session, email=f"lecteur.nr{len(valeur)}@afgbank.ml")
+    incident = await creer_activite(session, module="incident", reference=f"INC-NR-{len(valeur)}")
+    await _poser_gestionnaire(session, incident, valeur)
+
+    d = await _detail(client, incident, lecteur)
+
+    assert d["niveau_support"] is None
+    assert d["transfere_dbs"] is False
+    assert d["gestionnaire"] is None
 
 
 async def test_le_niveau_suit_le_gestionnaire_a_chaque_import(
@@ -89,6 +123,7 @@ async def test_le_niveau_suit_le_gestionnaire_a_chaque_import(
         {"i": incident},
     )
     await session.commit()
+    await _poser_gestionnaire(session, incident, "Agent DBS")
 
     d = await _detail(client, incident, n2)
     assert d["niveau_support"] == 3
@@ -101,7 +136,8 @@ async def test_la_liste_expose_le_niveau_de_chaque_ticket(
     """Le support doit voir où se trouve chaque ticket sans ouvrir les fiches une à une."""
     n2 = await _agent(session, "n2.liste@afgbank.ml", 2)
     await creer_activite(session, module="incident", reference="INC-NIV-L1", responsable_id=n2)
-    await creer_activite(session, module="incident", reference="INC-NIV-L2")
+    l2 = await creer_activite(session, module="incident", reference="INC-NIV-L2")
+    await _poser_gestionnaire(session, l2, "Agent DBS")
 
     r = await client.get("/incidents", headers=entetes(n2))
 

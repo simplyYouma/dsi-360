@@ -113,10 +113,14 @@ FROM semaines s CROSS JOIN (VALUES ('incident'), ('demande')) AS m(module)
 ORDER BY s.debut
 """
 
-_DBS_DASH = """
-SELECT count(*) FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL) AS dbs_ouverts,
+# Chez DBS : un gestionnaire est nommé, mais aucun de nos comptes (ADR-0005). Sans nom renseigné,
+# le ticket n'est chez personne — il ne gonfle donc pas le compteur DBS.
+_EST_DBS = "(a.responsable_id IS NULL AND nullif(trim(a.donnees->>'gestionnaire'), '') IS NOT NULL)"
+
+_DBS_DASH = f"""
+SELECT count(*) FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL) AS dbs_ouverts,
        round((avg(extract(epoch FROM now() - a.cree_le) / 86400)
-         FILTER (WHERE a.responsable_id IS NULL AND a.cloture_le IS NULL))::numeric, 1)
+         FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL))::numeric, 1)
          AS dbs_age_jours
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD'

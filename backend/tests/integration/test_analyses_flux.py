@@ -127,7 +127,7 @@ async def test_le_vieillissement_range_le_stock_ouvert(
 
 
 async def test_la_part_dbs_se_mesure(client: AsyncClient, session: AsyncSession) -> None:
-    """Un ticket importé sans responsable est chez DBS : il doit compter, avec son âge."""
+    """Un ticket confié à un gestionnaire hors DSI est chez DBS : il compte, avec son âge."""
     admin = await _admin(session, "admin.flux4@afgbank.ml")
     agent = await creer_utilisateur(session, email="agent.flux4@afgbank.ml")
     await creer_activite(session, module="incident", reference="INC-FLX-4", responsable_id=agent)
@@ -138,7 +138,14 @@ async def test_la_part_dbs_se_mesure(client: AsyncClient, session: AsyncSession)
             "cree_le = now() - interval '10 days' WHERE reference IN ('INC-FLX-4', 'INC-FLX-4B')"
         )
     )
-    assert chez_dbs  # responsable_id absent -> DBS
+    # Sans responsable chez nous MAIS avec un nom au fichier : c'est DBS (ADR-0005).
+    await session.execute(
+        text(
+            "UPDATE core.activite SET donnees = donnees || "
+            "jsonb_build_object('gestionnaire', 'Agent DBS') WHERE id = cast(:i as uuid)"
+        ),
+        {"i": chez_dbs},
+    )
 
     dbs = (await _analyses(client, admin))["dbs"]
 

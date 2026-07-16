@@ -101,13 +101,22 @@ async def maj_donnees(session: AsyncSession, identifiant: str, fragment: dict[st
 
 
 def _clause_etat(etat: str | None, params: dict[str, Any]) -> str:
-    """Filtre 'en_cours' (hors statuts terminaux) ou 'termines' (statuts terminaux)."""
-    if etat not in ("en_cours", "termines"):
+    """Filtre 'en_cours' (hors statuts terminaux), 'termines' (statuts terminaux)
+    ou 'en_retard' (en cours ET échéance SLA dépassée)."""
+    if etat not in ("en_cours", "termines", "en_retard"):
         return ""
     termes = sorted(STATUTS_TERMINAUX)
     placeholders = ", ".join(f":term{i}" for i in range(len(termes)))
     for i, t in enumerate(termes):
         params[f"term{i}"] = t
+    if etat == "en_retard":
+        # En retard = pas encore terminé et l'échéance de résolution est passée. Même définition
+        # que le compteur « En retard » de l'en-tête de liste : un seul sens dans tout le produit.
+        return (
+            f" AND a.statut NOT IN ({placeholders})"
+            " AND a.resolu_le IS NULL"
+            " AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()"
+        )
     operateur = "NOT IN" if etat == "en_cours" else "IN"
     return f" AND a.statut {operateur} ({placeholders})"
 
@@ -134,10 +143,15 @@ async def lister(
         # d'un agent non transverse, alors que sa fiche reste ouverte : incohérence.
         filtres += " AND (d.code = :direction OR a.direction_id IS NULL)"
         params["direction"] = direction
-    if statut is not None:
+    # Chercher, c'est vouloir retrouver un dossier — pas fouiller la vue courante. Une recherche
+    # non vide passe donc OUTRE les filtres de la liste (état, statut, personne) : sinon un ticket
+    # clôturé reste introuvable tant que la liste affiche « En cours », et l'écran ment par
+    # omission. Seul le cloisonnement par direction tient : il ne se contourne jamais.
+    recherche = q is not None and q.strip() != ""
+    if statut is not None and not recherche:
         filtres += " AND a.statut = :statut"
         params["statut"] = statut
-    if responsable_id is not None:
+    if responsable_id is not None and not recherche:
         # Filtrer sur une personne, c'est vouloir « ce dont elle s'occupe » : ce qu'elle gère, mais
         # aussi ce à quoi elle contribue. Sans le contributeur, une activité qu'on lui a confiée en
         # renfort disparaîtrait du filtre alors qu'elle est bien dans sa file.
@@ -148,9 +162,9 @@ async def lister(
             "              AND aa.role = 'CONTRIBUTEUR'))"
         )
         params["resp"] = responsable_id
-    if non_assigne:
+    if non_assigne and not recherche:
         filtres += " AND a.responsable_id IS NULL"
-    if q is not None and q.strip() != "":
+    if recherche and q is not None:
         # Recherche élargie : référence, titre, mais aussi les personnes — gestionnaire (compte DSI
         # ou nom importé), demandeur, et contributeurs. On cherche « qui » autant que « quoi ».
         filtres += (
@@ -164,7 +178,8 @@ async def lister(
             "              AND (cu.prenom || ' ' || cu.nom) ILIKE :q))"
         )
         params["q"] = f"%{q.strip()}%"
-    filtres += _clause_etat(etat, params)
+    else:
+        filtres += _clause_etat(etat, params)
 
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{filtres}"), params) or 0
     params_page = {**params, "limite": taille, "decalage": (page - 1) * taille}

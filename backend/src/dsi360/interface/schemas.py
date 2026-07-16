@@ -156,7 +156,8 @@ class ActiviteResume(BaseModel):
     nb_non_vus: int = 0
     # Niveau de support, déduit du gestionnaire pour les tickets importés (ADR-0005). Le support
     # voit d'un coup d'œil où se trouve chaque ticket, sans ouvrir les fiches une à une.
-    niveau_support: int = 1
+    # `None` : aucun gestionnaire renseigné à l'import — ni chez nous, ni chez DBS.
+    niveau_support: int | None = 1
     transfere_dbs: bool = False
 
 
