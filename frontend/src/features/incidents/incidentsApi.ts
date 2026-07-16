@@ -57,6 +57,8 @@ export interface FiltresListe {
   statut?: string | null;
   responsable_id?: string | null;
   non_assigne?: boolean;
+  /** Confiés à DBS : un gestionnaire au fichier, aucun compte chez nous (ADR-0005). */
+  dbs?: boolean;
   q?: string | null;
   /** 'en_cours' (défaut) | 'termines' | undefined (tous) */
   etat?: string | null;
@@ -68,6 +70,7 @@ export function chaineFiltres(page: number, f?: FiltresListe): string {
   if (f?.statut) p.set('statut', f.statut);
   if (f?.responsable_id) p.set('responsable_id', f.responsable_id);
   if (f?.non_assigne) p.set('non_assigne', 'true');
+  if (f?.dbs) p.set('dbs', 'true');
   if (f?.q && f.q.trim() !== '') p.set('q', f.q.trim());
   if (f?.etat) p.set('etat', f.etat);
   return p.toString();

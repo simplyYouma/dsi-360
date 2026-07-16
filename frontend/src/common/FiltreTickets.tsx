@@ -12,6 +12,9 @@ interface Agent {
 }
 
 const NON_ASSIGNE = '__non_assigne__';
+const DBS = '__dbs__';
+// DBS n'a de sens que pour les tickets importés : ailleurs, personne ne traite hors de la DSI.
+const MODULES_IMPORTES = new Set(['incident', 'demande']);
 const ETATS_VUE: { cle: string; libelle: string }[] = [
   { cle: 'en_cours', libelle: 'En cours' },
   // Ce qui a dépassé son échéance SLA et n'est toujours pas résolu : la file à traiter d'abord.
@@ -40,13 +43,22 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
   }, []);
 
   const optionsGest: OptionListe[] = [
-    { valeur: NON_ASSIGNE, libelle: 'Non assignés' },
+    { valeur: NON_ASSIGNE, libelle: 'Non assignés', special: true },
+    ...(MODULES_IMPORTES.has(module) ? [{ valeur: DBS, libelle: 'DBS', special: true }] : []),
     ...agents.map((a) => ({ valeur: a.id, libelle: a.nom })),
   ];
-  const gestValeur = valeur.non_assigne ? NON_ASSIGNE : (valeur.responsable_id ?? null);
+  const gestValeur = valeur.non_assigne
+    ? NON_ASSIGNE
+    : valeur.dbs
+      ? DBS
+      : (valeur.responsable_id ?? null);
   const vue = valeur.etat ?? 'tous';
   const actif = Boolean(
-    valeur.statut || valeur.responsable_id || valeur.non_assigne || (valeur.q && valeur.q !== ''),
+    valeur.statut ||
+    valeur.responsable_id ||
+    valeur.non_assigne ||
+    valeur.dbs ||
+    (valeur.q && valeur.q !== ''),
   );
 
   return (
@@ -90,8 +102,9 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
           onChange={(v) =>
             onChange({
               ...valeur,
-              responsable_id: v === NON_ASSIGNE ? null : v,
+              responsable_id: v === NON_ASSIGNE || v === DBS ? null : v,
               non_assigne: v === NON_ASSIGNE,
+              dbs: v === DBS,
             })
           }
           placeholder="Tous les gestionnaires"

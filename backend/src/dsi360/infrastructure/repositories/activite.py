@@ -131,6 +131,7 @@ async def lister(
     taille: int,
     responsable_id: str | None = None,
     non_assigne: bool = False,
+    dbs: bool = False,
     q: str | None = None,
     etat: str | None = None,
     moi: str | None = None,
@@ -163,7 +164,22 @@ async def lister(
         )
         params["resp"] = responsable_id
     if non_assigne and not recherche:
-        filtres += " AND a.responsable_id IS NULL"
+        # « Non assigné » = personne, vraiment. `responsable_id IS NULL` ne suffit pas : un ticket
+        # confié à DBS n'a pas de compte chez nous, mais il est bel et bien assigné (à eux). Et un
+        # ticket où l'un des nôtres contribue n'est pas orphelin non plus. Ne restent que ceux que
+        # personne n'a pris : ni compte, ni nom au fichier, ni renfort.
+        filtres += (
+            " AND a.responsable_id IS NULL"
+            " AND nullif(trim(a.donnees->>'gestionnaire'), '') IS NULL"
+            " AND NOT EXISTS (SELECT 1 FROM core.activite_acteur aa2"
+            "                 WHERE aa2.activite_id = a.id AND aa2.role = 'CONTRIBUTEUR')"
+        )
+    if dbs and not recherche:
+        # Chez DBS : un nom au fichier, aucun compte chez nous (ADR-0005).
+        filtres += (
+            " AND a.responsable_id IS NULL"
+            " AND nullif(trim(a.donnees->>'gestionnaire'), '') IS NOT NULL"
+        )
     if recherche and q is not None:
         # Recherche élargie : référence, titre, mais aussi les personnes — gestionnaire (compte DSI
         # ou nom importé), demandeur, et contributeurs. On cherche « qui » autant que « quoi ».

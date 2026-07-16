@@ -350,6 +350,7 @@ def creer_routeur(
         statut: Annotated[str | None, Query()] = None,
         responsable_id: Annotated[str | None, Query()] = None,
         non_assigne: Annotated[bool, Query()] = False,
+        dbs: Annotated[bool, Query()] = False,
         q: Annotated[str | None, Query(max_length=80)] = None,
         etat: Annotated[str | None, Query()] = None,
     ) -> dict[str, Any]:
@@ -363,6 +364,7 @@ def creer_routeur(
             taille=_TAILLE,
             responsable_id=responsable_id,
             non_assigne=non_assigne,
+            dbs=dbs,
             q=q,
             etat=etat,
             moi=courant["id"],

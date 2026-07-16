@@ -397,7 +397,7 @@ export function MesTicketsPage(): JSX.Element {
             <div className={local.consulterSelecteur}>
               <SelecteurListe
                 options={[
-                  { valeur: 'tous', libelle: 'Tous les agents (vue globale)' },
+                  { valeur: 'tous', libelle: 'Tous les agents (vue globale)', special: true },
                   ...agents.map((ag) => ({ valeur: ag.id, libelle: ag.nom })),
                 ]}
                 valeur={agentCible}

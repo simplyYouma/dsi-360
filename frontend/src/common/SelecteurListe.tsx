@@ -7,6 +7,9 @@ import styles from './SelecteurListe.module.css';
 export interface OptionListe {
   valeur: string;
   libelle: string;
+  /** Option « vue » et non élément de la liste (Non assignés, DBS, Tous les agents…) : elle ne
+   *  désigne personne en particulier, et se distingue donc visuellement des vrais choix. */
+  special?: boolean;
 }
 
 interface Props {
@@ -212,17 +215,34 @@ export function SelecteurListe({
             <ul className={styles.liste}>
               {permettreVide && filtre.trim() === '' && (
                 <li>
-                  <button type="button" className={styles.option} onClick={() => choisir(null)}>
+                  {/* « Tous les… » : une vue d'ensemble, jamais un élément de la liste. */}
+                  <button
+                    type="button"
+                    className={cx(
+                      styles.option,
+                      styles.optionSpeciale,
+                      optionsFiltrees[0]?.special !== true && styles.finSpeciales,
+                    )}
+                    onClick={() => choisir(null)}
+                  >
                     <span>{libelleVide}</span>
                     {valeur === null && <Check size={15} />}
                   </button>
                 </li>
               )}
-              {optionsFiltrees.map((o) => (
+              {optionsFiltrees.map((o, i) => (
                 <li key={o.valeur}>
                   <button
                     type="button"
-                    className={cx(styles.option, o.valeur === valeur && styles.optionActive)}
+                    className={cx(
+                      styles.option,
+                      o.special === true && styles.optionSpeciale,
+                      // Trait sous la dernière option spéciale : les vues d'un côté, la liste de l'autre.
+                      o.special === true &&
+                        optionsFiltrees[i + 1]?.special !== true &&
+                        styles.finSpeciales,
+                      o.valeur === valeur && styles.optionActive,
+                    )}
                     onClick={() => choisir(o.valeur)}
                   >
                     <span className={styles.optionLibelle}>
