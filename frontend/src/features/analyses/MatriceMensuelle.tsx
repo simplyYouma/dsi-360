@@ -340,7 +340,7 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
                 if (lignes.length === 0) return null;
                 return (
                   <Fragment key={niv}>
-                    <tr className={styles.groupeNiveau}>
+                    <tr className={styles.groupeNiveau} data-niveau={niv}>
                       <td className={styles.figee} colSpan={4 + colsEtat.length}>
                         {LIBELLE_NIVEAU[niv]} · {lignes.length}
                       </td>

@@ -105,7 +105,8 @@
   font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
 }
-/* Ligne de séparation d'un groupe de niveau (N1 / N2 / DBS) : bandeau pleine largeur. */
+/* Ligne de séparation d'un groupe de niveau (N1 / N2 / DBS) : bandeau pleine largeur.
+   Chaque niveau porte sa couleur — c'est elle qui sépare les groupes à l'œil. */
 .groupeNiveau td {
   background: var(--bg-subtle);
   font-size: var(--text-xs);
@@ -114,6 +115,33 @@
   text-transform: uppercase;
   color: var(--text-muted);
   padding: var(--space-2) var(--space-3);
+  border-left: 3px solid transparent;
+}
+.groupeNiveau[data-niveau='N1'] td {
+  background: color-mix(in srgb, var(--cat-1) 12%, transparent);
+  border-left-color: var(--cat-1);
+  color: var(--cat-1);
+}
+.groupeNiveau[data-niveau='N2'] td {
+  background: color-mix(in srgb, var(--secondary) 12%, transparent);
+  border-left-color: var(--secondary);
+  color: var(--secondary);
+}
+/* DBS : hors de la DSI. Une information, pas une alerte. */
+.groupeNiveau[data-niveau='DBS'] td {
+  background: color-mix(in srgb, var(--cat-5) 12%, transparent);
+  border-left-color: var(--cat-5);
+  color: var(--cat-5);
+}
+.groupeNiveau[data-niveau='Autre'] td {
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  border-left-color: var(--text-muted);
+}
+/* Personne n'est nommé au rapport : c'est un trou à combler, la couleur le dit. */
+.groupeNiveau[data-niveau='NR'] td {
+  background: color-mix(in srgb, var(--status-warn) 12%, transparent);
+  border-left-color: var(--status-warn);
+  color: var(--status-warn);
 }
 .sousLigne {
   padding-left: var(--space-5);
