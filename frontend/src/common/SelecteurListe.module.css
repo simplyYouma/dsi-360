@@ -118,6 +118,8 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
+  /* Chacune reste une pastille : sans cet air, les fonds se soudent en un seul bloc gris. */
+  margin-bottom: 3px;
 }
 .optionSpeciale:hover {
   background: color-mix(in srgb, var(--secondary) 10%, var(--bg-subtle));
@@ -126,12 +128,9 @@
 .optionSpeciale.optionActive {
   color: var(--secondary-hover);
 }
-/* Frontière entre les vues et la vraie liste. */
+/* Frontière entre les vues et la vraie liste : de l'air suffit, pas besoin d'un trait. */
 .finSpeciales {
-  margin-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border);
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+  margin-bottom: var(--space-3);
 }
 
 /* Valeur sélectionnée (déborde en points de suspension, jamais sur le voisin). */
