@@ -7,6 +7,7 @@ interface Stats {
   total: number;
   en_cours: number;
   termines: number;
+  abandonnes: number;
   en_retard: number;
 }
 
@@ -52,6 +53,13 @@ export function BandeauStats({ base, signal }: Props): JSX.Element | null {
         <b className={styles.valeur}>{stats.termines}</b>
         <span className={styles.libelle}>Terminés</span>
       </span>
+      {/* Abandonnés : masqué quand il n'y en a pas — inutile d'afficher un zéro permanent. */}
+      {stats.abandonnes > 0 && (
+        <span className={styles.stat}>
+          <b className={styles.valeur}>{stats.abandonnes}</b>
+          <span className={styles.libelle}>Abandonnés</span>
+        </span>
+      )}
       <span className={retard ? styles.statRetard : styles.stat}>
         <b className={styles.valeur}>{stats.en_retard}</b>
         <span className={styles.libelle}>En retard</span>

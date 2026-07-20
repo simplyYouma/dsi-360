@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, TriangleAlert, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SelecteurListe, type OptionListe } from './SelecteurListe';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
@@ -15,11 +15,12 @@ const NON_ASSIGNE = '__non_assigne__';
 const DBS = '__dbs__';
 // DBS n'a de sens que pour les tickets importés : ailleurs, personne ne traite hors de la DSI.
 const MODULES_IMPORTES = new Set(['incident', 'demande']);
+// Phases du cycle de vie (cf. domain/etats). Le retard n'en fait pas partie : c'est une horloge,
+// pas une étape — il a son propre bouton, croisable avec n'importe quelle phase.
 const ETATS_VUE: { cle: string; libelle: string }[] = [
   { cle: 'en_cours', libelle: 'En cours' },
-  // Ce qui a dépassé son échéance SLA et n'est toujours pas résolu : la file à traiter d'abord.
-  { cle: 'en_retard', libelle: 'En retard' },
   { cle: 'termines', libelle: 'Terminés' },
+  { cle: 'abandonnes', libelle: 'Abandonnés' },
   { cle: 'tous', libelle: 'Tous' },
 ];
 
@@ -58,6 +59,7 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
     valeur.responsable_id ||
     valeur.non_assigne ||
     valeur.dbs ||
+    valeur.retard ||
     (valeur.q && valeur.q !== ''),
   );
 
@@ -84,6 +86,19 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
           </button>
         ))}
       </div>
+
+      {/* Axe indépendant : « en retard » se croise avec la phase, il ne la remplace pas. On peut
+          donc demander « en cours et en retard », ou « terminés et en retard » (résolus hors délai). */}
+      <button
+        type="button"
+        className={valeur.retard === true ? styles.retardOn : styles.retard}
+        onClick={() => onChange({ ...valeur, retard: valeur.retard !== true })}
+        aria-pressed={valeur.retard === true}
+        title="Échéance SLA dépassée, pas encore résolu"
+      >
+        <TriangleAlert size={14} />
+        En retard
+      </button>
 
       <div className={styles.filtre}>
         <SelecteurListe

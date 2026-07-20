@@ -7,8 +7,8 @@ from typing import Any
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.domain import etats
 from dsi360.domain.activite import PREFIXE_REFERENCE
-from dsi360.domain.etats import STATUTS_TERMINAUX
 
 _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
@@ -100,25 +100,38 @@ async def maj_donnees(session: AsyncSession, identifiant: str, fragment: dict[st
     await session.commit()
 
 
-def _clause_etat(etat: str | None, params: dict[str, Any]) -> str:
-    """Filtre 'en_cours' (hors statuts terminaux), 'termines' (statuts terminaux)
-    ou 'en_retard' (en cours ET échéance SLA dépassée)."""
-    if etat not in ("en_cours", "termines", "en_retard"):
+# Vue de liste -> phases du domaine. Le vocabulaire des URL reste stable ; le sens vient d'`etats`.
+_VUES_PHASE: dict[str, tuple[str, ...]] = {
+    "en_cours": (etats.EN_COURS,),
+    "termines": (etats.TERMINE,),
+    "abandonnes": (etats.ABANDONNE,),
+}
+
+
+def _clause_phase(module: str, vue: str | None, params: dict[str, Any]) -> str:
+    """Restreint la liste à une phase (en cours / terminés / abandonnés).
+
+    Les statuts concernés sont **déduits** de `domain.etats` : aucune liste n'est écrite ici.
+    """
+    phases = _VUES_PHASE.get(vue or "")
+    if phases is None:
         return ""
-    termes = sorted(STATUTS_TERMINAUX)
-    placeholders = ", ".join(f":term{i}" for i in range(len(termes)))
-    for i, t in enumerate(termes):
-        params[f"term{i}"] = t
-    if etat == "en_retard":
-        # En retard = pas encore terminé et l'échéance de résolution est passée. Même définition
-        # que le compteur « En retard » de l'en-tête de liste : un seul sens dans tout le produit.
-        return (
-            f" AND a.statut NOT IN ({placeholders})"
-            " AND a.resolu_le IS NULL"
-            " AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()"
-        )
-    operateur = "NOT IN" if etat == "en_cours" else "IN"
-    return f" AND a.statut {operateur} ({placeholders})"
+    statuts = etats.statuts_de_phase(*phases, module=module)
+    if not statuts:
+        # Le module n'a aucun statut dans cette phase : la vue est vide, et le dit franchement.
+        return " AND false"
+    placeholders = ", ".join(f":ph{i}" for i in range(len(statuts)))
+    for i, s in enumerate(statuts):
+        params[f"ph{i}"] = s
+    return f" AND a.statut IN ({placeholders})"
+
+
+# Le retard est une horloge, pas une phase : il se croise avec n'importe quelle vue. Un ticket
+# résolu hors délai reste en retard — c'est même la vraie mesure du non-respect du SLA.
+_CLAUSE_RETARD = (
+    " AND a.resolu_le IS NULL"
+    " AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()"
+)
 
 
 async def lister(
@@ -134,6 +147,7 @@ async def lister(
     dbs: bool = False,
     q: str | None = None,
     etat: str | None = None,
+    retard: bool = False,
     moi: str | None = None,
 ) -> tuple[list[RowMapping], int]:
     params: dict[str, Any] = {"module": module, "moi": moi}
@@ -195,7 +209,10 @@ async def lister(
         )
         params["q"] = f"%{q.strip()}%"
     else:
-        filtres += _clause_etat(etat, params)
+        filtres += _clause_phase(module, etat, params)
+    # Le retard survit à la recherche : c'est un fait, pas une préférence d'affichage.
+    if retard:
+        filtres += _CLAUSE_RETARD
 
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{filtres}"), params) or 0
     params_page = {**params, "limite": taille, "decalage": (page - 1) * taille}
@@ -212,36 +229,52 @@ async def lister(
 async def compter_etats(
     session: AsyncSession, module: str, *, direction: str | None
 ) -> dict[str, int]:
-    """Comptes par état pour l'en-tête de liste : total, en cours, terminés, en retard.
+    """Comptes par phase pour l'en-tête de liste, plus le retard (qui traverse les phases).
 
-    Respecte le même cloisonnement par direction que `lister` (une activité sans direction —
-    ticket importé — reste visible par tous).
+    Les statuts de chaque phase viennent de `domain.etats` : mêmes règles que les filtres, donc
+    les compteurs et les listes ne peuvent pas diverger. Respecte le cloisonnement par direction
+    de `lister` (une activité sans direction — ticket importé — reste visible par tous).
     """
     params: dict[str, Any] = {"module": module}
     cond = ""
     if direction is not None:
         cond = " AND (d.code = :direction OR a.direction_id IS NULL)"
         params["direction"] = direction
-    termes = sorted(STATUTS_TERMINAUX)
-    ph = ", ".join(f":t{i}" for i in range(len(termes)))
-    for i, t in enumerate(termes):
-        params[f"t{i}"] = t
+
+    def _filtre_phase(cle: str, phases: tuple[str, ...]) -> str:
+        statuts = etats.statuts_de_phase(*phases, module=module)
+        if not statuts:
+            return f"0 AS {cle}"
+        noms = []
+        for i, s in enumerate(statuts):
+            nom = f"{cle}{i}"
+            params[nom] = s
+            noms.append(f":{nom}")
+        return f"count(*) FILTER (WHERE a.statut IN ({', '.join(noms)})) AS {cle}"
+
+    colonnes = ", ".join(
+        [
+            "count(*) AS total",
+            _filtre_phase("en_cours", (etats.EN_COURS,)),
+            _filtre_phase("termines", (etats.TERMINE,)),
+            _filtre_phase("abandonnes", (etats.ABANDONNE,)),
+            "count(*) FILTER (WHERE a.resolu_le IS NULL"
+            " AND a.sla_resolution_le IS NOT NULL"
+            " AND a.sla_resolution_le < now()) AS en_retard",
+        ]
+    )
     ligne = (
         await session.execute(
             text(
-                "SELECT count(*) AS total, "
-                f"count(*) FILTER (WHERE a.statut NOT IN ({ph})) AS en_cours, "
-                f"count(*) FILTER (WHERE a.statut IN ({ph})) AS termines, "
-                f"count(*) FILTER (WHERE a.statut NOT IN ({ph}) "
-                "  AND a.sla_resolution_le IS NOT NULL AND a.resolu_le IS NULL "
-                "  AND a.sla_resolution_le < now()) AS en_retard "
-                f"FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id "
+                f"SELECT {colonnes} "
+                "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id "
                 f"WHERE a.module = :module{cond}"
             ),
             params,
         )
     ).mappings().one()
-    return {k: int(ligne[k]) for k in ("total", "en_cours", "termines", "en_retard")}
+    cles = ("total", "en_cours", "termines", "abandonnes", "en_retard")
+    return {k: int(ligne[k]) for k in cles}
 
 
 async def lister_tout(

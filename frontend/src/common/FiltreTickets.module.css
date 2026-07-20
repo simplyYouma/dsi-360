@@ -60,6 +60,32 @@
   width: 210px;
   max-width: 100%;
 }
+/* Bascule « En retard » : un axe à part, pas un segment. Bordure pleine (donc distinct des
+   segments), et la couleur d'alerte ne s'allume que quand le filtre est actif. */
+.retard,
+.retardOn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.retard:hover {
+  border-color: color-mix(in srgb, var(--status-danger) 40%, var(--border));
+  color: var(--text);
+}
+.retardOn {
+  border-color: color-mix(in srgb, var(--status-danger) 55%, var(--border));
+  background: color-mix(in srgb, var(--status-danger) 10%, var(--surface));
+  color: var(--status-danger);
+}
+
 .reset {
   display: inline-flex;
   align-items: center;

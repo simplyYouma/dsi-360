@@ -353,6 +353,7 @@ def creer_routeur(
         dbs: Annotated[bool, Query()] = False,
         q: Annotated[str | None, Query(max_length=80)] = None,
         etat: Annotated[str | None, Query()] = None,
+        retard: Annotated[bool, Query()] = False,
     ) -> dict[str, Any]:
         direction = None if courant["transverse"] else courant["direction"]
         lignes, total = await repo.lister(
@@ -367,6 +368,7 @@ def creer_routeur(
             dbs=dbs,
             q=q,
             etat=etat,
+            retard=retard,
             moi=courant["id"],
         )
         maintenant = datetime.now(UTC)

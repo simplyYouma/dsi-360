@@ -16,7 +16,7 @@ from dsi360.application.granularite_temps import (
     suite_buckets,
 )
 from dsi360.domain.activite import PREFIXE_REFERENCE
-from dsi360.domain.etats import STATUTS_TERMINAUX, etats_terminaux
+from dsi360.domain.etats import PHASES_FINIES, etats_terminaux, statuts_de_phase
 
 
 def _clause_periode(
@@ -98,7 +98,7 @@ WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL AND a.sla_resolution_le IS NO
 # Un ticket résolu, clôturé, rejeté ou annulé n'attend plus personne : il ne se traite pas.
 _TERMINAUX = sorted({e for m in PREFIXE_REFERENCE for e in etats_terminaux(m)})
 # Ce qui ne réclame plus de travail (résolu compris), pour la file « À traiter ».
-_STATUTS_REGLES = sorted(STATUTS_TERMINAUX)
+_STATUTS_REGLES = statuts_de_phase(*PHASES_FINIES)
 
 # Créations hebdomadaires des tickets importés : la respiration du flux, en miniature.
 _CREATIONS_HEBDO = """

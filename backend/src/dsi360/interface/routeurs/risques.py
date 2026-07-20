@@ -124,6 +124,7 @@ async def lister(
     non_assigne: Annotated[bool, Query()] = False,
     q: Annotated[str | None, Query(max_length=80)] = None,
     etat: Annotated[str | None, Query()] = None,
+    retard: Annotated[bool, Query()] = False,
 ) -> dict[str, Any]:
     direction = None if courant["transverse"] else courant["direction"]
     lignes, total = await repo.lister(
@@ -137,6 +138,7 @@ async def lister(
         non_assigne=non_assigne,
         q=q,
         etat=etat,
+        retard=retard,
         moi=courant["id"],
     )
     return {

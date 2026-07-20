@@ -219,12 +219,24 @@ class PageActivites(BaseModel):
 
 
 class StatsListe(BaseModel):
-    """Comptes par état pour l'en-tête d'une liste de module."""
+    """Comptes par phase pour l'en-tête d'une liste, plus le retard (qui traverse les phases)."""
 
     total: int
     en_cours: int
     termines: int
+    abandonnes: int
     en_retard: int
+
+
+class EtatReferentiel(BaseModel):
+    """Un statut du cycle de vie d'un module, avec le sens que lui donne le domaine."""
+
+    cle: str
+    libelle: str
+    #: en_cours | termine | abandonne — l'axe des filtres et des compteurs.
+    phase: str
+    #: nouveau | actif | attente | recul | succes | echec — la nuance visuelle du badge.
+    ton: str
 
 
 class ApercuLien(BaseModel):

@@ -13,7 +13,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config.acces import PROFIL_ADMIN
-from dsi360.domain.etats import STATUTS_TERMINAUX, etats_terminaux
+from dsi360.domain.etats import PHASES_FINIES, etats_terminaux, statuts_de_phase
 from dsi360.domain.sla import statut_sla
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import tache as tache_repo
@@ -102,7 +102,7 @@ _MODULES_LISTE = ("incident", "demande", "changement", "audit", "cybersecurite",
 _TERMINES = sorted({etat for m in _MODULES_LISTE for etat in etats_terminaux(m)})
 # Réglé = ne réclame plus de travail, résolu compris (le statut tranche : un import peut
 # poser « Résolue » sans jamais dater la résolution).
-_REGLES = sorted(STATUTS_TERMINAUX)
+_REGLES = statuts_de_phase(*PHASES_FINIES)
 
 # Condition de segment de la file (liste blanche — jamais d'entrée utilisateur dans le SQL).
 # Ma file : les activités dont je suis le gestionnaire, et celles où l'administrateur m'a désigné

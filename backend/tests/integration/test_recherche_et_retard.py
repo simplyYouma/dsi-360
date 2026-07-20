@@ -81,10 +81,11 @@ async def test_la_recherche_ne_franchit_jamais_la_direction(
     assert "CHG-RECH-HORS" not in {e["reference"] for e in r.json()["elements"]}
 
 
-async def test_la_vue_en_retard_ne_montre_que_les_echeances_depassees(
+async def test_le_retard_est_un_axe_a_part_croisable_avec_la_phase(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """« En retard » = pas encore résolu et échéance de résolution passée."""
+    """« En retard » = pas encore résolu et échéance passée. C'est une horloge, pas une phase :
+    elle se croise avec la vue courante au lieu de la remplacer."""
     admin = await creer_utilisateur(session, email="admin.retard@afgbank.ml", profil="ADMIN")
     retard = await creer_activite(session, module="changement", reference="CHG-RET-OUI")
     a_temps = await creer_activite(session, module="changement", reference="CHG-RET-NON")
@@ -104,9 +105,14 @@ async def test_la_vue_en_retard_ne_montre_que_les_echeances_depassees(
     )
     await session.commit()
 
-    r = await client.get("/changements?etat=en_retard", headers=entetes(admin))
+    r = await client.get("/changements?retard=true", headers=entetes(admin))
 
     assert r.status_code == 200, r.text
     refs = {e["reference"] for e in r.json()["elements"]}
     assert "CHG-RET-OUI" in refs, "échéance dépassée, non résolu"
     assert "CHG-RET-NON" not in refs, "encore dans les temps"
+
+    # Croisé avec la phase : « en cours ET en retard », ce que l'ancien segment interdisait.
+    r = await client.get("/changements?etat=en_cours&retard=true", headers=entetes(admin))
+    assert r.status_code == 200, r.text
+    assert "CHG-RET-OUI" in {e["reference"] for e in r.json()["elements"]}

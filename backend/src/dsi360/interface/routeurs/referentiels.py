@@ -6,10 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.domain.etats import ordre_etats
+from dsi360.domain.etats import ETATS, ordre_etats
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import sla as repo_sla
-from dsi360.interface.schemas import AgentItem, CategorieItem, SlaRegleItem
+from dsi360.interface.schemas import (
+    AgentItem,
+    CategorieItem,
+    EtatReferentiel,
+    SlaRegleItem,
+)
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/referentiels", tags=["referentiels"])
@@ -66,6 +71,37 @@ async def etats(
         return ordre_etats(module)
     except ValueError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+# Renommage d'affichage : le sigle ITIL reste le statut stocké (base, historique, workflow), mais
+# l'écran montre un libellé clair. Ici, en couche interface : c'est de la présentation.
+_LIBELLE_STATUT = {
+    "CAB": "Attente comité",
+    "ECAB": "Validation express",
+}
+
+
+@routeur.get("/cycles-de-vie", response_model=dict[str, list[EtatReferentiel]])
+async def cycles_de_vie(
+    _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+) -> dict[str, list[dict[str, str]]]:
+    """Cycle de vie de chaque module : statuts ordonnés, avec leur phase et leur ton.
+
+    Le front n'a plus à redeviner le sens d'un statut : il le lit ici. Une seule déclaration
+    (`domain.etats`) alimente les filtres, les compteurs et les couleurs.
+    """
+    return {
+        module: [
+            {
+                "cle": nom,
+                "libelle": _LIBELLE_STATUT.get(nom, nom),
+                "phase": etat.phase,
+                "ton": etat.ton,
+            }
+            for nom, etat in cycle.items()
+        ]
+        for module, cycle in ETATS.items()
+    }
 
 
 @routeur.get("/sla", response_model=list[SlaRegleItem])
