@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Inbox, ChevronRight } from 'lucide-react';
+import { Bell, CheckCheck, ChevronRight, Inbox, Volume2, VolumeX } from 'lucide-react';
 import { api } from '@/lib/api';
 import { couleurStatut } from '@/common/statuts';
 import { lienActivite } from '@/common/routesModule';
 import { useRafraichissement } from '@/common/useRafraichissement';
-import { jouerSonNotif } from '@/common/sonNotif';
+import { armerSonNotif, jouerSonNotif } from '@/common/sonNotif';
 import { cx } from '@/common/cx';
 import styles from './Notifications.module.css';
 
@@ -19,6 +19,9 @@ interface Notif {
   module: string | null;
   activite_id: string | null;
 }
+// Réglage local du carillon (par navigateur) : il n'engage que ce poste.
+const CLE_SON = 'dsi360-son-notif';
+
 const TON: Record<string, string> = {
   SLA_DEPASSE: 'var(--status-danger)',
   SLA_APPROCHE: 'var(--status-warn)',
@@ -41,12 +44,21 @@ export function Notifications(): JSX.Element {
   // Compteur précédent : un carillon ne sonne qu'à l'arrivée d'un nouveau non-lu, jamais au
   // premier chargement ni quand on marque comme lu.
   const precedentNonLus = useRef<number | null>(null);
+  // Le réglage survit au rechargement, et le son est actif par défaut : une notification qu'on
+  // n'entend pas ne sert à rien, c'est à l'agent de demander le silence s'il le souhaite.
+  const [son, setSon] = useState(() => localStorage.getItem(CLE_SON) !== 'non');
+  const sonRef = useRef(son);
+  sonRef.current = son;
 
   const charger = useCallback(async (): Promise<void> => {
     const data = await api.get<{ elements: Notif[]; non_lus: number }>('/notifications');
     setElements(data.elements);
     setNonLus(data.non_lus);
-    if (precedentNonLus.current !== null && data.non_lus > precedentNonLus.current) {
+    if (
+      sonRef.current &&
+      precedentNonLus.current !== null &&
+      data.non_lus > precedentNonLus.current
+    ) {
       jouerSonNotif();
     }
     precedentNonLus.current = data.non_lus;
@@ -55,6 +67,10 @@ export function Notifications(): JSX.Element {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  // Le navigateur n'autorise le son qu'après une interaction : on arme le déblocage au premier
+  // clic. Sans cela, le carillon reste inaudible pour toute la session, sans le moindre message.
+  useEffect(() => armerSonNotif(), []);
 
   // La pastille se met à jour seule : sans cela, elle reste muette jusqu'au prochain rechargement.
   useRafraichissement(() => void charger());
@@ -101,6 +117,23 @@ export function Notifications(): JSX.Element {
             <div className={styles.tete}>
               <span className={styles.titre}>Notifications</span>
               <div className={styles.actionsTete}>
+                {/* Réglage ET preuve : activer le son le joue aussitôt, donc on l'entend. */}
+                <button
+                  className={styles.lien}
+                  onClick={() => {
+                    const suivant = !son;
+                    setSon(suivant);
+                    localStorage.setItem(CLE_SON, suivant ? 'oui' : 'non');
+                    if (suivant) jouerSonNotif();
+                  }}
+                  aria-pressed={son}
+                  title={
+                    son ? 'Son activé — cliquer pour couper' : 'Son coupé — cliquer pour activer'
+                  }
+                >
+                  {son ? <Volume2 size={15} /> : <VolumeX size={15} />}
+                  {son ? 'Son' : 'Muet'}
+                </button>
                 {nonLus > 0 && (
                   <button className={styles.lien} onClick={() => void toutLu()}>
                     <CheckCheck size={15} />
