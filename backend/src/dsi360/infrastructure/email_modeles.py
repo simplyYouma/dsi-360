@@ -168,12 +168,38 @@ def mot_de_passe_change(prenom: str) -> tuple[str, str, str]:
     return sujet, texte, html
 
 
+# Nature de l'événement notifié : libellé affiché et libellé du bouton. Un e-mail « vous êtes
+# désigné valideur » ne doit pas ressembler à « nouveau commentaire » — le destinataire doit
+# savoir ce qu'on attend de lui avant même d'ouvrir.
+_NATURES: dict[str, tuple[str, str]] = {
+    "ASSIGNATION": ("Affectation", "Ouvrir le dossier"),
+    "VALIDATION": ("Décision attendue", "Donner ma décision"),
+    "VALIDATION_REQUISE": ("Décision attendue", "Donner ma décision"),
+    "TACHE": ("Tâche assignée", "Ouvrir la tâche"),
+    "MENTION": ("Mention", "Répondre"),
+    "COMMENTAIRE": ("Discussion", "Voir la discussion"),
+    "TRANSITION": ("Changement d'état", "Ouvrir le dossier"),
+    "REVUE_DUE": ("Revue à réaliser", "Ouvrir le dossier"),
+    "JALON_DU": ("Jalon proche", "Ouvrir le projet"),
+}
+_NATURE_DEFAUT = ("Notification", "Ouvrir dans DSI 360")
+
+
+def _etiquette(texte: str) -> str:
+    """Petite étiquette de nature, en tête de carte. Discrète : ce n'est pas une alerte."""
+    return (
+        f'<div style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:0.06em;'
+        f'text-transform:uppercase;color:{_MUET};">{texte}</div>'
+    )
+
+
 def notification_activite(
-    titre: str, message: str, url: str | None = None
+    titre: str, message: str, url: str | None = None, type_: str | None = None
 ) -> tuple[str, str, str]:
-    """Gabarit générique des notifications métier (assignation, commentaire, validation, SLA…)."""
-    texte = f"{titre}\n\n{message}\n" + (f"\nAccéder : {url}\n" if url else "")
-    corps = _p(message) + (_bouton(url, "Ouvrir dans DSI 360") if url else "")
+    """Gabarit des notifications métier (affectation, mention, décision, changement d'état…)."""
+    nature, libelle_bouton = _NATURES.get(type_ or "", _NATURE_DEFAUT)
+    texte = f"{nature} — {titre}\n\n{message}\n" + (f"\nAccéder : {url}\n" if url else "")
+    corps = _etiquette(nature) + _p(message) + (_bouton(url, libelle_bouton) if url else "")
     html = _gabarit(titre, corps, apercu=message[:120])
     return titre, texte, html
 

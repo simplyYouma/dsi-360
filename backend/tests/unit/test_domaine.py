@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from dsi360.domain.activite import calculer_criticite, calculer_priorite
+from dsi360.domain.activite import MODULES, calculer_criticite, calculer_priorite, lien_activite
 from dsi360.domain.changement import dossier_incomplet_pour
 from dsi360.domain.etats import (
     cible_apres_decisions,
@@ -204,3 +204,28 @@ class TestDossierRfc:
 
     def test_autres_modules_non_concernes(self) -> None:
         assert dossier_incomplet_pour("demande", "CAB", {}) == []
+
+
+class TestLienActivite:
+    """Le lien d'un e-mail doit mener AU dossier : sinon la notification oblige à chercher."""
+
+    def test_les_modules_a_fiche_ouvrent_la_liste_sur_le_dossier(self) -> None:
+        lien = lien_activite("https://dsi360", "incident", "abc-123")
+        assert lien == "https://dsi360/incidents?fiche=abc-123"
+
+    def test_projet_et_changement_ont_leur_page_dediee(self) -> None:
+        assert lien_activite("https://dsi360", "projet", "p1") == "https://dsi360/projets/p1"
+        assert (
+            lien_activite("https://dsi360", "changement", "c1") == "https://dsi360/changements/c1"
+        )
+
+    def test_la_barre_finale_ne_se_duplique_pas(self) -> None:
+        assert lien_activite("https://dsi360/", "risque", "r1") == "https://dsi360/risques?fiche=r1"
+
+    def test_un_module_inconnu_ne_fabrique_pas_de_lien_faux(self) -> None:
+        assert lien_activite("https://dsi360", "inexistant", "x") is None
+
+    def test_chaque_module_du_domaine_a_un_chemin(self) -> None:
+        # Un module sans chemin enverrait ses notifications sur l'accueil, en silence.
+        for module in MODULES:
+            assert lien_activite("https://dsi360", module, "id") is not None, module

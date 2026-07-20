@@ -97,3 +97,29 @@ def test_les_alertes_portent_la_reference_du_dossier() -> None:
         sujet, texte, html = getattr(email_modeles, nom)(**EXEMPLES[nom])
         reference = str(EXEMPLES[nom]["reference"])
         assert reference in sujet and reference in texte and reference in html
+
+
+@pytest.mark.parametrize(
+    ("type_", "nature", "bouton"),
+    [
+        ("ASSIGNATION", "Affectation", "Ouvrir le dossier"),
+        ("VALIDATION", "Décision attendue", "Donner ma décision"),
+        ("TACHE", "Tâche assignée", "Ouvrir la tâche"),
+        ("MENTION", "Mention", "Répondre"),
+        ("TRANSITION", "Changement d'état", "Ouvrir le dossier"),
+    ],
+)
+def test_la_notification_annonce_sa_nature(type_: str, nature: str, bouton: str) -> None:
+    """Le destinataire doit savoir ce qu'on attend de lui avant d'ouvrir l'e-mail."""
+    _, texte, html = email_modeles.notification_activite(
+        "PRJ-2026-0001 — Migration", "Vous êtes concerné.", "https://dsi360/projets/x", type_
+    )
+    assert nature in html and nature in texte
+    assert bouton in html, "le bouton doit dire quelle action est attendue"
+
+
+def test_une_notification_de_type_inconnu_reste_presentable() -> None:
+    """Un type non répertorié ne doit jamais produire un e-mail bancal."""
+    _, texte, html = email_modeles.notification_activite("Objet", "Message", None, "TYPE_INEDIT")
+    assert "Notification" in html and "Notification" in texte
+    assert html.lstrip().startswith("<!doctype html>")

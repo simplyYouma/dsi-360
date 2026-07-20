@@ -358,7 +358,8 @@ async def _enregistrer_commentaire(
         )
     ).mappings().one()
     cible = f"{reference} · {titre_tache}" if titre_tache else reference
-    # Mentions @ : notification interne (cloche) aux personnes citées, sauf l'auteur.
+    # Mentions @ : les personnes citées sont prévenues (cloche + e-mail selon leur préférence),
+    # sauf l'auteur — on ne se notifie pas soi-même.
     for uid in {m for m in mentions if m and m != courant["id"]}:
         await notifier(
             session,

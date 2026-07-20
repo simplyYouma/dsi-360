@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.config import get_settings
+from dsi360.domain.activite import lien_activite
 from dsi360.infrastructure import audit, email_modeles
 from dsi360.infrastructure.db import get_sessionmaker
 from dsi360.infrastructure.email import envoyer
@@ -50,10 +51,27 @@ async def notifier(
         )
     ).mappings().first()
     if get_settings().notif_email_active and ligne and ligne["envoyer_email"] and ligne["email"]:
+        # Le bouton mène AU dossier concerné, pas à l'accueil : une notification qui oblige à
+        # chercher le ticket a manqué son but. Le module est lu sur l'activité, donc aucun
+        # appelant n'a à le fournir — et aucun ne peut l'oublier.
         sujet, texte, html = email_modeles.notification_activite(
-            titre, message, get_settings().url_app
+            titre, message, await _lien_du_dossier(session, activite_id), type_
         )
         envoyer(ligne["email"], sujet, texte, html)
+
+
+async def _lien_du_dossier(session: AsyncSession, activite_id: str | None) -> str:
+    """Lien profond vers le dossier ; repli sur l'accueil si l'activité n'est pas identifiable."""
+    accueil = get_settings().url_app
+    if not activite_id:
+        return accueil
+    module = await session.scalar(
+        text("SELECT module FROM core.activite WHERE id = cast(:a as uuid)"),
+        {"a": activite_id},
+    )
+    if module is None:
+        return accueil
+    return lien_activite(accueil, str(module), activite_id) or accueil
 
 
 async def notifier_acteurs(
@@ -91,7 +109,7 @@ def _horodatage(valeur: datetime | None) -> str | None:
 
 
 _SELECTION = """
-    SELECT a.id::text AS id, a.reference, a.titre, a.sla_resolution_le,
+    SELECT a.id::text AS id, a.reference, a.titre, a.module, a.sla_resolution_le,
            coalesce(a.responsable_id, a.demandeur_id)::text AS destinataire_id,
            u.email AS destinataire_email,
            coalesce(p.email, true) AS envoyer_email,
@@ -147,7 +165,7 @@ async def scanner_echeances(fenetre_heures: int = 2) -> dict[str, int]:
                         titre_activite=r["titre"],
                         depasse=depasse,
                         echeance=_horodatage(r["sla_resolution_le"]),
-                        url=get_settings().url_app,
+                        url=lien_activite(get_settings().url_app, r["module"], r["id"]),
                     )
                     envoyer(r["destinataire_email"], sujet, texte_mail, html)
     finally:
@@ -303,7 +321,7 @@ async def scanner_escalades() -> dict[str, int]:
                     sujet, texte_mail, html = email_modeles.escalade_p1(
                         reference=r["reference"],
                         titre_activite=r["titre"],
-                        url=get_settings().url_app,
+                        url=lien_activite(get_settings().url_app, r["module"], r["id"]),
                     )
                     envoyer(dest_email["email"], sujet, texte_mail, html)
                 await audit.consigner(

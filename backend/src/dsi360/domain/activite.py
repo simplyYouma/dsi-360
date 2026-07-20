@@ -28,6 +28,34 @@ PREFIXE_REFERENCE: dict[str, str] = {
     "gouvernance": "GOV",
 }
 
+# Chemin de la liste de chaque module dans l'application (cf. features/shell/navigation.ts).
+CHEMIN_MODULE: dict[str, str] = {
+    "incident": "/incidents",
+    "demande": "/demandes",
+    "changement": "/changements",
+    "projet": "/projets",
+    "audit": "/audit",
+    "risque": "/risques",
+    "cybersecurite": "/cybersecurite",
+    "gouvernance": "/gouvernance",
+}
+
+# Projets et changements ont leur page dédiée (/projets/{id}) ; les autres modules ouvrent une
+# fiche par-dessus leur liste (/incidents?fiche={id}). Le lien doit mener AU dossier : un e-mail
+# qui dépose sur le tableau de bord oblige à chercher, et la notification perd tout son intérêt.
+_PAGE_DEDIEE: frozenset[str] = frozenset({"projet", "changement"})
+
+
+def lien_activite(url_app: str, module: str, activite_id: str) -> str | None:
+    """Lien profond vers un dossier précis, ou ``None`` si le module est inconnu."""
+    chemin = CHEMIN_MODULE.get(module)
+    if chemin is None:
+        return None
+    base = url_app.rstrip("/")
+    if module in _PAGE_DEDIEE:
+        return f"{base}{chemin}/{activite_id}"
+    return f"{base}{chemin}?fiche={activite_id}"
+
 
 def _borne(valeur: int, mini: int = 1, maxi: int = 5) -> int:
     if not mini <= valeur <= maxi:
