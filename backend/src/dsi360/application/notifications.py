@@ -4,6 +4,8 @@ Scanne les activités non résolues / non clôturées dont l'échéance de réso
 dépassée, et crée une notification (sans doublon, cf. index unique). Cf. docs/02 & 03.
 """
 
+from datetime import datetime
+
 import asyncpg
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,8 +85,13 @@ async def notifier_acteurs(
                 type_=type_, titre=titre, message=message,
             )
 
+def _horodatage(valeur: datetime | None) -> str | None:
+    """Échéance en clair dans l'e-mail : « 16/07/2026 à 14h30 ». Rien à déchiffrer."""
+    return None if valeur is None else valeur.strftime("%d/%m/%Y à %Hh%M")
+
+
 _SELECTION = """
-    SELECT a.id::text AS id, a.reference, a.titre,
+    SELECT a.id::text AS id, a.reference, a.titre, a.sla_resolution_le,
            coalesce(a.responsable_id, a.demandeur_id)::text AS destinataire_id,
            u.email AS destinataire_email,
            coalesce(p.email, true) AS envoyer_email,
@@ -134,7 +141,15 @@ async def scanner_echeances(fenetre_heures: int = 2) -> dict[str, int]:
                     and r["envoyer_email"]
                     and r["destinataire_actif"]
                 ):
-                    envoyer(r["destinataire_email"], titre, message)
+                    # Gabarit d'alerte, comme tout ce qui quitte la plateforme : jamais de texte nu.
+                    sujet, texte_mail, html = email_modeles.alerte_sla(
+                        reference=r["reference"],
+                        titre_activite=r["titre"],
+                        depasse=depasse,
+                        echeance=_horodatage(r["sla_resolution_le"]),
+                        url=get_settings().url_app,
+                    )
+                    envoyer(r["destinataire_email"], sujet, texte_mail, html)
     finally:
         await conn.close()
     return {"analysees": len(lignes), "crees": crees}
@@ -285,7 +300,12 @@ async def scanner_escalades() -> dict[str, int]:
                     and dest_email["envoyer_email"]
                     and dest_email["email"]
                 ):
-                    envoyer(dest_email["email"], titre, message)
+                    sujet, texte_mail, html = email_modeles.escalade_p1(
+                        reference=r["reference"],
+                        titre_activite=r["titre"],
+                        url=get_settings().url_app,
+                    )
+                    envoyer(dest_email["email"], sujet, texte_mail, html)
                 await audit.consigner(
                     session,
                     action="ESCALADE",

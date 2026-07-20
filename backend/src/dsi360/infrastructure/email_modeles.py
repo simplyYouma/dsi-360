@@ -11,6 +11,14 @@ _FOND = "#f4f5f7"
 _TEXTE = "#16181d"
 _MUET = "#6b7280"
 _BORDURE = "#e5e7eb"
+# Couleurs d'alerte, alignées sur les jetons de l'application (--status-danger / --status-warn).
+# Réservées au sens : une échéance dépassée, une escalade. Jamais décoratives.
+# Les fonds sont des teintes OPAQUES : un hex à 8 chiffres (alpha) n'est pas rendu par Outlook,
+# et le bandeau apparaîtrait sans fond — voire noir.
+_DANGER = "#d64545"
+_DANGER_FOND = "#fdecec"
+_ALERTE = "#c77700"
+_ALERTE_FOND = "#fdf3e3"
 CID_LOGO = "logodsi360"  # identifiant de l'image logo embarquée (cf. infrastructure.email)
 
 
@@ -168,6 +176,74 @@ def notification_activite(
     corps = _p(message) + (_bouton(url, "Ouvrir dans DSI 360") if url else "")
     html = _gabarit(titre, corps, apercu=message[:120])
     return titre, texte, html
+
+
+def _bandeau_alerte(texte: str, couleur: str, fond: str) -> str:
+    """Bandeau d'urgence en tête de carte. La couleur porte le sens, jamais la décoration."""
+    return (
+        f'<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;'
+        f'margin:0 0 16px;background:{fond};border-left:3px solid {couleur};'
+        f'border-radius:8px;"><tr><td style="padding:11px 14px;color:{couleur};'
+        f'font-size:13px;font-weight:700;letter-spacing:0.03em;">{texte}</td></tr></table>'
+    )
+
+
+def alerte_sla(
+    reference: str,
+    titre_activite: str,
+    depasse: bool,
+    echeance: str | None = None,
+    url: str | None = None,
+) -> tuple[str, str, str]:
+    """Échéance SLA dépassée ou en approche. Une alerte doit se lire d'un coup d'œil."""
+    couleur, fond = (_DANGER, _DANGER_FOND) if depasse else (_ALERTE, _ALERTE_FOND)
+    etat = "dépassée" if depasse else "en approche"
+    sujet = f"SLA {etat} — {reference}"
+    intro = (
+        "L'échéance de résolution est dépassée : ce dossier demande une action immédiate."
+        if depasse
+        else "L'échéance de résolution approche : il reste peu de temps pour agir."
+    )
+    lignes = [("Référence", reference), ("Objet", titre_activite)]
+    if echeance:
+        lignes.append(("Échéance", echeance))
+    corps = (
+        _bandeau_alerte(f"SLA {etat.upper()}", couleur, fond)
+        + _p(intro)
+        + _encadre(lignes)
+        + (_bouton(url, "Ouvrir le dossier") if url else "")
+    )
+    texte = (
+        f"{sujet}\n\n{intro}\n\n"
+        f"Référence : {reference}\nObjet : {titre_activite}\n"
+        + (f"Échéance : {echeance}\n" if echeance else "")
+        + (f"\nAccéder : {url}\n" if url else "")
+    )
+    return sujet, texte, _gabarit(sujet, corps, apercu=intro)
+
+
+def escalade_p1(
+    reference: str, titre_activite: str, url: str | None = None
+) -> tuple[str, str, str]:
+    """Ticket P1 non pris en charge dans les délais : l'e-mail le plus urgent du produit."""
+    sujet = f"Escalade P1 — {reference}"
+    intro = (
+        "Ce ticket de priorité 1 n'a pas été pris en charge dans le délai prévu. "
+        "Il vous est escaladé pour prise en main immédiate."
+    )
+    corps = (
+        _bandeau_alerte("ESCALADE — PRIORITÉ 1", _DANGER, _DANGER_FOND)
+        + _p(intro)
+        + _encadre([("Référence", reference), ("Objet", titre_activite), ("Priorité", "P1")])
+        + (_bouton(url, "Prendre en charge") if url else "")
+        + _muet("Cette escalade est journalisée dans le registre d'audit.")
+    )
+    texte = (
+        f"{sujet}\n\n{intro}\n\n"
+        f"Référence : {reference}\nObjet : {titre_activite}\nPriorité : P1\n"
+        + (f"\nAccéder : {url}\n" if url else "")
+    )
+    return sujet, texte, _gabarit(sujet, corps, apercu=intro)
 
 
 def compte_bloque(prenom: str) -> tuple[str, str, str]:
