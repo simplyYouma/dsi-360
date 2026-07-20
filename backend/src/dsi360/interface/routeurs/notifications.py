@@ -57,14 +57,15 @@ async def marquer_lu(notif_id: int, courant: Courant, session: Session) -> None:
 
 
 _PREF = text(
-    "SELECT interne, email, teams, whatsapp FROM core.preference_notification "
+    "SELECT interne, email, son, teams, whatsapp FROM core.preference_notification "
     "WHERE utilisateur_id = cast(:id as uuid)"
 )
 _PREF_UPSERT = text(
-    "INSERT INTO core.preference_notification(utilisateur_id, interne, email, teams, whatsapp) "
-    "VALUES (cast(:id as uuid), :interne, :email, :teams, :whatsapp) "
+    "INSERT INTO core.preference_notification"
+    "(utilisateur_id, interne, email, son, teams, whatsapp) "
+    "VALUES (cast(:id as uuid), :interne, :email, :son, :teams, :whatsapp) "
     "ON CONFLICT (utilisateur_id) DO UPDATE SET "
-    "interne = excluded.interne, email = excluded.email, "
+    "interne = excluded.interne, email = excluded.email, son = excluded.son, "
     "teams = excluded.teams, whatsapp = excluded.whatsapp"
 )
 
@@ -73,7 +74,7 @@ _PREF_UPSERT = text(
 async def preferences(courant: Courant, session: Session) -> dict[str, Any]:
     ligne = (await session.execute(_PREF, {"id": courant["id"]})).mappings().first()
     if ligne is None:
-        return {"interne": True, "email": True, "teams": False, "whatsapp": False}
+        return {"interne": True, "email": True, "son": True, "teams": False, "whatsapp": False}
     return dict(ligne)
 
 
@@ -85,6 +86,7 @@ async def definir_preferences(corps: PreferencesNotif, courant: Courant, session
             "id": courant["id"],
             "interne": corps.interne,
             "email": corps.email,
+            "son": corps.son,
             "teams": corps.teams,
             "whatsapp": corps.whatsapp,
         },

@@ -461,6 +461,8 @@ class NotificationsReponse(BaseModel):
 class PreferencesNotif(BaseModel):
     interne: bool = True
     email: bool = True
+    #: Carillon à l'arrivée d'une notification. Suit le compte, pas le navigateur.
+    son: bool = True
     teams: bool = False
     whatsapp: bool = False
 

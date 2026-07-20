@@ -9,6 +9,15 @@ import { armerSonNotif, jouerSonNotif } from '@/common/sonNotif';
 import { cx } from '@/common/cx';
 import styles from './Notifications.module.css';
 
+/** Canaux de notification de l'agent connecté (côté serveur : suit le compte). */
+interface PreferencesNotif {
+  interne: boolean;
+  email: boolean;
+  son: boolean;
+  teams: boolean;
+  whatsapp: boolean;
+}
+
 interface Notif {
   id: number;
   type: string;
@@ -19,9 +28,6 @@ interface Notif {
   module: string | null;
   activite_id: string | null;
 }
-// Réglage local du carillon (par navigateur) : il n'engage que ce poste.
-const CLE_SON = 'dsi360-son-notif';
-
 const TON: Record<string, string> = {
   SLA_DEPASSE: 'var(--status-danger)',
   SLA_APPROCHE: 'var(--status-warn)',
@@ -44,9 +50,11 @@ export function Notifications(): JSX.Element {
   // Compteur précédent : un carillon ne sonne qu'à l'arrivée d'un nouveau non-lu, jamais au
   // premier chargement ni quand on marque comme lu.
   const precedentNonLus = useRef<number | null>(null);
-  // Le réglage survit au rechargement, et le son est actif par défaut : une notification qu'on
-  // n'entend pas ne sert à rien, c'est à l'agent de demander le silence s'il le souhaite.
-  const [son, setSon] = useState(() => localStorage.getItem(CLE_SON) !== 'non');
+  // Le carillon est une préférence de la personne, pas du poste : il suit le compte d'un
+  // navigateur à l'autre. Actif par défaut — une notification qu'on n'entend pas ne sert à rien,
+  // c'est à l'agent de demander le silence s'il le souhaite.
+  const [prefs, setPrefs] = useState<PreferencesNotif | null>(null);
+  const son = prefs?.son ?? true;
   const sonRef = useRef(son);
   sonRef.current = son;
 
@@ -71,6 +79,29 @@ export function Notifications(): JSX.Element {
   // Le navigateur n'autorise le son qu'après une interaction : on arme le déblocage au premier
   // clic. Sans cela, le carillon reste inaudible pour toute la session, sans le moindre message.
   useEffect(() => armerSonNotif(), []);
+
+  useEffect(() => {
+    void api
+      .get<PreferencesNotif>('/notifications/preferences')
+      .then(setPrefs)
+      .catch(() => undefined);
+  }, []);
+
+  /** Bascule le carillon. Les autres canaux sont renvoyés tels quels : on ne les écrase pas. */
+  const basculerSon = (): void => {
+    const base: PreferencesNotif = prefs ?? {
+      interne: true,
+      email: true,
+      son: true,
+      teams: false,
+      whatsapp: false,
+    };
+    const suivant = { ...base, son: !base.son };
+    setPrefs(suivant);
+    // Le réglage s'entend tout de suite : l'activer joue le carillon, donc il fait sa preuve.
+    if (suivant.son) jouerSonNotif();
+    void api.put('/notifications/preferences', suivant).catch(() => setPrefs(base));
+  };
 
   // La pastille se met à jour seule : sans cela, elle reste muette jusqu'au prochain rechargement.
   useRafraichissement(() => void charger());
@@ -120,12 +151,7 @@ export function Notifications(): JSX.Element {
                 {/* Réglage ET preuve : activer le son le joue aussitôt, donc on l'entend. */}
                 <button
                   className={styles.lien}
-                  onClick={() => {
-                    const suivant = !son;
-                    setSon(suivant);
-                    localStorage.setItem(CLE_SON, suivant ? 'oui' : 'non');
-                    if (suivant) jouerSonNotif();
-                  }}
+                  onClick={basculerSon}
                   aria-pressed={son}
                   title={
                     son ? 'Son activé — cliquer pour couper' : 'Son coupé — cliquer pour activer'
