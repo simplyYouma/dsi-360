@@ -73,19 +73,25 @@ def test_chaque_module_peut_aboutir(module: str) -> None:
     assert statuts_de_phase(TERMINE, module=module), f"{module} : aucun état d'aboutissement"
 
 
-def test_un_meme_libelle_garde_la_meme_phase_partout() -> None:
-    """« Accepté » terminé ici et en cours là : les stats transverses mentiraient."""
+@pytest.mark.parametrize("attribut", ["phase", "ton"])
+def test_un_meme_libelle_garde_le_meme_sens_partout(attribut: str) -> None:
+    """Un statut homonyme doit signifier la même chose dans tous les modules.
+
+    Sinon les statistiques transverses mentiraient — et l'écran, qui affiche souvent un badge sans
+    connaître le module (listes mêlées, « Ses tickets »), n'aurait aucun moyen de trancher.
+    """
     vu: dict[str, tuple[str, str]] = {}
     for module, etats in ETATS.items():
         for nom, etat in etats.items():
+            valeur = getattr(etat, attribut)
             if nom in vu:
-                autre_module, autre_phase = vu[nom]
-                assert etat.phase == autre_phase, (
-                    f"« {nom} » est {etat.phase} dans {module} "
-                    f"mais {autre_phase} dans {autre_module}"
+                autre_module, autre_valeur = vu[nom]
+                assert valeur == autre_valeur, (
+                    f"« {nom} » a {attribut}={valeur} dans {module} "
+                    f"mais {autre_valeur} dans {autre_module}"
                 )
             else:
-                vu[nom] = (module, etat.phase)
+                vu[nom] = (module, valeur)
 
 
 def test_resolu_est_termine_sans_etre_verrouille() -> None:

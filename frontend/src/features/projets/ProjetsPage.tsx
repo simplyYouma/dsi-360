@@ -41,7 +41,7 @@ const COLONNES: Colonne<Projet>[] = [
     cle: 'statut',
     entete: 'Statut',
     valeur: (p) => p.statut,
-    rendu: (p) => <BadgeStatut statut={p.statut} />,
+    rendu: (p) => <BadgeStatut statut={p.statut} module="projet" />,
   },
   {
     cle: 'chef',

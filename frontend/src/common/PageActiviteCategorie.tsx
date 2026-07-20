@@ -113,7 +113,7 @@ export function PageActiviteCategorie({
       cle: 'statut',
       entete: 'Statut',
       valeur: (a) => a.statut,
-      rendu: (a) => <BadgeStatut statut={a.statut} />,
+      rendu: (a) => <BadgeStatut statut={a.statut} module={module} />,
     },
     {
       cle: 'responsable',

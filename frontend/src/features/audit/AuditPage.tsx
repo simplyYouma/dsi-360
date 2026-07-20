@@ -63,7 +63,7 @@ const COLONNES: Colonne<Recommandation>[] = [
     cle: 'statut',
     entete: 'Statut',
     valeur: (r) => r.statut,
-    rendu: (r) => <BadgeStatut statut={r.statut} />,
+    rendu: (r) => <BadgeStatut statut={r.statut} module="audit" />,
   },
   {
     cle: 'responsable',

@@ -237,6 +237,9 @@ class EtatReferentiel(BaseModel):
     phase: str
     #: nouveau | actif | attente | recul | succes | echec — la nuance visuelle du badge.
     ton: str
+    #: État sans suite : le dossier ne bouge plus, il passe en lecture seule. Distinct de la
+    #: phase — « Résolu » est terminé mais reste clôturable et réouvrable.
+    verrou: bool
 
 
 class ApercuLien(BaseModel):

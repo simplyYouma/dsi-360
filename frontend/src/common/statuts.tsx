@@ -1,82 +1,44 @@
 import { StatusBadge } from '@/design-system/primitives';
+import {
+  libelleStatut as libelleDuCycle,
+  tonStatut,
+  verrouilleLeDossier,
+  type Ton,
+} from '@/common/cyclesDeVie';
 
-// Couleur = sens : on classe les statuts par signification métier.
-const STATUT_OK = new Set([
-  'Résolu',
-  'Résolue',
-  'Clôturé',
-  'Clôturée',
-  'Implémenté',
-  'Validé',
-  'Maîtrisé',
-  'Accepté',
-]);
-const STATUT_DANGER = new Set(['Rejeté', 'Rejetée', 'Annulé', 'Retour arrière']);
-// Vigilance : le sujet recule ou s'arrête (réouvert, suspendu, reporté).
-const STATUT_WARN = new Set(['Réouvert', 'Réouverte', 'Suspendu', 'Reporté']);
-// En attente d'une décision ou d'une revue (violet) : il avance, mais dépend d'un avis.
-const STATUT_VALIDATION = new Set([
-  'Soumis',
-  'Évaluation',
-  'CAB',
-  'ECAB',
-  'En validation',
-  'En validation de clôture',
-  'Revue post-implémentation',
-  'Revue',
-]);
-// Vient d'arriver, personne n'y a touché (cyan). Distinct de « en cours » : c'est ce que
-// « toujours la même couleur » désignait — un nouveau ne se voyait pas d'un actif.
-const STATUT_NOUVEAU = new Set([
-  'Nouveau',
-  'Nouvelle',
-  'Brouillon',
-  'Identifié',
-  'À engager',
-  'Cadrage',
-  'Ouverte',
-  'À qualifier',
-]);
-
-// Renommage d'affichage : le sigle ITIL reste le statut stocké (base, historique, workflow),
-// mais on montre à l'écran un libellé clair. Un seul point de vérité, réutilisé partout.
-const LIBELLE_STATUT: Record<string, string> = {
-  CAB: 'Attente comité',
-  ECAB: 'Validation express',
+// La couleur porte le sens, et le sens vient du domaine : chaque statut déclare son ton dans
+// `domain/etats` côté serveur. Ici, on ne fait plus que traduire ce ton en couleur. Tant que
+// l'écran tenait ses propres listes de statuts, elles divergeaient de celles du backend.
+const COULEUR_TON: Record<Ton, string> = {
+  nouveau: 'var(--cat-7)', // vient d'arriver, personne n'y a touché
+  actif: 'var(--cat-1)', // du travail en cours chez nous
+  attente: 'var(--cat-5)', // suspendu à la décision ou à l'avis d'un tiers
+  recul: 'var(--status-warn)', // le dossier revient en arrière ou s'arrête
+  succes: 'var(--status-ok)', // abouti
+  echec: 'var(--status-danger)', // n'aboutira pas
 };
 
-/** Libellé lisible d'un statut (renomme les sigles ; identité sinon). */
-export function libelleStatut(statut: string): string {
-  return LIBELLE_STATUT[statut] ?? statut;
+/** Libellé lisible d'un statut (« CAB » → « Attente comité »). Identité si inconnu. */
+export function libelleStatut(statut: string, module?: string): string {
+  return libelleDuCycle(statut, module);
 }
 
-// États qui closent ou annulent une activité : la transition vers eux demande une confirmation.
-const STATUT_CLOTURANT = new Set([
-  'Clôturé',
-  'Clôturée',
-  'Rejeté',
-  'Rejetée',
-  'Annulé',
-  'Retour arrière',
-  'Réalisé',
-]);
-
-/** La transition vers cet état clôture ou annule l'activité ? (confirmation exigée avant le clic). */
-export function estTransitionCloturante(statut: string): boolean {
-  return STATUT_CLOTURANT.has(statut);
+/** Passer à cet état verrouille-t-il le dossier ? (confirmation exigée avant le clic).
+ *
+ * C'est bien le verrou — l'état sans suite — et non la phase : « Résolu » ne réclame plus de
+ * travail mais reste clôturable et réouvrable, il n'y a donc rien à confirmer.
+ */
+export function estTransitionCloturante(statut: string, module?: string): boolean {
+  return verrouilleLeDossier(statut, module);
 }
 
-/** Badge de statut coloré selon le sens (vert = abouti, rouge = négatif, ambre = vigilance,
- * indigo = en cours / nouveau). */
-export function BadgeStatut({ statut }: { statut: string }): JSX.Element {
-  const t = libelleStatut(statut);
-  if (STATUT_OK.has(statut)) return <StatusBadge statut="ok">{t}</StatusBadge>;
-  if (STATUT_DANGER.has(statut)) return <StatusBadge statut="danger">{t}</StatusBadge>;
-  if (STATUT_WARN.has(statut)) return <StatusBadge statut="warn">{t}</StatusBadge>;
-  if (STATUT_VALIDATION.has(statut)) return <StatusBadge couleur="var(--cat-5)">{t}</StatusBadge>;
-  if (STATUT_NOUVEAU.has(statut)) return <StatusBadge couleur="var(--cat-7)">{t}</StatusBadge>;
-  // Le reste : en cours / actif (indigo).
-  return <StatusBadge couleur="var(--cat-1)">{t}</StatusBadge>;
+/** Badge de statut, coloré selon le ton déclaré par le domaine. */
+export function BadgeStatut({ statut, module }: { statut: string; module?: string }): JSX.Element {
+  return (
+    <StatusBadge couleur={COULEUR_TON[tonStatut(statut, module)]}>
+      {libelleStatut(statut, module)}
+    </StatusBadge>
+  );
 }
 
 const PRIORITE_COULEUR: Record<number, string> = {
@@ -87,13 +49,8 @@ const PRIORITE_COULEUR: Record<number, string> = {
   5: 'var(--text-muted)',
 };
 
-export function couleurStatut(statut: string): string {
-  if (STATUT_OK.has(statut)) return 'var(--status-ok)';
-  if (STATUT_DANGER.has(statut)) return 'var(--status-danger)';
-  if (STATUT_WARN.has(statut)) return 'var(--status-warn)';
-  if (STATUT_VALIDATION.has(statut)) return 'var(--cat-5)';
-  if (STATUT_NOUVEAU.has(statut)) return 'var(--cat-7)';
-  return 'var(--cat-1)';
+export function couleurStatut(statut: string, module?: string): string {
+  return COULEUR_TON[tonStatut(statut, module)];
 }
 
 export function BadgePriorite({ priorite }: { priorite: number }): JSX.Element {

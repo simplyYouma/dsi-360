@@ -114,7 +114,11 @@ ETATS: dict[str, dict[str, Etat]] = {
         "Revue": Etat(("Traitement",), EN_COURS, ATTENTE),
     },
     "cybersecurite": {
-        "Ouvert": Etat(("En traitement", "Accepté"), EN_COURS, NOUVEAU),
+        # Ton ACTIF et non NOUVEAU : « Ouvert » désigne la deuxième étape d'un incident. Un même
+        # libellé doit garder le même sens partout, sinon l'écran — qui affiche souvent un badge
+        # sans connaître le module — ne peut pas trancher. Une vulnérabilité ouverte est de toute
+        # façon un sujet actif.
+        "Ouvert": Etat(("En traitement", "Accepté"), EN_COURS, ACTIF),
         "En traitement": Etat(("Corrigé", "Accepté"), EN_COURS, ACTIF),
         "Corrigé": Etat(("Clôturé", "Réouvert"), TERMINE, SUCCES),
         # Vulnérabilité acceptée : décision assumée, plus de travail attendu.

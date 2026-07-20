@@ -9,6 +9,7 @@ import {
   effacerJetons,
   incarneUnCompte,
 } from './api';
+import { chargerCycles } from '@/common/cyclesDeVie';
 
 export interface Moi {
   id: string;
@@ -59,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
         return;
       }
       try {
-        const profil = await api.get<Moi>('/moi');
+        // Les cycles de vie arrivent avec le profil : les écrans y lisent le sens des statuts
+        // (couleur, libellé, verrou) dès le premier rendu, sans clignotement.
+        const [profil] = await Promise.all([api.get<Moi>('/moi'), chargerCycles()]);
         if (actif) setMoi(profil);
       } catch {
         effacerJetons();
@@ -79,7 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       mot_de_passe: motDePasse,
     });
     definirJetons(jetons.acces, jetons.refresh);
-    const profil = await api.get<Moi>('/moi');
+    // Première connexion de la session : les cycles n'ont pas pu être lus au démarrage (pas de
+    // jeton). On les charge maintenant, avant d'afficher le moindre statut.
+    const [profil] = await Promise.all([api.get<Moi>('/moi'), chargerCycles()]);
     setMoi(profil);
   }, []);
 

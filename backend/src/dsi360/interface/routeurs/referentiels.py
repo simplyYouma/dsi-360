@@ -84,8 +84,8 @@ _LIBELLE_STATUT = {
 @routeur.get("/cycles-de-vie", response_model=dict[str, list[EtatReferentiel]])
 async def cycles_de_vie(
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
-) -> dict[str, list[dict[str, str]]]:
-    """Cycle de vie de chaque module : statuts ordonnés, avec leur phase et leur ton.
+) -> dict[str, list[dict[str, Any]]]:
+    """Cycle de vie de chaque module : statuts ordonnés, avec leur phase, leur ton et leur verrou.
 
     Le front n'a plus à redeviner le sens d'un statut : il le lit ici. Une seule déclaration
     (`domain.etats`) alimente les filtres, les compteurs et les couleurs.
@@ -97,6 +97,7 @@ async def cycles_de_vie(
                 "libelle": _LIBELLE_STATUT.get(nom, nom),
                 "phase": etat.phase,
                 "ton": etat.ton,
+                "verrou": not etat.suites,
             }
             for nom, etat in cycle.items()
         ]

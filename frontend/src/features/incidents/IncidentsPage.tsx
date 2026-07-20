@@ -61,7 +61,7 @@ const COLONNES: Colonne<Incident>[] = [
     cle: 'statut',
     entete: 'Statut',
     valeur: (i) => i.statut,
-    rendu: (i) => <BadgeStatut statut={i.statut} />,
+    rendu: (i) => <BadgeStatut statut={i.statut} module="incident" />,
   },
   {
     // Où se trouve le ticket, sans ouvrir la fiche : déduit du gestionnaire à chaque import.

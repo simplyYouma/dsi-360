@@ -176,7 +176,7 @@ export function ChangementPage(): JSX.Element {
     try {
       const d = await changementsApi.transition(id, vers);
       setDetail(d);
-      notifier(`${d.reference} · ${libelleStatut(vers)}`, 'succes');
+      notifier(`${d.reference} · ${libelleStatut(vers, 'changement')}`, 'succes');
       if (d.en_attente_validation === true) {
         notifier('En attente de la décision du valideur pour passer à l’étape suivante.', 'info');
       }
@@ -189,11 +189,11 @@ export function ChangementPage(): JSX.Element {
 
   // Confirmation seulement pour les états qui closent ou annulent le changement.
   const lancerTransition = (vers: string): void => {
-    if (estTransitionCloturante(vers)) {
+    if (estTransitionCloturante(vers, 'changement')) {
       setConfirmation({
-        titre: `${libelleStatut(vers)} — confirmation`,
-        message: `Passer le changement à « ${libelleStatut(vers)} » ? Cet état le clôt : il passera en lecture seule.`,
-        libelleConfirmer: libelleStatut(vers),
+        titre: `${libelleStatut(vers, 'changement')} — confirmation`,
+        message: `Passer le changement à « ${libelleStatut(vers, 'changement')} » ? Cet état le clôt : il passera en lecture seule.`,
+        libelleConfirmer: libelleStatut(vers, 'changement'),
         variante: 'danger',
         action: () => transitionner(vers),
       });
@@ -315,7 +315,7 @@ export function ChangementPage(): JSX.Element {
             {envoi ? 'Création…' : 'Créer le changement'}
           </Button>
         ) : (
-          detail && <BadgeStatut statut={detail.statut} />
+          detail && <BadgeStatut statut={detail.statut} module="changement" />
         )}
       </header>
 
@@ -618,7 +618,7 @@ export function ChangementPage(): JSX.Element {
                   </span>
                   {/* Faire avancer le sujet appartient aux acteurs : les autres lisent le parcours. */}
                   {(permissions.peut_travailler ? detail.transitions_possibles : []).map((etat) => {
-                    const c = couleurStatut(etat);
+                    const c = couleurStatut(etat, 'changement');
                     return (
                       <button
                         key={etat}
@@ -631,7 +631,7 @@ export function ChangementPage(): JSX.Element {
                         disabled={envoi}
                         onClick={() => lancerTransition(etat)}
                       >
-                        {libelleStatut(etat)}
+                        {libelleStatut(etat, 'changement')}
                         <ArrowRight size={13} />
                       </button>
                     );

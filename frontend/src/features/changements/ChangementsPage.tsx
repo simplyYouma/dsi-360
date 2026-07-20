@@ -58,7 +58,7 @@ const COLONNES: Colonne<Changement>[] = [
     cle: 'statut',
     entete: 'Statut',
     valeur: (c) => c.statut,
-    rendu: (c) => <BadgeStatut statut={c.statut} />,
+    rendu: (c) => <BadgeStatut statut={c.statut} module="changement" />,
   },
   {
     cle: 'responsable',

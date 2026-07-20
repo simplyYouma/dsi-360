@@ -67,7 +67,7 @@ const COLONNES: Colonne<Risque>[] = [
     cle: 'statut',
     entete: 'Statut',
     valeur: (r) => r.statut,
-    rendu: (r) => <BadgeStatut statut={r.statut} />,
+    rendu: (r) => <BadgeStatut statut={r.statut} module="risque" />,
   },
   {
     cle: 'responsable',
