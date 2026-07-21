@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.echeances import _collecter, paliers_dus
-from tests.integration.conftest import creer_activite, creer_utilisateur
+from tests.integration.conftest import creer_activite, creer_utilisateur, designer
 
 
 async def _tache(session: AsyncSession, activite_id: str, assigne: str, echeance: date) -> str:
@@ -101,6 +101,64 @@ async def test_le_porteur_qui_est_aussi_responsable_n_est_prevenu_qu_une_fois(
     ]
 
     assert len(echeances) == 1, "une seule ligne quand les deux rôles sont la même personne"
+
+
+async def test_le_contributeur_est_prevenu_lui_aussi(session: AsyncSession) -> None:
+    """Un renfort travaille sur le dossier : il doit voir venir l'échéance comme les autres."""
+    chef = await creer_utilisateur(session, email="chef.contrib@afgbank.ml")
+    porteur = await creer_utilisateur(session, email="porteur.contrib@afgbank.ml")
+    renfort = await creer_utilisateur(session, email="renfort.contrib@afgbank.ml")
+    projet = await creer_activite(
+        session, module="projet", reference="PRJ-CONTRIB", responsable_id=chef
+    )
+    await designer(session, activite_id=projet, utilisateur_id=renfort, role="CONTRIBUTEUR")
+    await _tache(session, projet, porteur, date(2026, 8, 1))
+    await session.commit()
+
+    echeances = await _collecter(session)
+    destinataires = {
+        e.destinataire_id
+        for e in echeances
+        if e.reference == "PRJ-CONTRIB" and e.nature == "tache"
+    }
+
+    assert destinataires == {chef, porteur, renfort}
+
+
+async def test_le_contributeur_suit_aussi_les_echeances_du_dossier(
+    session: AsyncSession,
+) -> None:
+    """Pas seulement les tâches : le SLA du dossier le concerne autant que son gestionnaire."""
+    gestionnaire = await creer_utilisateur(session, email="gest.sla@afgbank.ml")
+    renfort = await creer_utilisateur(session, email="renfort.sla@afgbank.ml")
+    inc = await creer_activite(
+        session, module="incident", reference="INC-CONTRIB", responsable_id=gestionnaire
+    )
+    await designer(session, activite_id=inc, utilisateur_id=renfort, role="CONTRIBUTEUR")
+    await session.commit()
+
+    echeances = await _collecter(session)
+    destinataires = {
+        e.destinataire_id for e in echeances if e.reference == "INC-CONTRIB" and e.nature == "sla"
+    }
+
+    assert destinataires == {gestionnaire, renfort}
+
+
+async def test_un_valideur_ne_recoit_pas_les_rappels(session: AsyncSession) -> None:
+    """Le valideur décide, il ne porte pas le planning : le prévenir serait du bruit."""
+    gestionnaire = await creer_utilisateur(session, email="gest.val@afgbank.ml")
+    valideur = await creer_utilisateur(session, email="valideur.ech@afgbank.ml")
+    inc = await creer_activite(
+        session, module="incident", reference="INC-VALIDEUR", responsable_id=gestionnaire
+    )
+    await designer(session, activite_id=inc, utilisateur_id=valideur, role="VALIDEUR")
+    await session.commit()
+
+    echeances = await _collecter(session)
+    destinataires = {e.destinataire_id for e in echeances if e.reference == "INC-VALIDEUR"}
+
+    assert destinataires == {gestionnaire}
 
 
 async def test_une_tache_terminee_ne_rappelle_plus(session: AsyncSession) -> None:

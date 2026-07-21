@@ -129,58 +129,77 @@ def _reste(e: Echeance, maintenant: datetime) -> str:
 # dossiers clôturés sont écartés à la source, jamais rattrapés après coup.
 _ACTIF = "a.cloture_le IS NULL AND a.resolu_le IS NULL"
 
+
+def _destinataires(*roles: str) -> str:
+    """Qui prévenir : les rôles porteurs de l'échéance, PLUS les contributeurs du dossier.
+
+    Un contributeur travaille sur le dossier — il doit voir venir l'échéance comme les autres.
+    Le ``UNION`` dédoublonne : une même personne cumulant deux rôles n'est prévenue qu'une fois.
+    Produit une ligne par destinataire ; ``d.dest`` peut être NULL et se filtre côté appelant.
+    """
+    return (
+        "CROSS JOIN LATERAL ("
+        f"  SELECT unnest(ARRAY[{', '.join(roles)}]) AS dest"
+        "  UNION"
+        "  SELECT aa.utilisateur_id FROM core.activite_acteur aa"
+        "   WHERE aa.activite_id = a.id AND aa.role = 'CONTRIBUTEUR'"
+        ") d"
+    )
+
 _SQL_SLA = f"""
 SELECT 'sla' AS nature, a.id::text AS cible_id, a.sla_resolution_le AS echeance,
-       a.cree_le AS depart, coalesce(a.responsable_id, a.demandeur_id)::text AS destinataire_id,
+       a.cree_le AS depart, d.dest::text AS destinataire_id,
        a.id::text AS activite_id, a.module, a.reference, a.titre AS objet
 FROM core.activite a
+{_destinataires("coalesce(a.responsable_id, a.demandeur_id)")}
 WHERE {_ACTIF} AND a.sla_resolution_le IS NOT NULL AND a.cree_le IS NOT NULL
-  AND coalesce(a.responsable_id, a.demandeur_id) IS NOT NULL
+  AND d.dest IS NOT NULL
 """
 
-# L'échéance d'une tâche concerne son porteur ET le responsable du dossier — chef de projet ou
-# gestionnaire du changement : c'est lui qui répond du planning d'ensemble. Le `unnest` distinct
-# produit une ligne par destinataire, et n'en produit qu'une quand c'est la même personne.
+# L'échéance d'une tâche concerne son porteur, le responsable du dossier — chef de projet ou
+# gestionnaire du changement, qui répond du planning d'ensemble — et les contributeurs.
 _SQL_TACHE = f"""
 SELECT 'tache' AS nature, t.id::text AS cible_id, t.echeance::timestamptz AS echeance,
        NULL::timestamptz AS depart, d.dest::text AS destinataire_id,
        a.id::text AS activite_id, a.module, a.reference, t.titre AS objet
 FROM core.tache t
 JOIN core.activite a ON a.id = t.activite_id
-CROSS JOIN LATERAL (
-  SELECT DISTINCT unnest(ARRAY[t.assigne_id, a.responsable_id]) AS dest
-) d
+{_destinataires("t.assigne_id", "a.responsable_id")}
 WHERE t.echeance IS NOT NULL AND d.dest IS NOT NULL
   AND t.statut <> 'Terminée' AND {_ACTIF}
 """
 
 _SQL_JALON = f"""
 SELECT 'jalon' AS nature, j.id::text AS cible_id, j.echeance::timestamptz AS echeance,
-       NULL::timestamptz AS depart, a.responsable_id::text AS destinataire_id,
+       NULL::timestamptz AS depart, d.dest::text AS destinataire_id,
        a.id::text AS activite_id, a.module, a.reference, j.titre AS objet
-FROM core.jalon j JOIN core.activite a ON a.id = j.activite_id
+FROM core.jalon j
+JOIN core.activite a ON a.id = j.activite_id
+{_destinataires("a.responsable_id")}
 WHERE j.echeance IS NOT NULL AND j.atteint = false
-  AND a.responsable_id IS NOT NULL AND {_ACTIF}
+  AND d.dest IS NOT NULL AND {_ACTIF}
 """
 
 _SQL_PROJET = f"""
 SELECT 'projet' AS nature, a.id::text AS cible_id,
        (a.donnees->>'date_fin')::date::timestamptz AS echeance,
-       NULL::timestamptz AS depart, a.responsable_id::text AS destinataire_id,
+       NULL::timestamptz AS depart, d.dest::text AS destinataire_id,
        a.id::text AS activite_id, a.module, a.reference, a.titre AS objet
 FROM core.activite a
+{_destinataires("a.responsable_id")}
 WHERE a.module = 'projet' AND nullif(a.donnees->>'date_fin', '') IS NOT NULL
-  AND a.responsable_id IS NOT NULL AND {_ACTIF}
+  AND d.dest IS NOT NULL AND {_ACTIF}
 """
 
-_SQL_REVUE = """
+_SQL_REVUE = f"""
 SELECT 'revue' AS nature, a.id::text AS cible_id,
        (a.donnees->>'prochaine_revue')::date::timestamptz AS echeance,
-       NULL::timestamptz AS depart, a.responsable_id::text AS destinataire_id,
+       NULL::timestamptz AS depart, d.dest::text AS destinataire_id,
        a.id::text AS activite_id, a.module, a.reference, a.titre AS objet
 FROM core.activite a
+{_destinataires("a.responsable_id")}
 WHERE nullif(a.donnees->>'prochaine_revue', '') IS NOT NULL
-  AND a.responsable_id IS NOT NULL AND a.cloture_le IS NULL
+  AND d.dest IS NOT NULL AND a.cloture_le IS NULL
 """
 
 _SOURCES = (_SQL_SLA, _SQL_TACHE, _SQL_JALON, _SQL_PROJET, _SQL_REVUE)
