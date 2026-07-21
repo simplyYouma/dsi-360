@@ -5,6 +5,7 @@ Jusqu'ici une échéance de tâche ne déclenchait rien du tout, et le SLA n'ale
 
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -266,3 +267,78 @@ async def test_reassigner_une_tache_previent_les_deux_agents(session: AsyncSessi
 
     assert "réattribuée" in par_agent[ancien].lower(), "l'ancien apprend qu'on la lui retire"
     assert "assignée" in par_agent[nouveau].lower(), "le nouveau apprend qu'il la reçoit"
+
+
+async def _poser_statut(session: AsyncSession, activite_id: str, statut: str) -> None:
+    """Statut posé directement : certains états ne posent AUCUN horodatage (rejeté, annulé…)."""
+    await session.execute(
+        text("UPDATE core.activite SET statut = :s WHERE id = cast(:a as uuid)"),
+        {"s": statut, "a": activite_id},
+    )
+    await session.commit()
+
+
+@pytest.mark.parametrize("statut", ["Annulé", "Clôturé", "Résolu"])
+async def test_un_dossier_fini_ne_reclame_plus_rien(session: AsyncSession, statut: str) -> None:
+    """Un incident annulé ou clos ne doit plus relancer personne — ni SLA, ni tâche.
+
+    « Annulé » ne pose ni `resolu_le` ni `cloture_le` : le filtre par horodatage le laissait
+    passer, et son SLA continuait de courir indéfiniment.
+    """
+    gestionnaire = await creer_utilisateur(session, email=f"gest.fin{len(statut)}@afgbank.ml")
+    inc = await creer_activite(
+        session, module="incident", reference=f"INC-FIN-{statut}", responsable_id=gestionnaire
+    )
+    await _tache(session, inc, gestionnaire, date(2026, 8, 1))
+    await _poser_statut(session, inc, statut)
+
+    echeances = await _collecter(session)
+
+    assert not [e for e in echeances if e.reference == f"INC-FIN-{statut}"]
+
+
+async def test_un_risque_maitrise_garde_sa_revue_periodique(session: AsyncSession) -> None:
+    """Exception assumée : « Maîtrisé » est terminé, mais c'est sa revue qui doit le ramener.
+
+    Écarter toutes les phases terminées ici priverait le risque de sa revue — et il ne
+    reviendrait jamais dans les écrans, ce qui est exactement l'inverse du but.
+    """
+    resp = await creer_utilisateur(session, email="resp.revue@afgbank.ml")
+    risque = await creer_activite(
+        session, module="risque", reference="RSQ-REVUE-1", responsable_id=resp
+    )
+    await session.execute(
+        text(
+            "UPDATE core.activite SET statut = 'Maîtrisé', "
+            "donnees = donnees || jsonb_build_object('prochaine_revue', '2026-08-01') "
+            "WHERE id = cast(:a as uuid)"
+        ),
+        {"a": risque},
+    )
+    await session.commit()
+
+    echeances = await _collecter(session)
+    natures = {e.nature for e in echeances if e.reference == "RSQ-REVUE-1"}
+
+    assert natures == {"revue"}, "sa revue subsiste, mais plus son SLA ni ses tâches"
+
+
+async def test_un_risque_abandonne_ne_garde_pas_sa_revue(session: AsyncSession) -> None:
+    """L'exception s'arrête à l'abandon : un dossier rejeté ne se revoit pas."""
+    resp = await creer_utilisateur(session, email="resp.rejet@afgbank.ml")
+    chg = await creer_activite(
+        session, module="changement", reference="CHG-REJET-1", responsable_id=resp
+    )
+    await session.execute(
+        text(
+            "UPDATE core.activite SET statut = 'Rejeté', "
+            "donnees = donnees || jsonb_build_object('prochaine_revue', '2026-08-01') "
+            "WHERE id = cast(:a as uuid)"
+        ),
+        {"a": chg},
+    )
+    await session.commit()
+
+    echeances = await _collecter(session)
+
+    assert not [e for e in echeances if e.reference == "CHG-REJET-1"]

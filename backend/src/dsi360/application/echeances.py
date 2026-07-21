@@ -36,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.notifications import notifier
 from dsi360.config import get_settings
+from dsi360.domain import etats
 from dsi360.domain.activite import lien_activite
 from dsi360.infrastructure import email_modeles
 from dsi360.infrastructure.db import get_sessionmaker
@@ -125,9 +126,25 @@ def _reste(e: Echeance, maintenant: datetime) -> str:
     return f"{prefixe}{int(secondes // 86400)} j"
 
 
-# Une échéance n'a de sens que sur un dossier encore en cours : les statuts terminaux et les
-# dossiers clôturés sont écartés à la source, jamais rattrapés après coup.
-_ACTIF = "a.cloture_le IS NULL AND a.resolu_le IS NULL"
+def _phases_sql(*phases: str) -> str:
+    """Condition « le statut appartient à ces phases », dérivée de `domain.etats`."""
+    noms = sorted(etats.statuts_de_phase(*phases))
+    valeurs = ", ".join("'" + n.replace("'", "''") + "'" for n in noms)
+    return f"a.statut IN ({valeurs})"
+
+
+# Une échéance n'a de sens que sur un dossier encore en cours.
+#
+# C'est le STATUT qui en décide, pas les horodatages : seuls « Résolu » et « Clôturé » posent un
+# `resolu_le` / `cloture_le`. « Rejeté », « Annulé », « Réalisé », « Maîtrisé » n'en posent aucun
+# et passaient donc le filtre — un ticket annulé continuait de réclamer son SLA indéfiniment.
+# Les horodatages restent testés en complément : un dossier résolu ne se relance pas non plus.
+_ACTIF = f"({_phases_sql(etats.EN_COURS)} AND a.cloture_le IS NULL AND a.resolu_le IS NULL)"
+
+# Exception assumée pour la revue périodique : un risque « Maîtrisé » ou « Accepté » est en phase
+# terminée, mais c'est précisément sa revue qui doit le ramener dans les écrans. On n'écarte donc
+# ici que l'abandon (rejeté, annulé) et la clôture définitive.
+_REVUABLE = f"(NOT ({_phases_sql(etats.ABANDONNE)}) AND a.cloture_le IS NULL)"
 
 
 def _destinataires(*roles: str) -> str:
@@ -199,7 +216,7 @@ SELECT 'revue' AS nature, a.id::text AS cible_id,
 FROM core.activite a
 {_destinataires("a.responsable_id")}
 WHERE nullif(a.donnees->>'prochaine_revue', '') IS NOT NULL
-  AND d.dest IS NOT NULL AND a.cloture_le IS NULL
+  AND d.dest IS NOT NULL AND {_REVUABLE}
 """
 
 _SOURCES = (_SQL_SLA, _SQL_TACHE, _SQL_JALON, _SQL_PROJET, _SQL_REVUE)
