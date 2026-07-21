@@ -50,6 +50,15 @@ EXEMPLES: dict[str, dict[str, object]] = {
         "titre_activite": "Coupure du cœur bancaire",
         "url": "https://dsi360",
     },
+    "alerte_echeance": {
+        "nature": "Échéance de tâche",
+        "objet": "Rédiger le plan de reprise",
+        "reference": "PRJ-2026-0001",
+        "echeance": "20/07/2026",
+        "reste": "dans 3 j",
+        "atteinte": False,
+        "url": "https://dsi360",
+    },
 }
 
 

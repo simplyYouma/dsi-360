@@ -62,7 +62,7 @@ _log = logging.getLogger("dsi360.ordonnanceur")
 
 
 async def _ordonnanceur(intervalle_s: int) -> None:
-    """Tâche de fond native : scanne périodiquement les échéances SLA et les escalades P1.
+    """Tâche de fond native : rappels d'échéance (SLA, tâches, jalons, projets, revues) + escalades.
 
     Remplace le worker/beat Celery (exécution native sans Redis, cf. ADR-0002).
     """
@@ -71,7 +71,7 @@ async def _ordonnanceur(intervalle_s: int) -> None:
         try:
             await scanner_tout()
         except Exception as exc:  # noqa: BLE001 — un scan raté ne doit pas tuer la boucle
-            _log.warning("Scan SLA/escalade échec : %s", exc)
+            _log.warning("Scan des échéances / escalades échec : %s", exc)
 
 
 @contextlib.asynccontextmanager

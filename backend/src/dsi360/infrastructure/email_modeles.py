@@ -248,6 +248,39 @@ def alerte_sla(
     return sujet, texte, _gabarit(sujet, corps, apercu=intro)
 
 
+def alerte_echeance(
+    nature: str,
+    objet: str,
+    reference: str,
+    echeance: str,
+    reste: str,
+    atteinte: bool,
+    url: str | None = None,
+) -> tuple[str, str, str]:
+    """Rappel d'échéance (tâche, jalon, fin de projet, revue) — deux avant, un le jour même."""
+    couleur, fond = (_DANGER, _DANGER_FOND) if atteinte else (_ALERTE, _ALERTE_FOND)
+    etat = "atteinte" if atteinte else "proche"
+    sujet = f"{nature} {etat} — {reference}"
+    intro = (
+        "L'échéance est arrivée : ce dossier demande votre attention."
+        if atteinte
+        else "L'échéance approche : il reste du temps pour agir, mais il se réduit."
+    )
+    lignes = [("Objet", objet), ("Référence", reference), ("Échéance", f"{echeance} ({reste})")]
+    corps = (
+        _bandeau_alerte(f"{nature.upper()} {etat.upper()}", couleur, fond)
+        + _p(intro)
+        + _encadre(lignes)
+        + (_bouton(url, "Ouvrir le dossier") if url else "")
+    )
+    texte = (
+        f"{sujet}\n\n{intro}\n\n"
+        f"Objet : {objet}\nRéférence : {reference}\nÉchéance : {echeance} ({reste})\n"
+        + (f"\nAccéder : {url}\n" if url else "")
+    )
+    return sujet, texte, _gabarit(sujet, corps, apercu=intro)
+
+
 def escalade_p1(
     reference: str, titre_activite: str, url: str | None = None
 ) -> tuple[str, str, str]:
