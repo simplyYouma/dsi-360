@@ -138,12 +138,19 @@ WHERE {_ACTIF} AND a.sla_resolution_le IS NOT NULL AND a.cree_le IS NOT NULL
   AND coalesce(a.responsable_id, a.demandeur_id) IS NOT NULL
 """
 
+# L'échéance d'une tâche concerne son porteur ET le responsable du dossier — chef de projet ou
+# gestionnaire du changement : c'est lui qui répond du planning d'ensemble. Le `unnest` distinct
+# produit une ligne par destinataire, et n'en produit qu'une quand c'est la même personne.
 _SQL_TACHE = f"""
 SELECT 'tache' AS nature, t.id::text AS cible_id, t.echeance::timestamptz AS echeance,
-       NULL::timestamptz AS depart, t.assigne_id::text AS destinataire_id,
+       NULL::timestamptz AS depart, d.dest::text AS destinataire_id,
        a.id::text AS activite_id, a.module, a.reference, t.titre AS objet
-FROM core.tache t JOIN core.activite a ON a.id = t.activite_id
-WHERE t.echeance IS NOT NULL AND t.assigne_id IS NOT NULL
+FROM core.tache t
+JOIN core.activite a ON a.id = t.activite_id
+CROSS JOIN LATERAL (
+  SELECT DISTINCT unnest(ARRAY[t.assigne_id, a.responsable_id]) AS dest
+) d
+WHERE t.echeance IS NOT NULL AND d.dest IS NOT NULL
   AND t.statut <> 'Terminée' AND {_ACTIF}
 """
 
@@ -179,8 +186,9 @@ WHERE nullif(a.donnees->>'prochaine_revue', '') IS NOT NULL
 _SOURCES = (_SQL_SLA, _SQL_TACHE, _SQL_JALON, _SQL_PROJET, _SQL_REVUE)
 
 _MARQUER = text(
-    "INSERT INTO core.rappel_echeance (cible_type, cible_id, echeance, palier) "
-    "VALUES (:nature, cast(:cible as uuid), :echeance, :palier) "
+    "INSERT INTO core.rappel_echeance "
+    "(cible_type, cible_id, destinataire_id, echeance, palier) "
+    "VALUES (:nature, cast(:cible as uuid), cast(:dest as uuid), :echeance, :palier) "
     "ON CONFLICT DO NOTHING RETURNING palier"
 )
 
@@ -237,6 +245,7 @@ async def scanner_rappels(maintenant: datetime | None = None) -> dict[str, int]:
                     {
                         "nature": e.nature,
                         "cible": e.cible_id,
+                        "dest": e.destinataire_id,
                         "echeance": e.echeance,
                         "palier": palier,
                     },

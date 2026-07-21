@@ -78,6 +78,27 @@ async def _notifier_assigne(
     )
 
 
+async def _notifier_dessaisi(
+    session: AsyncSession, activite_id: str, titre_tache: str, ancien_id: str | None,
+    acteur: dict[str, Any],
+) -> None:
+    """Prévient l'agent à qui l'on RETIRE une tâche. Rien s'il s'en dessaisit lui-même."""
+    if not ancien_id or ancien_id == acteur["id"]:
+        return
+    reference = await session.scalar(
+        text("SELECT reference FROM core.activite WHERE id = cast(:a as uuid)"),
+        {"a": activite_id},
+    )
+    await notifier(
+        session,
+        destinataire_id=ancien_id,
+        activite_id=activite_id,
+        type_="TACHE",
+        titre=f"Tâche réattribuée — {reference}",
+        message=f"« {titre_tache} » ({reference}) ne vous est plus assignée.",
+    )
+
+
 async def creer_tache(
     session: AsyncSession,
     activite_id: str,
@@ -109,10 +130,15 @@ async def maj_tache(
     acteur: dict[str, Any],
 ) -> None:
     await repo.maj(session, tache["id"], champs)
-    # Réassignation d'une tâche : prévenir le nouveau porteur (pas si l'assigné n'a pas changé).
+    # Réassignation d'une tâche : prévenir le nouveau porteur ET l'ancien. Sans ce second envoi,
+    # quelqu'un continue de croire qu'une tâche lui incombe alors qu'elle est passée à un autre —
+    # ou l'inverse, il la laisse tomber sans savoir qu'on la lui a reprise.
     if "assigne_id" in champs and champs["assigne_id"] != tache["assigne_id"]:
         await _notifier_assigne(
             session, tache["activite_id"], tache["titre"], champs["assigne_id"], acteur
+        )
+        await _notifier_dessaisi(
+            session, tache["activite_id"], tache["titre"], tache["assigne_id"], acteur
         )
     await audit.consigner(
         session,

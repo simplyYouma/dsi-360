@@ -46,6 +46,63 @@ async def test_une_echeance_de_tache_est_surveillee(session: AsyncSession) -> No
     assert paliers_dus(e, fin) == ["avant_2", "avant_1", "jour_j"]
 
 
+async def test_le_responsable_du_dossier_est_prevenu_lui_aussi(session: AsyncSession) -> None:
+    """Le chef de projet répond du planning : il suit les échéances de tâches, comme le porteur."""
+    chef = await creer_utilisateur(session, email="chef.ech@afgbank.ml")
+    agent = await creer_utilisateur(session, email="porteur.ech@afgbank.ml")
+    projet = await creer_activite(
+        session, module="projet", reference="PRJ-ECH-CHEF", responsable_id=chef
+    )
+    await _tache(session, projet, agent, date(2026, 8, 1))
+
+    echeances = await _collecter(session)
+    destinataires = {
+        e.destinataire_id
+        for e in echeances
+        if e.reference == "PRJ-ECH-CHEF" and e.nature == "tache"
+    }
+
+    assert destinataires == {chef, agent}, "le porteur ET le responsable du dossier"
+
+
+async def test_un_changement_previent_aussi_son_gestionnaire(session: AsyncSession) -> None:
+    """Même règle hors projet : le gestionnaire du changement suit les échéances de ses tâches."""
+    gestionnaire = await creer_utilisateur(session, email="gest.ech@afgbank.ml")
+    agent = await creer_utilisateur(session, email="porteur.chg@afgbank.ml")
+    chg = await creer_activite(
+        session, module="changement", reference="CHG-ECH-1", responsable_id=gestionnaire
+    )
+    await _tache(session, chg, agent, date(2026, 8, 1))
+
+    echeances = await _collecter(session)
+    destinataires = {
+        e.destinataire_id
+        for e in echeances
+        if e.reference == "CHG-ECH-1" and e.nature == "tache"
+    }
+
+    assert destinataires == {gestionnaire, agent}
+
+
+async def test_le_porteur_qui_est_aussi_responsable_n_est_prevenu_qu_une_fois(
+    session: AsyncSession,
+) -> None:
+    """Un chef de projet qui porte sa propre tâche ne doit pas recevoir deux fois le même rappel."""
+    chef = await creer_utilisateur(session, email="chef.solo@afgbank.ml")
+    projet = await creer_activite(
+        session, module="projet", reference="PRJ-ECH-SOLO", responsable_id=chef
+    )
+    await _tache(session, projet, chef, date(2026, 8, 1))
+
+    echeances = [
+        e
+        for e in await _collecter(session)
+        if e.reference == "PRJ-ECH-SOLO" and e.nature == "tache"
+    ]
+
+    assert len(echeances) == 1, "une seule ligne quand les deux rôles sont la même personne"
+
+
 async def test_une_tache_terminee_ne_rappelle_plus(session: AsyncSession) -> None:
     """Rappeler l'échéance d'une tâche faite serait du bruit pur."""
     agent = await creer_utilisateur(session, email="agent.ech2@afgbank.ml")
@@ -82,23 +139,72 @@ async def test_une_tache_sans_assigne_ne_rappelle_personne(session: AsyncSession
 async def test_un_palier_ne_part_qu_une_fois(session: AsyncSession) -> None:
     """La table de rappels garantit l'unicité ; l'ancien index n'autorisait qu'UNE alerte SLA."""
     marquer = text(
-        "INSERT INTO core.rappel_echeance (cible_type, cible_id, echeance, palier) "
-        "VALUES ('tache', cast(:c as uuid), :e, :p) ON CONFLICT DO NOTHING RETURNING palier"
+        "INSERT INTO core.rappel_echeance "
+        "(cible_type, cible_id, destinataire_id, echeance, palier) "
+        "VALUES ('tache', cast(:c as uuid), cast(:d as uuid), :e, :p) "
+        "ON CONFLICT DO NOTHING RETURNING palier"
     )
     cible = await creer_activite(session, module="projet", reference="PRJ-ECH-4")
+    agent = await creer_utilisateur(session, email="agent.uniq@afgbank.ml")
+    autre_agent = await creer_utilisateur(session, email="chef.uniq@afgbank.ml")
     quand = datetime(2026, 8, 1, tzinfo=UTC)
+    base = {"c": cible, "d": agent, "e": quand}
 
-    premier = await session.scalar(marquer, {"c": cible, "e": quand, "p": "avant_2"})
-    second = await session.scalar(marquer, {"c": cible, "e": quand, "p": "avant_2"})
+    premier = await session.scalar(marquer, {**base, "p": "avant_2"})
+    second = await session.scalar(marquer, {**base, "p": "avant_2"})
     # Un autre palier de la même échéance reste possible : ce sont bien trois alertes distinctes.
-    autre = await session.scalar(marquer, {"c": cible, "e": quand, "p": "avant_1"})
+    autre = await session.scalar(marquer, {**base, "p": "avant_1"})
+    # Le second destinataire (chef de projet) reçoit le sien : le palier n'est pas « consommé »
+    # pour tout le monde par le premier envoi.
+    voisin = await session.scalar(marquer, {**base, "d": autre_agent, "p": "avant_2"})
     # Échéance repoussée : les rappels repartent sur la nouvelle date.
     repoussee = await session.scalar(
-        marquer, {"c": cible, "e": quand + timedelta(days=7), "p": "avant_2"}
+        marquer, {**base, "e": quand + timedelta(days=7), "p": "avant_2"}
     )
     await session.commit()
 
     assert premier == "avant_2"
-    assert second is None, "le même palier ne repart pas"
+    assert second is None, "le même palier ne repart pas pour la même personne"
     assert autre == "avant_1"
+    assert voisin == "avant_2", "chaque destinataire a son propre rappel"
     assert repoussee == "avant_2", "une nouvelle échéance porte ses propres rappels"
+
+
+async def test_reassigner_une_tache_previent_les_deux_agents(session: AsyncSession) -> None:
+    """L'ancien porteur doit l'apprendre : sinon il croit encore la tâche sienne, ou l'abandonne.
+
+    L'assignation d'activité prévenait déjà les deux ; celle des tâches oubliait l'ancien.
+    """
+    from dsi360.application.taches import maj_tache
+    from dsi360.infrastructure.repositories import tache as repo_tache
+
+    admin = await creer_utilisateur(session, email="admin.rea@afgbank.ml", profil="ADMIN")
+    ancien = await creer_utilisateur(session, email="ancien.rea@afgbank.ml")
+    nouveau = await creer_utilisateur(session, email="nouveau.rea@afgbank.ml")
+    projet = await creer_activite(session, module="projet", reference="PRJ-REA-1")
+    tache_id = await _tache(session, projet, ancien, date(2026, 8, 1))
+
+    tache = await repo_tache.par_id(session, tache_id)
+    assert tache is not None
+    await maj_tache(
+        session,
+        dict(tache),
+        "projet",
+        {"assigne_id": nouveau},
+        {"id": admin, "email": "admin.rea@afgbank.ml"},
+    )
+    await session.commit()
+
+    recus = (
+        await session.execute(
+            text(
+                "SELECT destinataire_id::text AS d, titre FROM core.notification "
+                "WHERE type = 'TACHE' AND activite_id = cast(:a as uuid)"
+            ),
+            {"a": projet},
+        )
+    ).mappings().all()
+    par_agent = {r["d"]: r["titre"] for r in recus}
+
+    assert "réattribuée" in par_agent[ancien].lower(), "l'ancien apprend qu'on la lui retire"
+    assert "assignée" in par_agent[nouveau].lower(), "le nouveau apprend qu'il la reçoit"
