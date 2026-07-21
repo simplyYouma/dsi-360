@@ -1,5 +1,12 @@
 import { Fragment } from 'react';
-import { CheckCircle2, CircleDot, XCircle, AlertTriangle, FileText } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleDot,
+  XCircle,
+  AlertTriangle,
+  FileText,
+  CalendarRange,
+} from 'lucide-react';
 import { Card } from '@/design-system/primitives';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import type { AnalysesMensuelles, CelluleEntite, Granularite, LigneEntite } from './analysesApi';
@@ -28,6 +35,19 @@ function cibleLisible(minutes: number | null): string {
   if (minutes % 1440 === 0) return `${minutes / 1440} j`;
   if (minutes % 60 === 0) return `${minutes / 60} h`;
   return `${minutes} min`;
+}
+
+/** Borne de période en clair. La borne de fin est exclusive côté serveur : on affiche la veille,
+ *  sinon l'écran annoncerait un jour de plus que ce qui est réellement compté. */
+function formaterJour(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formaterFin(iso: string): string {
+  const d = new Date(iso);
+  d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function pct(part: number, tout: number): number | null {
@@ -221,6 +241,18 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
 
   return (
     <div className={styles.pile}>
+      {/* Portée des chiffres. Sans elle, on rapproche ces totaux de ceux d'une liste sans savoir
+          qu'ils ne portent ni sur la même période ni sur le même périmètre — et on conclut à tort
+          à une incohérence. */}
+      <p className={styles.portee}>
+        <CalendarRange size={14} />
+        <span>
+          Du <strong>{formaterJour(data.debut)}</strong> au <strong>{formaterFin(data.fin)}</strong>{' '}
+          · incidents et demandes issus de l'import
+          {statut ? ` · état : ${STATUT_TEXTE[statut] ?? ''}` : ''}
+        </span>
+      </p>
+
       {/* ---- 1. Volumétrie par priorité & conformité SLA ---- */}
       <Card data-visuel="Volumétrie par priorité & conformité SLA">
         <BoutonExportPng nom="Volumétrie par priorité & conformité SLA" />

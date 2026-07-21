@@ -1085,6 +1085,10 @@ class LigneNiveau(BaseModel):
 class AnalysesMensuelles(BaseModel):
     # Granularité de l'axe de temps : heure | jour | semaine | mois | annee (selon la période).
     granularite: str
+    # Fenêtre réellement retenue (bornes des buckets). Affichée telle quelle : comparer ces
+    # chiffres à ceux d'une liste n'a de sens qu'en sachant sur quoi ils portent.
+    debut: datetime
+    fin: datetime
     mois: list[MoisEntete]  # colonnes de l'axe de temps (nom historique)
     total_priorites: list[CelluleSla]  # ligne d'en-tête (toutes priorités confondues)
     priorites: list[LignePriorite]

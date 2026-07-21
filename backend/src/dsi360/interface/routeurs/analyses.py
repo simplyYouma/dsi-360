@@ -903,6 +903,9 @@ async def analyses_mensuelles(
 
     return {
         "granularite": unit,
+        # Bornes effectives de l'agrégation, celles qui ont servi aux requêtes.
+        "debut": params["b_debut"],
+        "fin": params["b_fin"],
         "mois": entetes,
         "total_priorites": total_p,
         "priorites": priorites,

@@ -169,6 +169,9 @@ export interface LigneNiveau {
 }
 export interface AnalysesMensuelles {
   granularite: Granularite;
+  /** Fenêtre réellement agrégée (bornes des buckets), telle que le serveur l'a retenue. */
+  debut: string;
+  fin: string;
   mois: MoisEntete[];
   total_priorites: CelluleSla[];
   priorites: LignePriorite[];

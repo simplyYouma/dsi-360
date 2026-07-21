@@ -69,6 +69,10 @@ async def test_repartition_mensuelle(client: AsyncClient, session: AsyncSession)
     data = r.json()
 
     assert data["granularite"] == "mois"
+    # La fenêtre réellement agrégée est annoncée : sans elle, on rapproche ces totaux de ceux
+    # d'une liste sans savoir qu'ils ne portent pas sur la même période.
+    assert data["debut"].startswith("2023-01"), data["debut"]
+    assert data["fin"] > data["debut"]
     cles = [m["cle"] for m in data["mois"]]
     assert "2023-03" in cles
     i = cles.index("2023-03")
