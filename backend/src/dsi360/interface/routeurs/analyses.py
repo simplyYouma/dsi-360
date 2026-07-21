@@ -19,6 +19,7 @@ from dsi360.application.granularite_temps import cle_bucket as _cle_bucket
 from dsi360.application.granularite_temps import granularite as _granularite
 from dsi360.application.granularite_temps import libelle_bucket as _libelle_bucket
 from dsi360.application.granularite_temps import tronquer as _tronquer
+from dsi360.domain import etats
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import (
     AnalysesMensuelles,
@@ -99,6 +100,25 @@ LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE TRUE{cond_dir}
 GROUP BY b.libelle, b.de ORDER BY b.de
 """
+
+# Modules couverts par la synthèse (les deux flux importés).
+_MODULES_SYNTHESE = ("incident", "demande")
+
+
+def _phase_sql(*phases: str) -> str:
+    """Condition « le statut appartient à ces phases », dérivée de `domain.etats`.
+
+    C'est la MÊME définition que les listes et leurs compteurs. Auparavant la synthèse jugeait
+    l'état à sa façon (`cloture_le IS NULL`), si bien qu'une demande résolue mais pas encore
+    clôturée était comptée « ouverte » ici et « terminée » dans la liste : deux totaux différents
+    pour la même question.
+    """
+    noms = sorted({s for m in _MODULES_SYNTHESE for s in etats.statuts_de_phase(*phases, module=m)})
+    if not noms:
+        return "false"
+    valeurs = ", ".join("'" + n.replace("'", "''") + "'" for n in noms)
+    return f"a.statut IN ({valeurs})"
+
 
 # Chez DBS : un gestionnaire est nommé, mais ce n'est aucun de nos comptes (ADR-0005). Sans nom
 # renseigné, le ticket n'est chez personne — surtout pas chez DBS. L'import normalise les absences
@@ -663,11 +683,9 @@ _MENSUEL_ENTITE = f"""
 SELECT to_char(date_trunc('{{trunc}}', a.cree_le), '{{fmt}}') AS bucket,
        {_ENTITE_SQL} AS entite,
        count(*) AS total,
-       count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
-       count(*) FILTER (
-         WHERE a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')
-       ) AS ouverts,
-       count(*) FILTER (WHERE a.statut IN ('Rejeté','Rejetée')) AS rejetes,
+       count(*) FILTER (WHERE {_phase_sql(etats.TERMINE)}) AS fermes,
+       count(*) FILTER (WHERE {_phase_sql(etats.EN_COURS)}) AS ouverts,
+       count(*) FILTER (WHERE {_phase_sql(etats.ABANDONNE)}) AS rejetes,
        count(*) FILTER (WHERE a.module = 'incident') AS incidents,
        count(*) FILTER (WHERE a.module = 'demande') AS demandes
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
@@ -688,10 +706,8 @@ SELECT to_char(date_trunc('{{trunc}}', a.cree_le), '{{fmt}}') AS bucket,
             WHEN u.niveau_support = 2 THEN 'N2'
             ELSE 'Autre' END AS niveau,
        count(*) AS total,
-       count(*) FILTER (WHERE a.cloture_le IS NOT NULL) AS fermes,
-       count(*) FILTER (
-         WHERE a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')
-       ) AS ouverts,
+       count(*) FILTER (WHERE {_phase_sql(etats.TERMINE)}) AS fermes,
+       count(*) FILTER (WHERE {_phase_sql(etats.EN_COURS)}) AS ouverts,
        count(*) FILTER (WHERE a.module = 'incident') AS incidents,
        count(*) FILTER (WHERE a.module = 'demande') AS demandes
 FROM core.activite a
@@ -703,10 +719,11 @@ GROUP BY 1, 2, 3
 """
 
 # Familles d'état d'un ticket (le filtre de la synthèse) : ouvert / fermé / rejeté.
+# Filtre d'état de la synthèse. Mêmes clés que les vues de liste : un seul vocabulaire.
 _STATUT_BUCKET = {
-    "ouvert": " AND a.cloture_le IS NULL AND a.statut NOT IN ('Rejeté','Rejetée')",
-    "ferme": " AND a.cloture_le IS NOT NULL",
-    "rejete": " AND a.statut IN ('Rejeté','Rejetée')",
+    "en_cours": f" AND {_phase_sql(etats.EN_COURS)}",
+    "termines": f" AND {_phase_sql(etats.TERMINE)}",
+    "abandonnes": f" AND {_phase_sql(etats.ABANDONNE)}",
 }
 
 _PLAGE_IMPORT = """

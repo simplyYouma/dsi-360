@@ -60,8 +60,8 @@ function PastilleSla({ taux }: { taux: number | null }): JSX.Element {
 /** Carte de synthèse d'une entité : dégradé, total en évidence, indicateurs en badges. */
 function CarteSynthese({ s }: { s: Synthese }): JSX.Element {
   const badges = [
-    { icone: <CheckCircle2 size={14} />, valeur: s.fermes, libelle: 'fermés' },
-    { icone: <CircleDot size={14} />, valeur: s.ouverts, libelle: 'ouverts' },
+    { icone: <CheckCircle2 size={14} />, valeur: s.fermes, libelle: 'terminés' },
+    { icone: <CircleDot size={14} />, valeur: s.ouverts, libelle: 'en cours' },
     { icone: <AlertTriangle size={14} />, valeur: s.incidents, libelle: 'incidents' },
     { icone: <FileText size={14} />, valeur: s.demandes, libelle: 'demandes' },
   ];
@@ -126,14 +126,14 @@ function Cas({ v, couleur }: { v: number; couleur: string }): JSX.Element {
 
 /** Répartition d'un filtre d'état vers la sous-ligne correspondante du tableau DSI/DBS. */
 const STATUT_LIGNE: Record<string, keyof CelluleEntite> = {
-  ouvert: 'ouverts',
-  ferme: 'fermes',
-  rejete: 'rejetes',
+  en_cours: 'ouverts',
+  termines: 'fermes',
+  abandonnes: 'rejetes',
 };
 const STATUT_TEXTE: Record<string, string> = {
-  ouvert: 'ouverts',
-  ferme: 'fermés',
-  rejete: 'rejetés',
+  en_cours: 'en cours',
+  termines: 'terminés',
+  abandonnes: 'abandonnés',
 };
 
 /** Ordre et libellés des groupes de niveau du tableau par gestionnaire (le niveau divise la liste). */
@@ -149,7 +149,7 @@ const LIBELLE_NIVEAU: Record<string, string> = {
 
 interface MatriceProps {
   data: AnalysesMensuelles | null;
-  /** Filtre d'état actif (ouvert|ferme|rejete) : ne montre que la sous-ligne concernée. */
+  /** Filtre de phase actif (en_cours|termines|abandonnes) : ne montre que la sous-ligne. */
   statut?: string | null;
 }
 
@@ -165,12 +165,24 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
   // (rejeté n'a ni ouverts ni fermés → aucune colonne d'état).
   const colsEtat = (
     [
-      { cle: 'ouverts', libelle: 'Ouverts' },
-      { cle: 'fermes', libelle: 'Fermés' },
+      { cle: 'ouverts', libelle: 'En cours' },
+      { cle: 'fermes', libelle: 'Terminés' },
     ] as const
   ).filter((c) => statut == null || STATUT_LIGNE[statut] === c.cle);
   const dsi = entites.find((e) => e.cle === 'DSI');
   const dbs = entites.find((e) => e.cle === 'DBS');
+
+  // Cumul de tous les gestionnaires, tous niveaux confondus : la ligne de rapprochement.
+  const totalGest = niveaux.reduce(
+    (acc, n) => ({
+      incidents: acc.incidents + n.incidents,
+      demandes: acc.demandes + n.demandes,
+      total: acc.total + n.total,
+      ouverts: acc.ouverts + n.ouverts,
+      fermes: acc.fermes + n.fermes,
+    }),
+    { incidents: 0, demandes: 0, total: 0, ouverts: 0, fermes: 0 },
+  );
 
   const cartes: Synthese[] = [
     synthese(dsi, 'DSI AFG', 'var(--secondary)'),
@@ -192,9 +204,9 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
     icone: JSX.Element;
     groupe: 'statut' | 'nature';
   }[] = [
-    { cle: 'fermes', libelle: 'Fermés', icone: <CheckCircle2 size={13} />, groupe: 'statut' },
-    { cle: 'ouverts', libelle: 'Ouverts', icone: <CircleDot size={13} />, groupe: 'statut' },
-    { cle: 'rejetes', libelle: 'Rejetés', icone: <XCircle size={13} />, groupe: 'statut' },
+    { cle: 'fermes', libelle: 'Terminés', icone: <CheckCircle2 size={13} />, groupe: 'statut' },
+    { cle: 'ouverts', libelle: 'En cours', icone: <CircleDot size={13} />, groupe: 'statut' },
+    { cle: 'rejetes', libelle: 'Abandonnés', icone: <XCircle size={13} />, groupe: 'statut' },
     {
       cle: 'incidents',
       libelle: 'Incidents',
@@ -367,6 +379,26 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
                   </Fragment>
                 );
               })}
+              {/* Total général : le chiffre que l'on rapproche des listes et du tableau de bord. */}
+              {niveaux.length > 0 && (
+                <tr className={styles.ligneTotale}>
+                  <td className={styles.figee}>Total · {niveaux.length} gestionnaires</td>
+                  <td>
+                    <span className={styles.volume}>{totalGest.incidents || '—'}</span>
+                  </td>
+                  <td>
+                    <span className={styles.volume}>{totalGest.demandes || '—'}</span>
+                  </td>
+                  <td>
+                    <span className={styles.volume}>{totalGest.total || '—'}</span>
+                  </td>
+                  {colsEtat.map((c) => (
+                    <td key={c.cle}>
+                      <span className={styles.volume}>{totalGest[c.cle] || '—'}</span>
+                    </td>
+                  ))}
+                </tr>
+              )}
               {niveaux.length === 0 && (
                 <tr>
                   <td className={styles.figee}>—</td>

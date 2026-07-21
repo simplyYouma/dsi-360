@@ -1272,9 +1272,9 @@ export function AnalysesPage(): JSX.Element {
               {(
                 [
                   { v: null, l: 'Tous' },
-                  { v: 'ouvert', l: 'Ouverts' },
-                  { v: 'ferme', l: 'Fermés' },
-                  { v: 'rejete', l: 'Rejetés' },
+                  { v: 'en_cours', l: 'En cours' },
+                  { v: 'termines', l: 'Terminés' },
+                  { v: 'abandonnes', l: 'Abandonnés' },
                 ] as const
               ).map((o) => (
                 <button
