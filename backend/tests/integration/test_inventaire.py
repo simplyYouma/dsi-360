@@ -292,6 +292,69 @@ async def test_un_referentiel_inconnu_est_refuse(
     assert r.status_code == 404
 
 
+async def test_une_reference_forgee_est_refusee_en_clair(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un id inventé (emplacement, détenteur…) répond 422 en clair, jamais une erreur 500.
+
+    Le front n'envoie que des ids issus de ses listes, mais rien n'empêche un appel direct à
+    l'API : le serveur vérifie que la référence existe avant d'écrire.
+    """
+    admin = await _admin(session, "admin.inv14@afgbank.ml")
+    cree = await _creer(client, admin, designation="Matériel référencé")
+
+    pas_un_uuid = await client.patch(
+        f"/inventaire/{cree['id']}",
+        json={"emplacement_id": "pas-un-uuid"},
+        headers=entetes(admin),
+    )
+    assert pas_un_uuid.status_code == 422, pas_un_uuid.text
+
+    inconnu = await client.patch(
+        f"/inventaire/{cree['id']}",
+        json={"detenteur_id": "00000000-0000-4000-8000-000000000000"},
+        headers=entetes(admin),
+    )
+    assert inconnu.status_code == 422, inconnu.text
+    assert "n'existe pas" in inconnu.json()["detail"]
+
+
+async def test_l_historique_raconte_l_acheminement_en_libelles(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Changer l'emplacement se relit en clair (« Siège → Agence ») : jamais un uuid.
+
+    C'est la demande du DSI : suivre l'acheminement du matériel. Le journal consigne donc des
+    libellés, et la fiche restitue le changement comme une phrase.
+    """
+    admin = await _admin(session, "admin.inv15@afgbank.ml")
+    siege = await client.post(
+        "/inventaire/referentiels/emplacements",
+        json={"libelle": "Siège — Salle serveurs"},
+        headers=entetes(admin),
+    )
+    agence = await client.post(
+        "/inventaire/referentiels/emplacements",
+        json={"libelle": "Agence Kayes"},
+        headers=entetes(admin),
+    )
+    cree = await _creer(
+        client, admin, designation="Baie déplacée", emplacement_id=siege.json()["id"]
+    )
+
+    r = await client.patch(
+        f"/inventaire/{cree['id']}",
+        json={"emplacement_id": agence.json()["id"]},
+        headers=entetes(admin),
+    )
+
+    assert r.status_code == 200, r.text
+    details = [h["detail"] for h in r.json()["historique"] if h["detail"] is not None]
+    assert any(
+        "Siège — Salle serveurs" in d and "Agence Kayes" in d for d in details
+    ), f"le déplacement doit se lire en libellés : {details}"
+
+
 async def test_seul_l_administrateur_ecrit_le_parc(
     client: AsyncClient, session: AsyncSession
 ) -> None:

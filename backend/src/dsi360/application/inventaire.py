@@ -61,10 +61,56 @@ async def creer_equipement(
     return identifiant
 
 
+#: Colonnes de référence : dans le journal, on consigne le **libellé**, jamais l'identifiant.
+#: C'est ce qui rend l'acheminement d'un matériel racontable (« Siège → Agence Kayes ») —
+#: un uuid dans l'historique ne raconte rien.
+_REFERENCES = {
+    "emplacement_id": (
+        "emplacement",
+        "SELECT libelle FROM core.emplacement WHERE id = cast(:id as uuid)",
+    ),
+    "departement_id": (
+        "departement",
+        "SELECT libelle FROM core.departement_equipement WHERE id = cast(:id as uuid)",
+    ),
+    "detenteur_id": (
+        "detenteur",
+        "SELECT prenom || ' ' || nom FROM core.utilisateur WHERE id = cast(:id as uuid)",
+    ),
+}
+
+
+async def _en_libelles(
+    session: AsyncSession, avant: dict[str, Any], donnees: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Valeurs anciennes/nouvelles prêtes pour le journal, références traduites en libellés."""
+    anciennes: dict[str, Any] = {}
+    nouvelles: dict[str, Any] = {}
+    for colonne, valeur in donnees.items():
+        reference = _REFERENCES.get(colonne)
+        if reference is None:
+            anciennes[colonne] = _serialisable(avant.get(colonne))
+            nouvelles[colonne] = _serialisable(valeur)
+            continue
+        cle, sql = reference
+        if colonne == "detenteur_id":
+            # La ligne chargée porte déjà le nom de l'ancien détenteur (jointure du repository).
+            ancien = (
+                f"{avant['det_prenom']} {avant['det_nom']}" if avant.get("det_prenom") else None
+            )
+        else:
+            ancien = avant.get(cle)
+        nouveau = None if valeur is None else await session.scalar(text(sql), {"id": valeur})
+        anciennes[cle] = ancien
+        nouvelles[cle] = nouveau
+    return anciennes, nouvelles
+
+
 async def maj_equipement(
     session: AsyncSession, avant: dict[str, Any], champs: dict[str, Any], acteur: dict[str, Any]
 ) -> None:
     donnees = _nettoyer(champs)
+    anciennes, nouvelles = await _en_libelles(session, avant, donnees)
     await repo.maj(session, avant["id"], donnees)
     await audit.consigner(
         session,
@@ -74,8 +120,8 @@ async def maj_equipement(
         module="inventaire",
         cible_type="equipement",
         cible_id=avant.get("code_immo") or avant.get("designation") or avant["id"],
-        ancienne={c: _serialisable(avant.get(c)) for c in donnees},
-        nouvelle={c: _serialisable(v) for c, v in donnees.items()},
+        ancienne=anciennes,
+        nouvelle=nouvelles,
     )
 
 

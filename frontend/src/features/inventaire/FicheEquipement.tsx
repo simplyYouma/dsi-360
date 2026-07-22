@@ -33,6 +33,19 @@ function montant(valeur: number | null): string {
   return valeur === null ? '—' : Math.round(valeur).toLocaleString('fr-FR');
 }
 
+function versEntier(brut: string): number | null {
+  const chiffres = brut.replace(/[^\d]/g, '');
+  return chiffres === '' ? null : Number(chiffres);
+}
+
+/** Un taux peut être décimal (12,5 %) : on accepte la virgule française comme le point. */
+function versTaux(brut: string): number | null {
+  const propre = brut.replace(',', '.').replace(/[^\d.]/g, '');
+  if (propre === '') return null;
+  const n = Number(propre);
+  return Number.isFinite(n) ? n : null;
+}
+
 const LIBELLE_ACTION: Record<string, string> = {
   CREATION: 'Création',
   MODIFICATION: 'Modification',
@@ -109,9 +122,28 @@ export function FicheEquipement({
       largeurPanneau={450}
       panneau={<DiscussionEquipement equipementId={id} agents={agents} />}
       pied={
-        <Button variante="secondaire" onClick={onFermer}>
-          Fermer
-        </Button>
+        <>
+          {/* Les actions sur le matériel à gauche, la sortie de l'écran à droite : même
+              niveau, deux intentions distinctes. */}
+          {estAdmin && detail !== null && (
+            <div className={local.piedActions}>
+              <Button variante="secondaire" onClick={() => void patch({ actif: !detail.actif })}>
+                {detail.actif ? 'Sortir du parc' : 'Remettre en service'}
+              </Button>
+              <BoutonSupprimer
+                cible={`l'équipement « ${detail.designation} »`}
+                onSupprimer={async () => {
+                  await inventaireApi.supprimer(detail.id);
+                  onChange();
+                  onFermer();
+                }}
+              />
+            </div>
+          )}
+          <Button variante="secondaire" onClick={onFermer}>
+            Fermer
+          </Button>
+        </>
       }
     >
       {detail === null ? (
@@ -147,19 +179,54 @@ export function FicheEquipement({
             </p>
           )}
 
-          {/* Valeur au bilan : le chiffre que l'on vient chercher ici. */}
+          {/* Valeur au bilan : le chiffre que l'on vient chercher ici. Les trois paramètres du
+              calcul (valeur, taux, durée) se corrigent sur place — l'administrateur n'a pas à
+              chercher un autre écran pour rectifier une donnée comptable. */}
           <section className={local.bloc}>
             <span className={local.blocTitre}>Amortissement</span>
             <div className={local.valeurs}>
               <div className={local.valeur}>
-                <span>Valeur d'acquisition</span>
-                <b>{montant(detail.valeur_acquisition)}</b>
+                <span>Valeur d'acquisition (FCFA)</span>
+                <ChampInline
+                  valeur={
+                    detail.valeur_acquisition === null
+                      ? ''
+                      : Math.round(detail.valeur_acquisition).toLocaleString('fr-FR')
+                  }
+                  onValider={(v) => void patch({ valeur_acquisition: versEntier(v) })}
+                  placeholder="—"
+                  lectureSeule={!estAdmin}
+                  classeTexte={local.valeurEdit}
+                  aria-label="Valeur d'acquisition"
+                />
               </div>
               <div className={local.valeur}>
                 <span>Valeur nette comptable</span>
                 <b className={detail.totalement_amorti ? local.amortiFini : undefined}>
                   {montant(detail.valeur_nette)}
                 </b>
+              </div>
+              <div className={local.valeur}>
+                <span>Taux d'amortissement (%)</span>
+                <ChampInline
+                  valeur={detail.taux !== null ? String(detail.taux) : ''}
+                  onValider={(v) => void patch({ taux: versTaux(v) })}
+                  placeholder="—"
+                  lectureSeule={!estAdmin}
+                  classeTexte={local.valeurEdit}
+                  aria-label="Taux d'amortissement"
+                />
+              </div>
+              <div className={local.valeur}>
+                <span>Durée (années)</span>
+                <ChampInline
+                  valeur={detail.duree_annees !== null ? String(detail.duree_annees) : ''}
+                  onValider={(v) => void patch({ duree_annees: versEntier(v) })}
+                  placeholder="—"
+                  lectureSeule={!estAdmin}
+                  classeTexte={local.valeurEdit}
+                  aria-label="Durée d'amortissement"
+                />
               </div>
               <div className={local.valeur}>
                 <span>Dotation annuelle</span>
@@ -176,6 +243,13 @@ export function FicheEquipement({
                 {detail.totalement_amorti && ' — ne vaut plus rien au bilan'}
               </span>
             )}
+            {/* La règle du calcul, écrite là où on lit le chiffre : rien de magique. */}
+            <span className={local.formule}>
+              Amortissement linéaire, au prorata du temps écoulé : dotation = valeur × taux ;
+              amorti = dotation × années depuis l'acquisition, plafonné à la valeur ; le % amorti
+              rapporte l'amorti à la valeur d'acquisition. En cas d'écart taux/durée, le taux fait
+              foi.
+            </span>
           </section>
 
           <dl className={fiche.meta}>
@@ -197,6 +271,7 @@ export function FicheEquipement({
                   onValider={(v) => void patch({ code_immo: v })}
                   placeholder="—"
                   lectureSeule={!estAdmin}
+                  classeTexte={local.technique}
                 />
               </dd>
             </div>
@@ -208,6 +283,7 @@ export function FicheEquipement({
                   onValider={(v) => void patch({ numero_serie: v })}
                   placeholder="—"
                   lectureSeule={!estAdmin}
+                  classeTexte={local.technique}
                 />
               </dd>
             </div>
@@ -242,6 +318,7 @@ export function FicheEquipement({
                   onChange={(v) => void patch({ emplacement_id: v })}
                   gerable={estAdmin}
                   compact
+                  accent="var(--cat-1)"
                   entite="emplacement"
                   onAjouter={(l) => inventaireApi.ajouterReferentiel('emplacements', l)}
                   onModifie={onReferentiels}
@@ -258,6 +335,7 @@ export function FicheEquipement({
                   onChange={(v) => void patch({ departement_id: v })}
                   gerable={estAdmin}
                   compact
+                  accent="var(--cat-2)"
                   entite="département"
                   onAjouter={(l) => inventaireApi.ajouterReferentiel('departements', l)}
                   onModifie={onReferentiels}
@@ -302,28 +380,16 @@ export function FicheEquipement({
                     </span>
                     <span className={local.histoActeur}>{h.acteur ?? '—'}</span>
                     <span className={local.histoDate}>{horodatage(h.horodatage)}</span>
+                    {/* L'acheminement du matériel : ce qui a changé, en clair. */}
+                    {h.detail !== null && (
+                      <span className={local.histoDetail}>{h.detail}</span>
+                    )}
                   </li>
                 ))}
               </ul>
             </section>
           )}
 
-          {estAdmin && (
-            <div className={local.actions}>
-              {/* Sortir du parc plutôt que supprimer : l'historique compte. */}
-              <Button variante="secondaire" onClick={() => void patch({ actif: !detail.actif })}>
-                {detail.actif ? 'Sortir du parc' : 'Remettre en service'}
-              </Button>
-              <BoutonSupprimer
-                cible={`l'équipement « ${detail.designation} »`}
-                onSupprimer={async () => {
-                  await inventaireApi.supprimer(detail.id);
-                  onChange();
-                  onFermer();
-                }}
-              />
-            </div>
-          )}
         </div>
       )}
     </Modale>

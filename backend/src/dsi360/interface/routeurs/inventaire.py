@@ -7,6 +7,7 @@ L'amortissement n'est jamais stocké : il se calcule à la lecture (`domain/amor
 la valeur nette comptable serait fausse dès le lendemain de son enregistrement.
 """
 
+import re
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -109,17 +110,69 @@ async def _detail(session: AsyncSession, r: RowMapping) -> dict[str, Any]:
 # La fiche est journalisée sous son code immo (sinon sa désignation) : on relit sous les deux
 # repères, un équipement pouvant recevoir son code après coup.
 _HISTORIQUE = text(
-    "SELECT j.action, j.horodatage, j.acteur_email AS acteur FROM audit.journal j "
+    "SELECT j.action, j.horodatage, j.acteur_email AS acteur, "
+    "j.ancienne_valeur AS anciennes, j.nouvelle_valeur AS nouvelles FROM audit.journal j "
     "WHERE j.module = 'inventaire' AND j.cible_type = 'equipement' "
     "AND j.cible_id IN (:code, :designation) ORDER BY j.id DESC LIMIT 15"
 )
+
+#: Nom d'écran des champs journalisés — l'historique parle français, pas colonne SQL.
+_LIBELLE_CHAMP = {
+    "designation": "désignation",
+    "code_immo": "code immo",
+    "numero_serie": "n° de série",
+    "modele": "modèle",
+    "emplacement": "emplacement",
+    "departement": "département",
+    "detenteur": "détenteur",
+    "matricule_brut": "matricule",
+    "taux": "taux",
+    "date_acquisition": "date d'acquisition",
+    "duree_annees": "durée",
+    "valeur_acquisition": "valeur d'acquisition",
+    "actif": "en service",
+}
+
+_UUID_BRUT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+def _valeur_lisible(valeur: Any) -> str:
+    if valeur is None or valeur == "":
+        return "—"
+    if isinstance(valeur, bool):
+        return "oui" if valeur else "non"
+    texte_brut = str(valeur)
+    # Les toutes premières écritures du journal portaient des identifiants : illisibles,
+    # on les tait plutôt que d'afficher un uuid.
+    return "…" if _UUID_BRUT.fullmatch(texte_brut.lower()) else texte_brut
+
+
+def _texte_changement(anciennes: Any, nouvelles: Any) -> str | None:
+    """« emplacement : Siège → Agence Kayes » — l'acheminement du matériel, lisible."""
+    if not isinstance(nouvelles, dict):
+        return None
+    avant = anciennes if isinstance(anciennes, dict) else {}
+    fragments = [
+        f"{_LIBELLE_CHAMP[cle]} : {_valeur_lisible(avant.get(cle))} → {_valeur_lisible(v)}"
+        for cle, v in nouvelles.items()
+        if cle in _LIBELLE_CHAMP and avant.get(cle) != v
+    ]
+    return " · ".join(fragments) or None
 
 
 async def _historique(session: AsyncSession, r: RowMapping) -> list[dict[str, Any]]:
     lignes = await session.execute(
         _HISTORIQUE, {"code": r["code_immo"] or "", "designation": r["designation"]}
     )
-    return [dict(x) for x in lignes.mappings().all()]
+    return [
+        {
+            "action": x["action"],
+            "horodatage": x["horodatage"],
+            "acteur": x["acteur"],
+            "detail": _texte_changement(x["anciennes"], x["nouvelles"]),
+        }
+        for x in lignes.mappings().all()
+    ]
 
 
 async def _charger(session: AsyncSession, ident: str) -> RowMapping:
@@ -127,6 +180,37 @@ async def _charger(session: AsyncSession, ident: str) -> RowMapping:
     if r is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Équipement introuvable.")
     return r
+
+
+#: Références acceptées au PATCH/POST : table où l'identifiant doit exister, et nom d'écran.
+_CIBLES_REFERENCE = {
+    "emplacement_id": ("core.emplacement", "L'emplacement"),
+    "departement_id": ("core.departement_equipement", "Le département"),
+    "detenteur_id": ("core.utilisateur", "Le détenteur"),
+}
+
+
+async def _valider_references(session: AsyncSession, champs: dict[str, Any]) -> None:
+    """Un identifiant inconnu doit répondre 422 en clair, pas une erreur d'intégrité en 500.
+
+    Le front n'envoie que des ids issus de ses listes, mais le serveur fait foi : rien
+    n'empêche un appel direct à l'API avec un id forgé.
+    """
+    for cle, (table, quoi) in _CIBLES_REFERENCE.items():
+        ident = champs.get(cle)
+        if ident is None:
+            continue
+        if not _UUID_BRUT.fullmatch(str(ident).lower()):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, f"{quoi} indiqué est invalide."
+            )
+        existe = await session.scalar(
+            text(f"SELECT 1 FROM {table} WHERE id = cast(:id as uuid)"), {"id": ident}
+        )
+        if existe is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, f"{quoi} indiqué n'existe pas."
+            )
 
 
 @routeur.get("", response_model=PageEquipements)
@@ -237,6 +321,7 @@ async def creer(corps: EquipementCreation, courant: Courant, session: Session) -
     """
     exiger_admin(courant)
     await _refuser_code_deja_pris(session, corps.code_immo, None)
+    await _valider_references(session, corps.model_dump(exclude_none=True))
     ident = await creer_equipement(session, corps.model_dump(exclude_none=True), courant)
     await session.commit()
     return await _detail(session, await _charger(session, ident))
@@ -251,6 +336,7 @@ async def modifier(
     champs = corps.model_dump(exclude_unset=True)
     if "code_immo" in champs:
         await _refuser_code_deja_pris(session, champs["code_immo"], ident)
+    await _valider_references(session, champs)
     await maj_equipement(session, dict(avant), champs, courant)
     await session.commit()
     return await _detail(session, await _charger(session, ident))

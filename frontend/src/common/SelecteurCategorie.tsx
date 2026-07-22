@@ -19,6 +19,8 @@ interface Props {
   onChange: (id: string | null) => void;
   /** Couleur sémantique par code (ex. types de changement). Optionnel : sinon rendu neutre. */
   couleurs?: Record<string, string>;
+  /** Couleur unique du sélecteur (ex. localisation) quand les options n'ont pas de code. */
+  accent?: string;
   /** Module — requis pour la gestion inline des catégories (ajout/suppression). */
   module?: string;
   /** Ajout sur mesure : fournir cette fonction branche le sélecteur sur un autre référentiel
@@ -49,6 +51,7 @@ export function SelecteurCategorie({
   valeur,
   onChange,
   couleurs,
+  accent,
   module,
   gerable,
   onModifie,
@@ -130,7 +133,8 @@ export function SelecteurCategorie({
     <div className={styles.chips} role="listbox" aria-label={entite}>
       {visibles.map((c) => {
         const actif = c.id === valeur;
-        const coul = c.code !== undefined && couleurs !== undefined ? couleurs[c.code] : undefined;
+        const coul =
+          (c.code !== undefined && couleurs !== undefined ? couleurs[c.code] : undefined) ?? accent;
         const style =
           coul === undefined
             ? undefined

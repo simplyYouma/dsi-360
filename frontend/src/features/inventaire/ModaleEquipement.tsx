@@ -37,6 +37,8 @@ export function ModaleEquipement({
   onErreur,
 }: Props): JSX.Element {
   const [v, setV] = useState<NouvelEquipement>(VIDE);
+  // Le taux se saisit en texte (« 12,5 ») : parser à chaque frappe mangerait la virgule.
+  const [tauxBrut, setTauxBrut] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
   const nombre = (brut: string): number | null => {
@@ -44,11 +46,20 @@ export function ModaleEquipement({
     return chiffres === '' ? null : Number(chiffres);
   };
 
+  /** Un taux peut être décimal : virgule française acceptée comme le point. */
+  const taux = (brut: string): number | null => {
+    const propre = brut.replace(',', '.').replace(/[^\d.]/g, '');
+    if (propre === '') return null;
+    const n = Number(propre);
+    return Number.isFinite(n) ? n : null;
+  };
+
   const creer = async (): Promise<void> => {
     setEnvoi(true);
     try {
       const cree = await inventaireApi.creer(v);
       setV(VIDE);
+      setTauxBrut('');
       onCree(cree);
     } catch (e) {
       onErreur(e);
@@ -161,8 +172,11 @@ export function ModaleEquipement({
         <label className={styles.champ}>
           <span>Taux d'amortissement (%)</span>
           <input
-            value={v.taux ?? ''}
-            onChange={(e) => setV({ ...v, taux: nombre(e.target.value) })}
+            value={tauxBrut}
+            onChange={(e) => {
+              setTauxBrut(e.target.value);
+              setV({ ...v, taux: taux(e.target.value) });
+            }}
             placeholder="25"
           />
         </label>

@@ -23,6 +23,8 @@ export interface EvenementEquipement {
   action: string;
   horodatage: string;
   acteur: string | null;
+  /** Ce qui a changé, en clair (« emplacement : Siège → Agence Kayes ») : l'acheminement. */
+  detail: string | null;
 }
 
 export interface EquipementDetail extends Equipement {

@@ -250,6 +250,8 @@ class EvenementEquipement(BaseModel):
     action: str
     horodatage: datetime
     acteur: str | None
+    #: Ce qui a changé, en clair (« emplacement : Siège → Agence Kayes ») : l'acheminement.
+    detail: str | None = None
 
 
 class EquipementDetail(EquipementResume):
