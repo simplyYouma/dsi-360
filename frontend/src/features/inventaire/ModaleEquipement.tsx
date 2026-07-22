@@ -37,8 +37,6 @@ export function ModaleEquipement({
   onErreur,
 }: Props): JSX.Element {
   const [v, setV] = useState<NouvelEquipement>(VIDE);
-  // Le taux se saisit en texte (« 12,5 ») : parser à chaque frappe mangerait la virgule.
-  const [tauxBrut, setTauxBrut] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
   const nombre = (brut: string): number | null => {
@@ -46,20 +44,11 @@ export function ModaleEquipement({
     return chiffres === '' ? null : Number(chiffres);
   };
 
-  /** Un taux peut être décimal : virgule française acceptée comme le point. */
-  const taux = (brut: string): number | null => {
-    const propre = brut.replace(',', '.').replace(/[^\d.]/g, '');
-    if (propre === '') return null;
-    const n = Number(propre);
-    return Number.isFinite(n) ? n : null;
-  };
-
   const creer = async (): Promise<void> => {
     setEnvoi(true);
     try {
       const cree = await inventaireApi.creer(v);
       setV(VIDE);
-      setTauxBrut('');
       onCree(cree);
     } catch (e) {
       onErreur(e);
@@ -170,15 +159,30 @@ export function ModaleEquipement({
 
       <div className={local.paire}>
         <label className={styles.champ}>
-          <span>Taux d'amortissement (%)</span>
-          <input
-            value={tauxBrut}
-            onChange={(e) => {
-              setTauxBrut(e.target.value);
-              setV({ ...v, taux: taux(e.target.value) });
-            }}
-            placeholder="25"
-          />
+          <span>Taux d'amortissement</span>
+          {/* Un curseur plutôt qu'un champ : le taux se choisit, il ne se rédige pas. */}
+          <span className={local.curseur}>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={v.taux ?? 0}
+              onChange={(e) => {
+                const t = Number(e.target.value);
+                setV({ ...v, taux: t === 0 ? null : t });
+              }}
+              className={local.curseurPiste}
+              style={{ '--pct': `${v.taux ?? 0}%` } as React.CSSProperties}
+              aria-label="Taux d'amortissement"
+            />
+            <span className={local.curseurValeur}>{v.taux ?? 0} %</span>
+          </span>
+          <span className={local.curseurNote}>
+            {v.taux
+              ? `soit ${(100 / v.taux).toFixed(1).replace('.', ',').replace(',0', '')} ans d'amortissement`
+              : 'aucun amortissement'}
+          </span>
         </label>
         <label className={styles.champ}>
           <span>Durée (années)</span>

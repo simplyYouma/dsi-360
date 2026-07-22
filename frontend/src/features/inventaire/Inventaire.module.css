@@ -2,6 +2,9 @@
 .compteurs {
   display: flex;
   flex-wrap: wrap;
+  /* Chaque carte garde la hauteur de son contenu : pas de vide sous les petits compteurs
+     quand une carte voisine (l'avancement et sa barre) est plus haute. */
+  align-items: center;
   gap: var(--space-2);
 }
 .compteur,
@@ -206,8 +209,15 @@
 .campagneSelecteur {
   min-width: 240px;
 }
-.btnCloture {
+/* Clôturer porte la couleur de la marque : c'est l'acte qui conclut la campagne. */
+.campagneTete .btnCloture {
   margin-left: auto;
+  border-color: color-mix(in srgb, var(--secondary) 45%, var(--border));
+  background: color-mix(in srgb, var(--secondary) 10%, var(--surface));
+  color: var(--secondary);
+}
+.campagneTete .btnCloture:hover {
+  background: color-mix(in srgb, var(--secondary) 18%, var(--surface));
 }
 .carteQuand {
   font-size: var(--text-xs);
@@ -261,6 +271,21 @@
   white-space: nowrap;
 }
 
+/* Le constat dans la fiche : même geste que dans la liste, au plus près du matériel. */
+.constatFiche {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--secondary) 30%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--secondary) 5%, var(--surface));
+}
+.constatFiche .blocTitre {
+  margin-bottom: 0;
+}
+
 /* Constats en ligne : trois boutons, celui qui est posé porte sa couleur. */
 .constats {
   display: inline-flex;
@@ -292,6 +317,62 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+/* ---- Curseur de taux d'amortissement (habillé maison, aucun rendu natif visible) ---- */
+.curseur {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.curseurPiste {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  /* La piste se remplit jusqu'au taux choisi : la valeur se voit avant de se lire. */
+  background: linear-gradient(
+    to right,
+    var(--secondary) 0%,
+    var(--secondary) var(--pct, 0%),
+    var(--bg-subtle) var(--pct, 0%)
+  );
+  outline: none;
+  cursor: pointer;
+}
+.curseurPiste::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--secondary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  cursor: pointer;
+}
+.curseurPiste::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--secondary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  cursor: pointer;
+}
+.curseurPiste:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 30%, transparent);
+}
+.curseurValeur {
+  min-width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+  color: var(--secondary);
+}
+.curseurNote {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 /* Jauge d'amortissement de la fiche : la même barre que la liste, en pleine largeur. */

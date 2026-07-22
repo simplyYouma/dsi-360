@@ -20,6 +20,7 @@ import { ModaleEquipement } from './ModaleEquipement';
 import local from './Inventaire.module.css';
 import {
   campagnesApi,
+  CONSTATS,
   inventaireApi,
   type CampagneInventaire,
   type Equipement,
@@ -29,12 +30,6 @@ import {
   type StatsInventaire,
 } from './inventaireApi';
 import { api } from '@/lib/api';
-
-const CONSTATS: { etat: EtatConstat; libelle: string; couleur: string }[] = [
-  { etat: 'BON', libelle: 'Bon', couleur: 'var(--status-ok)' },
-  { etat: 'REBUT', libelle: 'Rebut', couleur: 'var(--status-warn)' },
-  { etat: 'CASSE', libelle: 'Cassé', couleur: 'var(--status-danger)' },
-];
 
 const LIBELLE_ETAT: Record<string, string> = {
   BON: 'Bon',
@@ -56,15 +51,6 @@ function jourLong(iso: string | null): string {
 export function formaterMontant(valeur: number | null): string {
   if (valeur === null) return '—';
   return Math.round(valeur).toLocaleString('fr-FR');
-}
-
-function formaterDate(iso: string | null): string {
-  if (iso === null) return '—';
-  return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
 }
 
 /** Part amortie : barre discrète, rouge quand le matériel ne vaut plus rien au bilan. */
@@ -151,12 +137,13 @@ export function InventairePage(): JSX.Element {
   const erreurCampagne = (e: unknown, repli: string): void =>
     notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
 
-  const constater = async (e: Equipement, etat: EtatConstat): Promise<void> => {
+  const constater = async (equipementId: string, etat: EtatConstat): Promise<void> => {
     if (campagne === null || !enRecensement) return;
     try {
       // Recliquer le même constat l'annule : l'équipement redevient « à recenser ».
-      if (constats[e.id] === etat) await campagnesApi.retirerConstat(campagne.id, e.id);
-      else await campagnesApi.constater(campagne.id, e.id, etat);
+      if (constats[equipementId] === etat)
+        await campagnesApi.retirerConstat(campagne.id, equipementId);
+      else await campagnesApi.constater(campagne.id, equipementId, etat);
       await chargerCampagnes();
     } catch (err) {
       erreurCampagne(err, 'Constat impossible.');
@@ -248,12 +235,8 @@ export function InventairePage(): JSX.Element {
       valeur: (e) => e.designation,
       rendu: (e) => <strong title={e.designation}>{e.designation}</strong>,
     },
-    {
-      cle: 'modele',
-      entete: 'Modèle',
-      valeur: (e) => e.modele ?? '',
-      rendu: (e) => e.modele ?? '—',
-    },
+    // Le modèle, la valeur d'acquisition et la date d'achat restent dans la fiche : la liste
+    // garde l'essentiel — identifier, localiser, savoir ce que ça vaut encore.
     {
       cle: 'emplacement',
       entete: 'Emplacement',
@@ -274,12 +257,6 @@ export function InventairePage(): JSX.Element {
       rendu: (e) =>
         // Sans compte rapproché, on montre le matricule brut : il reste un rattachement à faire.
         e.detenteur ?? (e.matricule ? <span className={local.brut}>{e.matricule}</span> : '—'),
-    },
-    {
-      cle: 'valeur_acquisition',
-      entete: "Valeur d'acquisition",
-      valeur: (e) => e.valeur_acquisition ?? 0,
-      rendu: (e) => <span className="tabular">{formaterMontant(e.valeur_acquisition)}</span>,
     },
     {
       cle: 'valeur_nette',
@@ -309,12 +286,6 @@ export function InventairePage(): JSX.Element {
       valeur: (e) => e.amorti_pct ?? 0,
       rendu: (e) => <Amortissement pct={e.amorti_pct} />,
     },
-    {
-      cle: 'date_acquisition',
-      entete: 'Acquis le',
-      valeur: (e) => e.date_acquisition ?? '',
-      rendu: (e) => formaterDate(e.date_acquisition),
-    },
   ];
 
   // La colonne de constat n'existe que lorsqu'une campagne est affichée : pendant le
@@ -339,7 +310,7 @@ export function InventairePage(): JSX.Element {
                   onClick={(ev) => {
                     // Sans quoi le clic ouvrirait la fiche de la ligne.
                     ev.stopPropagation();
-                    void constater(e, etat);
+                    void constater(e.id, etat);
                   }}
                 >
                   {libelle}
@@ -594,6 +565,15 @@ export function InventairePage(): JSX.Element {
           chargerStats();
         }}
         onReferentiels={chargerReferentiels}
+        recensement={
+          enRecensement && campagne !== null && ficheId !== null
+            ? {
+                libelle: campagne.libelle,
+                etat: constats[ficheId] ?? null,
+                onConstat: (etat) => void constater(ficheId, etat),
+              }
+            : null
+        }
       />
 
       <ModaleEquipement

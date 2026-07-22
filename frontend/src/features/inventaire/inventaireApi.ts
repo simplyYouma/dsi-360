@@ -86,6 +86,13 @@ export type MajEquipement = Partial<NouvelEquipement> & { actif?: boolean };
 /** Constat saisissable au recensement. NON_RETROUVE se déduit à la clôture, il ne se coche pas. */
 export type EtatConstat = 'BON' | 'REBUT' | 'CASSE';
 
+/** Les trois constats et leur couleur — partagés entre la liste et la fiche. */
+export const CONSTATS: { etat: EtatConstat; libelle: string; couleur: string }[] = [
+  { etat: 'BON', libelle: 'Bon', couleur: 'var(--status-ok)' },
+  { etat: 'REBUT', libelle: 'Rebut', couleur: 'var(--status-warn)' },
+  { etat: 'CASSE', libelle: 'Cassé', couleur: 'var(--status-danger)' },
+];
+
 export interface CampagneInventaire {
   id: string;
   libelle: string;

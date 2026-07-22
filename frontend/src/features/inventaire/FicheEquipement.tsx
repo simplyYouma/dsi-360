@@ -13,8 +13,10 @@ import fiche from '@/common/FicheTransition.module.css';
 import local from './Inventaire.module.css';
 import { DiscussionEquipement } from './DiscussionEquipement';
 import {
+  CONSTATS,
   inventaireApi,
   type EquipementDetail,
+  type EtatConstat,
   type MajEquipement,
   type ReferentielItem,
 } from './inventaireApi';
@@ -27,6 +29,12 @@ interface Props {
   onChange: () => void;
   /** Recharge les référentiels après un ajout à la volée. */
   onReferentiels: () => void;
+  /** Campagne ouverte : la fiche permet aussi de poser le constat, comme la liste. */
+  recensement?: {
+    libelle: string;
+    etat: string | null;
+    onConstat: (etat: EtatConstat) => void;
+  } | null;
 }
 
 function montant(valeur: number | null): string {
@@ -83,6 +91,7 @@ export function FicheEquipement({
   onFermer,
   onChange,
   onReferentiels,
+  recensement = null,
 }: Props): JSX.Element {
   const [detail, setDetail] = useState<EquipementDetail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -176,6 +185,30 @@ export function FicheEquipement({
               <StatusBadge couleur="var(--text-muted)">Totalement amorti</StatusBadge>
             )}
           </div>
+
+          {/* Le recensement se pose aussi d'ici : ce qu'on voit du matériel, on le dit. */}
+          {recensement !== null && detail.actif && (
+            <div className={local.constatFiche}>
+              <span className={local.blocTitre}>Constat — {recensement.libelle}</span>
+              <span className={local.constats}>
+                {CONSTATS.map(({ etat, libelle, couleur }) => (
+                  <button
+                    key={etat}
+                    type="button"
+                    className={recensement.etat === etat ? local.constatOn : local.constat}
+                    style={
+                      recensement.etat === etat
+                        ? { background: couleur, borderColor: couleur }
+                        : undefined
+                    }
+                    onClick={() => recensement.onConstat(etat)}
+                  >
+                    {libelle}
+                  </button>
+                ))}
+              </span>
+            </div>
+          )}
 
           {detail.amortissement_incoherent && (
             <p className={local.avertissement}>
