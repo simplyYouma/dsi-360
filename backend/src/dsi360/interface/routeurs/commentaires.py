@@ -24,6 +24,7 @@ from fastapi import (
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import TextClause
 
 from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.config import get_settings
@@ -129,6 +130,29 @@ async def _exiger_activite_visible(
     return str(ligne["reference"])
 
 
+def _sql_liste(colonne: str, avec_tache: bool = True) -> TextClause:
+    """Fil d'un sujet (activité ou équipement). La colonne vient d'une liste blanche, jamais
+    de l'appelant : `colonne` n'est fourni qu'ici, par les deux constantes ci-dessous."""
+    filtre_tache = (
+        " AND (cast(:tache as text) IS NULL AND c.tache_id IS NULL OR c.tache_id::text = :tache)"
+        if avec_tache
+        else ""
+    )
+    return text(
+        "SELECT c.id, c.texte, c.cree_le, c.auteur_id::text AS auteur_id, "
+        "coalesce(u.prenom || ' ' || u.nom, c.auteur_email) AS auteur, "
+        "(c.maj_le IS NOT NULL) AS edite, "
+        "(SELECT count(*) FROM core.commentaire_vue v "
+        " WHERE v.commentaire_id = c.id AND v.utilisateur_id <> c.auteur_id) AS nb_vues, "
+        "EXISTS (SELECT 1 FROM core.commentaire_vue v "
+        "        WHERE v.commentaire_id = c.id AND v.utilisateur_id = cast(:moi as uuid)) AS vu "
+        "FROM core.commentaire c LEFT JOIN core.utilisateur u ON u.id = c.auteur_id "
+        f"WHERE c.{colonne} = cast(:id as uuid)" + filtre_tache + " ORDER BY c.cree_le"
+    )
+
+
+_LISTE_EQUIPEMENT = _sql_liste("equipement_id", avec_tache=False)
+
 _LISTE = text(
     "SELECT c.id, c.texte, c.cree_le, c.auteur_id::text AS auteur_id, "
     "coalesce(u.prenom || ' ' || u.nom, c.auteur_email) AS auteur, "
@@ -185,6 +209,100 @@ async def _exiger_tache_de_l_activite(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tâche introuvable sur cette activité."
         )
     return str(titre)
+
+
+async def _exiger_equipement(session: AsyncSession, equipement_id: str) -> str:
+    """L'équipement existe ? Renvoie sa désignation, pour les libellés d'audit et de notification.
+
+    Pas de cloisonnement par direction ici : le parc est un référentiel partagé, visible par tous
+    ceux qui ont l'accès au module (garde `exiger_acces` sur le routeur inventaire).
+    """
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT coalesce(code_immo, designation) AS repere, designation, "
+                "detenteur_id::text AS detenteur FROM core.equipement WHERE id = cast(:i as uuid)"
+            ),
+            {"i": equipement_id},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Équipement introuvable.")
+    return str(ligne["repere"])
+
+
+@routeur.get("/equipement/{equipement_id}", response_model=list[CommentaireItem])
+async def lister_equipement(
+    equipement_id: str, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    """Fil de discussion d'un équipement — même mécanique que celui d'une activité."""
+    await _exiger_equipement(session, equipement_id)
+    lignes = (
+        await session.execute(_LISTE_EQUIPEMENT, {"id": equipement_id, "moi": courant["id"]})
+    ).mappings().all()
+    messages: list[dict[str, Any]] = [dict(x) for x in lignes]
+    for m in messages:
+        # Les images restent réservées aux activités : rien ne les dépose sur un équipement.
+        m["images"] = []
+    return messages
+
+
+@routeur.post(
+    "/equipement/{equipement_id}",
+    response_model=CommentaireItem,
+    status_code=status.HTTP_201_CREATED,
+)
+async def commenter_equipement(
+    equipement_id: str, corps: CommentaireCreation, courant: Courant, session: Session
+) -> dict[str, Any]:
+    repere = await _exiger_equipement(session, equipement_id)
+    texte_msg = corps.texte.strip()
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.commentaire (equipement_id, auteur_id, auteur_email, texte) "
+                "VALUES (cast(:eid as uuid), cast(:uid as uuid), :email, :texte) "
+                "RETURNING id, texte, cree_le"
+            ),
+            {
+                "eid": equipement_id,
+                "uid": courant["id"],
+                "email": courant["email"],
+                "texte": texte_msg,
+            },
+        )
+    ).mappings().one()
+    # Mentions @ : mêmes règles qu'ailleurs. Pas de notification « aux acteurs » — un équipement
+    # n'en a pas ; seul son détenteur pourrait l'être, et il n'a pas demandé à suivre le fil.
+    for uid in {m for m in corps.mentions if m and m != courant["id"]}:
+        await notifier(
+            session,
+            destinataire_id=uid,
+            activite_id=None,
+            type_="MENTION",
+            titre=f"Vous êtes mentionné — {repere}",
+            message=f"{courant['email']} vous a mentionné : {texte_msg[:140]}",
+        )
+    await audit.consigner(
+        session,
+        action="COMMENTAIRE",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="inventaire",
+        cible_type="equipement",
+        cible_id=repere,
+    )
+    await session.commit()
+    return {
+        "id": ligne["id"],
+        "texte": ligne["texte"],
+        "cree_le": ligne["cree_le"],
+        "auteur_id": courant["id"],
+        "edite": False,
+        "auteur": f"{courant['prenom']} {courant['nom']}"
+        if courant.get("prenom")
+        else courant["email"],
+    }
 
 
 @routeur.get("/{activite_id}/export")
