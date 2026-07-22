@@ -25,7 +25,7 @@ from dsi360.infrastructure.classeur import (
 
 # Intitulé normalisé -> clé canonique. Plusieurs libellés peuvent mener à la même clé : les
 # exports varient, et le fichier de référence porte « Designtion » (sic).
-_ENTETES: dict[str, str] = {
+ENTETES = _ENTETES = {
     "code immo": "code_immo",
     "new code": "code_immo",
     "code immobilisation": "code_immo",
@@ -57,7 +57,7 @@ _ENTETES: dict[str, str] = {
 
 # Sans ces deux colonnes, ce n'est pas un fichier d'inventaire : mieux vaut le dire tout de suite
 # que d'importer n'importe quoi.
-_REPERES = {"code_immo", "designation"}
+REPERES = _REPERES = {"code_immo", "designation"}
 
 #: Colonne d'état -> constat. Lu et compté, mais pas appliqué : l'état d'un équipement se consigne
 #: dans une campagne d'inventaire (lot à venir), pas comme un attribut du matériel.

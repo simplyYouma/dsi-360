@@ -135,11 +135,24 @@ function formaterMontant(brut: string): string {
 function EtatEcheanceProjet({
   dateFin,
   statut,
+  clotureLe,
 }: {
   dateFin: string;
   statut: string;
+  clotureLe?: string | null;
 }): JSX.Element | null {
-  if (statut === 'Clôturé') return null;
+  // Projet clôturé : le compteur ne court plus, mais le verdict d'arrivée reste dit —
+  // combien de jours de retard (ou non) au moment de la clôture.
+  if (statut === 'Clôturé') {
+    if (!clotureLe) return null;
+    const retard = Math.ceil(
+      (new Date(clotureLe).getTime() - new Date(dateFin).setHours(23, 59, 59, 999)) / 86_400_000,
+    );
+    if (retard > 0) {
+      return <span className={styles.pilRetard}>Clôturé avec {retard} j de retard</span>;
+    }
+    return <span className={styles.pilFaite}>Clôturé dans les délais</span>;
+  }
   const jours = Math.ceil((new Date(dateFin).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000);
   if (jours < 0) return <span className={styles.pilRetard}>Échéance dépassée</span>;
   if (jours <= 7) {
@@ -415,7 +428,11 @@ export function ProjetPage(): JSX.Element {
                 <dt>
                   Échéance{' '}
                   {!creation && detail && v.dateFin && (
-                    <EtatEcheanceProjet dateFin={v.dateFin} statut={detail.statut} />
+                    <EtatEcheanceProjet
+                      dateFin={v.dateFin}
+                      statut={detail.statut}
+                      clotureLe={detail.cloture_le}
+                    />
                   )}
                 </dt>
                 <dd>

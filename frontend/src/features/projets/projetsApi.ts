@@ -33,6 +33,8 @@ export interface PageProjets {
 }
 
 export interface ProjetDetail extends Projet {
+  /** Fin réelle d'un projet clôturé : porte le verdict d'échéance (à temps / en retard). */
+  cloture_le: string | null;
   description: string | null;
   sponsor: string | null;
   budget: number | null;

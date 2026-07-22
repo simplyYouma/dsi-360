@@ -209,6 +209,10 @@ class ActiviteDetail(ActiviteResume):
     periodicite: str | None = None
     prochaine_revue: date | None = None
     derniere_revue: date | None = None
+    #: Verdict figé d'un dossier terminé : jours de retard à l'arrivée (0 = dans les délais).
+    #: ``None`` : pas d'échéance, ou date de fin inconnue. Le compteur ne court plus, mais le
+    #: retard avec lequel on a fini reste une information de pilotage.
+    retard_final_jours: int | None = None
 
 
 class PageActivites(BaseModel):
@@ -843,6 +847,8 @@ class ProjetDetail(ProjetResume):
     description: str | None
     sponsor: str | None
     date_debut: str | None
+    #: Fin réelle d'un projet clôturé : porte le verdict d'échéance (à temps / en retard).
+    cloture_le: datetime | None = None
     transitions_possibles: list[str]
     permissions: PermissionsActivite = PermissionsActivite()
 
@@ -892,6 +898,8 @@ class Tache(BaseModel):
     assigne: ResponsableBref | None
     assigne_id: str | None
     echeance: date | None
+    #: Date de fin d'une tâche terminée (dernière modification) : porte le verdict d'échéance.
+    terminee_le: datetime | None = None
     ordre: int
     nb_commentaires: int = 0
     nb_non_vus: int = 0

@@ -5,14 +5,19 @@ jamais créer de doublon — par n° de ticket pour l'un, par code d'immobilisat
 """
 
 import json
+from io import BytesIO
 from typing import Annotated, Any
 
+import openpyxl
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.import_equipements import importer_classeur
 from dsi360.application.ingestion import importer_tickets
+from dsi360.infrastructure import ingestion as infra_tickets
+from dsi360.infrastructure import ingestion_equipements as infra_equipements
+from dsi360.infrastructure.classeur import trouver_entetes
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import EtatImports, RapportImport, RapportImportEquipements
 from dsi360.interface.securite import utilisateur_courant
@@ -110,3 +115,51 @@ async def etat(courant: Courant, session: Session) -> dict[str, Any]:
             }
         )
     return {"derniers": derniers}
+
+
+def _nature_du_classeur(contenu: bytes) -> str:
+    """Reconnaît le fichier à ses en-têtes : rapport de tickets, ou inventaire.
+
+    Un seul point de dépôt à l'écran : c'est au système de savoir ce qu'on lui donne, pas à
+    l'utilisateur de le déclarer. La détection lit les mêmes alias que les lecteurs eux-mêmes —
+    aucune seconde vérité.
+    """
+    classeur = openpyxl.load_workbook(BytesIO(contenu), read_only=True, data_only=True)
+    lignes = []
+    for i, ligne in enumerate(classeur.worksheets[0].iter_rows(values_only=True)):
+        lignes.append(ligne)
+        if i >= 24:
+            break
+    try:
+        trouver_entetes(lignes, infra_equipements.ENTETES, infra_equipements.REPERES)
+        return "equipements"
+    except ValueError:
+        pass
+    try:
+        trouver_entetes(lignes, infra_tickets.ENTETES, {"statut", "titre"})
+        return "tickets"
+    except ValueError:
+        raise ValueError(
+            "Fichier non reconnu : ni rapport de tickets, ni inventaire des équipements."
+        ) from None
+
+
+@routeur.post("/fichier")
+async def importer_fichier(
+    fichier: UploadFile, courant: Courant, session: Session
+) -> dict[str, Any]:
+    """Point de dépôt unique : la nature du fichier est reconnue à ses en-têtes."""
+    _exiger_transverse(courant)
+    contenu = await fichier.read()
+    _lire(contenu)
+    try:
+        nature = _nature_du_classeur(contenu)
+        if nature == "equipements":
+            rapport = await importer_classeur(session, contenu, courant)
+        else:
+            rapport = await importer_tickets(session, contenu, courant)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    return {"nature": nature, **rapport}

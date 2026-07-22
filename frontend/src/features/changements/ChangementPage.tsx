@@ -354,6 +354,14 @@ export function ChangementPage(): JSX.Element {
                       <dt>Échéance SLA</dt>
                       <dd>
                         <BadgeSla etat={detail.statut_sla} />
+                        {detail.retard_final_jours != null &&
+                          (detail.retard_final_jours > 0 ? (
+                            <em className={fiche.verdictRetard}>
+                              +{detail.retard_final_jours} j de retard
+                            </em>
+                          ) : (
+                            <em className={fiche.verdictOk}>dans les délais</em>
+                          ))}
                       </dd>
                     </div>
                   )}

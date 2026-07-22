@@ -14,8 +14,9 @@ from dsi360.infrastructure.classeur import normaliser as _normaliser
 from dsi360.infrastructure.classeur import parser_date as _parser_date
 from dsi360.infrastructure.classeur import trouver_entetes
 
-# Intitulé d'en-tête (normalisé, sans accents) -> clé canonique.
-_ENTETES = {
+# Intitulé d'en-tête (normalisé, sans accents) -> clé canonique. Public : sert aussi à
+# reconnaître la nature d'un fichier déposé (cf. routeurs/ingestion).
+ENTETES = _ENTETES = {
     "type d'enregistrement de service": "type",
     "statut": "statut",
     "#": "numero",

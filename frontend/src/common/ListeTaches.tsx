@@ -40,9 +40,21 @@ interface Props {
 
 const RESERVE_AUX_ACTEURS = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
 
-/** Pastille d'état d'échéance d'une tâche non terminée : dépassée (rouge) / proche (ambre). */
+/** Pastille d'échéance : dépassée / proche tant que la tâche vit ; verdict figé une fois faite.
+ *  Le retard avec lequel on a fini reste une information — il ne disparaît pas avec la tâche. */
 function EtatEcheance({ tache }: { tache: Tache }): JSX.Element | null {
-  if (tache.echeance === null || tache.statut === 'Terminée') return null;
+  if (tache.echeance === null) return null;
+  if (tache.statut === 'Terminée') {
+    if (!tache.terminee_le) return null;
+    const retard = Math.ceil(
+      (new Date(tache.terminee_le).getTime() - new Date(tache.echeance).setHours(23, 59, 59, 999)) /
+        86_400_000,
+    );
+    if (retard > 0) {
+      return <span className={styles.pilRetard}>Terminée avec {retard} j de retard</span>;
+    }
+    return <span className={styles.pilFaite}>Terminée dans les délais</span>;
+  }
   const jours = Math.ceil(
     (new Date(tache.echeance).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000,
   );

@@ -479,3 +479,19 @@
   font-size: var(--text-xs);
   white-space: nowrap;
 }
+
+/* Verdict d'un dossier terminé, à côté de l'échéance : le compteur ne court plus, le fait reste. */
+.verdictRetard,
+.verdictOk {
+  font-style: normal;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+.verdictRetard {
+  color: var(--status-danger);
+}
+.verdictOk {
+  color: var(--status-ok);
+}

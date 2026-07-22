@@ -32,6 +32,8 @@ export interface ChangementDetail {
   categorie: string | null;
   categorie_id: string | null;
   statut_sla?: EtatSla;
+  /** Jours de retard à l'arrivée d'un dossier terminé (0 = dans les délais). */
+  retard_final_jours?: number | null;
   sla_resolution_le: string | null;
   cree_le: string;
   responsable: { prenom: string; nom: string } | null;

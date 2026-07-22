@@ -108,6 +108,7 @@ def _detail(r: RowMapping) -> dict[str, Any]:
     d = _donnees(r)
     return {
         **_resume(r),
+        "cloture_le": r["cloture_le"],
         "description": r["description"],
         "sponsor": d.get("sponsor"),
         "date_debut": d.get("date_debut"),
@@ -431,6 +432,8 @@ def _tache_resume(r: RowMapping) -> dict[str, Any]:
         "assigne": assigne,
         "assigne_id": r["assigne_id"],
         "echeance": r["echeance"],
+        # Verdict d'échéance d'une tâche faite : sa dernière modification vaut date de fin.
+        "terminee_le": r["maj_le"] if r["statut"] == "Terminée" else None,
         "ordre": r["ordre"],
         "nb_commentaires": r["nb_commentaires"],
         "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,

@@ -51,6 +51,8 @@ interface Detail {
   categorie?: string | null;
   categorie_id?: string | null;
   statut_sla?: EtatSla;
+  /** Jours de retard à l'arrivée d'un dossier terminé (0 = dans les délais). */
+  retard_final_jours?: number | null;
   sla_resolution_le?: string | null;
   cree_le?: string;
   responsable?: { prenom: string; nom: string } | null;
@@ -564,6 +566,15 @@ export function FicheTransition({
                     <span className={styles.teteEcheance}>
                       <Clock size={13} />
                       Échéance <strong>{formaterDate(detail.sla_resolution_le ?? null)}</strong>
+                      {/* Le compteur ne court plus, mais le retard à l'arrivée reste dit. */}
+                      {detail.retard_final_jours != null &&
+                        (detail.retard_final_jours > 0 ? (
+                          <em className={styles.verdictRetard}>
+                            terminé avec {detail.retard_final_jours} j de retard
+                          </em>
+                        ) : (
+                          <em className={styles.verdictOk}>terminé dans les délais</em>
+                        ))}
                     </span>
                   )}
                 </div>

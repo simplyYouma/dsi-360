@@ -24,6 +24,8 @@ export interface Tache {
   assigne: Chef | null;
   assigne_id: string | null;
   echeance: string | null;
+  /** Date de fin d'une tâche terminée : porte le verdict d'échéance (à temps / en retard). */
+  terminee_le?: string | null;
   ordre: number;
   nb_commentaires?: number;
   /** Messages de la tâche non encore lus par l'utilisateur connecté. */

@@ -156,3 +156,11 @@
 .enfant {
   grid-column: 1 / -1;
 }
+
+/* Tâche finie à l'heure : le verdict, dans la couleur du succès — discret, c'est un fait acquis. */
+.pilFaite {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--status-ok);
+  white-space: nowrap;
+}

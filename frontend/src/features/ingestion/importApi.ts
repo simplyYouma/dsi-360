@@ -27,6 +27,8 @@ export const importApi = {
   tickets: (fichier: File): Promise<RapportImport> => televerser('/import/tickets', fichier),
   equipements: (fichier: File): Promise<RapportImportEquipements> =>
     televerser('/import/equipements', fichier),
+  /** Dépôt unique : le serveur reconnaît le fichier (tickets ou inventaire) à ses en-têtes. */
+  fichier: (fichier: File): Promise<RapportFichier> => televerser('/import/fichier', fichier),
 };
 
 export interface DernierImport {
@@ -36,5 +38,9 @@ export interface DernierImport {
   /** Compte-rendu tel que journalisé (créés, mis à jour…) — les clés varient selon la nature. */
   details: Record<string, number>;
 }
+
+/** Compte-rendu du dépôt unifié : la nature est reconnue par le serveur, à ses en-têtes. */
+export type RapportFichier =
+  ({ nature: 'tickets' } & RapportImport) | ({ nature: 'equipements' } & RapportImportEquipements);
 
 export const etatImports = (): Promise<{ derniers: DernierImport[] }> => api.get('/import/etat');

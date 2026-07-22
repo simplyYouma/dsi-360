@@ -6,6 +6,7 @@ d'accès RBAC, le module domaine et l'URL.
 """
 
 import json
+import math
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -183,6 +184,24 @@ def _detail(
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
         "derniere_revue": _donnees(r).get("derniere_revue"),
     }
+
+
+def _retard_final(r: RowMapping, historique: list[dict[str, Any]]) -> int | None:
+    """Jours de retard avec lesquels un dossier terminé a fini (0 = dans les délais).
+
+    Le compteur SLA d'un dossier clos ne court plus — mais le retard à l'arrivée reste une
+    information de pilotage. La date de fin : `resolu_le`/`cloture_le` quand le statut les pose ;
+    sinon (« Réalisé », « Maîtrisé »…) l'horodatage de la dernière transition du journal.
+    """
+    if not etats.est_termine(r["module"], r["statut"]) or r["sla_resolution_le"] is None:
+        return None
+    fin = r["resolu_le"] or r["cloture_le"]
+    if fin is None and historique:
+        fin = historique[-1]["horodatage"]
+    if fin is None:
+        return None
+    retard = float((fin - r["sla_resolution_le"]).total_seconds())
+    return max(0, math.ceil(retard / 86_400))
 
 
 # Champs RFC (changement, ITIL SI-12.04) stockés dans la colonne JSON `donnees`.
@@ -438,6 +457,7 @@ def creer_routeur(
     ) -> dict[str, Any]:
         base = _detail(module, r, datetime.now(UTC), import_uniquement)
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
+        base["retard_final_jours"] = _retard_final(r, base["historique"])
         base["contributeurs"] = [
             dict(c) for c in await repo.lister_contributeurs(session, r["id"])
         ]
@@ -1093,6 +1113,8 @@ def _tache_resume(r: RowMapping) -> dict[str, Any]:
         "assigne": assigne,
         "assigne_id": r["assigne_id"],
         "echeance": r["echeance"],
+        # Verdict d'échéance d'une tâche faite : sa dernière modification vaut date de fin.
+        "terminee_le": r["maj_le"] if r["statut"] == "Terminée" else None,
         "ordre": r["ordre"],
         "nb_commentaires": r["nb_commentaires"],
         "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,
