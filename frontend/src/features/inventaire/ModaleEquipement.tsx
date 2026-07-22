@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Modale } from '@/design-system/primitives';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurDate } from '@/common/SelecteurDate';
+import { CurseurTaux } from './CurseurTaux';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import local from './Inventaire.module.css';
 import {
@@ -119,6 +120,7 @@ export function ModaleEquipement({
           valeur={v.emplacement_id ?? null}
           onChange={(x) => setV({ ...v, emplacement_id: x })}
           gerable={gerable}
+          accent="var(--cat-1)"
           entite="emplacement"
           onAjouter={(libelle) => inventaireApi.ajouterReferentiel('emplacements', libelle)}
           onModifie={onReferentiels}
@@ -131,6 +133,7 @@ export function ModaleEquipement({
           valeur={v.departement_id ?? null}
           onChange={(x) => setV({ ...v, departement_id: x })}
           gerable={gerable}
+          accent="var(--cat-2)"
           entite="département"
           onAjouter={(libelle) => inventaireApi.ajouterReferentiel('departements', libelle)}
           onModifie={onReferentiels}
@@ -160,29 +163,7 @@ export function ModaleEquipement({
       <div className={local.paire}>
         <label className={styles.champ}>
           <span>Taux d'amortissement</span>
-          {/* Un curseur plutôt qu'un champ : le taux se choisit, il ne se rédige pas. */}
-          <span className={local.curseur}>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={v.taux ?? 0}
-              onChange={(e) => {
-                const t = Number(e.target.value);
-                setV({ ...v, taux: t === 0 ? null : t });
-              }}
-              className={local.curseurPiste}
-              style={{ '--pct': `${v.taux ?? 0}%` } as React.CSSProperties}
-              aria-label="Taux d'amortissement"
-            />
-            <span className={local.curseurValeur}>{v.taux ?? 0} %</span>
-          </span>
-          <span className={local.curseurNote}>
-            {v.taux
-              ? `soit ${(100 / v.taux).toFixed(1).replace('.', ',').replace(',0', '')} ans d'amortissement`
-              : 'aucun amortissement'}
-          </span>
+          <CurseurTaux valeur={v.taux ?? null} onValider={(t) => setV({ ...v, taux: t })} />
         </label>
         <label className={styles.champ}>
           <span>Durée (années)</span>

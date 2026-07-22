@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { ErreurApi } from '@/lib/api';
 import fiche from '@/common/FicheTransition.module.css';
 import local from './Inventaire.module.css';
+import { CurseurTaux } from './CurseurTaux';
 import { DiscussionEquipement } from './DiscussionEquipement';
 import {
   CONSTATS,
@@ -46,13 +47,6 @@ function versEntier(brut: string): number | null {
   return chiffres === '' ? null : Number(chiffres);
 }
 
-/** Un taux peut être décimal (12,5 %) : on accepte la virgule française comme le point. */
-function versTaux(brut: string): number | null {
-  const propre = brut.replace(',', '.').replace(/[^\d.]/g, '');
-  if (propre === '') return null;
-  const n = Number(propre);
-  return Number.isFinite(n) ? n : null;
-}
 
 const LIBELLE_ACTION: Record<string, string> = {
   CREATION: 'Création',
@@ -131,6 +125,30 @@ export function FicheEquipement({
       largeur={640}
       largeurPanneau={450}
       panneau={<DiscussionEquipement equipementId={id} agents={agents} />}
+      etiquettes={
+        // Les constats de la campagne ouverte, collés au bord du dossier comme des stickers :
+        // ce qu'on voit du matériel, on le dit sans quitter la fiche.
+        recensement !== null && detail !== null && detail.actif ? (
+          <>
+            {CONSTATS.map(({ etat, libelle, couleur }) => (
+              <button
+                key={etat}
+                type="button"
+                className={recensement.etat === etat ? local.stickerOn : local.sticker}
+                style={
+                  recensement.etat === etat
+                    ? { background: couleur, borderColor: couleur }
+                    : undefined
+                }
+                onClick={() => recensement.onConstat(etat)}
+                title={`Constat — ${recensement.libelle}`}
+              >
+                {libelle}
+              </button>
+            ))}
+          </>
+        ) : undefined
+      }
       pied={
         <>
           {/* Les actions sur le matériel à gauche, la sortie de l'écran à droite : même
@@ -186,30 +204,6 @@ export function FicheEquipement({
             )}
           </div>
 
-          {/* Le recensement se pose aussi d'ici : ce qu'on voit du matériel, on le dit. */}
-          {recensement !== null && detail.actif && (
-            <div className={local.constatFiche}>
-              <span className={local.blocTitre}>Constat — {recensement.libelle}</span>
-              <span className={local.constats}>
-                {CONSTATS.map(({ etat, libelle, couleur }) => (
-                  <button
-                    key={etat}
-                    type="button"
-                    className={recensement.etat === etat ? local.constatOn : local.constat}
-                    style={
-                      recensement.etat === etat
-                        ? { background: couleur, borderColor: couleur }
-                        : undefined
-                    }
-                    onClick={() => recensement.onConstat(etat)}
-                  >
-                    {libelle}
-                  </button>
-                ))}
-              </span>
-            </div>
-          )}
-
           {detail.amortissement_incoherent && (
             <p className={local.avertissement}>
               <TriangleAlert size={15} />
@@ -246,14 +240,11 @@ export function FicheEquipement({
                 </b>
               </div>
               <div className={local.valeur}>
-                <span>Taux d'amortissement (%)</span>
-                <ChampInline
-                  valeur={detail.taux !== null ? String(detail.taux) : ''}
-                  onValider={(v) => void patch({ taux: versTaux(v) })}
-                  placeholder="—"
-                  lectureSeule={!estAdmin}
-                  classeTexte={local.valeurEdit}
-                  aria-label="Taux d'amortissement"
+                <span>Taux d'amortissement</span>
+                <CurseurTaux
+                  valeur={detail.taux}
+                  onValider={(t) => void patch({ taux: t })}
+                  desactive={!estAdmin}
                 />
               </div>
               <div className={local.valeur}>

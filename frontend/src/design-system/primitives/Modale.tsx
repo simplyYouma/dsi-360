@@ -18,6 +18,8 @@ interface ModaleProps {
   panneau?: ReactNode;
   /** Largeur de la colonne latérale en px (défaut 380). */
   largeurPanneau?: number;
+  /** Étiquettes flottantes collées au bord gauche, comme des stickers (ex. constats). */
+  etiquettes?: ReactNode;
 }
 
 /**
@@ -33,6 +35,7 @@ export function Modale({
   largeur = 560,
   panneau,
   largeurPanneau = 380,
+  etiquettes,
 }: ModaleProps): JSX.Element | null {
   useEffect(() => {
     if (!ouverte) return;
@@ -63,6 +66,7 @@ export function Modale({
         <button className={styles.fermer} onClick={onFermer} aria-label="Fermer">
           <X size={20} />
         </button>
+        {etiquettes !== undefined && <div className={styles.etiquettes}>{etiquettes}</div>}
         <div className={styles.grille}>
           <div className={styles.principal}>
             <h2 className={styles.titre}>{titre}</h2>

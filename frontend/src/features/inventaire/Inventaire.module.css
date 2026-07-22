@@ -271,19 +271,39 @@
   white-space: nowrap;
 }
 
-/* Le constat dans la fiche : même geste que dans la liste, au plus près du matériel. */
-.constatFiche {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--secondary) 30%, var(--border));
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--secondary) 5%, var(--surface));
+/* Les constats en stickers, collés au bord gauche de la modale : arrondis côté libre,
+   à plat côté dossier — le constat posé porte sa couleur pleine. */
+.sticker,
+.stickerOn {
+  padding: 8px 16px 8px 14px;
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--surface);
+  box-shadow: -3px 3px 10px rgb(0 0 0 / 0.12);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
-.constatFiche .blocTitre {
-  margin-bottom: 0;
+.sticker:hover {
+  transform: translateX(-2px);
+}
+.stickerOn {
+  color: #fff;
+  font-weight: var(--weight-medium);
+}
+/* Rangés au-dessus du titre sur écran étroit : le côté plat n'a plus de sens, on arrondit. */
+@media (max-width: 700px) {
+  .sticker,
+  .stickerOn {
+    border-right: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    box-shadow: none;
+  }
 }
 
 /* Constats en ligne : trois boutons, celui qui est posé porte sa couleur. */
@@ -319,17 +339,29 @@
   line-height: 1.5;
 }
 
-/* ---- Curseur de taux d'amortissement (habillé maison, aucun rendu natif visible) ---- */
+/* ---- Curseur de taux d'amortissement (habillé maison, aucun rendu natif visible) ----
+   Les sélecteurs `input[type='range']` battent le style global `.champ input` des modales,
+   qui donnait au curseur une allure de champ texte vide. */
+.curseurBloc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .curseur {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
-.curseurPiste {
+.curseur input[type='range'] {
   appearance: none;
   -webkit-appearance: none;
   flex: 1;
   height: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
   border-radius: var(--radius-pill);
   /* La piste se remplit jusqu'au taux choisi : la valeur se voit avant de se lire. */
   background: linear-gradient(
@@ -341,7 +373,7 @@
   outline: none;
   cursor: pointer;
 }
-.curseurPiste::-webkit-slider-thumb {
+.curseur input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 16px;
   height: 16px;
@@ -351,7 +383,7 @@
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
   cursor: pointer;
 }
-.curseurPiste::-moz-range-thumb {
+.curseur input[type='range']::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -360,8 +392,12 @@
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
   cursor: pointer;
 }
-.curseurPiste:focus-visible::-webkit-slider-thumb {
+.curseur input[type='range']:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 30%, transparent);
+}
+.curseur input[type='range']:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 .curseurValeur {
   min-width: 52px;
