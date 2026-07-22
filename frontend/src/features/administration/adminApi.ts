@@ -8,6 +8,7 @@ export interface Utilisateur {
   profil: string;
   profil_libelle: string;
   direction: string | null;
+  matricule: string | null;
   niveau_support: number | null;
   actif: boolean;
   expire_le: string | null;
@@ -46,6 +47,7 @@ export interface CreationUtilisateur {
   prenom: string;
   profil_code: string;
   direction_code: string | null;
+  matricule: string | null;
   niveau_support: number | null;
   expire_le: string | null;
 }
@@ -54,6 +56,7 @@ export interface MajUtilisateur {
   prenom: string;
   profil_code: string;
   direction_code: string | null;
+  matricule: string | null;
   niveau_support: number | null;
   actif: boolean;
   expire_le: string | null;

@@ -16,6 +16,7 @@ import { ProjetPage } from '@/features/projets/ProjetPage';
 import { ChangementsPage } from '@/features/changements/ChangementsPage';
 import { ChangementPage } from '@/features/changements/ChangementPage';
 import { AuditPage } from '@/features/audit/AuditPage';
+import { InventairePage } from '@/features/inventaire/InventairePage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
 import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
 import { AdministrationPage } from '@/features/administration/AdministrationPage';
@@ -33,6 +34,7 @@ const PAGES: Record<string, JSX.Element> = {
   '/changements': <ChangementsPage />,
   '/audit': <AuditPage />,
   '/risques': <RisquesPage />,
+  '/inventaire': <InventairePage />,
   '/cybersecurite': (
     <PageActiviteCategorie
       titre="Cybersécurité"

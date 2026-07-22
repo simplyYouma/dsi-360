@@ -1,17 +1,18 @@
 import {
-  LayoutDashboard,
+  Boxes,
   ChartColumnBig,
-  TriangleAlert,
-  Inbox,
+  ClipboardCheck,
   FolderKanban,
   GitPullRequestArrow,
-  ClipboardCheck,
-  ShieldAlert,
-  Lock,
+  Inbox,
   Landmark,
-  Settings,
-  UploadCloud,
+  LayoutDashboard,
   ListChecks,
+  Lock,
+  Settings,
+  ShieldAlert,
+  TriangleAlert,
+  UploadCloud,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -68,6 +69,10 @@ export const SECTIONS: SectionNav[] = [
       { chemin: '/risques', libelle: 'Risques IT', icone: ShieldAlert, phase: 'P2' },
       { chemin: '/cybersecurite', libelle: 'Cybersécurité', icone: Lock, phase: 'P3' },
     ],
+  },
+  {
+    titre: 'Patrimoine',
+    entrees: [{ chemin: '/inventaire', libelle: 'Inventaire', icone: Boxes, phase: 'P2' }],
   },
   {
     titre: 'Gouvernance',

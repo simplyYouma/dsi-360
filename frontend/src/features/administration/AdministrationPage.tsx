@@ -42,6 +42,7 @@ const MODULE_LABEL: Record<string, string> = {
   risques: 'Risques',
   cybersecurite: 'Cybersécurité',
   gouvernance: 'Gouvernance',
+  inventaire: 'Inventaire',
   administration: 'Administration',
 };
 
@@ -71,6 +72,8 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
   const [email, setEmail] = useState('');
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
+  // Matricule bancaire : c'est par lui que l'inventaire rattache un équipement à son détenteur.
+  const [matricule, setMatricule] = useState('');
   const [profil, setProfil] = useState('');
   const [direction, setDirection] = useState<string | null>(null);
   const [niveau, setNiveau] = useState<string | null>(null);
@@ -106,6 +109,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setEmail('');
     setNom('');
     setPrenom('');
+    setMatricule('');
     setProfil('');
     setDirection(null);
     setNiveau(null);
@@ -124,6 +128,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     setEmail(u.email);
     setNom(u.nom);
     setPrenom(u.prenom);
+    setMatricule(u.matricule ?? '');
     setProfil(u.profil);
     setDirection(u.direction);
     setNiveau(u.niveau_support !== null ? String(u.niveau_support) : null);
@@ -143,6 +148,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
           email: email.trim(),
           nom: nom.trim(),
           prenom: prenom.trim(),
+          matricule: matricule.trim() || null,
           profil_code: profil,
           direction_code: direction,
           niveau_support: niveauRequis && niveau !== null ? Number(niveau) : null,
@@ -153,6 +159,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
         await adminApi.modifierUtilisateur(modale.id, {
           nom: nom.trim(),
           prenom: prenom.trim(),
+          matricule: matricule.trim() || null,
           profil_code: profil,
           direction_code: direction,
           niveau_support: niveauRequis && niveau !== null ? Number(niveau) : null,
@@ -184,6 +191,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
       await adminApi.modifierUtilisateur(u.id, {
         nom: u.nom,
         prenom: u.prenom,
+        matricule: u.matricule,
         profil_code: u.profil,
         direction_code: u.direction,
         niveau_support: u.niveau_support,
@@ -328,6 +336,14 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
             <input value={nom} onChange={(e) => setNom(e.target.value)} />
           </label>
         </div>
+        <label className={styles.champ}>
+          <span>Matricule</span>
+          <input
+            value={matricule}
+            onChange={(e) => setMatricule(e.target.value)}
+            placeholder="Matricule bancaire — rattache les équipements à leur détenteur"
+          />
+        </label>
         <div className={styles.niveaux}>
           <div className={styles.champ}>
             <span>Profil</span>

@@ -218,6 +218,96 @@ class PageActivites(BaseModel):
     taille: int
 
 
+# --- Inventaire des équipements (parc matériel) ---
+
+
+class EquipementResume(BaseModel):
+    id: str
+    code_immo: str | None
+    numero_serie: str | None
+    modele: str | None
+    designation: str
+    emplacement: str | None
+    departement: str | None
+    #: Détenteur rapproché d'un compte ; sinon le matricule brut du fichier reste seul.
+    detenteur: str | None
+    matricule: str | None
+    date_acquisition: date | None
+    valeur_acquisition: float | None
+    #: Valeur nette comptable et part amortie, calculées (jamais stockées).
+    valeur_nette: float | None
+    amorti_pct: int | None
+    actif: bool
+
+
+class EquipementDetail(EquipementResume):
+    emplacement_id: str | None
+    departement_id: str | None
+    detenteur_id: str | None
+    taux: float | None
+    duree_annees: int | None
+    source: str
+    #: Amortissement détaillé, pour la fiche.
+    dotation_annuelle: float | None
+    amortissement_cumule: float | None
+    fin_amortissement: date | None
+    totalement_amorti: bool
+    #: Le taux et la durée du fichier se contredisent : donnée à vérifier.
+    amortissement_incoherent: bool
+
+
+class PageEquipements(BaseModel):
+    elements: list[EquipementResume]
+    total: int
+    page: int
+    taille: int
+
+
+class StatsInventaire(BaseModel):
+    total: int
+    en_service: int
+    sortis: int
+    sans_detenteur: int
+    valeur_acquisition: float
+
+
+class _EquipementChamps(BaseModel):
+    """Champs communs à la création et à la modification (tous facultatifs ici)."""
+
+    code_immo: str | None = Field(default=None, max_length=40)
+    numero_serie: str | None = Field(default=None, max_length=80)
+    modele: str | None = Field(default=None, max_length=120)
+    emplacement_id: str | None = None
+    departement_id: str | None = None
+    detenteur_id: str | None = None
+    taux: float | None = Field(default=None, ge=0, le=100)
+    date_acquisition: date | None = None
+    duree_annees: int | None = Field(default=None, ge=0, le=99)
+    valeur_acquisition: float | None = Field(default=None, ge=0)
+
+
+class EquipementCreation(_EquipementChamps):
+    #: Seul champ exigé : un matériel sans désignation serait introuvable dans la liste.
+    designation: str = Field(min_length=2, max_length=200)
+
+
+class EquipementMaj(_EquipementChamps):
+    #: Omis = inchangé (le routeur n'envoie que les champs réellement fournis).
+    designation: str | None = Field(default=None, min_length=2, max_length=200)
+    #: Sorti du parc (cédé, détruit) : conservé pour l'historique, hors des listes actives.
+    actif: bool | None = None
+
+
+class ReferentielItem(BaseModel):
+    id: str
+    libelle: str
+    actif: bool
+
+
+class ReferentielCreation(BaseModel):
+    libelle: str = Field(min_length=1, max_length=120)
+
+
 class StatsListe(BaseModel):
     """Comptes par phase pour l'en-tête d'une liste, plus le retard (qui traverse les phases)."""
 
@@ -583,6 +673,8 @@ class UtilisateurResume(BaseModel):
     email: str
     nom: str
     prenom: str
+    #: Matricule bancaire : c'est par lui que l'inventaire désigne le détenteur d'un équipement.
+    matricule: str | None = None
     profil: str
     profil_libelle: str
     direction: str | None
@@ -603,6 +695,7 @@ class CreationUtilisateur(BaseModel):
     email: str
     nom: str
     prenom: str
+    matricule: str | None = Field(default=None, max_length=40)
     profil_code: str
     direction_code: str | None = None
     # La DSI n'a que N1 et N2 : le niveau 3 désigne un transfert vers DBS, qui n'a pas de compte
@@ -614,6 +707,7 @@ class CreationUtilisateur(BaseModel):
 class MajUtilisateur(BaseModel):
     nom: str
     prenom: str
+    matricule: str | None = Field(default=None, max_length=40)
     profil_code: str
     direction_code: str | None = None
     # La DSI n'a que N1 et N2 : le niveau 3 désigne un transfert vers DBS, qui n'a pas de compte

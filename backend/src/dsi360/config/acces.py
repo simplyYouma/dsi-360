@@ -17,6 +17,8 @@ MODULES: tuple[str, ...] = (
     "risques",
     "cybersecurite",
     "gouvernance",
+    # Parc matériel (immobilisations IT). Hors des neuf modules du cahier : ajout assumé.
+    "inventaire",
     "administration",
 )
 

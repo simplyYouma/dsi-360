@@ -36,6 +36,7 @@ from dsi360.interface.routeurs import (
     gouvernance,
     incidents,
     ingestion,
+    inventaire,
     mes_tickets,
     notifications,
     projets,
@@ -213,6 +214,7 @@ def creer_app() -> FastAPI:
     v1.include_router(cybersecurite.routeur)
     v1.include_router(gouvernance.routeur)
     v1.include_router(projets.routeur)
+    v1.include_router(inventaire.routeur)
     app.include_router(v1)
     if settings.servir_frontend:
         _monter_frontend(app, settings)

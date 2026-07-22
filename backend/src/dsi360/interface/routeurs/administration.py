@@ -330,7 +330,8 @@ async def supprimer_categorie(ident: str, courant: Courant, session: Session) ->
 # --- Utilisateurs ---
 
 _CHAMPS_U = (
-    "u.id::text AS id, u.email, u.nom, u.prenom, p.code AS profil, p.libelle AS profil_libelle, "
+    "u.id::text AS id, u.email, u.nom, u.prenom, u.matricule, "
+    "p.code AS profil, p.libelle AS profil_libelle, "
     "d.code AS direction, u.niveau_support, u.actif, u.expire_le, u.doit_changer_mdp"
 )
 _BASE_U = (
@@ -399,8 +400,9 @@ async def creer_utilisateur(
     ident = await session.scalar(
         text(
             "INSERT INTO core.utilisateur"
-            "(email, nom, prenom, profil_id, direction_id, niveau_support, source_auth, "
-            " mot_de_passe_hash, doit_changer_mdp, expire_le) VALUES (:email, :nom, :prenom, "
+            "(email, nom, prenom, matricule, profil_id, direction_id, niveau_support, source_auth, "
+            " mot_de_passe_hash, doit_changer_mdp, expire_le) "
+            "VALUES (:email, :nom, :prenom, nullif(btrim(:matricule), ''), "
             " (SELECT id FROM core.profil WHERE code = :profil), "
             " (SELECT id FROM core.direction WHERE code = :direction), :niveau, 'LOCAL', NULL, "
             " true, :expire_le) "
@@ -410,6 +412,7 @@ async def creer_utilisateur(
             "email": corps.email,
             "nom": nom_propre(corps.nom),
             "prenom": nom_propre(corps.prenom),
+            "matricule": corps.matricule,
             "profil": corps.profil_code,
             "direction": corps.direction_code,
             "niveau": corps.niveau_support,
@@ -489,6 +492,7 @@ async def modifier_utilisateur(
     await session.execute(
         text(
             "UPDATE core.utilisateur SET nom = :nom, prenom = :prenom, actif = :actif, "
+            "matricule = nullif(btrim(:matricule), ''), "
             "expire_le = :expire_le, niveau_support = :niveau, "
             "profil_id = (SELECT id FROM core.profil WHERE code = :profil), "
             "direction_id = (SELECT id FROM core.direction WHERE code = :direction) "
@@ -498,6 +502,7 @@ async def modifier_utilisateur(
             "id": ident,
             "nom": nom_propre(corps.nom),
             "prenom": nom_propre(corps.prenom),
+            "matricule": corps.matricule,
             "actif": corps.actif,
             "expire_le": corps.expire_le,
             "niveau": corps.niveau_support,
