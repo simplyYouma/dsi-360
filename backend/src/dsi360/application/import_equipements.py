@@ -23,6 +23,7 @@ from dsi360.application.inventaire import detenteur_pour, index_matricules
 from dsi360.domain.texte import nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.ingestion_equipements import analyser_classeur
+from dsi360.infrastructure.repositories import campagne as repo_campagne
 from dsi360.infrastructure.repositories import equipement as repo
 
 #: La comptabilité fait foi : ces colonnes sont toujours reprises du fichier.
@@ -37,10 +38,14 @@ async def importer_classeur(
     """Charge le classeur. Retourne le compte-rendu affiché à l'écran."""
     lignes = analyser_classeur(contenu)
     cache_matricules = await index_matricules(session)
+    # Une campagne ouverte : les croix bon/rebut/casse du fichier deviennent des constats.
+    # Sans campagne, elles sont seulement comptées — un état hors campagne ne se rattache à rien.
+    campagne = await repo_campagne.ouverte(session)
 
     crees = maj = ignores = 0
     sans_detenteur = 0
     avec_etat = 0
+    constats = 0
     for ligne in lignes:
         code = nom_significatif(ligne["code_immo"])
         if code is None:
@@ -80,7 +85,7 @@ async def importer_classeur(
 
         existant = await repo.par_code_immo(session, code)
         if existant is None:
-            await repo.creer(
+            equipement_id = await repo.creer(
                 session,
                 {
                     "code_immo": code.upper(),
@@ -92,6 +97,7 @@ async def importer_classeur(
             )
             crees += 1
         else:
+            equipement_id = str(existant["id"])
             champs: dict[str, Any] = dict(comptables)
             # Règle d'or : on ne remplit une colonne de terrain que si elle est vide.
             for colonne, valeur in terrain.items():
@@ -103,6 +109,13 @@ async def importer_classeur(
             await repo.maj(session, existant["id"], champs)
             maj += 1
 
+        # NON_RETROUVE ne vient jamais du fichier : il se déduit à la clôture de la campagne.
+        if campagne is not None and ligne["etat_constate"] in repo_campagne.ETATS_SAISIE:
+            await repo_campagne.poser_constat(
+                session, campagne["id"], equipement_id, ligne["etat_constate"], acteur["id"]
+            )
+            constats += 1
+
     await audit.consigner(
         session,
         action="IMPORT",
@@ -111,7 +124,13 @@ async def importer_classeur(
         module="inventaire",
         cible_type="equipement",
         cible_id="inventaire",
-        nouvelle={"lus": len(lignes), "crees": crees, "mis_a_jour": maj, "ignores": ignores},
+        nouvelle={
+            "lus": len(lignes),
+            "crees": crees,
+            "mis_a_jour": maj,
+            "ignores": ignores,
+            "constats_enregistres": constats,
+        },
     )
     await session.commit()
     return {
@@ -121,6 +140,7 @@ async def importer_classeur(
         "ignores": ignores,
         "detenteurs_non_rapproches": sans_detenteur,
         "avec_etat_constate": avec_etat,
+        "constats_enregistres": constats,
     }
 
 

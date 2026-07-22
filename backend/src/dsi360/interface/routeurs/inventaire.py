@@ -8,6 +8,7 @@ la valeur nette comptable serait fausse dès le lendemain de son enregistrement.
 """
 
 import re
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -24,6 +25,7 @@ from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import equipement as repo
 from dsi360.interface.schemas import (
+    AnalysesParc,
     EquipementCreation,
     EquipementDetail,
     EquipementMaj,
@@ -131,6 +133,9 @@ _LIBELLE_CHAMP = {
     "duree_annees": "durée",
     "valeur_acquisition": "valeur d'acquisition",
     "actif": "en service",
+    # Constats d'inventaire : posés par les campagnes, relus dans l'historique de la fiche.
+    "etat": "état constaté",
+    "campagne": "campagne",
 }
 
 _UUID_BRUT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -246,6 +251,113 @@ async def lister(
 async def stats(courant: Courant, session: Session) -> dict[str, int | float]:
     """Compteurs de l'en-tête : effectif, sorties du parc, matériels sans détenteur, valeur."""
     return await repo.compter(session)
+
+
+def _agreger(
+    lignes: list[tuple[str, float | None, float | None]], plafond: int = 10
+) -> list[dict[str, Any]]:
+    """Agrège (libellé, VA, VNC) par libellé, trie, replie la queue dans « Autres ».
+
+    Le repli est annoncé par son libellé : un graphique qui tait ce qu'il coupe ment.
+    """
+    groupes: dict[str, dict[str, Any]] = {}
+    for libelle, va, vnc in lignes:
+        g = groupes.setdefault(
+            libelle,
+            {"libelle": libelle, "nombre": 0, "valeur_acquisition": 0.0, "valeur_nette": 0.0},
+        )
+        g["nombre"] += 1
+        g["valeur_acquisition"] += va or 0.0
+        g["valeur_nette"] += vnc or 0.0
+    tries = sorted(groupes.values(), key=lambda g: (-g["nombre"], g["libelle"]))
+    if len(tries) <= plafond:
+        return tries
+    tete, queue = tries[:plafond], tries[plafond:]
+    autres = {
+        "libelle": f"Autres ({len(queue)})",
+        "nombre": sum(g["nombre"] for g in queue),
+        "valeur_acquisition": sum(g["valeur_acquisition"] for g in queue),
+        "valeur_nette": sum(g["valeur_nette"] for g in queue),
+    }
+    return [*tete, autres]
+
+
+def _tranche(
+    libelle: str, membres: list[tuple[RowMapping, amortissement.Amortissement]]
+) -> dict[str, Any]:
+    return {
+        "libelle": libelle,
+        "nombre": len(membres),
+        "valeur_acquisition": sum(_nombre(r["valeur_acquisition"]) or 0.0 for r, _ in membres),
+        "valeur_nette": sum(a.valeur_nette or 0.0 for _, a in membres),
+    }
+
+
+#: Tranches d'âge du matériel : bornes en années, du plus récent au plus ancien.
+_TRANCHES_AGE = [
+    ("Moins de 3 ans", 0.0, 3.0),
+    ("3 à 6 ans", 3.0, 6.0),
+    ("Plus de 6 ans", 6.0, 999.0),
+]
+
+
+@routeur.get("/analyses", response_model=AnalysesParc)
+async def analyses_parc(courant: Courant, session: Session) -> dict[str, Any]:
+    """Le parc en chiffres (lot 4) : localisation, valeur au bilan, obsolescence.
+
+    Tout se calcule à la lecture sur le parc **actif** — une VNC stockée serait fausse dès le
+    lendemain, exactement comme sur la fiche.
+    """
+    actifs = [r for r in await repo.lister_tout(session) if r["actif"]]
+    situations = [(r, _amortissement(r)) for r in actifs]
+
+    aujourd_hui = date.today()
+    par_age = [
+        _tranche(
+            libelle,
+            [
+                (r, a)
+                for r, a in situations
+                if r["date_acquisition"] is not None
+                and borne_min <= (aujourd_hui - r["date_acquisition"]).days / 365.25 < borne_max
+            ],
+        )
+        for libelle, borne_min, borne_max in _TRANCHES_AGE
+    ]
+    sans_date = [(r, a) for r, a in situations if r["date_acquisition"] is None]
+    if sans_date:
+        par_age.append(_tranche("Sans date", sans_date))
+
+    return {
+        "parc_actif": len(actifs),
+        "valeur_acquisition": round(
+            sum(_nombre(r["valeur_acquisition"]) or 0.0 for r in actifs), 2
+        ),
+        "valeur_nette": round(sum(a.valeur_nette or 0.0 for _, a in situations), 2),
+        "totalement_amortis": sum(1 for _, a in situations if a.totalement_amorti),
+        "sans_donnee_comptable": sum(1 for _, a in situations if a.valeur_nette is None),
+        "par_emplacement": _agreger(
+            [
+                (
+                    r["emplacement"] or "Sans emplacement",
+                    _nombre(r["valeur_acquisition"]),
+                    a.valeur_nette,
+                )
+                for r, a in situations
+            ]
+        ),
+        "par_departement": _agreger(
+            [
+                (
+                    r["departement"] or "Sans département",
+                    _nombre(r["valeur_acquisition"]),
+                    a.valeur_nette,
+                )
+                for r, a in situations
+            ]
+        ),
+        "par_age": par_age,
+    }
 
 
 _ENTETES_EXPORT = [

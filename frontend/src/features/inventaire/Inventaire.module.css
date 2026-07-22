@@ -157,16 +157,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* La règle du calcul, sous les chiffres : discrète mais toujours là. */
-.formule {
-  display: block;
-  margin-top: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  line-height: 1.5;
-}
 
 .paire {
   display: grid;
@@ -178,6 +168,118 @@
   .valeurs {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---- Campagnes d'inventaire ---- */
+.cartesCampagnes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+/* Une campagne = une carte cliquable ; côte à côte, elles font la comparaison annuelle. */
+.carteCampagne,
+.carteCampagneOn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+.carteCampagne:hover {
+  border-color: color-mix(in srgb, var(--secondary) 45%, var(--border));
+}
+.carteCampagneOn {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 1px var(--secondary);
+}
+.carteTete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.carteLibelle {
+  font-weight: var(--weight-semibold);
+}
+.carteQuand {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.carteComptes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+}
+.carteComptes b {
+  font-variant-numeric: tabular-nums;
+}
+
+.avancee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.avanceePiste {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.avanceePlein {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--secondary);
+  transition: width 0.4s ease;
+}
+.avanceeTexte {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Constats en ligne : trois boutons, celui qui est posé porte sa couleur. */
+.constats {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+.constat,
+.constatOn {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.constat:hover {
+  border-color: var(--text-muted);
+}
+.constatOn {
+  color: #fff;
+  font-weight: var(--weight-medium);
+}
+
+.noteModale {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 /* ---- Tête de fiche : badges d'état ---- */

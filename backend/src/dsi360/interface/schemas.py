@@ -314,6 +314,82 @@ class EquipementMaj(_EquipementChamps):
     actif: bool | None = None
 
 
+class TrancheParc(BaseModel):
+    """Un groupe d'équipements (par lieu, département ou âge) et son poids au bilan."""
+
+    libelle: str
+    nombre: int
+    valeur_acquisition: float
+    valeur_nette: float
+
+
+class AnalysesParc(BaseModel):
+    """Le parc actif en chiffres : localisation, valeur au bilan, obsolescence (lot 4)."""
+
+    parc_actif: int
+    valeur_acquisition: float
+    valeur_nette: float
+    totalement_amortis: int
+    #: Ni valeur, ni date, ni taux : rien de calculable — à compléter côté comptabilité.
+    sans_donnee_comptable: int
+    par_emplacement: list[TrancheParc]
+    par_departement: list[TrancheParc]
+    par_age: list[TrancheParc]
+
+
+class CampagneInventaire(BaseModel):
+    """Un recensement daté du parc, avec ses comptes par constat."""
+
+    id: str
+    libelle: str
+    #: OUVERTE | CLOTUREE — une seule campagne ouverte à la fois.
+    statut: str
+    ouverte_le: datetime
+    cloturee_le: datetime | None
+    ouverte_par: str | None
+    constates: int
+    bons: int
+    rebuts: int
+    casses: int
+    #: Posés à la clôture sur tout matériel actif jamais recensé.
+    non_retrouves: int
+
+
+class PageCampagnes(BaseModel):
+    campagnes: list[CampagneInventaire]
+    #: Taille du parc actif : le dénominateur de l'avancement d'une campagne ouverte.
+    parc_actif: int
+
+
+class CampagneCreation(BaseModel):
+    libelle: str = Field(min_length=2, max_length=120)
+
+
+class ConstatCreation(BaseModel):
+    #: NON_RETROUVE ne se saisit pas : il se déduit à la clôture.
+    etat: Literal["BON", "REBUT", "CASSE"]
+
+
+class LigneRecensement(BaseModel):
+    """Un équipement du parc face à la campagne : recensé (avec son constat) ou pas encore."""
+
+    id: str
+    code_immo: str | None
+    designation: str
+    numero_serie: str | None
+    emplacement: str | None
+    detenteur: str | None
+    etat: str | None
+    constate_le: datetime | None
+    constate_par: str | None
+
+
+class ClotureCampagne(BaseModel):
+    #: Le chiffre que la clôture vient chercher.
+    non_retrouves: int
+    campagne: CampagneInventaire
+
+
 class ReferentielItem(BaseModel):
     id: str
     libelle: str
@@ -646,6 +722,8 @@ class RapportImportEquipements(BaseModel):
     detenteurs_non_rapproches: int
     #: Lignes portant un état constaté (bon / rebut / casse) — exploité par les campagnes.
     avec_etat_constate: int
+    #: Constats effectivement rattachés à la campagne ouverte (0 si aucune campagne en cours).
+    constats_enregistres: int = 0
 
 
 class RapportImport(BaseModel):

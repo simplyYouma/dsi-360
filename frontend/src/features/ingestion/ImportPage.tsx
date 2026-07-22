@@ -22,6 +22,7 @@ const LIBELLE_DETAIL: Record<string, string> = {
   ignores: 'sans code immo',
   detenteurs_non_rapproches: 'détenteurs à rattacher',
   demandeurs_crees: 'demandeurs créés',
+  constats_enregistres: 'constats de campagne',
   incidents: 'incidents',
   demandes: 'demandes',
   lus: 'lus',
@@ -52,13 +53,18 @@ function tuilesDe(r: RapportFichier): { libelle: string; valeur: number; couleur
       { libelle: 'Inchangés', valeur: r.inchanges, couleur: '#8a93a6' },
     ];
   }
-  return [
+  const tuiles = [
     { libelle: 'Équipements lus', valeur: r.total, couleur: '#4f6bed' },
     { libelle: 'Créés', valeur: r.crees, couleur: '#1f9d55' },
     { libelle: 'Mis à jour', valeur: r.mis_a_jour, couleur: '#c77700' },
     { libelle: 'Sans code immo', valeur: r.ignores, couleur: '#8a93a6' },
     { libelle: 'Détenteurs à rattacher', valeur: r.detenteurs_non_rapproches, couleur: '#c77700' },
   ];
+  // Les croix bon/rebut/casse du fichier ne deviennent des constats que si une campagne est ouverte.
+  if (r.constats_enregistres > 0) {
+    tuiles.push({ libelle: 'Constats de campagne', valeur: r.constats_enregistres, couleur: '#1f9d55' });
+  }
+  return tuiles;
 }
 
 export function ImportPage(): JSX.Element {

@@ -83,6 +83,55 @@ export interface NouvelEquipement {
 
 export type MajEquipement = Partial<NouvelEquipement> & { actif?: boolean };
 
+/** Constat saisissable au recensement. NON_RETROUVE se déduit à la clôture, il ne se coche pas. */
+export type EtatConstat = 'BON' | 'REBUT' | 'CASSE';
+
+export interface CampagneInventaire {
+  id: string;
+  libelle: string;
+  /** OUVERTE | CLOTUREE — une seule campagne ouverte à la fois. */
+  statut: string;
+  ouverte_le: string;
+  cloturee_le: string | null;
+  ouverte_par: string | null;
+  constates: number;
+  bons: number;
+  rebuts: number;
+  casses: number;
+  /** Posés à la clôture sur tout matériel actif jamais recensé. */
+  non_retrouves: number;
+}
+
+export interface LigneRecensement {
+  id: string;
+  code_immo: string | null;
+  designation: string;
+  numero_serie: string | null;
+  emplacement: string | null;
+  detenteur: string | null;
+  etat: string | null;
+  constate_le: string | null;
+  constate_par: string | null;
+}
+
+export interface TrancheParc {
+  libelle: string;
+  nombre: number;
+  valeur_acquisition: number;
+  valeur_nette: number;
+}
+
+export interface AnalysesParc {
+  parc_actif: number;
+  valeur_acquisition: number;
+  valeur_nette: number;
+  totalement_amortis: number;
+  sans_donnee_comptable: number;
+  par_emplacement: TrancheParc[];
+  par_departement: TrancheParc[];
+  par_age: TrancheParc[];
+}
+
 function chaineFiltres(page: number, f?: FiltresInventaire): string {
   const p = new URLSearchParams({ page: String(page) });
   if (f?.q && f.q.trim() !== '') p.set('q', f.q.trim());
@@ -111,4 +160,20 @@ export const inventaireApi = {
     cle: 'emplacements' | 'departements',
     libelle: string,
   ): Promise<ReferentielItem> => api.post(`/inventaire/referentiels/${cle}`, { libelle }),
+  analyses: (): Promise<AnalysesParc> => api.get('/inventaire/analyses'),
+};
+
+export const campagnesApi = {
+  lister: (): Promise<{ campagnes: CampagneInventaire[]; parc_actif: number }> =>
+    api.get('/inventaire/campagnes'),
+  ouvrir: (libelle: string): Promise<CampagneInventaire> =>
+    api.post('/inventaire/campagnes', { libelle }),
+  recensement: (id: string): Promise<LigneRecensement[]> =>
+    api.get(`/inventaire/campagnes/${id}/recensement`),
+  constater: (id: string, equipementId: string, etat: EtatConstat): Promise<void> =>
+    api.put(`/inventaire/campagnes/${id}/constats/${equipementId}`, { etat }),
+  retirerConstat: (id: string, equipementId: string): Promise<void> =>
+    api.del(`/inventaire/campagnes/${id}/constats/${equipementId}`),
+  cloturer: (id: string): Promise<{ non_retrouves: number; campagne: CampagneInventaire }> =>
+    api.post(`/inventaire/campagnes/${id}/cloture`),
 };

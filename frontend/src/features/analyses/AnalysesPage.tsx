@@ -34,6 +34,7 @@ import { SelecteurListe } from '@/common/SelecteurListe';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { MatriceMensuelle } from './MatriceMensuelle';
+import { ParcOnglet } from './ParcOnglet';
 import type { AnalysesMensuelles } from './analysesApi';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
 import { PERIODE_DEFAUT, type Periode } from '@/common/periode';
@@ -81,13 +82,14 @@ const SLA_SEGMENTS = [
   { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
 ] as const;
 
-type CleOnglet = 'apercu' | 'flux' | 'priorites' | 'equipe' | 'mensuel';
+type CleOnglet = 'apercu' | 'flux' | 'priorites' | 'equipe' | 'mensuel' | 'parc';
 const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
   { cle: 'apercu', libelle: "Vue d'ensemble" },
   { cle: 'flux', libelle: 'Flux & qualité' },
   { cle: 'priorites', libelle: 'Risques & priorités' },
   { cle: 'mensuel', libelle: 'Synthèse périodique' },
   { cle: 'equipe', libelle: 'Équipe & gestionnaires' },
+  { cle: 'parc', libelle: 'Parc matériel' },
 ];
 // ---------------------------------------------------------------- KPI
 
@@ -1290,6 +1292,9 @@ export function AnalysesPage(): JSX.Element {
             <MatriceMensuelle data={mensuel} statut={statutMensuel} />
           </>
         )}
+
+        {/* Le parc matériel vit hors du temps des tickets : pas de filtre de période ici. */}
+        {onglet === 'parc' && <ParcOnglet />}
       </div>
     </div>
   );

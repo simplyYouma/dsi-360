@@ -292,6 +292,36 @@ async def test_un_referentiel_inconnu_est_refuse(
     assert r.status_code == 404
 
 
+async def test_les_analyses_du_parc_se_calculent_a_la_lecture(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le parc en chiffres (lot 4) : totaux, localisation, tranches d'âge — jamais stockés."""
+    admin = await _admin(session, "admin.inv16@afgbank.ml")
+    await _creer(
+        client,
+        admin,
+        designation="Serveur analysé",
+        valeur_acquisition=2_000_000,
+        date_acquisition=str(date(2019, 1, 1)),
+        taux=25,
+    )
+    sorti = await _creer(client, admin, designation="Hors des analyses")
+    await client.patch(f"/inventaire/{sorti['id']}", json={"actif": False}, headers=entetes(admin))
+
+    r = await client.get("/inventaire/analyses", headers=entetes(admin))
+
+    assert r.status_code == 200, r.text
+    a = r.json()
+    assert a["parc_actif"] >= 1
+    assert a["valeur_acquisition"] >= 2_000_000
+    assert a["totalement_amortis"] >= 1, "acquis en 2019 à 25 % : plus rien au bilan"
+    # Les regroupements annoncent leurs trous plutôt que de les taire.
+    assert any(t["libelle"] == "Sans emplacement" for t in a["par_emplacement"])
+    assert any(t["libelle"] == "Plus de 6 ans" for t in a["par_age"])
+    liste = (await client.get("/inventaire", headers=entetes(admin))).json()["elements"]
+    assert sorti["id"] not in {e["id"] for e in liste}, "un matériel sorti ne pèse plus"
+
+
 async def test_une_reference_forgee_est_refusee_en_clair(
     client: AsyncClient, session: AsyncSession
 ) -> None:

@@ -21,6 +21,8 @@ export interface RapportImportEquipements {
   detenteurs_non_rapproches: number;
   /** Lignes portant un état constaté — exploité par les campagnes d'inventaire. */
   avec_etat_constate: number;
+  /** Constats rattachés à la campagne ouverte (0 si aucune campagne en cours). */
+  constats_enregistres: number;
 }
 
 export const importApi = {

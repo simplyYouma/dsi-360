@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ClipboardList, Plus, Search, X } from 'lucide-react';
 import { Button, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -70,6 +71,7 @@ export function InventairePage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
+  const navigate = useNavigate();
   const { moi } = useAuth();
   const { notifier } = useToast();
   const estAdmin = moi?.profil === 'ADMIN';
@@ -175,6 +177,10 @@ export function InventairePage(): JSX.Element {
           <p className={styles.sous}>Parc matériel de la DSI et valeur des immobilisations.</p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          <Button variante="secondaire" onClick={() => navigate('/inventaire/campagnes')}>
+            <ClipboardList size={16} />
+            Campagnes
+          </Button>
           <BoutonsExport base="/inventaire" />
           {estAdmin && (
             <Button onClick={() => setModale(true)}>

@@ -52,6 +52,7 @@ const LIBELLE_ACTION: Record<string, string> = {
   SUPPRESSION: 'Suppression',
   IMPORT: 'Import comptable',
   COMMENTAIRE: 'Commentaire',
+  CONSTAT: "Constat d'inventaire",
 };
 
 function horodatage(iso: string): string {
@@ -238,18 +239,8 @@ export function FicheEquipement({
               </div>
             </div>
             {detail.amorti_pct !== null && (
-              <span className={local.amortiTexte}>
-                {detail.amorti_pct} % amorti
-                {detail.totalement_amorti && ' — ne vaut plus rien au bilan'}
-              </span>
+              <span className={local.amortiTexte}>{detail.amorti_pct} % amorti</span>
             )}
-            {/* La règle du calcul, écrite là où on lit le chiffre : rien de magique. */}
-            <span className={local.formule}>
-              Amortissement linéaire, au prorata du temps écoulé : dotation = valeur × taux ;
-              amorti = dotation × années depuis l'acquisition, plafonné à la valeur ; le % amorti
-              rapporte l'amorti à la valeur d'acquisition. En cas d'écart taux/durée, le taux fait
-              foi.
-            </span>
           </section>
 
           <dl className={fiche.meta}>
