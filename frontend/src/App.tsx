@@ -17,7 +17,6 @@ import { ChangementsPage } from '@/features/changements/ChangementsPage';
 import { ChangementPage } from '@/features/changements/ChangementPage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { InventairePage } from '@/features/inventaire/InventairePage';
-import { CampagnesPage } from '@/features/inventaire/CampagnesPage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
 import { PageActiviteCategorie } from '@/common/PageActiviteCategorie';
 import { AdministrationPage } from '@/features/administration/AdministrationPage';
@@ -124,15 +123,6 @@ function Racine(): JSX.Element {
             element={
               <RequiertAcces cle="projets">
                 <ProjetPage />
-              </RequiertAcces>
-            }
-          />
-          {/* Campagnes d'inventaire : page dédiée hors NAVIGATION, sous le même accès. */}
-          <Route
-            path="/inventaire/campagnes"
-            element={
-              <RequiertAcces cle="inventaire">
-                <CampagnesPage />
               </RequiertAcces>
             }
           />

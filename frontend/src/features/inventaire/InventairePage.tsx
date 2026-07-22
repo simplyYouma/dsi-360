@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, Search, X } from 'lucide-react';
-import { Button, Table, useToast, type Colonne } from '@/design-system/primitives';
+import { ClipboardCheck, Plus, Search, X } from 'lucide-react';
+import {
+  Button,
+  Modale,
+  StatusBadge,
+  Table,
+  useToast,
+  type Colonne,
+} from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { useFicheUrl } from '@/common/useFicheUrl';
@@ -13,13 +19,38 @@ import { FicheEquipement } from './FicheEquipement';
 import { ModaleEquipement } from './ModaleEquipement';
 import local from './Inventaire.module.css';
 import {
+  campagnesApi,
   inventaireApi,
+  type CampagneInventaire,
   type Equipement,
+  type EtatConstat,
   type FiltresInventaire,
   type ReferentielItem,
   type StatsInventaire,
 } from './inventaireApi';
 import { api } from '@/lib/api';
+
+const CONSTATS: { etat: EtatConstat; libelle: string; couleur: string }[] = [
+  { etat: 'BON', libelle: 'Bon', couleur: 'var(--status-ok)' },
+  { etat: 'REBUT', libelle: 'Rebut', couleur: 'var(--status-warn)' },
+  { etat: 'CASSE', libelle: 'Cassé', couleur: 'var(--status-danger)' },
+];
+
+const LIBELLE_ETAT: Record<string, string> = {
+  BON: 'Bon',
+  REBUT: 'Rebut',
+  CASSE: 'Cassé',
+  NON_RETROUVE: 'Non retrouvé',
+};
+
+function jourLong(iso: string | null): string {
+  if (iso === null) return '—';
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
 
 /** Montant en francs CFA, séparé par milliers. Sans décimales : elles n'apportent rien ici. */
 export function formaterMontant(valeur: number | null): string {
@@ -71,10 +102,102 @@ export function InventairePage(): JSX.Element {
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
-  const navigate = useNavigate();
   const { moi } = useAuth();
   const { notifier } = useToast();
   const estAdmin = moi?.profil === 'ADMIN';
+
+  // --- Campagne d'inventaire : le recensement se fait ici, dans la liste du parc. ---
+  const [campagnes, setCampagnes] = useState<CampagneInventaire[]>([]);
+  const [parcActif, setParcActif] = useState(0);
+  const [campagneId, setCampagneId] = useState<string | null>(null);
+  const [constats, setConstats] = useState<Record<string, string>>({});
+  const [ouvertureVisible, setOuvertureVisible] = useState(false);
+  const [libelleCampagne, setLibelleCampagne] = useState('');
+  const [clotureVisible, setClotureVisible] = useState(false);
+  const [envoiCampagne, setEnvoiCampagne] = useState(false);
+
+  const chargerCampagnes = useCallback(async (): Promise<void> => {
+    const r = await campagnesApi.lister();
+    setCampagnes(r.campagnes);
+    setParcActif(r.parc_actif);
+    // La campagne en cours s'affiche d'elle-même ; les closes restent au sélecteur.
+    setCampagneId((id) => id ?? r.campagnes.find((c) => c.statut === 'OUVERTE')?.id ?? null);
+  }, []);
+  useEffect(() => {
+    void chargerCampagnes().catch(() => undefined);
+  }, [chargerCampagnes]);
+
+  const campagne = campagnes.find((c) => c.id === campagneId) ?? null;
+  const enRecensement = campagne?.statut === 'OUVERTE';
+
+  // Les constats de la campagne affichée, par équipement — la colonne de la liste s'en nourrit.
+  useEffect(() => {
+    if (campagneId === null) {
+      setConstats({});
+      return;
+    }
+    void campagnesApi
+      .recensement(campagneId)
+      .then((lignes) =>
+        setConstats(
+          Object.fromEntries(
+            lignes.filter((l) => l.etat !== null).map((l) => [l.id, l.etat as string]),
+          ),
+        ),
+      )
+      .catch(() => setConstats({}));
+  }, [campagneId, campagnes]);
+
+  const erreurCampagne = (e: unknown, repli: string): void =>
+    notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
+
+  const constater = async (e: Equipement, etat: EtatConstat): Promise<void> => {
+    if (campagne === null || !enRecensement) return;
+    try {
+      // Recliquer le même constat l'annule : l'équipement redevient « à recenser ».
+      if (constats[e.id] === etat) await campagnesApi.retirerConstat(campagne.id, e.id);
+      else await campagnesApi.constater(campagne.id, e.id, etat);
+      await chargerCampagnes();
+    } catch (err) {
+      erreurCampagne(err, 'Constat impossible.');
+    }
+  };
+
+  const ouvrirCampagne = async (): Promise<void> => {
+    setEnvoiCampagne(true);
+    try {
+      const creee = await campagnesApi.ouvrir(libelleCampagne);
+      setOuvertureVisible(false);
+      setLibelleCampagne('');
+      setCampagneId(creee.id);
+      await chargerCampagnes();
+      notifier(`Campagne « ${creee.libelle} » ouverte : le recensement peut commencer.`, 'succes');
+    } catch (e) {
+      erreurCampagne(e, 'Ouverture impossible.');
+    } finally {
+      setEnvoiCampagne(false);
+    }
+  };
+
+  const cloturerCampagne = async (): Promise<void> => {
+    if (campagne === null) return;
+    setEnvoiCampagne(true);
+    try {
+      const r = await campagnesApi.cloturer(campagne.id);
+      setClotureVisible(false);
+      await chargerCampagnes();
+      notifier(
+        r.non_retrouves === 0
+          ? 'Campagne clôturée : tout le parc a été retrouvé.'
+          : `Campagne clôturée : ${r.non_retrouves} équipement(s) non retrouvé(s).`,
+        r.non_retrouves === 0 ? 'succes' : 'erreur',
+      );
+    } catch (e) {
+      erreurCampagne(e, 'Clôture impossible.');
+    } finally {
+      setEnvoiCampagne(false);
+    }
+  };
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -194,6 +317,47 @@ export function InventairePage(): JSX.Element {
     },
   ];
 
+  // La colonne de constat n'existe que lorsqu'une campagne est affichée : pendant le
+  // recensement on clique, sur une campagne close on relit.
+  if (campagne !== null) {
+    colonnes.push({
+      cle: 'constat',
+      entete: `Constat ${new Date(campagne.ouverte_le).getFullYear()}`,
+      largeur: '235px',
+      valeur: (e) => constats[e.id] ?? '',
+      rendu: (e) => {
+        const pose = constats[e.id];
+        if (enRecensement) {
+          return (
+            <span className={local.constats}>
+              {CONSTATS.map(({ etat, libelle, couleur }) => (
+                <button
+                  key={etat}
+                  type="button"
+                  className={pose === etat ? local.constatOn : local.constat}
+                  style={pose === etat ? { background: couleur, borderColor: couleur } : undefined}
+                  onClick={(ev) => {
+                    // Sans quoi le clic ouvrirait la fiche de la ligne.
+                    ev.stopPropagation();
+                    void constater(e, etat);
+                  }}
+                >
+                  {libelle}
+                </button>
+              ))}
+            </span>
+          );
+        }
+        if (pose === undefined) return <span className={local.vide}>—</span>;
+        return (
+          <StatusBadge statut={pose === 'BON' ? 'ok' : 'danger'}>
+            {LIBELLE_ETAT[pose] ?? pose}
+          </StatusBadge>
+        );
+      },
+    });
+  }
+
   const vue = VUES.find((v) => v.actif === (f.actif ?? null))?.cle ?? 'tous';
   const filtreActif = Boolean(f.q || f.emplacement_id || f.departement_id);
 
@@ -205,10 +369,12 @@ export function InventairePage(): JSX.Element {
           <p className={styles.sous}>Parc matériel de la DSI et valeur des immobilisations.</p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-          <Button variante="secondaire" onClick={() => navigate('/inventaire/campagnes')}>
-            <ClipboardList size={16} />
-            Campagnes
-          </Button>
+          {estAdmin && !campagnes.some((c) => c.statut === 'OUVERTE') && (
+            <Button variante="secondaire" onClick={() => setOuvertureVisible(true)}>
+              <ClipboardCheck size={16} />
+              Ouvrir une campagne
+            </Button>
+          )}
           <BoutonsExport base="/inventaire" />
           {estAdmin && (
             <Button onClick={() => setModale(true)}>
@@ -244,6 +410,97 @@ export function InventairePage(): JSX.Element {
             <b>{formaterMontant(stats.valeur_acquisition)}</b>
             <span>Valeur du parc (FCFA)</span>
           </span>
+        </div>
+      )}
+
+      {/* La campagne d'inventaire vit dans la même liste que le parc : on choisit laquelle
+          regarder, et la colonne « Constat » suit. Pas de page à part pour cliquer trois fois. */}
+      {campagnes.length > 0 && (
+        <div className={local.bandeauCampagne}>
+          <div className={local.campagneTete}>
+            <span className={local.campagneSelecteur}>
+              <SelecteurListe
+                options={campagnes.map((c) => ({ valeur: c.id, libelle: c.libelle }))}
+                valeur={campagneId}
+                onChange={setCampagneId}
+                placeholder="Voir une campagne"
+                permettreVide
+                libelleVide="Aucune campagne affichée"
+              />
+            </span>
+            {campagne !== null && (
+              <>
+                {campagne.statut === 'OUVERTE' ? (
+                  <StatusBadge statut="ok">En cours</StatusBadge>
+                ) : (
+                  <StatusBadge couleur="var(--text-muted)">Clôturée</StatusBadge>
+                )}
+                <span className={local.carteQuand}>
+                  {campagne.statut === 'OUVERTE'
+                    ? `Ouverte le ${jourLong(campagne.ouverte_le)}`
+                    : `Clôturée le ${jourLong(campagne.cloturee_le)}`}
+                  {campagne.ouverte_par !== null ? ` · ${campagne.ouverte_par}` : ''}
+                </span>
+                {enRecensement && estAdmin && (
+                  <Button
+                    variante="secondaire"
+                    className={local.btnCloture}
+                    onClick={() => setClotureVisible(true)}
+                  >
+                    <ClipboardCheck size={15} />
+                    Clôturer
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          {campagne !== null && (
+            <div className={local.compteurs}>
+              {(() => {
+                const denominateur =
+                  campagne.statut === 'OUVERTE'
+                    ? Math.max(parcActif, campagne.constates)
+                    : campagne.constates;
+                const pct =
+                  denominateur === 0 ? 0 : Math.round((campagne.constates * 100) / denominateur);
+                return (
+                  <span className={local.compteurAvancee}>
+                    <b>
+                      {campagne.constates}
+                      <em> / {denominateur}</em>
+                    </b>
+                    <span className={local.avanceePiste}>
+                      <span className={local.avanceePlein} style={{ width: `${pct}%` }} />
+                    </span>
+                    <span>Recensés · {pct} %</span>
+                  </span>
+                );
+              })()}
+              <span className={local.compteur}>
+                <b style={{ color: 'var(--status-ok)' }}>{campagne.bons}</b>
+                <span>Bons</span>
+              </span>
+              <span className={local.compteur}>
+                <b style={{ color: 'var(--status-warn)' }}>{campagne.rebuts}</b>
+                <span>Rebuts</span>
+              </span>
+              <span className={local.compteur}>
+                <b style={{ color: 'var(--status-danger)' }}>{campagne.casses}</b>
+                <span>Cassés</span>
+              </span>
+              <span className={campagne.non_retrouves > 0 ? local.compteurAlerte : local.compteur}>
+                <b
+                  style={{
+                    color:
+                      campagne.non_retrouves > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
+                  }}
+                >
+                  {campagne.non_retrouves}
+                </b>
+                <span>Non retrouvés</span>
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -356,6 +613,63 @@ export function InventairePage(): JSX.Element {
           notifier(e instanceof ErreurApi ? e.message : 'Création impossible.', 'erreur')
         }
       />
+
+      <Modale
+        ouverte={ouvertureVisible}
+        onFermer={() => setOuvertureVisible(false)}
+        titre="Ouvrir une campagne d'inventaire"
+        pied={
+          <>
+            <Button variante="secondaire" onClick={() => setOuvertureVisible(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => void ouvrirCampagne()}
+              disabled={envoiCampagne || libelleCampagne.trim().length < 2}
+            >
+              {envoiCampagne ? 'Ouverture…' : 'Ouvrir'}
+            </Button>
+          </>
+        }
+      >
+        <label className={styles.champ}>
+          <span>Libellé</span>
+          <input
+            autoFocus
+            value={libelleCampagne}
+            onChange={(e) => setLibelleCampagne(e.target.value)}
+            placeholder="Ex. Inventaire physique 2026"
+          />
+        </label>
+        <p className={local.noteModale}>
+          Une seule campagne peut être ouverte à la fois. La colonne « Constat » apparaît dans la
+          liste : chaque agent du module y pose ce qu'il voit ; la clôture relèvera les non
+          retrouvés.
+        </p>
+      </Modale>
+
+      <Modale
+        ouverte={clotureVisible}
+        onFermer={() => setClotureVisible(false)}
+        titre="Clôturer la campagne"
+        pied={
+          <>
+            <Button variante="secondaire" onClick={() => setClotureVisible(false)}>
+              Annuler
+            </Button>
+            <Button onClick={() => void cloturerCampagne()} disabled={envoiCampagne}>
+              {envoiCampagne ? 'Clôture…' : 'Clôturer'}
+            </Button>
+          </>
+        }
+      >
+        <p className={local.noteModale}>
+          {campagne !== null &&
+            `${campagne.constates} équipement(s) recensé(s) sur ${Math.max(parcActif, campagne.constates)}. ` +
+              `Les ${Math.max(0, parcActif - campagne.constates)} restants seront marqués « non retrouvés ». `}
+          La clôture est définitive : les constats seront figés.
+        </p>
+      </Modale>
     </div>
   );
 }

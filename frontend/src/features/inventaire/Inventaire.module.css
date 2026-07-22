@@ -188,21 +188,26 @@
   }
 }
 
-/* ---- Campagnes d'inventaire ---- */
-.selecteurAnnee {
-  max-width: 200px;
-  margin-bottom: var(--space-3);
+/* ---- Campagne d'inventaire, dans la page du parc ---- */
+/* Le bandeau de la campagne : sélecteur, statut, dates et compteurs — au-dessus de la liste. */
+.bandeauCampagne {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--secondary) 30%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--secondary) 4%, var(--surface));
 }
-/* En-tête de la campagne choisie : son nom, son statut, ses dates — sur une ligne. */
 .campagneTete {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin-bottom: var(--space-3);
 }
-.carteLibelle {
-  font-weight: var(--weight-semibold);
+.campagneSelecteur {
+  min-width: 240px;
+}
+.btnCloture {
+  margin-left: auto;
 }
 .carteQuand {
   font-size: var(--text-xs);
