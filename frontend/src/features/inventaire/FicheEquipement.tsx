@@ -244,7 +244,24 @@ export function FicheEquipement({
               </div>
             </div>
             {detail.amorti_pct !== null && (
-              <span className={local.amortiTexte}>{detail.amorti_pct} % amorti</span>
+              <div className={local.jaugeAmorti}>
+                <span className={local.avanceePiste}>
+                  <span
+                    className={local.avanceePlein}
+                    style={{
+                      width: `${Math.min(100, detail.amorti_pct)}%`,
+                      // La couleur suit l'usure : vert tant que le bien vaut, rouge à zéro.
+                      background:
+                        detail.amorti_pct >= 100
+                          ? 'var(--status-danger)'
+                          : detail.amorti_pct >= 75
+                            ? 'var(--status-warn)'
+                            : 'var(--secondary)',
+                    }}
+                  />
+                </span>
+                <span className={local.amortiTexte}>{detail.amorti_pct} % amorti</span>
+              </div>
             )}
           </section>
 

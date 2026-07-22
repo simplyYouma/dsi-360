@@ -300,6 +300,50 @@
   line-height: 1.5;
 }
 
+/* Jauge d'amortissement de la fiche : la même barre que la liste, en pleine largeur. */
+.jaugeAmorti {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* ---- Couleur des colonnes de valeur, en liste ---- */
+/* La valeur nette porte le sens : verte tant que le bien pèse au bilan, ambre quand il
+   s'épuise, et une pastille rouge quand il ne vaut plus rien. */
+.vncSaine {
+  color: var(--status-ok);
+  font-weight: var(--weight-medium);
+}
+.vncFaible {
+  color: var(--status-warn);
+  font-weight: var(--weight-medium);
+}
+.vncNulle {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+  color: var(--status-danger);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* Emplacement en chip teinté : le lieu se repère d'un coup d'œil dans la liste. */
+.lieu {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--cat-1) 10%, transparent);
+  color: var(--cat-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
 /* ---- Tête de fiche : badges d'état ---- */
 .badges {
   display: flex;

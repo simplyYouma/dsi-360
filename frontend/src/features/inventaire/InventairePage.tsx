@@ -110,7 +110,13 @@ export function InventairePage(): JSX.Element {
       entete: 'Code immo',
       largeur: '130px',
       valeur: (e) => e.code_immo ?? '',
-      rendu: (e) => <span className="tabular">{e.code_immo ?? '—'}</span>,
+      // Le même style « gravé sur le matériel » que la fiche : monospace sur pastille.
+      rendu: (e) =>
+        e.code_immo !== null ? (
+          <span className={local.technique}>{e.code_immo}</span>
+        ) : (
+          <span className={local.vide}>—</span>
+        ),
     },
     {
       cle: 'designation',
@@ -129,7 +135,14 @@ export function InventairePage(): JSX.Element {
       cle: 'emplacement',
       entete: 'Emplacement',
       valeur: (e) => e.emplacement ?? '',
-      rendu: (e) => e.emplacement ?? '—',
+      rendu: (e) =>
+        e.emplacement !== null ? (
+          <span className={local.lieu} title={e.emplacement}>
+            {e.emplacement}
+          </span>
+        ) : (
+          <span className={local.vide}>—</span>
+        ),
     },
     {
       cle: 'detenteur',
@@ -149,7 +162,18 @@ export function InventairePage(): JSX.Element {
       cle: 'valeur_nette',
       entete: 'Valeur nette',
       valeur: (e) => e.valeur_nette ?? 0,
-      rendu: (e) => <span className="tabular">{formaterMontant(e.valeur_nette)}</span>,
+      // La colonne dit ce que le chiffre veut dire : verte tant que le bien pèse au bilan,
+      // ambre sous le quart restant, « Amorti » quand il ne vaut plus rien.
+      rendu: (e) => {
+        if (e.valeur_nette === null) return <span className={local.vide}>—</span>;
+        if (e.valeur_nette === 0) return <span className={local.vncNulle}>Amorti</span>;
+        const part =
+          e.valeur_acquisition !== null && e.valeur_acquisition > 0
+            ? e.valeur_nette / e.valeur_acquisition
+            : null;
+        const classe = part !== null && part < 0.25 ? local.vncFaible : local.vncSaine;
+        return <span className={`tabular ${classe}`}>{formaterMontant(e.valeur_nette)}</span>;
+      },
     },
     {
       cle: 'amorti_pct',
