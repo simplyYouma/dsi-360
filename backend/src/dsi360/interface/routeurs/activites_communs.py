@@ -28,6 +28,7 @@ from dsi360.application.activites import (
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.notifications import notifier
 from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
+from dsi360.domain import etats
 from dsi360.domain.etats import (
     est_etat_terminal,
     est_porte_validation,
@@ -83,20 +84,22 @@ _TAILLE = 15
 _FENETRE_APPROCHE = timedelta(hours=2)
 
 
-def _statut_sla(
-    resolution_le: datetime | None, maintenant: datetime, arret: datetime | None = None
-) -> str:
-    """Statut de l'échéance de résolution.
+def _statut_sla(r: RowMapping, maintenant: datetime) -> str:
+    """Statut de l'échéance de résolution : à l'heure / approche / dépassé — ou **terminé**.
 
-    ``arret`` (résolu/clôturé le) fige le compteur : une activité terminée ne « court » plus. On
-    ne garde alors que le verdict — respecté ou dépassé, mesuré à l'instant où le travail a cessé.
-    Sans ``arret``, le compteur tourne contre l'instant courant (à l'heure / approche / dépassé).
+    Un dossier terminé ne court plus après son délai : afficher « Dépassé · 40 j » sur une action
+    de gouvernance réalisée laisse croire que le compteur tourne encore. On renvoie « terminé »,
+    et l'écran s'en tient là.
+
+    C'est le **statut** qui en décide, pas les horodatages : seuls « Résolu » et « Clôturé » posent
+    un `resolu_le` / `cloture_le`. « Réalisé », « Rejeté », « Maîtrisé » n'en posent aucun — leur
+    compteur tournait donc indéfiniment.
     """
-    if resolution_le is None:
+    if etats.est_termine(r["module"], r["statut"]):
+        return "termine"
+    if r["sla_resolution_le"] is None:
         return "a_lheure"
-    if arret is not None:
-        return "depasse" if arret >= resolution_le else "a_lheure"
-    return statut_sla(resolution_le, maintenant, _FENETRE_APPROCHE)
+    return statut_sla(r["sla_resolution_le"], maintenant, _FENETRE_APPROCHE)
 
 
 def _responsable(r: RowMapping) -> dict[str, str] | None:
@@ -124,9 +127,9 @@ def _gestionnaire(r: RowMapping) -> str | None:
 
 
 def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[str, Any]:
-    # Compteur SLA figé dès que le travail a cessé (résolu, sinon clôturé) : on n'affiche plus un
-    # temps qui court sur une activité terminée, seulement le verdict au moment de l'arrêt.
-    arret = r["resolu_le"] or r["cloture_le"]
+    # Compteur SLA figé dès que le dossier est terminé : on n'affiche plus un délai qui court sur
+    # une activité close. La phase tranche, pas les horodatages (cf. _statut_sla).
+    fini = etats.est_termine(r["module"], r["statut"])
     return {
         "id": r["id"],
         "reference": r["reference"],
@@ -136,8 +139,8 @@ def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[
         "categorie": r["categorie"],
         "direction": r["direction"],
         "sla_resolution_le": r["sla_resolution_le"],
-        "statut_sla": _statut_sla(r["sla_resolution_le"], maintenant, arret),
-        "sla_arrete": arret is not None,
+        "statut_sla": _statut_sla(r, maintenant),
+        "sla_arrete": fini,
         "cree_le": r["cree_le"],
         "responsable": _responsable(r),
         "demandeur": r["demandeur_nom"],

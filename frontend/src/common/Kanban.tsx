@@ -1,3 +1,4 @@
+import type { EtatSla } from '@/common/SablierSla';
 import { useCallback, useState, type CSSProperties, type DragEvent } from 'react';
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SablierSla } from './SablierSla';
@@ -14,7 +15,7 @@ export interface CarteKanban {
   priorite: number | null;
   echeance: string | null;
   debut: string;
-  statutSla: 'a_lheure' | 'approche' | 'depasse';
+  statutSla: EtatSla;
   meta: string | null; // demandeur ou gestionnaire (avatar)
   nbCommentaires: number;
   nbNonVus?: number;
@@ -45,6 +46,8 @@ const SLA_COULEUR: Record<CarteKanban['statutSla'], string> = {
   a_lheure: 'var(--status-ok)',
   approche: 'var(--status-warn)',
   depasse: 'var(--status-danger)',
+  // Terminé : plus de délai qui court, donc plus de couleur d'urgence.
+  termine: 'var(--text-muted)',
 };
 
 function lireReplie(cle: string): Set<string> {
@@ -59,7 +62,7 @@ function lireReplie(cle: string): Set<string> {
 /** Fine barre de répartition SLA des cartes d'une colonne (à l'heure / proche / dépassé). */
 function BarreSlaColonne({ cartes }: { cartes: CarteKanban[] }): JSX.Element | null {
   if (cartes.length === 0) return null;
-  const compte = { a_lheure: 0, approche: 0, depasse: 0 };
+  const compte = { a_lheure: 0, approche: 0, depasse: 0, termine: 0 };
   cartes.forEach((c) => (compte[c.statutSla] += 1));
   const segments = (Object.keys(compte) as CarteKanban['statutSla'][])
     .map((k) => ({ k, v: compte[k] }))

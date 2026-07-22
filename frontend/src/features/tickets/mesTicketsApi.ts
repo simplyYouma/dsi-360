@@ -1,3 +1,4 @@
+import type { EtatSla } from '@/common/SablierSla';
 import { api } from '@/lib/api';
 import { requetePeriode, type Periode } from '@/common/periode';
 
@@ -8,7 +9,7 @@ export interface MonTicket {
   titre: string;
   statut: string;
   priorite: number | null;
-  statut_sla: 'a_lheure' | 'approche' | 'depasse';
+  statut_sla: EtatSla;
   sla_arrete: boolean;
   sla_resolution_le: string | null;
   demandeur: string | null;

@@ -28,7 +28,14 @@
 .champ:disabled:hover {
   border-color: var(--border);
 }
+/* Même traitement que la valeur : un libellé long (« Tous les emplacements ») doit tenir sur une
+   ligne et se tronquer, jamais passer à la ligne — sinon le champ double de hauteur. */
 .placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-muted);
 }
 .fleche {

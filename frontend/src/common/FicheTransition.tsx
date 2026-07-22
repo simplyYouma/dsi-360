@@ -1,3 +1,4 @@
+import type { EtatSla } from '@/common/SablierSla';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, CheckCircle2, Clock, Download, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
@@ -49,7 +50,7 @@ interface Detail {
   urgence?: number;
   categorie?: string | null;
   categorie_id?: string | null;
-  statut_sla?: 'a_lheure' | 'approche' | 'depasse';
+  statut_sla?: EtatSla;
   sla_resolution_le?: string | null;
   cree_le?: string;
   responsable?: { prenom: string; nom: string } | null;

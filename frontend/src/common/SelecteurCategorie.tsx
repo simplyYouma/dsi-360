@@ -19,8 +19,16 @@ interface Props {
   onChange: (id: string | null) => void;
   /** Couleur sémantique par code (ex. types de changement). Optionnel : sinon rendu neutre. */
   couleurs?: Record<string, string>;
-  /** Module — requis pour la gestion inline (ajout/suppression). */
+  /** Module — requis pour la gestion inline des catégories (ajout/suppression). */
   module?: string;
+  /** Ajout sur mesure : fournir cette fonction branche le sélecteur sur un autre référentiel
+   *  (emplacements, départements…) plutôt que sur les catégories. */
+  onAjouter?: (libelle: string) => Promise<OptionCategorie>;
+  /** Suppression sur mesure. Sans elle, la croix ne s'affiche pas : on ne propose pas une
+   *  action qu'on ne sait pas exécuter. */
+  onSupprimer?: (id: string) => Promise<void>;
+  /** Nom de la chose, pour les libellés (« Ajouter un emplacement », « Emplacement ajouté »). */
+  entite?: string;
   /** Autorise l'ajout/suppression inline (réservé aux profils Administration). */
   gerable?: boolean;
   /** Recharge la liste des catégories après ajout/suppression. */
@@ -42,6 +50,9 @@ export function SelecteurCategorie({
   module,
   gerable,
   onModifie,
+  onAjouter,
+  onSupprimer,
+  entite = 'catégorie',
   desactive = false,
   titreDesactive,
 }: Props): JSX.Element | null {
@@ -50,7 +61,10 @@ export function SelecteurCategorie({
   const [nouveau, setNouveau] = useState('');
   const [enCours, setEnCours] = useState(false);
   const [tout, setTout] = useState(false);
-  const gestion = gerable === true && module !== undefined;
+  const gestion = gerable === true && (module !== undefined || onAjouter !== undefined);
+  // Le référentiel d'inventaire s'alimente à l'import : on n'y propose pas la suppression, qui
+  // détacherait des équipements sans le dire. La croix ne paraît que si l'on sait supprimer.
+  const supprimable = gestion && (onSupprimer !== undefined || module !== undefined);
 
   if (categories.length === 0 && !gestion) return null;
 
@@ -71,15 +85,21 @@ export function SelecteurCategorie({
 
   const ajouter = async (): Promise<void> => {
     const libelle = nouveau.trim();
-    if (libelle === '' || module === undefined) return;
+    if (libelle === '') return;
     setEnCours(true);
     try {
-      const creee = await categoriesApi.creer(module, libelle);
+      const creee =
+        onAjouter !== undefined
+          ? await onAjouter(libelle)
+          : module !== undefined
+            ? await categoriesApi.creer(module, libelle)
+            : null;
+      if (creee === null) return;
       setNouveau('');
       setAjout(false);
       onModifie?.();
       onChange(creee.id);
-      notifier('Catégorie ajoutée', 'succes');
+      notifier(`${entite[0]?.toUpperCase()}${entite.slice(1)} ajouté(e)`, 'succes');
     } catch (e) {
       notifier(e instanceof ErreurApi ? e.message : 'Ajout impossible.', 'erreur');
     } finally {
@@ -90,10 +110,11 @@ export function SelecteurCategorie({
   const supprimer = async (id: string): Promise<void> => {
     setEnCours(true);
     try {
-      await categoriesApi.supprimer(id);
+      if (onSupprimer !== undefined) await onSupprimer(id);
+      else await categoriesApi.supprimer(id);
       if (valeur === id) onChange(null);
       onModifie?.();
-      notifier('Catégorie supprimée', 'succes');
+      notifier(`${entite[0]?.toUpperCase()}${entite.slice(1)} supprimé(e)`, 'succes');
     } catch (e) {
       notifier(e instanceof ErreurApi ? e.message : 'Suppression impossible.', 'erreur');
     } finally {
@@ -102,7 +123,7 @@ export function SelecteurCategorie({
   };
 
   return (
-    <div className={styles.chips} role="listbox" aria-label="Catégorie">
+    <div className={styles.chips} role="listbox" aria-label={entite}>
       {visibles.map((c) => {
         const actif = c.id === valeur;
         const coul = c.code !== undefined && couleurs !== undefined ? couleurs[c.code] : undefined;
@@ -130,12 +151,12 @@ export function SelecteurCategorie({
             >
               {c.libelle}
             </button>
-            {gestion && (
+            {supprimable && (
               <button
                 type="button"
                 className={styles.suppr}
                 disabled={enCours}
-                aria-label={`Supprimer la catégorie ${c.libelle}`}
+                aria-label={`Supprimer : ${c.libelle}`}
                 title="Supprimer"
                 onClick={() => void supprimer(c.id)}
               >
@@ -151,8 +172,8 @@ export function SelecteurCategorie({
           type="button"
           className={styles.plus}
           onClick={() => setTout(true)}
-          title={`Voir ${restant} catégorie(s) de plus`}
-          aria-label={`Voir ${restant} catégorie(s) de plus`}
+          title={`Voir ${restant} de plus`}
+          aria-label={`Voir ${restant} de plus`}
         >
           <MoreHorizontal size={14} />
           <span className={styles.plusNb}>{restant}</span>
@@ -178,7 +199,7 @@ export function SelecteurCategorie({
               className={styles.ajoutInput}
               value={nouveau}
               onChange={(e) => setNouveau(e.target.value)}
-              placeholder="Nouvelle catégorie"
+              placeholder={`Nouvel élément — ${entite}`}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -194,7 +215,7 @@ export function SelecteurCategorie({
               className={styles.ajoutOk}
               disabled={enCours || nouveau.trim() === ''}
               onClick={() => void ajouter()}
-              aria-label="Valider la catégorie"
+              aria-label="Valider"
             >
               <Check size={14} />
             </button>
@@ -215,7 +236,7 @@ export function SelecteurCategorie({
             type="button"
             className={styles.ajoutBtn}
             onClick={() => setAjout(true)}
-            title="Ajouter une catégorie"
+            title={`Ajouter — ${entite}`}
           >
             <Plus size={14} />
             Ajouter

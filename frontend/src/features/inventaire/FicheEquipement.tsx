@@ -3,6 +3,7 @@ import { TriangleAlert, X } from 'lucide-react';
 import { Button, Skeleton, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
@@ -23,6 +24,8 @@ interface Props {
   departements: ReferentielItem[];
   onFermer: () => void;
   onChange: () => void;
+  /** Recharge les référentiels après un ajout à la volée. */
+  onReferentiels: () => void;
 }
 
 function montant(valeur: number | null): string {
@@ -45,6 +48,7 @@ export function FicheEquipement({
   departements,
   onFermer,
   onChange,
+  onReferentiels,
 }: Props): JSX.Element | null {
   const [detail, setDetail] = useState<EquipementDetail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -173,13 +177,14 @@ export function FicheEquipement({
               <div className={fiche.metaItem}>
                 <dt>Emplacement</dt>
                 <dd>
-                  <SelecteurListe
-                    options={emplacements.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
+                  <SelecteurCategorie
+                    categories={emplacements}
                     valeur={detail.emplacement_id}
                     onChange={(v) => void patch({ emplacement_id: v })}
-                    placeholder="Non renseigné"
-                    permettreVide
-                    libelleVide="Non renseigné"
+                    gerable={estAdmin}
+                    entite="emplacement"
+                    onAjouter={(l) => inventaireApi.ajouterReferentiel('emplacements', l)}
+                    onModifie={onReferentiels}
                     desactive={!estAdmin}
                   />
                 </dd>
@@ -187,13 +192,14 @@ export function FicheEquipement({
               <div className={fiche.metaItem}>
                 <dt>Département</dt>
                 <dd>
-                  <SelecteurListe
-                    options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
+                  <SelecteurCategorie
+                    categories={departements}
                     valeur={detail.departement_id}
                     onChange={(v) => void patch({ departement_id: v })}
-                    placeholder="Non renseigné"
-                    permettreVide
-                    libelleVide="Non renseigné"
+                    gerable={estAdmin}
+                    entite="département"
+                    onAjouter={(l) => inventaireApi.ajouterReferentiel('departements', l)}
+                    onModifie={onReferentiels}
                     desactive={!estAdmin}
                   />
                 </dd>

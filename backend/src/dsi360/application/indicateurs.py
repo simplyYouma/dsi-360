@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import bindparam, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.granularite_temps import (
@@ -16,7 +16,8 @@ from dsi360.application.granularite_temps import (
     suite_buckets,
 )
 from dsi360.domain.activite import PREFIXE_REFERENCE
-from dsi360.domain.etats import PHASES_FINIES, etats_terminaux, statuts_de_phase
+from dsi360.domain.etats import etats_terminaux
+from dsi360.infrastructure import phases_sql
 
 
 def _clause_periode(
@@ -36,15 +37,18 @@ def _clause_periode(
         return " AND a.cree_le >= now() - make_interval(days => :jours)", {"jours": jours}
     return "", {}
 
+# Un dossier terminé ne court plus après son délai : seul ce qui est en cours peut être en retard.
+_EN_COURS = phases_sql.en_cours()
+
 # Cartes du tableau de bord : un ÉTAT GÉNÉRAL, transverse à tous les modules (pas centré incidents).
-_CARTES = """
+_CARTES = f"""
 SELECT
   count(*) FILTER (WHERE a.cloture_le IS NULL
     AND a.statut NOT IN ('Annulé','Rejeté','Rejetée','Reporté')) AS activites_ouvertes,
   count(*) FILTER (WHERE a.cloture_le IS NULL
     AND (a.priorite = 1 OR nullif(a.donnees->>'criticite','')::int >= 4)) AS critiques,
   count(*) FILTER (WHERE a.cloture_le IS NULL AND a.responsable_id IS NOT NULL) AS charge_dsi,
-  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
+  count(*) FILTER (WHERE {_EN_COURS}
     AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()) AS en_retard,
   count(*) FILTER (WHERE a.resolu_le IS NOT NULL OR a.cloture_le IS NOT NULL) AS resolues,
   count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL) AS sla_total,
@@ -70,15 +74,15 @@ WHERE a.cloture_le IS NULL
 
 # Tendance des activités ouvertes par état SLA courant, regroupées par bucket de temps. La
 # granularité (jour/mois/année) suit la période choisie, comme la synthèse des analyses.
-_SERIE = """
-SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
+_SERIE = f"""
+SELECT to_char(date_trunc('{{trunc}}', a.cree_le), '{{fmt}}') AS bucket,
   count(*) FILTER (WHERE a.sla_resolution_le > now() + interval '2 hours') AS a_lheure,
   count(*) FILTER (WHERE a.sla_resolution_le <= now() + interval '2 hours'
     AND a.sla_resolution_le >= now()) AS approche,
   count(*) FILTER (WHERE a.sla_resolution_le < now()) AS depasse
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL AND a.resolu_le IS NULL
+WHERE a.sla_resolution_le IS NOT NULL AND {_EN_COURS}
   AND a.cree_le >= :s_debut AND a.cree_le < :s_fin
 """
 
@@ -86,19 +90,16 @@ WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL AND a.resolu_le I
 # Les activités à traiter en premier : échéance la plus proche (ou la plus dépassée) d'abord.
 # C'est la réponse à « alertes, activités en retard » du cahier — un chiffre alarmant doit mener
 # aux dossiers qui le composent.
-_A_TRAITER = """
+_A_TRAITER = f"""
 SELECT a.module, a.id::text AS id, a.reference, a.titre, a.priorite, a.statut,
        a.sla_resolution_le
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL AND a.sla_resolution_le IS NOT NULL
-  AND a.statut NOT IN :statuts_regles
+WHERE {_EN_COURS} AND a.sla_resolution_le IS NOT NULL
 """
 
 # Un ticket résolu, clôturé, rejeté ou annulé n'attend plus personne : il ne se traite pas.
 _TERMINAUX = sorted({e for m in PREFIXE_REFERENCE for e in etats_terminaux(m)})
-# Ce qui ne réclame plus de travail (résolu compris), pour la file « À traiter ».
-_STATUTS_REGLES = statuts_de_phase(*PHASES_FINIES)
 
 # Créations hebdomadaires des tickets importés : la respiration du flux, en miniature.
 _CREATIONS_HEBDO = """
@@ -141,20 +142,20 @@ WHERE a.resolu_le >= now() - interval '30 days'
 # prise en charge, ET la répartition SLA du stock ouvert (à l'heure / approche / dépassé). Ces
 # derniers alimentent le signal « Échéances dépassées » et la légende de la tendance : ils doivent
 # refléter le maintenant, pas la fenêtre de création (sinon on masque les vieux dossiers en retard).
-_SIGNAUX = """
+_SIGNAUX = f"""
 SELECT
   count(*) FILTER (WHERE a.cloture_le IS NULL) AS ouverts_total,
-  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
+  count(*) FILTER (WHERE {_EN_COURS}
     AND a.cree_le < now() - interval '30 days') AS ouverts_30j,
-  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.resolu_le IS NULL
+  count(*) FILTER (WHERE {_EN_COURS}
     AND a.pris_en_charge_le IS NULL) AS non_pris_en_charge,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.resolu_le IS NULL AND a.sla_resolution_le > now() + interval '2 hours') AS a_lheure,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.resolu_le IS NULL AND a.sla_resolution_le <= now() + interval '2 hours'
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND {_EN_COURS}
+    AND a.sla_resolution_le > now() + interval '2 hours') AS a_lheure,
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND {_EN_COURS}
+    AND a.sla_resolution_le <= now() + interval '2 hours'
     AND a.sla_resolution_le >= now()) AS approche,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
-    AND a.resolu_le IS NULL AND a.sla_resolution_le < now()) AS depasse
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND {_EN_COURS}
+    AND a.sla_resolution_le < now()) AS depasse
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE 1=1
 """
@@ -234,11 +235,12 @@ async def tableau_de_bord(
             }
         )
 
-    requete_a_traiter = text(
-        _A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"
-    ).bindparams(bindparam("statuts_regles", expanding=True))
     a_traiter = (
-        (await session.execute(requete_a_traiter, {**params, "statuts_regles": _STATUTS_REGLES}))
+        (
+            await session.execute(
+                text(_A_TRAITER + cond + " ORDER BY a.sla_resolution_le ASC LIMIT 6"), params
+            )
+        )
         .mappings()
         .all()
     )

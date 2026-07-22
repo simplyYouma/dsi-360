@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain import etats
 from dsi360.domain.activite import PREFIXE_REFERENCE
+from dsi360.infrastructure import phases_sql
 
 _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
@@ -126,10 +127,11 @@ def _clause_phase(module: str, vue: str | None, params: dict[str, Any]) -> str:
     return f" AND a.statut IN ({placeholders})"
 
 
-# Le retard est une horloge, pas une phase : il se croise avec n'importe quelle vue. Un ticket
-# résolu hors délai reste en retard — c'est même la vraie mesure du non-respect du SLA.
+# Le retard est une horloge, pas une phase : il se croise avec n'importe quelle vue. Mais seul un
+# dossier ENCORE EN COURS peut être en retard — un dossier terminé ne court plus après son délai.
+# La phase tranche, pas les horodatages : « Réalisé » ou « Maîtrisé » n'en posent aucun.
 _CLAUSE_RETARD = (
-    " AND a.resolu_le IS NULL"
+    f" AND {phases_sql.en_cours()}"
     " AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()"
 )
 
@@ -258,7 +260,7 @@ async def compter_etats(
             _filtre_phase("en_cours", (etats.EN_COURS,)),
             _filtre_phase("termines", (etats.TERMINE,)),
             _filtre_phase("abandonnes", (etats.ABANDONNE,)),
-            "count(*) FILTER (WHERE a.resolu_le IS NULL"
+            f"count(*) FILTER (WHERE {phases_sql.en_cours()}"
             " AND a.sla_resolution_le IS NOT NULL"
             " AND a.sla_resolution_le < now()) AS en_retard",
         ]

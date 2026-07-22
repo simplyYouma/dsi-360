@@ -1,3 +1,4 @@
+import type { EtatSla } from '@/common/SablierSla';
 import { api, televerser, telecharger, recupererBlob } from '@/lib/api';
 import { chaineFiltres, type FiltresListe, type Incident } from '@/features/incidents/incidentsApi';
 import type { Categorie } from '@/features/demandes/demandesApi';
@@ -30,7 +31,7 @@ export interface ChangementDetail {
   priorite: number;
   categorie: string | null;
   categorie_id: string | null;
-  statut_sla?: 'a_lheure' | 'approche' | 'depasse';
+  statut_sla?: EtatSla;
   sla_resolution_le: string | null;
   cree_le: string;
   responsable: { prenom: string; nom: string } | null;

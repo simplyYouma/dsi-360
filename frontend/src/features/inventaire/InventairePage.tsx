@@ -96,10 +96,11 @@ export function InventairePage(): JSX.Element {
     void charger();
   }, [charger]);
   useEffect(() => chargerStats(), [chargerStats, total]);
-  useEffect(() => {
+  const chargerReferentiels = useCallback((): void => {
     void inventaireApi.referentiel('emplacements').then(setEmplacements);
     void inventaireApi.referentiel('departements').then(setDepartements);
   }, []);
+  useEffect(() => chargerReferentiels(), [chargerReferentiels]);
 
   const colonnes: Colonne<Equipement>[] = [
     {
@@ -301,12 +302,15 @@ export function InventairePage(): JSX.Element {
           void charger();
           chargerStats();
         }}
+        onReferentiels={chargerReferentiels}
       />
 
       <ModaleEquipement
         ouverte={modale}
         emplacements={emplacements}
         departements={departements}
+        gerable={estAdmin}
+        onReferentiels={chargerReferentiels}
         onFermer={() => setModale(false)}
         onCree={(cree) => {
           setModale(false);

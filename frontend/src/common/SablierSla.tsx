@@ -2,15 +2,16 @@ import { useEffect, useId, useState } from 'react';
 import { cx } from './cx';
 import styles from './SablierSla.module.css';
 
-type EtatSla = 'a_lheure' | 'approche' | 'depasse';
+/** État du délai. « termine » n'est pas un verdict : c'est l'absence de délai qui court encore. */
+export type EtatSla = 'a_lheure' | 'approche' | 'depasse' | 'termine';
 
 interface Props {
   echeance: string | null; // date d'échéance (ISO)
   debut?: string | null; // base de l'écoulement (création…) ; par défaut, 14 j avant l'échéance
   /** État imposé ; sinon déduit du temps restant (approche < 48 h, dépassé si négatif). */
   statut?: EtatSla;
-  /** Activité terminée : le compteur ne court plus. Le sablier se fige et n'affiche que le verdict
-   *  (respecté / dépassé) au moment de l'arrêt, sans battement ni sable qui tombe. */
+  /** Activité terminée : le compteur ne court plus. Le sablier se fige, sans battement ni sable
+   *  qui tombe, et n'annonce plus qu'un fait — « Terminé ». */
   arrete?: boolean;
 }
 
@@ -18,6 +19,8 @@ const COULEUR: Record<EtatSla, string> = {
   a_lheure: 'var(--status-ok)',
   approche: 'var(--status-warn)',
   depasse: 'var(--status-danger)',
+  // Terminé : le délai ne court plus. Neutre — ce n'est ni un succès ni une alerte, c'est fini.
+  termine: 'var(--text-muted)',
 };
 
 // Un seul battement pour toute la page. Une liste de quinze tickets, c'est quinze sabliers : un
@@ -94,7 +97,7 @@ const JOUR = 86_400_000;
 export function SablierSla({ echeance, debut, statut, arrete }: Props): JSX.Element {
   const clipHaut = useId();
   const clipBas = useId();
-  const gele = arrete === true;
+  const gele = arrete === true || statut === 'termine';
   useBattement(!gele && echeance !== null);
 
   if (echeance === null) return <span className={styles.na}>—</span>;
@@ -112,13 +115,17 @@ export function SablierSla({ echeance, debut, statut, arrete }: Props): JSX.Elem
   const ecoule = 1 - reste; // ce qui est tombé
   const couleur = COULEUR[etat];
   const coule = !gele && reste > 0.005 && ecoule > 0.005;
-  const enRetard = etat === 'depasse';
+  // « Dépassé » n'a de sens que sur un dossier vivant : sur une activité terminée, il laisserait
+  // croire que le délai tourne encore. On n'annonce alors que le fait — l'activité est close.
+  const enRetard = !gele && etat === 'depasse';
   const libelle = gele
-    ? `${formaterEcheance(echeance)} · ${etat === 'depasse' ? 'Dépassé' : 'Respecté'}`
+    ? `${formaterEcheance(echeance)} · Terminé`
     : enRetard
       ? `${formaterEcheance(echeance)} · Dépassé · ${duree(-restant)}`
       : formaterEcheance(echeance);
-  const infobulle = gele ? `SLA arrêté (activité terminée) : ${libelle}` : `Échéance : ${libelle}`;
+  const infobulle = gele
+    ? `Échéance ${formaterEcheance(echeance)} — le SLA ne court plus (activité terminée).`
+    : `Échéance : ${libelle}`;
 
   return (
     <span className={cx(styles.sablier, gele && styles.gele)} title={infobulle}>

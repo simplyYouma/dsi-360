@@ -1,4 +1,5 @@
 import { StatusBadge } from '@/design-system/primitives';
+import type { EtatSla } from '@/common/SablierSla';
 import {
   libelleStatut as libelleDuCycle,
   tonStatut,
@@ -61,15 +62,20 @@ export function BadgePriorite({ priorite }: { priorite: number }): JSX.Element {
   );
 }
 
-type EtatSla = 'a_lheure' | 'approche' | 'depasse';
-const SLA: Record<EtatSla, { libelle: string; statut: 'ok' | 'warn' | 'danger' }> = {
+const SLA: Record<EtatSla, { libelle: string; statut: 'ok' | 'warn' | 'danger' | 'neutre' }> = {
   a_lheure: { libelle: "À l'heure", statut: 'ok' },
   approche: { libelle: 'Approche', statut: 'warn' },
   depasse: { libelle: 'Dépassé', statut: 'danger' },
+  // Le dossier est clos : le délai ne court plus, il n'y a plus de verdict à rendre.
+  termine: { libelle: 'Terminé', statut: 'neutre' },
 };
 
 export function BadgeSla({ etat }: { etat: EtatSla }): JSX.Element {
-  return <StatusBadge statut={SLA[etat].statut}>{SLA[etat].libelle}</StatusBadge>;
+  const { libelle, statut } = SLA[etat];
+  if (statut === 'neutre') {
+    return <StatusBadge couleur="var(--text-muted)">{libelle}</StatusBadge>;
+  }
+  return <StatusBadge statut={statut}>{libelle}</StatusBadge>;
 }
 
 const CRITICITE_MOT = ['', 'Très faible', 'Faible', 'Moyenne', 'Élevée', 'Critique'];

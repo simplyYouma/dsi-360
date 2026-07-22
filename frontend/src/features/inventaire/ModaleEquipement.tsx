@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Modale } from '@/design-system/primitives';
-import { SelecteurListe } from '@/common/SelecteurListe';
+import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import local from './Inventaire.module.css';
@@ -13,6 +13,9 @@ import {
 
 interface Props {
   ouverte: boolean;
+  /** L'administrateur peut créer un emplacement ou un département sans quitter la modale. */
+  gerable: boolean;
+  onReferentiels: () => void;
   emplacements: ReferentielItem[];
   departements: ReferentielItem[];
   onFermer: () => void;
@@ -27,6 +30,8 @@ export function ModaleEquipement({
   ouverte,
   emplacements,
   departements,
+  gerable,
+  onReferentiels,
   onFermer,
   onCree,
   onErreur,
@@ -105,29 +110,31 @@ export function ModaleEquipement({
         />
       </label>
 
-      <div className={local.paire}>
-        <div className={styles.champ}>
-          <span>Emplacement</span>
-          <SelecteurListe
-            options={emplacements.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
-            valeur={v.emplacement_id ?? null}
-            onChange={(x) => setV({ ...v, emplacement_id: x })}
-            placeholder="Non renseigné"
-            permettreVide
-            libelleVide="Non renseigné"
-          />
-        </div>
-        <div className={styles.champ}>
-          <span>Département</span>
-          <SelecteurListe
-            options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
-            valeur={v.departement_id ?? null}
-            onChange={(x) => setV({ ...v, departement_id: x })}
-            placeholder="Non renseigné"
-            permettreVide
-            libelleVide="Non renseigné"
-          />
-        </div>
+      {/* Emplacement et département se créent à la volée, comme les catégories : on ne quitte
+          pas la saisie pour aller déclarer une agence. */}
+      <div className={styles.champ}>
+        <span>Emplacement</span>
+        <SelecteurCategorie
+          categories={emplacements}
+          valeur={v.emplacement_id ?? null}
+          onChange={(x) => setV({ ...v, emplacement_id: x })}
+          gerable={gerable}
+          entite="emplacement"
+          onAjouter={(libelle) => inventaireApi.ajouterReferentiel('emplacements', libelle)}
+          onModifie={onReferentiels}
+        />
+      </div>
+      <div className={styles.champ}>
+        <span>Département</span>
+        <SelecteurCategorie
+          categories={departements}
+          valeur={v.departement_id ?? null}
+          onChange={(x) => setV({ ...v, departement_id: x })}
+          gerable={gerable}
+          entite="département"
+          onAjouter={(libelle) => inventaireApi.ajouterReferentiel('departements', libelle)}
+          onModifie={onReferentiels}
+        />
       </div>
 
       {/* Bloc comptable : c'est lui qui donne la valeur nette. Facultatif à la saisie. */}

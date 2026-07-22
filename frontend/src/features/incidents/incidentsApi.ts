@@ -1,3 +1,4 @@
+import type { EtatSla } from '@/common/SablierSla';
 import { api } from '@/lib/api';
 
 export interface ResponsableBref {
@@ -15,7 +16,7 @@ export interface Incident {
   categorie: string | null;
   direction: string | null;
   sla_resolution_le: string | null;
-  statut_sla: 'a_lheure' | 'approche' | 'depasse';
+  statut_sla: EtatSla;
   /** Compteur figé : l'activité est terminée, le SLA ne court plus (verdict à l'arrêt). */
   sla_arrete: boolean;
   cree_le: string;
