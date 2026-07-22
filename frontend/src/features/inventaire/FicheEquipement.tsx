@@ -128,7 +128,12 @@ export function FicheEquipement({
               niveau, deux intentions distinctes. */}
           {estAdmin && detail !== null && (
             <div className={local.piedActions}>
-              <Button variante="secondaire" onClick={() => void patch({ actif: !detail.actif })}>
+              {/* La couleur dit le sens : rouge pour sortir du parc, vert pour y revenir. */}
+              <Button
+                variante="secondaire"
+                className={detail.actif ? local.btnSortir : local.btnRemettre}
+                onClick={() => void patch({ actif: !detail.actif })}
+              >
                 {detail.actif ? 'Sortir du parc' : 'Remettre en service'}
               </Button>
               <BoutonSupprimer

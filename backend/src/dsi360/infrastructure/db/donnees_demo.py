@@ -468,6 +468,7 @@ async def _reset(conn: asyncpg.Connection) -> None:
     await conn.execute("DELETE FROM core.notification")
     await conn.execute("DELETE FROM core.demandeur")
     await conn.execute("DELETE FROM core.equipement")
+    await conn.execute("DELETE FROM core.campagne_inventaire")  # cascade : constat_inventaire
     await conn.execute("DELETE FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO)
     # Le journal réel est append-only (déclencheur) ; les entrées de démo, elles, se régénèrent
     # avec le reste — on suspend le déclencheur le temps de la purge, ce que seul cet outil de
@@ -635,6 +636,64 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
     return cree
 
 
+async def _campagnes(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
+    """Deux campagnes d'inventaire : l'an passé clôturée, celle-ci en cours.
+
+    C'est le duo qui fait vivre l'écran : la carte close montre le bilan (avec ses non
+    retrouvés), la carte ouverte montre un recensement à mi-course — et la comparaison
+    des deux raconte l'année.
+    """
+    equipements = [
+        (r["id"], r["actif"]) for r in await conn.fetch("SELECT id, actif FROM core.equipement")
+    ]
+    actifs = [ident for ident, actif in equipements if actif]
+    aujourdhui = datetime.now(UTC)
+
+    # --- L'an passé, clôturée : tout le parc a un constat, non retrouvés compris. ---
+    ouverture = aujourdhui - timedelta(days=380)
+    cloture = ouverture + timedelta(days=21)
+    passee = await conn.fetchval(
+        "INSERT INTO core.campagne_inventaire (libelle, statut, ouverte_le, cloturee_le, "
+        " ouverte_par) VALUES ($1, 'CLOTUREE', $2, $3, $4) RETURNING id",
+        f"Inventaire physique {ouverture.year}", ouverture, cloture,
+        random.choice(utilisateurs),
+    )
+    for ident, actif in equipements:
+        # Les sortis du parc d'aujourd'hui étaient pour la plupart encore là l'an passé.
+        etat = random.choices(
+            ["BON", "REBUT", "CASSE", "NON_RETROUVE"], weights=[86, 6, 4, 4]
+        )[0] if actif or random.random() < 0.7 else None
+        if etat is None:
+            continue
+        await conn.execute(
+            "INSERT INTO core.constat_inventaire "
+            "(campagne_id, equipement_id, etat, constate_le, constate_par) "
+            "VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+            passee, ident, etat,
+            ouverture + timedelta(days=random.uniform(1, 20)),
+            random.choice(utilisateurs),
+        )
+
+    # --- Celle-ci, ouverte : recensement à mi-course, le reste attend le terrain. ---
+    debut = aujourdhui - timedelta(days=9)
+    courante = await conn.fetchval(
+        "INSERT INTO core.campagne_inventaire (libelle, ouverte_le, ouverte_par) "
+        "VALUES ($1, $2, $3) RETURNING id",
+        f"Inventaire physique {aujourdhui.year}", debut, random.choice(utilisateurs),
+    )
+    for ident in random.sample(actifs, k=int(len(actifs) * 0.6)):
+        await conn.execute(
+            "INSERT INTO core.constat_inventaire "
+            "(campagne_id, equipement_id, etat, constate_le, constate_par) "
+            "VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+            courante, ident,
+            random.choices(["BON", "REBUT", "CASSE"], weights=[90, 6, 4])[0],
+            debut + timedelta(days=random.uniform(0.5, 8.5)),
+            random.choice(utilisateurs),
+        )
+    return 2
+
+
 async def _categories(conn: asyncpg.Connection, module: str) -> list[str]:
     return [r["id"] for r in await conn.fetch(
         "SELECT id FROM core.categorie WHERE module=$1", module
@@ -793,6 +852,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
         utilisateurs = await _assurer_utilisateurs(conn)
         await _niveaux_support(conn, utilisateurs)
         equipements = await _inventaire(conn, utilisateurs)
+        await _campagnes(conn, utilisateurs)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
 
         for module, titres in TITRES.items():

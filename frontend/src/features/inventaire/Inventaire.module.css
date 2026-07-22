@@ -138,6 +138,24 @@
   gap: var(--space-3);
   margin-right: auto;
 }
+/* La couleur porte le sens de l'action : sortir du parc (rouge), y revenir (vert).
+   Sélecteur composé pour l'emporter sur le style de base du bouton. */
+.piedActions .btnSortir {
+  border-color: color-mix(in srgb, var(--status-danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--status-danger) 10%, var(--surface));
+  color: var(--status-danger);
+}
+.piedActions .btnSortir:hover {
+  background: color-mix(in srgb, var(--status-danger) 18%, var(--surface));
+}
+.piedActions .btnRemettre {
+  border-color: color-mix(in srgb, var(--status-ok) 45%, var(--border));
+  background: color-mix(in srgb, var(--status-ok) 10%, var(--surface));
+  color: var(--status-ok);
+}
+.piedActions .btnRemettre:hover {
+  background: color-mix(in srgb, var(--status-ok) 18%, var(--surface));
+}
 
 /* Identifiants techniques (code immo, n° de série) : ce qui est gravé sur le matériel. */
 .technique {
