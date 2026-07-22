@@ -60,7 +60,7 @@ def parser_entier(valeur: Any) -> int | None:
 
 
 def trouver_entetes(
-    lignes: list[tuple[Any, ...]], alias: dict[str, str], reperes: set[str], limite: int = 25
+    lignes: list[tuple[Any, ...]], alias: dict[str, str], reperes: set[str], limite: int = 40
 ) -> tuple[int, dict[str, int]]:
     """Repère la ligne d'en-têtes et l'index de chaque colonne connue.
 
@@ -77,6 +77,53 @@ def trouver_entetes(
             return i, index
     attendus = ", ".join(sorted(reperes))
     raise ValueError(f"En-têtes introuvables : colonnes {attendus} attendues.")
+
+
+def lignes_de(feuille: Any, limite: int | None = None) -> list[tuple[Any, ...]]:
+    """Lignes d'une feuille, éventuellement bornées (lecture d'en-têtes)."""
+    lues: list[tuple[Any, ...]] = []
+    for ligne in feuille.iter_rows(values_only=True):
+        lues.append(ligne)
+        if limite is not None and len(lues) >= limite:
+            break
+    return lues
+
+
+def feuille_avec_entetes(
+    classeur: Any, alias: dict[str, str], reperes: set[str]
+) -> tuple[list[tuple[Any, ...]], int, dict[str, int]]:
+    """Première feuille du classeur qui porte la ligne d'en-têtes attendue.
+
+    Les exports ne mettent pas toujours les données sur la première feuille (page de filtres,
+    sommaire…). On cherche donc partout plutôt que de refuser un fichier valide.
+    """
+    for feuille in classeur.worksheets:
+        lignes = lignes_de(feuille)
+        try:
+            debut, index = trouver_entetes(lignes, alias, reperes)
+        except ValueError:
+            continue
+        return lignes, debut, index
+    attendus = ", ".join(sorted(reperes))
+    raise ValueError(f"En-têtes introuvables : colonnes {attendus} attendues.")
+
+
+def apercu_intitules(classeur: Any, limite: int = 12) -> str:
+    """Ce que le classeur donne à lire en tête de sa première feuille.
+
+    Sert aux messages d'erreur : « fichier non reconnu » n'aide personne, « voici les intitulés
+    que j'ai lus » se corrige.
+    """
+    feuille = classeur.worksheets[0]
+    textes: list[str] = []
+    for ligne in lignes_de(feuille, 8):
+        for cellule in ligne:
+            texte = " ".join(str(cellule).split()) if cellule is not None else ""
+            if texte and texte not in textes:
+                textes.append(texte)
+        if len(textes) >= limite:
+            break
+    return " · ".join(textes[:limite]) or "(aucun intitulé lisible)"
 
 
 def valeur_cellule(ligne: tuple[Any, ...], index: dict[str, int], cle: str) -> Any:

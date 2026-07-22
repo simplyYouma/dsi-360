@@ -45,7 +45,13 @@ if (migration.status !== 0) {
 let enArret = false;
 const enfants = new Set();
 
-/** Lance un service et le redémarre s'il s'arrête (sauf arrêt volontaire ou boucle d'échec). */
+/** Lance un service et le redémarre s'il s'arrête (arrêt volontaire excepté).
+ *
+ * On ne renonce JAMAIS définitivement : une erreur de syntaxe le temps d'une sauvegarde faisait
+ * tomber le service quatre fois de suite, la supervision s'arrêtait pour de bon, et l'écran
+ * restait mort jusqu'à ce qu'on relance tout à la main. On espace les tentatives (jusqu'à 15 s)
+ * au lieu d'abandonner : dès que le code est corrigé, le service revient seul.
+ */
 function superviser(svc) {
   // shell:true requis sous Windows (Node ≥ 20) pour lancer .exe/.cmd de façon fiable.
   const p = spawn(`"${svc.cmd}"`, svc.args, { stdio: 'inherit', shell: true, cwd: svc.cwd });
@@ -53,16 +59,16 @@ function superviser(svc) {
   p.on('exit', (code) => {
     enfants.delete(p);
     if (enArret) return;
-    // Anti-boucle : si le service échoue en rafale (< 4 s), on arrête d'insister.
+    // Échecs en rafale (< 4 s) : on ralentit progressivement, sans jamais lâcher.
     const maintenant = Date.now();
     svc.echecs = maintenant - (svc.dernier ?? 0) < 4000 ? (svc.echecs ?? 0) + 1 : 0;
     svc.dernier = maintenant;
-    if (svc.echecs >= 4) {
-      console.error(`\n[dev] ${svc.nom} échoue en boucle — arrêt de la relance. Corrige l'erreur ci-dessus puis relance \`npm run dev\`.\n`);
-      return;
-    }
-    console.error(`\n[dev] ${svc.nom} s'est arrêté (code ${code ?? 0}). Redémarrage…\n`);
-    setTimeout(() => !enArret && superviser(svc), 1200);
+    const attente = Math.min(1200 * 2 ** Math.max(0, svc.echecs - 1), 15000);
+    const suffixe = svc.echecs >= 3 ? ` (échec ${svc.echecs} — corrige l'erreur ci-dessus)` : '';
+    console.error(
+      `\n[dev] ${svc.nom} s'est arrêté (code ${code ?? 0}). Nouvelle tentative dans ${Math.round(attente / 1000)} s${suffixe}\n`,
+    );
+    setTimeout(() => !enArret && superviser(svc), attente);
   });
 }
 

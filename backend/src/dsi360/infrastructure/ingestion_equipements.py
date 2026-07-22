@@ -15,11 +15,11 @@ from typing import Any
 import openpyxl
 
 from dsi360.infrastructure.classeur import (
+    feuille_avec_entetes,
     normaliser,
     parser_date,
     parser_entier,
     parser_nombre,
-    trouver_entetes,
     valeur_cellule,
 )
 
@@ -88,10 +88,9 @@ def analyser_classeur(contenu: bytes) -> list[dict[str, Any]]:
     Lève ``ValueError`` si le fichier n'a pas la tête d'un inventaire : l'écran doit dire pourquoi
     plutôt que d'afficher « 0 importé ».
     """
-    classeur = openpyxl.load_workbook(BytesIO(contenu), data_only=True, read_only=True)
-    feuille = classeur.worksheets[0]
-    lignes = list(feuille.iter_rows(values_only=True))
-    debut, index = trouver_entetes(lignes, _ENTETES, _REPERES)
+    classeur = openpyxl.load_workbook(BytesIO(contenu), data_only=True)
+    # L'inventaire n'est pas toujours sur la première feuille du classeur.
+    lignes, debut, index = feuille_avec_entetes(classeur, _ENTETES, _REPERES)
 
     equipements: list[dict[str, Any]] = []
     for ligne in lignes[debut + 1 :]:

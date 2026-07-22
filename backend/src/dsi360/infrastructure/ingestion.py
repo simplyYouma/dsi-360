@@ -10,9 +10,9 @@ from typing import Any
 
 import openpyxl
 
+from dsi360.infrastructure.classeur import feuille_avec_entetes
 from dsi360.infrastructure.classeur import normaliser as _normaliser
 from dsi360.infrastructure.classeur import parser_date as _parser_date
-from dsi360.infrastructure.classeur import trouver_entetes
 
 # Intitulé d'en-tête (normalisé, sans accents) -> clé canonique. Public : sert aussi à
 # reconnaître la nature d'un fichier déposé (cf. routeurs/ingestion).
@@ -128,17 +128,16 @@ def _parser_priorite(valeur: Any) -> int | None:
     return None
 
 
-def _trouver_entetes(lignes: list[tuple[Any, ...]]) -> tuple[int, dict[str, int]]:
-    """Repère la ligne d'en-têtes (après le préambule) et l'index de chaque colonne connue."""
-    return trouver_entetes(lignes, _ENTETES, {"statut", "titre"})
+#: Colonnes qui suffisent à reconnaître un rapport de tickets. Public : la détection de la
+#: nature d'un fichier déposé s'en sert (cf. routeurs/ingestion) — aucune seconde vérité.
+REPERES = {"statut", "titre"}
 
 
 def analyser_classeur(contenu: bytes) -> list[dict[str, Any]]:
     """Renvoie une liste de tickets normalisés (incident/demande uniquement)."""
     wb = openpyxl.load_workbook(BytesIO(contenu), data_only=True)
-    ws = wb.worksheets[0]
-    lignes = list(ws.iter_rows(values_only=True))
-    debut, index = _trouver_entetes(lignes)
+    # Les données ne sont pas toujours sur la première feuille (page de filtres, sommaire…).
+    lignes, debut, index = feuille_avec_entetes(wb, _ENTETES, REPERES)
 
     requis = {"type", "statut", "numero", "titre", "priorite", "date_demande"}
     manquant = requis - index.keys()

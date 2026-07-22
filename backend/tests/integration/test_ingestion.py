@@ -353,3 +353,43 @@ async def test_les_variantes_de_statut_sont_reconnues(session: AsyncSession) -> 
     # L'inconnu se replie sur « ouvert » — mais il est DIT, jamais tu.
     assert par_ref["INC-ST-4"] == "Ouvert"
     assert resultat["statuts_non_reconnus"] == ["Statut Extraterrestre"]
+
+
+def _classeur_bavard(feuille_de_garde: bool, preambule: int) -> bytes:
+    """Un export réaliste : page de garde éventuelle, préambule de filtres, puis les données."""
+    wb = Workbook()
+    premiere = wb.active
+    assert premiere is not None
+    if feuille_de_garde:
+        premiere.title = "Filtres"
+        premiere.append(["Rapport ServiceDesk"])
+        feuille = wb.create_sheet("Données")
+    else:
+        feuille = premiere
+    for i in range(preambule):
+        feuille.append([None, f"Filtre {i + 1} : Compagnie égal à AFG Bank Mali"])
+    feuille.append(ENTETES)
+    feuille.append(
+        ["Incident", "Closed", "BAV-1", "Réseau", "", "Panne", "Agent Métier", "", "P3",
+         "01-07-2026 09:00", "02-07-2026 09:00", "", ""]
+    )
+    tampon = BytesIO()
+    wb.save(tampon)
+    return tampon.getvalue()
+
+
+async def test_le_rapport_est_reconnu_meme_hors_de_la_premiere_feuille(
+    session: AsyncSession,
+) -> None:
+    """Les exports varient : page de garde devant, préambule de filtres plus ou moins long.
+
+    Refuser un rapport valide parce que ses données sont sur la deuxième feuille — ou sous
+    trente lignes de filtres — bloquerait l'import quotidien sans rien expliquer.
+    """
+    acteur = await _acteur(session, "import.bavard@afgbank.ml")
+
+    for garde, preambule in ((True, 3), (False, 30)):
+        resultat = await importer_tickets(
+            session, _classeur_bavard(garde, preambule), acteur
+        )
+        assert resultat["total"] == 1, f"garde={garde}, préambule={preambule}"

@@ -18,7 +18,7 @@ from dsi360.application.import_equipements import importer_classeur
 from dsi360.application.ingestion import importer_tickets
 from dsi360.infrastructure import ingestion as infra_tickets
 from dsi360.infrastructure import ingestion_equipements as infra_equipements
-from dsi360.infrastructure.classeur import trouver_entetes
+from dsi360.infrastructure.classeur import apercu_intitules, feuille_avec_entetes
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import EtatImports, RapportImport, RapportImportEquipements
 from dsi360.interface.securite import exiger_acces
@@ -115,24 +115,22 @@ def _nature_du_classeur(contenu: bytes) -> str:
     l'utilisateur de le déclarer. La détection lit les mêmes alias que les lecteurs eux-mêmes —
     aucune seconde vérité.
     """
-    classeur = openpyxl.load_workbook(BytesIO(contenu), read_only=True, data_only=True)
-    lignes = []
-    for i, ligne in enumerate(classeur.worksheets[0].iter_rows(values_only=True)):
-        lignes.append(ligne)
-        if i >= 24:
-            break
-    try:
-        trouver_entetes(lignes, infra_equipements.ENTETES, infra_equipements.REPERES)
-        return "equipements"
-    except ValueError:
-        pass
-    try:
-        trouver_entetes(lignes, infra_tickets.ENTETES, {"statut", "titre"})
-        return "tickets"
-    except ValueError:
-        raise ValueError(
-            "Fichier non reconnu : ni rapport de tickets, ni inventaire des équipements."
-        ) from None
+    classeur = openpyxl.load_workbook(BytesIO(contenu), data_only=True)
+    for nature, alias, reperes in (
+        ("equipements", infra_equipements.ENTETES, infra_equipements.REPERES),
+        ("tickets", infra_tickets.ENTETES, infra_tickets.REPERES),
+    ):
+        try:
+            feuille_avec_entetes(classeur, alias, reperes)
+        except ValueError:
+            continue
+        return nature
+    # Un refus muet laisse l'utilisateur sans recours : on lui rend ce que le fichier a donné
+    # à lire, de quoi voir tout de suite si l'export n'est pas celui qu'il croyait.
+    raise ValueError(
+        "Fichier non reconnu : ni rapport de tickets, ni inventaire des équipements. "
+        f"Intitulés lus : {apercu_intitules(classeur)}"
+    )
 
 
 @routeur.post("/fichier")
