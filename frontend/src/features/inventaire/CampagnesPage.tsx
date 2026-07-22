@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ClipboardCheck, Plus, Search } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, useToast, type Colonne } from '@/design-system/primitives';
+import { SelecteurListe } from '@/common/SelecteurListe';
 import { useAuth } from '@/lib/auth';
 import { ErreurApi } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -61,6 +62,9 @@ export function CampagnesPage(): JSX.Element {
   const [lignes, setLignes] = useState<LigneRecensement[]>([]);
   const [chargement, setChargement] = useState(true);
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  // L'année affichée : celle en cours par défaut, les autres via le sélecteur.
+  const [annee, setAnnee] = useState(String(new Date().getFullYear()));
   const [ouvertureVisible, setOuvertureVisible] = useState(false);
   const [libelle, setLibelle] = useState('');
   const [clotureVisible, setClotureVisible] = useState(false);
@@ -93,6 +97,27 @@ export function CampagnesPage(): JSX.Element {
   const campagne = campagnes.find((c) => c.id === active) ?? null;
   const ouverte = campagne?.statut === 'OUVERTE';
 
+  // Une carte par campagne de l'année choisie : le sélecteur remonte le temps.
+  const annees = useMemo(
+    () =>
+      [...new Set(campagnes.map((c) => new Date(c.ouverte_le).getFullYear()))]
+        .sort((a, b) => b - a)
+        .map(String),
+    [campagnes],
+  );
+  const cartes = campagnes.filter(
+    (c) => String(new Date(c.ouverte_le).getFullYear()) === annee,
+  );
+  // Changer d'année déplace la sélection ; une année sans campagne se replie sur la plus récente.
+  useEffect(() => {
+    if (cartes.length === 0) {
+      if (annees.length > 0 && !annees.includes(annee)) setAnnee(annees[0] ?? annee);
+      return;
+    }
+    if (!cartes.some((c) => c.id === active)) setActive(cartes[0]?.id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule l'année déclenche le recadrage
+  }, [annee, campagnes]);
+
   const visibles = useMemo(() => {
     const terme = q.trim().toLowerCase();
     if (terme === '') return lignes;
@@ -102,6 +127,11 @@ export function CampagnesPage(): JSX.Element {
         .some((v) => v.toLowerCase().includes(terme)),
     );
   }, [lignes, q]);
+
+  // Pagination côté écran : la liste vient entière, on la feuillette par quinze.
+  const TAILLE = 15;
+  useEffect(() => setPage(1), [active, q]);
+  const pageLignes = visibles.slice((page - 1) * TAILLE, page * TAILLE);
 
   const erreur = (e: unknown, repli: string): void =>
     notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
@@ -247,8 +277,22 @@ export function CampagnesPage(): JSX.Element {
         </p>
       )}
 
+      {/* L'année en cours d'abord ; le sélecteur remonte aux campagnes passées. */}
+      {annees.length > 1 && (
+        <div className={local.selecteurAnnee}>
+          <SelecteurListe
+            options={annees.map((a) => ({ valeur: a, libelle: `Campagnes ${a}` }))}
+            valeur={annee}
+            onChange={(v) => {
+              if (v !== null) setAnnee(v);
+            }}
+            placeholder="Année"
+          />
+        </div>
+      )}
+
       <div className={local.cartesCampagnes}>
-        {campagnes.map((c) => (
+        {cartes.map((c) => (
           <button
             key={c.id}
             type="button"
@@ -310,10 +354,11 @@ export function CampagnesPage(): JSX.Element {
 
           <Table
             colonnes={colonnes}
-            lignes={visibles}
+            lignes={pageLignes}
             cleLigne={(l) => l.id}
             chargement={chargement}
             vide="Aucun équipement dans ce recensement."
+            pagination={{ page, total: visibles.length, taille: TAILLE, onPage: setPage }}
           />
         </>
       )}

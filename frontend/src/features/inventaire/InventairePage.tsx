@@ -166,12 +166,16 @@ export function InventairePage(): JSX.Element {
       // ambre sous le quart restant, « Amorti » quand il ne vaut plus rien.
       rendu: (e) => {
         if (e.valeur_nette === null) return <span className={local.vide}>—</span>;
-        if (e.valeur_nette === 0) return <span className={local.vncNulle}>Amorti</span>;
         const part =
           e.valeur_acquisition !== null && e.valeur_acquisition > 0
             ? e.valeur_nette / e.valeur_acquisition
             : null;
-        const classe = part !== null && part < 0.25 ? local.vncFaible : local.vncSaine;
+        const classe =
+          e.valeur_nette === 0
+            ? local.vncNulle
+            : part !== null && part < 0.25
+              ? local.vncFaible
+              : local.vncSaine;
         return <span className={`tabular ${classe}`}>{formaterMontant(e.valeur_nette)}</span>;
       },
     },

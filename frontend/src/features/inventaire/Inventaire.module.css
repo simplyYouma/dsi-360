@@ -189,6 +189,10 @@
 }
 
 /* ---- Campagnes d'inventaire ---- */
+.selecteurAnnee {
+  max-width: 200px;
+  margin-bottom: var(--space-3);
+}
 .cartesCampagnes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -320,12 +324,7 @@
   font-weight: var(--weight-medium);
 }
 .vncNulle {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--status-danger) 10%, transparent);
   color: var(--status-danger);
-  font-size: var(--text-xs);
   font-weight: var(--weight-medium);
 }
 
