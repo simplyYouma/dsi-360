@@ -446,6 +446,13 @@ async def modifier(
     exiger_admin(courant)
     avant = await _charger(session, ident)
     champs = corps.model_dump(exclude_unset=True)
+    # Sorti du parc = dossier clos : figé, comme une activité clôturée. Seule la remise en
+    # service reste ouverte — on ne réécrit pas l'histoire d'un matériel cédé ou détruit.
+    if not avant["actif"] and any(c != "actif" for c in champs):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Matériel sorti du parc : remettez-le en service avant de le modifier.",
+        )
     if "code_immo" in champs:
         await _refuser_code_deja_pris(session, champs["code_immo"], ident)
     await _valider_references(session, champs)

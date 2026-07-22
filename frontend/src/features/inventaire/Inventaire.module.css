@@ -289,8 +289,12 @@
     background 0.15s ease,
     transform 0.15s ease;
 }
+/* Au survol, le sticker annonce sa couleur : on sait ce qu'on s'apprête à poser. */
 .sticker:hover {
   transform: translateX(-2px);
+  border-color: var(--constat, var(--border));
+  color: var(--constat, var(--text));
+  background: color-mix(in srgb, var(--constat, var(--text)) 10%, var(--surface));
 }
 .stickerOn {
   color: #fff;
@@ -325,11 +329,27 @@
     background 0.15s ease,
     border-color 0.15s ease;
 }
+/* Même annonce au survol : la couleur du constat qu'on s'apprête à poser. */
 .constat:hover {
-  border-color: var(--text-muted);
+  border-color: var(--constat, var(--text-muted));
+  color: var(--constat, var(--text));
+  background: color-mix(in srgb, var(--constat, var(--text)) 10%, var(--surface));
 }
 .constatOn {
   color: #fff;
+  font-weight: var(--weight-medium);
+}
+
+/* Constat d'une campagne close : le verdict remplit la cellule, dans sa couleur. */
+.constatFinal {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--constat, var(--text-muted)) 14%, transparent);
+  color: var(--constat, var(--text-muted));
+  font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
 

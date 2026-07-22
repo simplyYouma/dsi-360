@@ -93,6 +93,14 @@ export const CONSTATS: { etat: EtatConstat; libelle: string; couleur: string }[]
   { etat: 'CASSE', libelle: 'Cassé', couleur: 'var(--status-danger)' },
 ];
 
+/** Couleur d'un constat relu (campagne close) — NON_RETROUVE compris. */
+export const COULEUR_ETAT: Record<string, string> = {
+  BON: 'var(--status-ok)',
+  REBUT: 'var(--status-warn)',
+  CASSE: 'var(--status-danger)',
+  NON_RETROUVE: 'var(--status-danger)',
+};
+
 export interface CampagneInventaire {
   id: string;
   libelle: string;

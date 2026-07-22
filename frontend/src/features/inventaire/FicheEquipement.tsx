@@ -92,6 +92,12 @@ export function FicheEquipement({
   const { moi } = useAuth();
   const { notifier } = useToast();
   const estAdmin = moi?.profil === 'ADMIN';
+  // Sorti du parc = dossier clos : la fiche se relit, elle ne s'édite plus. Le serveur
+  // refuse de toute façon (409) — ici on évite juste de proposer l'impossible.
+  const modifiable = estAdmin && detail?.actif === true;
+  const raisonVerrou = !estAdmin
+    ? "Réservé à l'administrateur"
+    : 'Sorti du parc : remettez-le en service pour modifier';
 
   const charger = useCallback(async (): Promise<void> => {
     if (id === null) return;
@@ -135,10 +141,15 @@ export function FicheEquipement({
                 key={etat}
                 type="button"
                 className={recensement.etat === etat ? local.stickerOn : local.sticker}
+                // La couleur sémantique en variable : posée elle remplit le sticker,
+                // sinon elle s'annonce au survol.
                 style={
-                  recensement.etat === etat
-                    ? { background: couleur, borderColor: couleur }
-                    : undefined
+                  {
+                    '--constat': couleur,
+                    ...(recensement.etat === etat
+                      ? { background: couleur, borderColor: couleur }
+                      : {}),
+                  } as React.CSSProperties
                 }
                 onClick={() => recensement.onConstat(etat)}
                 title={`Constat — ${recensement.libelle}`}
@@ -228,7 +239,8 @@ export function FicheEquipement({
                   }
                   onValider={(v) => void patch({ valeur_acquisition: versEntier(v) })}
                   placeholder="—"
-                  lectureSeule={!estAdmin}
+                  lectureSeule={!modifiable}
+                  titreLectureSeule={raisonVerrou}
                   classeTexte={local.valeurEdit}
                   aria-label="Valeur d'acquisition"
                 />
@@ -244,7 +256,7 @@ export function FicheEquipement({
                 <CurseurTaux
                   valeur={detail.taux}
                   onValider={(t) => void patch({ taux: t })}
-                  desactive={!estAdmin}
+                  desactive={!modifiable}
                 />
               </div>
               <div className={local.valeur}>
@@ -253,7 +265,8 @@ export function FicheEquipement({
                   valeur={detail.duree_annees !== null ? String(detail.duree_annees) : ''}
                   onValider={(v) => void patch({ duree_annees: versEntier(v) })}
                   placeholder="—"
-                  lectureSeule={!estAdmin}
+                  lectureSeule={!modifiable}
+                  titreLectureSeule={raisonVerrou}
                   classeTexte={local.valeurEdit}
                   aria-label="Durée d'amortissement"
                 />
@@ -296,7 +309,8 @@ export function FicheEquipement({
                 <ChampInline
                   valeur={detail.designation}
                   onValider={(v) => void patch({ designation: v })}
-                  lectureSeule={!estAdmin}
+                  lectureSeule={!modifiable}
+                  titreLectureSeule={raisonVerrou}
                 />
               </dd>
             </div>
@@ -307,7 +321,8 @@ export function FicheEquipement({
                   valeur={detail.code_immo ?? ''}
                   onValider={(v) => void patch({ code_immo: v })}
                   placeholder="—"
-                  lectureSeule={!estAdmin}
+                  lectureSeule={!modifiable}
+                  titreLectureSeule={raisonVerrou}
                   classeTexte={local.technique}
                 />
               </dd>
@@ -319,7 +334,8 @@ export function FicheEquipement({
                   valeur={detail.numero_serie ?? ''}
                   onValider={(v) => void patch({ numero_serie: v })}
                   placeholder="—"
-                  lectureSeule={!estAdmin}
+                  lectureSeule={!modifiable}
+                  titreLectureSeule={raisonVerrou}
                   classeTexte={local.technique}
                 />
               </dd>
@@ -331,7 +347,8 @@ export function FicheEquipement({
                   valeur={detail.modele ?? ''}
                   onValider={(v) => void patch({ modele: v })}
                   placeholder="—"
-                  lectureSeule={!estAdmin}
+                  lectureSeule={!modifiable}
+                  titreLectureSeule={raisonVerrou}
                 />
               </dd>
             </div>
@@ -342,7 +359,7 @@ export function FicheEquipement({
                   valeur={detail.date_acquisition}
                   onChange={(d) => void patch({ date_acquisition: d })}
                   placeholder="jj/mm/aaaa"
-                  desactive={!estAdmin}
+                  desactive={!modifiable}
                 />
               </dd>
             </div>
@@ -353,13 +370,14 @@ export function FicheEquipement({
                   categories={emplacements}
                   valeur={detail.emplacement_id}
                   onChange={(v) => void patch({ emplacement_id: v })}
-                  gerable={estAdmin}
+                  gerable={modifiable}
                   compact
                   accent="var(--cat-1)"
                   entite="emplacement"
                   onAjouter={(l) => inventaireApi.ajouterReferentiel('emplacements', l)}
                   onModifie={onReferentiels}
-                  desactive={!estAdmin}
+                  desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
                 />
               </dd>
             </div>
@@ -370,13 +388,14 @@ export function FicheEquipement({
                   categories={departements}
                   valeur={detail.departement_id}
                   onChange={(v) => void patch({ departement_id: v })}
-                  gerable={estAdmin}
+                  gerable={modifiable}
                   compact
                   accent="var(--cat-2)"
                   entite="département"
                   onAjouter={(l) => inventaireApi.ajouterReferentiel('departements', l)}
                   onModifie={onReferentiels}
-                  desactive={!estAdmin}
+                  desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
                 />
               </dd>
             </div>
@@ -391,7 +410,7 @@ export function FicheEquipement({
                   permettreVide
                   libelleVide="Non attribué"
                   indiceReaffectation="Réassigner"
-                  desactive={!estAdmin}
+                  desactive={!modifiable}
                 />
                 {/* Le fichier nomme un matricule qu'aucun compte ne porte : à rattacher. */}
                 {detail.detenteur === null && detail.matricule !== null && (

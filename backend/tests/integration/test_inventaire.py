@@ -322,6 +322,35 @@ async def test_les_analyses_du_parc_se_calculent_a_la_lecture(
     assert sorti["id"] not in {e["id"] for e in liste}, "un matériel sorti ne pèse plus"
 
 
+async def test_un_materiel_sorti_du_parc_est_fige(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Sorti du parc = dossier clos : figé, comme une activité clôturée.
+
+    Seule la remise en service reste ouverte — on ne réécrit pas l'histoire d'un matériel
+    cédé ou détruit. Et le serveur fait foi : masquer les champs à l'écran ne suffirait pas.
+    """
+    admin = await _admin(session, "admin.inv17@afgbank.ml")
+    cree = await _creer(client, admin, designation="Matériel cédé", modele="Ancien")
+    await client.patch(f"/inventaire/{cree['id']}", json={"actif": False}, headers=entetes(admin))
+
+    fige = await client.patch(
+        f"/inventaire/{cree['id']}", json={"modele": "Réécrit"}, headers=entetes(admin)
+    )
+    assert fige.status_code == 409, fige.text
+    assert "remettez-le en service" in fige.json()["detail"]
+
+    retour = await client.patch(
+        f"/inventaire/{cree['id']}", json={"actif": True}, headers=entetes(admin)
+    )
+    assert retour.status_code == 200, "la remise en service, elle, reste possible"
+    deverrouille = await client.patch(
+        f"/inventaire/{cree['id']}", json={"modele": "Corrigé"}, headers=entetes(admin)
+    )
+    assert deverrouille.status_code == 200
+    assert deverrouille.json()["modele"] == "Corrigé"
+
+
 async def test_une_reference_forgee_est_refusee_en_clair(
     client: AsyncClient, session: AsyncSession
 ) -> None:

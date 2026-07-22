@@ -21,6 +21,7 @@ import local from './Inventaire.module.css';
 import {
   campagnesApi,
   CONSTATS,
+  COULEUR_ETAT,
   inventaireApi,
   type CampagneInventaire,
   type Equipement,
@@ -306,7 +307,14 @@ export function InventairePage(): JSX.Element {
                   key={etat}
                   type="button"
                   className={pose === etat ? local.constatOn : local.constat}
-                  style={pose === etat ? { background: couleur, borderColor: couleur } : undefined}
+                  // La couleur sémantique est portée en variable : posé elle remplit le
+                  // bouton, sinon elle s'annonce au survol.
+                  style={
+                    {
+                      '--constat': couleur,
+                      ...(pose === etat ? { background: couleur, borderColor: couleur } : {}),
+                    } as React.CSSProperties
+                  }
                   onClick={(ev) => {
                     // Sans quoi le clic ouvrirait la fiche de la ligne.
                     ev.stopPropagation();
@@ -320,10 +328,14 @@ export function InventairePage(): JSX.Element {
           );
         }
         if (pose === undefined) return <span className={local.vide}>—</span>;
+        // Campagne close : le verdict remplit la cellule, dans sa couleur.
         return (
-          <StatusBadge statut={pose === 'BON' ? 'ok' : 'danger'}>
+          <span
+            className={local.constatFinal}
+            style={{ '--constat': COULEUR_ETAT[pose] ?? 'var(--text-muted)' } as React.CSSProperties}
+          >
             {LIBELLE_ETAT[pose] ?? pose}
-          </StatusBadge>
+          </span>
         );
       },
     });
