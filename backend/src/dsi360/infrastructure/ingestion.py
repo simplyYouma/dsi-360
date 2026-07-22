@@ -5,12 +5,14 @@ réconciliées puis upsertées. Le fichier comporte un préambule (filtres) avan
 d'en-têtes ; on la détecte, puis on associe les colonnes par leur intitulé (robuste à l'ordre).
 """
 
-import unicodedata
-from datetime import datetime
 from io import BytesIO
 from typing import Any
 
 import openpyxl
+
+from dsi360.infrastructure.classeur import normaliser as _normaliser
+from dsi360.infrastructure.classeur import parser_date as _parser_date
+from dsi360.infrastructure.classeur import trouver_entetes
 
 # Intitulé d'en-tête (normalisé, sans accents) -> clé canonique.
 _ENTETES = {
@@ -67,26 +69,6 @@ ETAT_PAR_ISSUE = {
 }
 
 
-def _normaliser(valeur: Any) -> str:
-    texte = str(valeur or "").strip().replace("’", "'").lower()
-    sans_accent = "".join(c for c in unicodedata.normalize("NFKD", texte) if not unicodedata.combining(c))
-    return " ".join(sans_accent.split())
-
-
-def _parser_date(valeur: Any) -> datetime | None:
-    if valeur in (None, ""):
-        return None
-    if isinstance(valeur, datetime):
-        return valeur
-    texte = str(valeur).strip()
-    for motif in ("%d-%m-%Y %H:%M", "%d-%m-%Y %H:%M:%S", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(texte, motif)
-        except ValueError:
-            continue
-    return None
-
-
 def _parser_duree_minutes(valeur: Any) -> int | None:
     """« 482:53 » (heures:minutes, peut dépasser 24 h) -> minutes."""
     if valeur in (None, ""):
@@ -111,16 +93,7 @@ def _parser_priorite(valeur: Any) -> int | None:
 
 def _trouver_entetes(lignes: list[tuple[Any, ...]]) -> tuple[int, dict[str, int]]:
     """Repère la ligne d'en-têtes (après le préambule) et l'index de chaque colonne connue."""
-    for i, ligne in enumerate(lignes[:25]):
-        cellules = {_normaliser(c) for c in ligne if c is not None}
-        if "statut" in cellules and "titre" in cellules:
-            index: dict[str, int] = {}
-            for j, c in enumerate(ligne):
-                cle = _ENTETES.get(_normaliser(c))
-                if cle is not None and cle not in index:
-                    index[cle] = j
-            return i, index
-    raise ValueError("En-têtes introuvables : colonnes 'Statut' et 'Titre' attendues.")
+    return trouver_entetes(lignes, _ENTETES, {"statut", "titre"})
 
 
 def analyser_classeur(contenu: bytes) -> list[dict[str, Any]]:

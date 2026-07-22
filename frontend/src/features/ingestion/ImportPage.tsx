@@ -4,11 +4,33 @@ import { Card, Button, useToast } from '@/design-system/primitives';
 import { ErreurApi } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './ImportPage.module.css';
-import { importApi, type RapportImport } from './importApi';
+import filtres from '@/common/FiltreTickets.module.css';
+import { importApi, type RapportImport, type RapportImportEquipements } from './importApi';
+
+/** Les deux fichiers que reçoit la DSI. Chacun a sa clé d'idempotence et son compte-rendu. */
+type Nature = 'tickets' | 'equipements';
+const NATURES: { cle: Nature; libelle: string }[] = [
+  { cle: 'tickets', libelle: 'Tickets du jour' },
+  { cle: 'equipements', libelle: 'Inventaire' },
+];
+const TEXTES: Record<Nature, { sous: string; zone: string; bouton: string }> = {
+  tickets: {
+    sous: 'Chargez le rapport de tickets (.xlsx). Incidents et demandes sont alimentés et mis à jour automatiquement — recharger le même fichier ne crée jamais de doublon.',
+    zone: 'Format Excel (.xlsx) exporté de l’outil de ticketing',
+    bouton: 'Déposer ou choisir le rapport',
+  },
+  equipements: {
+    sous: "Chargez l'inventaire des immobilisations (.xlsx). Les colonnes comptables sont reprises du fichier ; ce que la DSI a saisi à l'écran (n° de série, modèle, emplacement, détenteur) n'est jamais écrasé.",
+    zone: 'Format Excel (.xlsx) — le code d’immobilisation identifie chaque équipement',
+    bouton: 'Déposer ou choisir l’inventaire',
+  },
+};
 
 export function ImportPage(): JSX.Element {
   const [enCours, setEnCours] = useState(false);
+  const [nature, setNature] = useState<Nature>('tickets');
   const [rapport, setRapport] = useState<RapportImport | null>(null);
+  const [rapportEqp, setRapportEqp] = useState<RapportImportEquipements | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [nomFichier, setNomFichier] = useState<string | null>(null);
   const [survol, setSurvol] = useState(false);
@@ -18,15 +40,25 @@ export function ImportPage(): JSX.Element {
   const traiter = async (fichier: File): Promise<void> => {
     setErreur(null);
     setRapport(null);
+    setRapportEqp(null);
     setNomFichier(fichier.name);
     setEnCours(true);
     try {
-      const r = await importApi.tickets(fichier);
-      setRapport(r);
-      notifier(
-        `Import réussi : ${r.total} ticket(s) — ${r.crees} créé(s), ${r.mis_a_jour} mis à jour.`,
-        'succes',
-      );
+      if (nature === 'equipements') {
+        const r = await importApi.equipements(fichier);
+        setRapportEqp(r);
+        notifier(
+          `Import réussi : ${r.total} équipement(s) — ${r.crees} créé(s), ${r.mis_a_jour} mis à jour.`,
+          'succes',
+        );
+      } else {
+        const r = await importApi.tickets(fichier);
+        setRapport(r);
+        notifier(
+          `Import réussi : ${r.total} ticket(s) — ${r.crees} créé(s), ${r.mis_a_jour} mis à jour.`,
+          'succes',
+        );
+      }
     } catch (err) {
       const msg =
         err instanceof ErreurApi ? err.message : 'Import impossible : vérifiez le fichier.';
@@ -65,17 +97,45 @@ export function ImportPage(): JSX.Element {
         { libelle: 'Mis à jour', valeur: rapport.mis_a_jour, couleur: '#c77700' },
         { libelle: 'Inchangés', valeur: rapport.inchanges, couleur: '#8a93a6' },
       ]
-    : [];
+    : rapportEqp
+      ? [
+          { libelle: 'Lignes lues', valeur: rapportEqp.total, couleur: '#4f6bed' },
+          { libelle: 'Créés', valeur: rapportEqp.crees, couleur: '#1f9d55' },
+          { libelle: 'Mis à jour', valeur: rapportEqp.mis_a_jour, couleur: '#c77700' },
+          // Ces deux-là appellent une action : on les montre même à zéro.
+          { libelle: 'Sans code immo', valeur: rapportEqp.ignores, couleur: '#8a93a6' },
+          {
+            libelle: 'Détenteurs à rattacher',
+            valeur: rapportEqp.detenteurs_non_rapproches,
+            couleur: '#c77700',
+          },
+        ]
+      : [];
 
   return (
     <div className={incidents.page}>
       <header className={incidents.entete}>
         <div>
           <h1 className={incidents.titre}>Import quotidien</h1>
-          <p className={incidents.sous}>
-            Chargez le rapport de tickets (.xlsx). Incidents et demandes sont alimentés et mis à
-            jour automatiquement — recharger le même fichier ne crée jamais de doublon.
-          </p>
+          <p className={incidents.sous}>{TEXTES[nature].sous}</p>
+        </div>
+        <div className={filtres.segments}>
+          {NATURES.map((n) => (
+            <button
+              key={n.cle}
+              type="button"
+              className={nature === n.cle ? filtres.segmentOn : filtres.segment}
+              onClick={() => {
+                setNature(n.cle);
+                setRapport(null);
+                setRapportEqp(null);
+                setErreur(null);
+                setNomFichier(null);
+              }}
+            >
+              {n.libelle}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -104,7 +164,7 @@ export function ImportPage(): JSX.Element {
             {enCours ? <Loader2 size={30} className={styles.tourne} /> : <UploadCloud size={30} />}
           </span>
           <span className={styles.zoneTitre}>
-            {enCours ? 'Import en cours…' : 'Déposer ou choisir le rapport'}
+            {enCours ? 'Import en cours…' : TEXTES[nature].bouton}
           </span>
           <span className={styles.zoneSous}>
             {nomFichier ? (
@@ -112,7 +172,7 @@ export function ImportPage(): JSX.Element {
                 <FileSpreadsheet size={14} /> {nomFichier}
               </span>
             ) : (
-              'Format Excel (.xlsx) exporté de l’outil de ticketing'
+              TEXTES[nature].zone
             )}
           </span>
           <span className={styles.zoneBtn}>

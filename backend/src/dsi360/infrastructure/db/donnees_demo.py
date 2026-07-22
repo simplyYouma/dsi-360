@@ -17,7 +17,7 @@ import json
 import os
 import random
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import asyncpg
@@ -467,6 +467,7 @@ async def _reset(conn: asyncpg.Connection) -> None:
     await conn.execute("DELETE FROM core.activite")  # cascade : tache, document, commentaire, acteur
     await conn.execute("DELETE FROM core.notification")
     await conn.execute("DELETE FROM core.demandeur")
+    await conn.execute("DELETE FROM core.equipement")
     await conn.execute("DELETE FROM core.utilisateur WHERE email = ANY($1::text[])", EMAILS_DEMO)
     # Le journal réel est append-only (déclencheur) ; les entrées de démo, elles, se régénèrent
     # avec le reste — on suspend le déclencheur le temps de la purge, ce que seul cet outil de
@@ -521,6 +522,117 @@ async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
             uid,
         )
     return equipe
+
+
+# --- Inventaire : un parc plausible, pour éprouver l'amortissement et les rattachements ---
+
+# Emplacements et rattachements observés dans le fichier réel d'AFG.
+_EMPLACEMENTS = (
+    "GAB EXT",
+    "Agence Zone Industrielle",
+    "Agence Yirimadio",
+    "Agence Sébénicoro",
+    "Agence Djélibougou",
+    "Siège — Direction Générale",
+    "Siège — Salle serveurs",
+)
+_DEPARTEMENTS = (
+    "Salle GAB",
+    "GAB Syama",
+    "Total Faladié",
+    "Direction des Systèmes d'Information",
+    "Direction de l'Exploitation",
+    "Réseau & Télécom",
+)
+
+# (désignation, modèle, valeur mini, valeur maxi, taux, durée) — matériel bancaire courant.
+_TYPES_MATERIEL: tuple[tuple[str, str, int, int, int, int], ...] = (
+    ("GAB NCR SelfServ 25", "NCR SelfServ 25", 11_000_000, 24_000_000, 25, 4),
+    ("GAB Wincor Cineo", "Wincor Cineo C4060", 12_000_000, 23_000_000, 25, 4),
+    ("Serveur lame", "HPE ProLiant DL380", 8_000_000, 15_000_000, 20, 5),
+    ("Baie de stockage", "Dell EMC Unity", 18_000_000, 30_000_000, 20, 5),
+    ("Onduleur", "APC Smart-UPS 10kVA", 2_500_000, 6_000_000, 20, 5),
+    ("Commutateur cœur", "Cisco Catalyst 9300", 3_000_000, 7_500_000, 20, 5),
+    ("Pare-feu", "Fortinet FortiGate 200F", 4_000_000, 9_000_000, 20, 5),
+    ("Poste de travail", "Dell Latitude 5540", 450_000, 950_000, 25, 4),
+    ("Poste de travail", "HP EliteBook 840", 500_000, 1_100_000, 25, 4),
+    ("Imprimante réseau", "HP LaserJet M507", 350_000, 800_000, 25, 4),
+    ("Imprimante chèques", "Olivetti PR2 Plus", 900_000, 1_800_000, 25, 4),
+    ("Scanner de production", "Kodak i3450", 1_200_000, 2_600_000, 25, 4),
+    ("Compteuse de billets", "Glory GFS-120", 2_000_000, 4_500_000, 20, 5),
+)
+
+
+async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
+    """Parc matériel de démonstration, échelonné sur vingt ans.
+
+    L'étalement des dates d'acquisition est ce qui compte : il produit des équipements neufs,
+    à mi-vie et totalement amortis — sans quoi on ne verrait jamais la valeur nette bouger.
+    """
+    emplacements = {
+        libelle: await conn.fetchval(
+            "INSERT INTO core.emplacement (libelle) VALUES ($1) "
+            "ON CONFLICT (upper(btrim(libelle))) DO UPDATE SET libelle = excluded.libelle "
+            "RETURNING id",
+            libelle,
+        )
+        for libelle in _EMPLACEMENTS
+    }
+    departements = {
+        libelle: await conn.fetchval(
+            "INSERT INTO core.departement_equipement (libelle) VALUES ($1) "
+            "ON CONFLICT (upper(btrim(libelle))) DO UPDATE SET libelle = excluded.libelle "
+            "RETURNING id",
+            libelle,
+        )
+        for libelle in _DEPARTEMENTS
+    }
+
+    # Matricules sur les comptes : sans eux, aucun équipement ne trouverait son détenteur.
+    for rang, uid in enumerate(utilisateurs, start=1):
+        await conn.execute(
+            "UPDATE core.utilisateur SET matricule = $2 WHERE id = $1 AND matricule IS NULL",
+            uid, f"AFG-{4500 + rang:04d}",
+        )
+
+    aujourdhui = date.today()
+    cree = 0
+    for i in range(1, 121):
+        designation, modele, mini, maxi, taux, duree = random.choice(_TYPES_MATERIEL)
+        # Ancienneté pondérée vers le récent : un parc se renouvelle. Tirer uniformément sur
+        # vingt ans donnerait un parc amorti à 80 %, où la valeur nette ne dirait plus rien —
+        # alors que c'est précisément ce qu'on vient lire. Les vieux GAB restent la minorité.
+        tranche = random.choices(
+            [(90, 365 * 3), (365 * 3, 365 * 6), (365 * 6, 365 * 20)],
+            weights=[50, 30, 20],
+        )[0]
+        acquisition = aujourdhui - timedelta(days=random.randint(*tranche))
+        # Un dixième du parc n'a pas encore de détenteur : le compteur « sans détenteur » a
+        # alors quelque chose à signaler, comme dans la vraie vie après un import.
+        detenteur = None if random.random() < 0.1 else random.choice(utilisateurs)
+        # Quelques matériels sortis du parc (cédés, détruits) pour éprouver la vue « Sortis ».
+        actif = random.random() > 0.08
+        await conn.execute(
+            "INSERT INTO core.equipement (code_immo, designation, modele, numero_serie, "
+            " emplacement_id, departement_id, detenteur_id, taux, date_acquisition, "
+            " duree_annees, valeur_acquisition, source, actif) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'IMPORT_IMMO',$12) "
+            "ON CONFLICT DO NOTHING",
+            f"INF{i:05d}",
+            designation,
+            modele,
+            f"SN-{random.randint(100000, 999999)}",
+            emplacements[random.choice(_EMPLACEMENTS)],
+            departements[random.choice(_DEPARTEMENTS)],
+            detenteur,
+            taux,
+            acquisition,
+            duree,
+            random.randint(mini, maxi),
+            actif,
+        )
+        cree += 1
+    return cree
 
 
 async def _categories(conn: asyncpg.Connection, module: str) -> list[str]:
@@ -680,6 +792,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
         await _reset(conn)
         utilisateurs = await _assurer_utilisateurs(conn)
         await _niveaux_support(conn, utilisateurs)
+        equipements = await _inventaire(conn, utilisateurs)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
 
         for module, titres in TITRES.items():
@@ -891,7 +1004,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
             )
 
         print(f"Données de démonstration recréées : {total} activités (+ tâches, documents, "
-              f"commentaires, acteurs, notifications).")
+              f"commentaires, acteurs, notifications) et {equipements} équipements.")
     finally:
         await conn.close()
 

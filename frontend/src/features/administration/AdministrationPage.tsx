@@ -338,11 +338,7 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
         </div>
         <label className={styles.champ}>
           <span>Matricule</span>
-          <input
-            value={matricule}
-            onChange={(e) => setMatricule(e.target.value)}
-            placeholder="Matricule bancaire — rattache les équipements à leur détenteur"
-          />
+          <input value={matricule} onChange={(e) => setMatricule(e.target.value)} />
         </label>
         <div className={styles.niveaux}>
           <div className={styles.champ}>

@@ -602,6 +602,20 @@ class CommentaireCreation(BaseModel):
 # --- Ingestion / Ticketing ---
 
 
+class RapportImportEquipements(BaseModel):
+    """Compte-rendu d'un import d'inventaire, tel qu'affiché après le dépôt du fichier."""
+
+    total: int
+    crees: int
+    mis_a_jour: int
+    #: Lignes sans code d'immobilisation : impossible de les reconnaître d'un import à l'autre.
+    ignores: int
+    #: Matricules que le fichier nomme mais qu'aucun compte ne porte : rattachements à faire.
+    detenteurs_non_rapproches: int
+    #: Lignes portant un état constaté (bon / rebut / casse) — exploité par les campagnes.
+    avec_etat_constate: int
+
+
 class RapportImport(BaseModel):
     total: int
     incidents: int
