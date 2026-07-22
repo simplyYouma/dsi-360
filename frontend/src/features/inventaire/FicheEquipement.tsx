@@ -10,6 +10,7 @@ import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { useAuth } from '@/lib/auth';
 import { ErreurApi } from '@/lib/api';
 import fiche from '@/common/FicheTransition.module.css';
+import { COULEUR_ACTION_JOURNAL } from '@/common/FicheTransition';
 import local from './Inventaire.module.css';
 import { CurseurTaux } from './CurseurTaux';
 import { DiscussionEquipement } from './DiscussionEquipement';
@@ -431,7 +432,10 @@ export function FicheEquipement({
               <ul className={local.histoListe}>
                 {detail.historique.map((h, i) => (
                   <li key={i} className={local.histoLigne}>
-                    <span className={local.histoAction}>
+                    <span
+                      className={local.histoAction}
+                      style={{ color: COULEUR_ACTION_JOURNAL[h.action] ?? 'var(--text)' }}
+                    >
                       {LIBELLE_ACTION[h.action] ?? h.action}
                     </span>
                     <span className={local.histoActeur}>{h.acteur ?? '—'}</span>

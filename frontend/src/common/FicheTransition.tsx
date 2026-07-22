@@ -140,6 +140,24 @@ const LIBELLE_ACTION_JOURNAL: Record<string, string> = {
   SUPPRESSION: 'Suppression',
 };
 
+/** Couleur par type d'action : l'œil trie le journal avant de le lire. Les décisions gardent
+ *  les couleurs de statut (vert/rouge) ; le reste reçoit une teinte catégorielle stable. */
+export const COULEUR_ACTION_JOURNAL: Record<string, string> = {
+  CREATION: 'var(--cat-1)',
+  TRANSITION: 'var(--secondary)',
+  MODIFICATION: 'var(--cat-5)',
+  ASSIGNATION: 'var(--cat-2)',
+  ASSIGNATION_LOT: 'var(--cat-2)',
+  APPROBATION: 'var(--status-ok)',
+  REJET: 'var(--status-danger)',
+  REVUE_EFFECTUEE: 'var(--cat-7)',
+  IMPORT: 'var(--cat-8)',
+  CLOTURE: 'var(--text-muted)',
+  SUPPRESSION: 'var(--status-danger)',
+  CONSTAT: 'var(--cat-2)',
+  COMMENTAIRE: 'var(--cat-7)',
+};
+
 /** Décision déjà rendue : le choix reste coloré (vert/rouge), l'autre est grisé, non cliquable. */
 function BlocDecisionFigee({ decision }: { decision: string }): JSX.Element {
   const approuve = decision === 'APPROUVE';
@@ -978,7 +996,10 @@ export function FicheTransition({
                   {[...(detail.journal ?? [])].reverse().map((e, i) => (
                     <li key={i} className={styles.histoItem}>
                       <span className={styles.histoDate}>{formaterDate(e.horodatage)}</span>
-                      <span className={styles.histoStatut}>
+                      <span
+                        className={styles.histoStatut}
+                        style={{ color: COULEUR_ACTION_JOURNAL[e.action] ?? 'var(--text)' }}
+                      >
                         {LIBELLE_ACTION_JOURNAL[e.action] ?? e.action}
                       </span>
                       {e.acteur !== null && <span className={styles.histoActeur}>{e.acteur}</span>}
