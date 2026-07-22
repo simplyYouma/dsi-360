@@ -1,6 +1,14 @@
 import type { EtatSla } from '@/common/SablierSla';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, Clock, Download, XCircle } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Clock,
+  Download,
+  RefreshCw,
+  XCircle,
+} from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { ChampInline } from '@/common/ChampInline';
@@ -43,6 +51,10 @@ interface Detail {
   /** L'état courant attend la décision des valideurs : rien n'avance manuellement. */
   en_attente_validation?: boolean;
   historique: { statut: string; horodatage: string; acteur: string | null }[];
+  /** Journal complet du dossier : statuts, gestionnaire, valideurs, échéances… en clair. */
+  journal?: { action: string; horodatage: string; acteur: string | null; detail: string | null }[];
+  /** Tickets importés : horodatage du dernier rapport quotidien chargé. */
+  synchronise_le?: string | null;
   // Champs optionnels selon le module (activité, risque…).
   priorite?: number;
   criticite?: number;
@@ -112,6 +124,21 @@ function formaterDate(iso: string | null): string {
 
 /** Pourquoi une commande est grisée. Le serveur refuserait de toute façon. */
 const TITRE_LECTURE = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
+
+/** Nom d'écran des actions du journal complet. Une action inconnue s'affiche telle quelle. */
+const LIBELLE_ACTION_JOURNAL: Record<string, string> = {
+  CREATION: 'Création',
+  TRANSITION: 'Changement de statut',
+  MODIFICATION: 'Modification',
+  ASSIGNATION: 'Assignation',
+  ASSIGNATION_LOT: 'Assignation en lot',
+  APPROBATION: 'Approbation',
+  REJET: 'Rejet',
+  REVUE_EFFECTUEE: 'Revue effectuée',
+  IMPORT: 'Import',
+  CLOTURE: 'Clôture',
+  SUPPRESSION: 'Suppression',
+};
 
 /** Décision déjà rendue : le choix reste coloré (vert/rouge), l'autre est grisé, non cliquable. */
 function BlocDecisionFigee({ decision }: { decision: string }): JSX.Element {
@@ -577,6 +604,13 @@ export function FicheTransition({
                         ))}
                     </span>
                   )}
+                  {/* Miroir importé : on dit de quand date la photo (dernier rapport chargé). */}
+                  {detail.synchronise_le != null && (
+                    <span className={styles.teteSync} title="Dernière mise à jour par l'import">
+                      <RefreshCw size={12} />
+                      Import du <strong>{formaterDate(detail.synchronise_le)}</strong>
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -934,7 +968,32 @@ export function FicheTransition({
             </div>
           )}
 
-          {detail.historique.length > 0 && (
+          {/* Le journal complet quand le serveur le fournit — statuts, gestionnaire, valideurs,
+              contributeurs, échéances… — sinon le parcours des statuts seul. */}
+          {(detail.journal?.length ?? 0) > 0 ? (
+            <div className={styles.histo}>
+              <span className={styles.wfTitre}>Historique</span>
+              <div className={styles.histoZone}>
+                <ol className={styles.histoListe} ref={histoRef}>
+                  {[...(detail.journal ?? [])].reverse().map((e, i) => (
+                    <li key={i} className={styles.histoItem}>
+                      <span className={styles.histoDate}>{formaterDate(e.horodatage)}</span>
+                      <span className={styles.histoStatut}>
+                        {LIBELLE_ACTION_JOURNAL[e.action] ?? e.action}
+                      </span>
+                      {e.acteur !== null && <span className={styles.histoActeur}>{e.acteur}</span>}
+                      {e.detail !== null && (
+                        <span className={styles.histoChangement}>{e.detail}</span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+                {(detail.journal?.length ?? 0) > 3 && (
+                  <div className={styles.histoFondu} aria-hidden="true" />
+                )}
+              </div>
+            </div>
+          ) : detail.historique.length > 0 ? (
             <div className={styles.histo}>
               <span className={styles.wfTitre}>Historique</span>
               <div className={styles.histoZone}>
@@ -957,7 +1016,7 @@ export function FicheTransition({
                 )}
               </div>
             </div>
-          )}
+          ) : null}
 
           {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
         </div>

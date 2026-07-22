@@ -23,6 +23,7 @@ const LIBELLE_DETAIL: Record<string, string> = {
   detenteurs_non_rapproches: 'détenteurs à rattacher',
   demandeurs_crees: 'demandeurs créés',
   constats_enregistres: 'constats de campagne',
+  statuts_inconnus: 'statuts non reconnus',
   incidents: 'incidents',
   demandes: 'demandes',
   lus: 'lus',
@@ -250,6 +251,16 @@ export function ImportPage(): JSX.Element {
                 </div>
               ))}
             </div>
+            {/* Un libellé de statut hors table serait resté « en cours » en silence : on le dit,
+                pour qu'il soit ajouté à la correspondance. */}
+            {rapport.nature === 'tickets' && rapport.statuts_non_reconnus.length > 0 && (
+              <p className={styles.erreur}>
+                <AlertTriangle size={15} />
+                Statuts du fichier non reconnus, laissés « en cours » :{' '}
+                {rapport.statuts_non_reconnus.join(', ')} — à signaler pour qu'ils soient pris en
+                compte.
+              </p>
+            )}
           </div>
         )}
       </Card>

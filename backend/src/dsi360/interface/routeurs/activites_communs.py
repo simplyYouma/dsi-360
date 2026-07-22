@@ -7,12 +7,13 @@ d'accès RBAC, le module domaine et l'URL.
 
 import json
 import math
+import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import RowMapping, text
+from sqlalchemy import RowMapping, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import (
@@ -184,6 +185,132 @@ def _detail(
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
         "derniere_revue": _donnees(r).get("derniere_revue"),
     }
+
+
+# ---- Journal lisible de la fiche : TOUT ce qui a bougé, pas seulement les statuts -----------
+
+_UUID_JOURNAL = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+_ISO_JOURNAL = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?")
+
+#: Nom d'écran des clés journalisées. Une clé absente passe par le repli générique
+#: (« date_debut » -> « date debut ») : on préfère un libellé rustique à une ligne tue.
+_LIBELLE_JOURNAL = {
+    "statut": "statut",
+    "titre": "titre",
+    "description": "description",
+    "priorite": "priorité",
+    "criticite": "criticité",
+    "impact": "impact",
+    "urgence": "urgence",
+    "probabilite": "probabilité",
+    "responsable_id": "gestionnaire",
+    "categorie_id": "catégorie",
+    "contributeur_ajoute": "contributeur ajouté",
+    "contributeur_retire": "contributeur retiré",
+    "valideur_ajoute": "valideur ajouté",
+    "valideur_retire": "valideur retiré",
+    "decision": "décision",
+    "echeance": "échéance",
+    "date_echeance": "échéance",
+    "sla_prise_en_charge_le": "échéance de prise en charge",
+    "sla_resolution_le": "échéance de résolution",
+    "date_debut": "date de début",
+    "date_fin": "date de fin",
+    "derniere_revue": "dernière revue",
+    "non_retrouves": "non retrouvés",
+}
+
+# Le journal stocke des identifiants ; l'écran veut des noms. On résout à la lecture — les
+# écritures anciennes deviennent lisibles aussi, sans réécrire le journal (append-only).
+_NOMS_UTILISATEURS = text(
+    "SELECT id::text AS id, prenom || ' ' || nom AS nom FROM core.utilisateur "
+    "WHERE id::text IN :ids"
+).bindparams(bindparam("ids", expanding=True))
+_NOMS_CATEGORIES = text(
+    "SELECT id::text AS id, libelle AS nom FROM core.categorie WHERE id::text IN :ids"
+).bindparams(bindparam("ids", expanding=True))
+
+
+def _collecter_uuids(entrees: list[dict[str, Any]]) -> set[str]:
+    trouves: set[str] = set()
+    for e in entrees:
+        for valeurs in (e["anciennes"], e["nouvelles"]):
+            if isinstance(valeurs, dict):
+                trouves.update(
+                    v.lower()
+                    for v in valeurs.values()
+                    if isinstance(v, str) and _UUID_JOURNAL.fullmatch(v.lower())
+                )
+    return trouves
+
+
+async def _noms_pour(session: AsyncSession, uuids: set[str]) -> dict[str, str]:
+    if not uuids:
+        return {}
+    ids = sorted(uuids)
+    noms: dict[str, str] = {}
+    for requete in (_NOMS_UTILISATEURS, _NOMS_CATEGORIES):
+        lignes = await session.execute(requete, {"ids": ids})
+        noms.update({r["id"]: r["nom"] for r in lignes.mappings().all()})
+    return noms
+
+
+def _valeur_journal(valeur: Any, noms: dict[str, str]) -> str:
+    if valeur is None or valeur == "":
+        return "—"
+    if isinstance(valeur, bool):
+        return "oui" if valeur else "non"
+    texte_v = str(valeur)
+    if _UUID_JOURNAL.fullmatch(texte_v.lower()):
+        # Identifiant sans nom connu (compte supprimé…) : trois points valent mieux qu'un uuid.
+        return noms.get(texte_v.lower(), "…")
+    if _ISO_JOURNAL.match(texte_v):
+        jour_txt = f"{texte_v[8:10]}/{texte_v[5:7]}/{texte_v[0:4]}"
+        heure = texte_v[11:16] if len(texte_v) >= 16 and texte_v[10] in "T " else ""
+        return f"{jour_txt} {heure}".strip()
+    return texte_v if len(texte_v) <= 80 else texte_v[:77] + "…"
+
+
+def _libelle_cle_journal(cle: str) -> str:
+    return _LIBELLE_JOURNAL.get(cle) or cle.removesuffix("_id").replace("_", " ")
+
+
+def _detail_journal(anciennes: Any, nouvelles: Any, noms: dict[str, str]) -> str | None:
+    """« gestionnaire : Awa Touré → Mady Wague · échéance : 12/08/2026 » — tout, en clair."""
+    avant = anciennes if isinstance(anciennes, dict) else {}
+    apres = nouvelles if isinstance(nouvelles, dict) else {}
+    fragments: list[str] = []
+    for cle in {**avant, **apres}:
+        if cle == "source":  # bruit technique (IMPORT_SD…), sans valeur pour le lecteur
+            continue
+        a, n = avant.get(cle), apres.get(cle)
+        libelle = _libelle_cle_journal(cle)
+        if cle in avant and cle in apres:
+            if a != n:
+                fragments.append(
+                    f"{libelle} : {_valeur_journal(a, noms)} → {_valeur_journal(n, noms)}"
+                )
+        elif cle in apres:
+            fragments.append(f"{libelle} : {_valeur_journal(n, noms)}")
+        else:
+            fragments.append(f"{libelle} : {_valeur_journal(a, noms)}")
+    return " · ".join(fragments) or None
+
+
+async def _journal_lisible(
+    session: AsyncSession, module: str, reference: str
+) -> list[dict[str, Any]]:
+    entrees = await audit.journal_complet(session, module, reference)
+    noms = await _noms_pour(session, _collecter_uuids(entrees))
+    return [
+        {
+            "action": e["action"],
+            "horodatage": e["horodatage"],
+            "acteur": e["acteur"],
+            "detail": _detail_journal(e["anciennes"], e["nouvelles"], noms),
+        }
+        for e in entrees
+    ]
 
 
 def _retard_final(r: RowMapping, historique: list[dict[str, Any]]) -> int | None:
@@ -458,6 +585,16 @@ def creer_routeur(
         base = _detail(module, r, datetime.now(UTC), import_uniquement)
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
         base["retard_final_jours"] = _retard_final(r, base["historique"])
+        # Le journal complet du dossier : gestionnaire, valideurs, contributeurs, dates… en clair.
+        base["journal"] = await _journal_lisible(session, module, r["reference"])
+        if module in ("incident", "demande"):
+            # Fraîcheur du miroir (ADR-0005) : la date du dernier rapport quotidien chargé.
+            base["synchronise_le"] = await session.scalar(
+                text(
+                    "SELECT max(horodatage) FROM audit.journal "
+                    "WHERE action = 'IMPORT' AND cible_type = 'rapport_tickets'"
+                )
+            )
         base["contributeurs"] = [
             dict(c) for c in await repo.lister_contributeurs(session, r["id"])
         ]

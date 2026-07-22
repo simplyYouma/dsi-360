@@ -81,13 +81,8 @@ export const SECTIONS: SectionNav[] = [
   {
     titre: 'Système',
     entrees: [
-      {
-        chemin: '/import',
-        libelle: 'Import quotidien',
-        icone: UploadCloud,
-        phase: 'P1',
-        transverse: true,
-      },
+      // Accès module « import » distribué depuis la matrice, comme les autres.
+      { chemin: '/import', libelle: 'Import quotidien', icone: UploadCloud, phase: 'P1' },
       { chemin: '/administration', libelle: 'Administration', icone: Settings, phase: 'P1' },
     ],
   },

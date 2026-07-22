@@ -19,6 +19,9 @@ MODULES: tuple[str, ...] = (
     "gouvernance",
     # Parc matériel (immobilisations IT). Hors des neuf modules du cahier : ajout assumé.
     "inventaire",
+    # Dépôt du rapport quotidien et de l'inventaire Excel. Longtemps réservé aux profils
+    # transverses ; désormais un accès comme un autre, distribué depuis la matrice.
+    "import",
     "administration",
 )
 

@@ -314,3 +314,42 @@ async def test_un_ticket_inchange_recoit_quand_meme_ses_echeances(session: Async
         text("SELECT sla_resolution_le FROM core.activite WHERE reference = 'INC-SLA-2'")
     )
     assert echeance is not None
+
+
+async def test_les_variantes_de_statut_sont_reconnues(session: AsyncSession) -> None:
+    """« Resolved », « Clôturé », « Cancelled »… : l'outil source varie, la table doit suivre.
+
+    C'était la cause silencieuse des anciens tickets « qui ne se mettent pas à jour » : un
+    libellé hors table retombait sur « ouvert » sans un mot — un ticket clos à la source
+    restait donc « en cours » chez nous pour toujours.
+    """
+    acteur = await _acteur(session, "statuts.variantes@afgbank.ml")
+
+    resultat = await importer_tickets(
+        session,
+        _classeur(
+            [
+                {"numero": "ST-1", "statut": "Resolved", "date_fermeture": "02-07-2026 10:00"},
+                {"numero": "ST-2", "statut": "Clôturé", "date_fermeture": "02-07-2026 11:00"},
+                {"numero": "ST-3", "statut": "Cancelled"},
+                {"numero": "ST-4", "statut": "Statut Extraterrestre"},
+            ]
+        ),
+        acteur,
+    )
+
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT reference, statut FROM core.activite "
+                "WHERE reference IN ('INC-ST-1','INC-ST-2','INC-ST-3','INC-ST-4')"
+            )
+        )
+    ).all()
+    par_ref = {reference: statut for reference, statut in lignes}
+    assert par_ref["INC-ST-1"] == "Résolu"
+    assert par_ref["INC-ST-2"] == "Clôturé"
+    assert par_ref["INC-ST-3"] == "Annulé"
+    # L'inconnu se replie sur « ouvert » — mais il est DIT, jamais tu.
+    assert par_ref["INC-ST-4"] == "Ouvert"
+    assert resultat["statuts_non_reconnus"] == ["Statut Extraterrestre"]

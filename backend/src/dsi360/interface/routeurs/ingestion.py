@@ -1,7 +1,8 @@
 """Imports de fichiers : rapport quotidien de tickets, et inventaire des équipements.
 
-Réservés aux profils transverses (ADMIN / DSI / DG). Idempotents : recharger met à jour, sans
-jamais créer de doublon — par n° de ticket pour l'un, par code d'immobilisation pour l'autre.
+Gardés par l'accès module « import », distribué depuis la matrice de l'administration comme
+n'importe quel autre. Idempotents : recharger met à jour, sans jamais créer de doublon — par
+n° de ticket pour l'un, par code d'immobilisation pour l'autre.
 """
 
 import json
@@ -20,9 +21,10 @@ from dsi360.infrastructure import ingestion_equipements as infra_equipements
 from dsi360.infrastructure.classeur import trouver_entetes
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import EtatImports, RapportImport, RapportImportEquipements
-from dsi360.interface.securite import utilisateur_courant
+from dsi360.interface.securite import exiger_acces
 
 routeur = APIRouter(prefix="/import", tags=["ingestion"])
+_ACCES = "import"
 
 # Le journal d'audit consigne chaque import (action IMPORT) avec son compte-rendu : c'est lui la
 # mémoire des dépôts — aucune table dédiée à entretenir. cible_type distingue les natures.
@@ -36,22 +38,13 @@ ORDER BY j.cible_type, j.id DESC
 
 _NATURE = {"rapport_tickets": "tickets", "equipement": "equipements"}
 Session = Annotated[AsyncSession, Depends(session_scope)]
-Courant = Annotated[dict[str, Any], Depends(utilisateur_courant)]
+Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 
 _MAX = 20 * 1024 * 1024  # 20 Mo
 
 
-def _exiger_transverse(courant: dict[str, Any]) -> None:
-    if not courant["transverse"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Import réservé aux profils transverses (DSI / Administration).",
-        )
-
-
 @routeur.post("/tickets", response_model=RapportImport)
 async def importer(fichier: UploadFile, courant: Courant, session: Session) -> dict[str, Any]:
-    _exiger_transverse(courant)
     contenu = await fichier.read()
     if len(contenu) == 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fichier vide.")
@@ -84,7 +77,6 @@ async def importer_equipements(
     fichier: UploadFile, courant: Courant, session: Session
 ) -> dict[str, Any]:
     """Inventaire des immobilisations IT. Ne remplace jamais ce que la DSI a saisi à l'écran."""
-    _exiger_transverse(courant)
     contenu = await fichier.read()
     _lire(contenu)
     try:
@@ -98,7 +90,6 @@ async def importer_equipements(
 @routeur.get("/etat", response_model=EtatImports)
 async def etat(courant: Courant, session: Session) -> dict[str, Any]:
     """Dernier import de chaque nature : on sait d'un coup d'œil si le dépôt du jour est fait."""
-    _exiger_transverse(courant)
     lignes = (await session.execute(text(_DERNIERS_IMPORTS))).mappings().all()
     derniers = []
     for r in lignes:
@@ -149,7 +140,6 @@ async def importer_fichier(
     fichier: UploadFile, courant: Courant, session: Session
 ) -> dict[str, Any]:
     """Point de dépôt unique : la nature du fichier est reconnue à ses en-têtes."""
-    _exiger_transverse(courant)
     contenu = await fichier.read()
     _lire(contenu)
     try:

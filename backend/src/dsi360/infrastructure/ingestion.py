@@ -32,8 +32,12 @@ ENTETES = _ENTETES = {
     "time to respond": "ttrespond",
 }
 
-# Statut brut (normalisé) -> issue logique, indépendante du module.
+# Statut brut (normalisé, sans accents) -> issue logique, indépendante du module.
+# La table couvre les variantes anglaises ET françaises de l'outil source : un libellé absent
+# d'ici retombe sur « ouvert » — et il est SIGNALÉ dans le compte-rendu (statut_inconnu), car un
+# repli silencieux laisserait des tickets clos « ouverts » chez nous pour toujours.
 _ISSUE = {
+    # clôture
     "closed": "cloture",
     "closed - ai": "cloture",
     "verified closed": "cloture",
@@ -41,14 +45,46 @@ _ISSUE = {
     "auto archive": "cloture",
     "auto-closed": "cloture",
     "close email": "cloture",
+    "cloture": "cloture",
+    "clot": "cloture",
+    "ferme": "cloture",
+    # résolution
     "request completed": "resolu",
+    "resolved": "resolu",
+    "completed": "resolu",
+    "resolu": "resolu",
+    "resolue": "resolu",
+    "termine": "resolu",
+    "terminee": "resolu",
+    # en cours de traitement
     "open": "ouvert",
     "pending": "ouvert",
+    "in progress": "ouvert",
+    "on hold": "ouvert",
+    "assigned": "ouvert",
+    "ouvert": "ouvert",
+    "ouverte": "ouvert",
+    "en cours": "ouvert",
+    "en attente": "ouvert",
+    "affecte": "ouvert",
+    "affectee": "ouvert",
+    # nouveau
     "new": "nouveau",
+    "nouveau": "nouveau",
+    "nouvelle": "nouveau",
+    # abandon
     "request rejected": "annule",
     "request cancelled": "annule",
+    "request canceled": "annule",
+    "cancelled": "annule",
+    "canceled": "annule",
     "deleted": "annule",
     "merge deleted": "annule",
+    "annule": "annule",
+    "annulee": "annule",
+    "rejete": "annule",
+    "rejetee": "annule",
+    "supprime": "annule",
 }
 
 # Issue -> état du cycle de vie, par module (cf. domain/etats).
@@ -128,7 +164,9 @@ def analyser_classeur(contenu: bytes) -> list[dict[str, Any]]:
         if numero in (None, "") or titre == "":
             continue
 
-        issue = _ISSUE.get(_normaliser(champ(ligne, "statut")), "ouvert")
+        statut_brut = str(champ(ligne, "statut") or "").strip()
+        issue_connue = _ISSUE.get(_normaliser(statut_brut))
+        issue = issue_connue or "ouvert"
         statut = ETAT_PAR_ISSUE[module][issue]
         date_demande = _parser_date(champ(ligne, "date_demande"))
         date_fermeture = _parser_date(champ(ligne, "date_fermeture"))
@@ -140,6 +178,8 @@ def analyser_classeur(contenu: bytes) -> list[dict[str, Any]]:
                 "titre": titre[:200],
                 "statut": statut,
                 "issue": issue,
+                # Libellé du fichier hors table : à faire remonter, jamais à taire.
+                "statut_inconnu": statut_brut if issue_connue is None and statut_brut else None,
                 "priorite": _parser_priorite(champ(ligne, "priorite")),
                 "categorie": (str(champ(ligne, "categorie")).strip() if champ(ligne, "categorie") else None),
                 "sous_categorie": (

@@ -37,6 +37,14 @@
   align-items: center;
   gap: 5px;
 }
+/* Fraîcheur du miroir importé : la date du dernier rapport quotidien chargé. */
+.teteSync {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
 
 /* Grille de méta : libellé discret + valeur */
 .meta {
@@ -255,8 +263,17 @@
 .histoItem {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
   font-size: var(--text-sm);
+}
+/* Le contenu du changement, sous la ligne : « gestionnaire : A → B », en clair. */
+.histoChangement {
+  flex-basis: 100%;
+  margin-top: -4px;
+  padding-left: calc(84px + var(--space-3));
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 .histoDate {
   color: var(--text-muted);

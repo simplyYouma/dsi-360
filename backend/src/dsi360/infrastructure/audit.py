@@ -48,6 +48,27 @@ async def historique_statuts(
         for r in resultat.mappings().all()
     ]
 
+
+# TOUT ce qui a touché le dossier — pas seulement les statuts : assignations, valideurs,
+# contributeurs, échéances… La fiche doit pouvoir tout raconter (zéro perte, principe n° 4).
+_JOURNAL_COMPLET = text(
+    "SELECT action, horodatage, acteur_email AS acteur, "
+    "ancienne_valeur AS anciennes, nouvelle_valeur AS nouvelles "
+    "FROM audit.journal "
+    "WHERE module = :module AND cible_type = :module AND cible_id = :reference "
+    "ORDER BY id DESC LIMIT :limite"
+)
+
+
+async def journal_complet(
+    session: AsyncSession, module: str, reference: str, limite: int = 25
+) -> list[dict[str, Any]]:
+    """Dernières écritures du journal sur ce dossier, brutes — l'appelant les rend lisibles."""
+    resultat = await session.execute(
+        _JOURNAL_COMPLET, {"module": module, "reference": reference, "limite": limite}
+    )
+    return [dict(r) for r in resultat.mappings().all()]
+
 def _serialiser(valeurs: dict[str, Any] | None) -> str | None:
     """Journalise une valeur quelle qu'elle soit.
 

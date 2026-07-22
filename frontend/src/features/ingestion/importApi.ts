@@ -9,6 +9,8 @@ export interface RapportImport {
   inchanges: number;
   demandeurs_crees: number;
   gestionnaires_crees: number;
+  /** Libellés de statut que le serveur ne connaît pas : repliés sur « en cours », mais dits. */
+  statuts_non_reconnus: string[];
 }
 
 export interface RapportImportEquipements {

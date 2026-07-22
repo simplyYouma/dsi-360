@@ -177,6 +177,9 @@ async def importer_tickets(
 
     crees = maj = inchanges = 0
     par_module = {"incident": 0, "demande": 0}
+    # Libellés de statut que la table ne connaît pas : repliés sur « ouvert », mais SIGNALÉS —
+    # c'est la cause silencieuse de tickets clos à la source restés « en cours » chez nous.
+    statuts_inconnus: set[str] = set()
     demandeurs_avant = await session.scalar(text("SELECT count(*) FROM core.demandeur")) or 0
     agents_avant = await session.scalar(text("SELECT count(*) FROM core.utilisateur")) or 0
 
@@ -185,6 +188,8 @@ async def importer_tickets(
         # et n'est donc pas compté chez DBS. Un import ultérieur qui renseigne le nom corrigera.
         gest = nom_significatif(t["gestionnaire"])
         responsable_id = _gestionnaire_id(cache_gest, gest)
+        if t["statut_inconnu"]:
+            statuts_inconnus.add(t["statut_inconnu"])
         reference = f"{PREFIXE_REFERENCE[t['module']]}-{t['source_id']}"
         statut_avant = statuts_avant.get((t["module"], t["source_id"]))
 
@@ -280,6 +285,7 @@ async def importer_tickets(
             "inchanges": inchanges,
             "demandeurs_crees": demandeurs_crees,
             "gestionnaires_crees": gestionnaires_crees,
+            "statuts_inconnus": len(statuts_inconnus),
         },
     )
     await session.commit()
@@ -293,4 +299,5 @@ async def importer_tickets(
         "inchanges": inchanges,
         "demandeurs_crees": demandeurs_crees,
         "gestionnaires_crees": gestionnaires_crees,
+        "statuts_non_reconnus": sorted(statuts_inconnus),
     }

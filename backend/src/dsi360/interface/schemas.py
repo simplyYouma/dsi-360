@@ -134,6 +134,16 @@ class EntreeHistorique(BaseModel):
     acteur: str | None
 
 
+class EvenementJournal(BaseModel):
+    """Une écriture du journal d'audit, rendue lisible pour la fiche."""
+
+    action: str
+    horodatage: datetime
+    acteur: str | None
+    #: Ce qui a changé, en clair (« gestionnaire : Awa Touré → Mady Wague »).
+    detail: str | None = None
+
+
 class ActiviteResume(BaseModel):
     id: str
     reference: str
@@ -213,6 +223,11 @@ class ActiviteDetail(ActiviteResume):
     #: ``None`` : pas d'échéance, ou date de fin inconnue. Le compteur ne court plus, mais le
     #: retard avec lequel on a fini reste une information de pilotage.
     retard_final_jours: int | None = None
+    #: Le journal complet du dossier, en clair : statuts, gestionnaire, valideurs,
+    #: contributeurs, échéances… — tout ce qui a bougé (zéro perte, principe n° 4).
+    journal: list[EvenementJournal] = []
+    #: Tickets importés (ADR-0005) : horodatage du dernier rapport quotidien chargé.
+    synchronise_le: datetime | None = None
 
 
 class PageActivites(BaseModel):
@@ -244,14 +259,8 @@ class EquipementResume(BaseModel):
     actif: bool
 
 
-class EvenementEquipement(BaseModel):
+class EvenementEquipement(EvenementJournal):
     """Une action journalisée sur l'équipement : la mémoire administrative du matériel."""
-
-    action: str
-    horodatage: datetime
-    acteur: str | None
-    #: Ce qui a changé, en clair (« emplacement : Siège → Agence Kayes ») : l'acheminement.
-    detail: str | None = None
 
 
 class EquipementDetail(EquipementResume):
@@ -735,6 +744,9 @@ class RapportImport(BaseModel):
     inchanges: int
     demandeurs_crees: int
     gestionnaires_crees: int
+    #: Libellés de statut que la table de correspondance ignore : repliés sur « ouvert »,
+    #: mais affichés — un ticket clos à la source ne doit pas rester « en cours » en silence.
+    statuts_non_reconnus: list[str] = []
 
 
 class DemandeurItem(BaseModel):
