@@ -10,7 +10,7 @@ la valeur nette comptable serait fausse dès le lendemain de son enregistrement.
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import RowMapping
+from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.inventaire import (
@@ -87,9 +87,10 @@ def _resume(r: RowMapping) -> dict[str, Any]:
     }
 
 
-def _detail(r: RowMapping) -> dict[str, Any]:
+async def _detail(session: AsyncSession, r: RowMapping) -> dict[str, Any]:
     a = _amortissement(r)
     return {
+        "historique": await _historique(session, r),
         **_resume(r),
         "emplacement_id": r["emplacement_id"],
         "departement_id": r["departement_id"],
@@ -103,6 +104,22 @@ def _detail(r: RowMapping) -> dict[str, Any]:
         "totalement_amorti": a.totalement_amorti,
         "amortissement_incoherent": a.incoherent,
     }
+
+
+# La fiche est journalisée sous son code immo (sinon sa désignation) : on relit sous les deux
+# repères, un équipement pouvant recevoir son code après coup.
+_HISTORIQUE = text(
+    "SELECT j.action, j.horodatage, j.acteur_email AS acteur FROM audit.journal j "
+    "WHERE j.module = 'inventaire' AND j.cible_type = 'equipement' "
+    "AND j.cible_id IN (:code, :designation) ORDER BY j.id DESC LIMIT 15"
+)
+
+
+async def _historique(session: AsyncSession, r: RowMapping) -> list[dict[str, Any]]:
+    lignes = await session.execute(
+        _HISTORIQUE, {"code": r["code_immo"] or "", "designation": r["designation"]}
+    )
+    return [dict(x) for x in lignes.mappings().all()]
 
 
 async def _charger(session: AsyncSession, ident: str) -> RowMapping:
@@ -208,28 +225,35 @@ async def exporter(
 
 @routeur.get("/{ident}", response_model=EquipementDetail)
 async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
-    return _detail(await _charger(session, ident))
+    return await _detail(session, await _charger(session, ident))
 
 
 @routeur.post("", response_model=EquipementDetail, status_code=status.HTTP_201_CREATED)
 async def creer(corps: EquipementCreation, courant: Courant, session: Session) -> dict[str, Any]:
+    """Créer un équipement : l'administrateur tient le parc, les autres le consultent.
+
+    Même partage des rôles que pour l'assignation des activités (ADR-0003) — et le serveur fait
+    foi : masquer le bouton à l'écran ne serait pas une barrière.
+    """
+    exiger_admin(courant)
     await _refuser_code_deja_pris(session, corps.code_immo, None)
     ident = await creer_equipement(session, corps.model_dump(exclude_none=True), courant)
     await session.commit()
-    return _detail(await _charger(session, ident))
+    return await _detail(session, await _charger(session, ident))
 
 
 @routeur.patch("/{ident}", response_model=EquipementDetail)
 async def modifier(
     ident: str, corps: EquipementMaj, courant: Courant, session: Session
 ) -> dict[str, Any]:
+    exiger_admin(courant)
     avant = await _charger(session, ident)
     champs = corps.model_dump(exclude_unset=True)
     if "code_immo" in champs:
         await _refuser_code_deja_pris(session, champs["code_immo"], ident)
     await maj_equipement(session, dict(avant), champs, courant)
     await session.commit()
-    return _detail(await _charger(session, ident))
+    return await _detail(session, await _charger(session, ident))
 
 
 @routeur.delete("/{ident}", status_code=status.HTTP_204_NO_CONTENT)

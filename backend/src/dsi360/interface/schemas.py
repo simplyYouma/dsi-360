@@ -240,7 +240,17 @@ class EquipementResume(BaseModel):
     actif: bool
 
 
+class EvenementEquipement(BaseModel):
+    """Une action journalisée sur l'équipement : la mémoire administrative du matériel."""
+
+    action: str
+    horodatage: datetime
+    acteur: str | None
+
+
 class EquipementDetail(EquipementResume):
+    #: Dernières actions (création, modifications, import), du plus récent au plus ancien.
+    historique: list[EvenementEquipement] = []
     emplacement_id: str | None
     departement_id: str | None
     detenteur_id: str | None
@@ -600,6 +610,22 @@ class CommentaireCreation(BaseModel):
 
 
 # --- Ingestion / Ticketing ---
+
+
+class DernierImport(BaseModel):
+    """Dernier import d'une nature donnée, lu dans le journal d'audit — la mémoire des dépôts."""
+
+    #: tickets | equipements
+    nature: str
+    horodatage: datetime
+    acteur: str | None
+    #: Compte-rendu tel que journalisé (créés, mis à jour…). Les clés varient selon la nature.
+    details: dict[str, int]
+
+
+class EtatImports(BaseModel):
+    #: Un élément par nature déjà importée ; vide tant que rien n'a jamais été déposé.
+    derniers: list[DernierImport]
 
 
 class RapportImportEquipements(BaseModel):

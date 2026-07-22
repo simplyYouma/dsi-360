@@ -290,3 +290,36 @@ async def test_un_referentiel_inconnu_est_refuse(
     r = await client.get("/inventaire/referentiels/utilisateur", headers=entetes(admin))
 
     assert r.status_code == 404
+
+
+async def test_seul_l_administrateur_ecrit_le_parc(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """L'administrateur tient le parc, les autres le consultent — et le serveur fait foi.
+
+    Masquer les champs à l'écran n'est pas une barrière : un agent outillé enverrait la requête
+    lui-même. Même partage des rôles que pour l'assignation des activités (ADR-0003).
+    """
+    admin = await _admin(session, "admin.barriere@afgbank.ml")
+    agent = await creer_utilisateur(session, email="agent.barriere@afgbank.ml")
+    cree = await _creer(client, admin, designation="Matériel gardé")
+
+    lecture = await client.get(f"/inventaire/{cree['id']}", headers=entetes(agent))
+    assert lecture.status_code == 200, "consulter reste ouvert au module"
+
+    creation = await client.post(
+        "/inventaire", json={"designation": "Tentative"}, headers=entetes(agent)
+    )
+    assert creation.status_code == 403, creation.text
+
+    modification = await client.patch(
+        f"/inventaire/{cree['id']}", json={"modele": "Pirate"}, headers=entetes(agent)
+    )
+    assert modification.status_code == 403, modification.text
+
+    referentiel = await client.post(
+        "/inventaire/referentiels/emplacements",
+        json={"libelle": "Lieu pirate"},
+        headers=entetes(agent),
+    )
+    assert referentiel.status_code == 403, referentiel.text

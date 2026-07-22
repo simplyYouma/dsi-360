@@ -33,6 +33,8 @@ interface Props {
   gerable?: boolean;
   /** Recharge la liste des catégories après ajout/suppression. */
   onModifie?: () => void;
+  /** N'affiche que la pastille sélectionnée, le reste derrière « … » — pour les fiches denses. */
+  compact?: boolean;
   /** Grisé : la sélection reste lisible, on ne peut plus la changer. */
   desactive?: boolean;
   /** Raison du grisage, en infobulle. */
@@ -53,6 +55,7 @@ export function SelecteurCategorie({
   onAjouter,
   onSupprimer,
   entite = 'catégorie',
+  compact = false,
   desactive = false,
   titreDesactive,
 }: Props): JSX.Element | null {
@@ -70,7 +73,8 @@ export function SelecteurCategorie({
 
   // On ne déroule que les trois premières : une longue liste encombre la fiche. La sélection
   // reste toujours visible (on la fait remonter), et « … » révèle le reste à la demande.
-  const LIMITE = 3;
+  // En compact, seule la sélection s'affiche : la fiche montre CE QUI EST, pas le catalogue.
+  const LIMITE = compact ? 1 : 3;
   const trop = !tout && categories.length > LIMITE + 1;
   let visibles = categories;
   if (trop) {

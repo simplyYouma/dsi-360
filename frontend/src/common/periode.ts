@@ -10,6 +10,13 @@ export interface Periode {
 
 export const PERIODE_TOUT: Periode = { jours: null, du: null, au: null };
 
+/** Période d'ouverture des écrans d'analyse : 7 jours glissants.
+ *
+ *  « Tout » par défaut faisait balayer l'historique entier à chaque arrivée sur la page — des
+ *  agrégations sur des années de tickets pour un premier coup d'œil qui porte, en pratique, sur
+ *  la semaine. L'utilisateur élargit s'il en a besoin ; le système ne paie plus ce prix d'office. */
+export const PERIODE_DEFAUT: Periode = { jours: 7, du: null, au: null };
+
 /** Une plage de dates personnalisée est-elle active ? (elle prime sur les presets). */
 export function estPerso(p: Periode): boolean {
   return p.du !== null || p.au !== null;

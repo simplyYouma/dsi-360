@@ -1,4 +1,4 @@
-import { televerser } from '@/lib/api';
+import { api, televerser } from '@/lib/api';
 
 export interface RapportImport {
   total: number;
@@ -28,3 +28,13 @@ export const importApi = {
   equipements: (fichier: File): Promise<RapportImportEquipements> =>
     televerser('/import/equipements', fichier),
 };
+
+export interface DernierImport {
+  nature: 'tickets' | 'equipements' | string;
+  horodatage: string;
+  acteur: string | null;
+  /** Compte-rendu tel que journalisé (créés, mis à jour…) — les clés varient selon la nature. */
+  details: Record<string, number>;
+}
+
+export const etatImports = (): Promise<{ derniers: DernierImport[] }> => api.get('/import/etat');

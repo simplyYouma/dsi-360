@@ -4,18 +4,32 @@ Réservés aux profils transverses (ADMIN / DSI / DG). Idempotents : recharger m
 jamais créer de doublon — par n° de ticket pour l'un, par code d'immobilisation pour l'autre.
 """
 
+import json
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.import_equipements import importer_classeur
 from dsi360.application.ingestion import importer_tickets
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import RapportImport, RapportImportEquipements
+from dsi360.interface.schemas import EtatImports, RapportImport, RapportImportEquipements
 from dsi360.interface.securite import utilisateur_courant
 
 routeur = APIRouter(prefix="/import", tags=["ingestion"])
+
+# Le journal d'audit consigne chaque import (action IMPORT) avec son compte-rendu : c'est lui la
+# mémoire des dépôts — aucune table dédiée à entretenir. cible_type distingue les natures.
+_DERNIERS_IMPORTS = """
+SELECT DISTINCT ON (j.cible_type)
+       j.cible_type, j.horodatage, j.acteur_email, j.nouvelle_valeur
+FROM audit.journal j
+WHERE j.action = 'IMPORT' AND j.cible_type IN ('rapport_tickets', 'equipement')
+ORDER BY j.cible_type, j.id DESC
+"""
+
+_NATURE = {"rapport_tickets": "tickets", "equipement": "equipements"}
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(utilisateur_courant)]
 
@@ -74,3 +88,25 @@ async def importer_equipements(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+
+
+@routeur.get("/etat", response_model=EtatImports)
+async def etat(courant: Courant, session: Session) -> dict[str, Any]:
+    """Dernier import de chaque nature : on sait d'un coup d'œil si le dépôt du jour est fait."""
+    _exiger_transverse(courant)
+    lignes = (await session.execute(text(_DERNIERS_IMPORTS))).mappings().all()
+    derniers = []
+    for r in lignes:
+        brut = r["nouvelle_valeur"]
+        if isinstance(brut, str):
+            brut = json.loads(brut)
+        details = {k: v for k, v in (brut or {}).items() if isinstance(v, int)}
+        derniers.append(
+            {
+                "nature": _NATURE.get(r["cible_type"], r["cible_type"]),
+                "horodatage": r["horodatage"],
+                "acteur": r["acteur_email"],
+                "details": details,
+            }
+        )
+    return {"derniers": derniers}

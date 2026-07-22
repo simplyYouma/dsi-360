@@ -19,7 +19,15 @@ export interface Equipement {
   actif: boolean;
 }
 
+export interface EvenementEquipement {
+  action: string;
+  horodatage: string;
+  acteur: string | null;
+}
+
 export interface EquipementDetail extends Equipement {
+  /** Dernières actions journalisées (création, modifications, import), plus récentes d'abord. */
+  historique: EvenementEquipement[];
   emplacement_id: string | null;
   departement_id: string | null;
   detenteur_id: string | null;

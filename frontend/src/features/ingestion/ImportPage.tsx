@@ -1,11 +1,24 @@
-import { useRef, useState } from 'react';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  UploadCloud,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  CalendarClock,
+} from 'lucide-react';
 import { Card, Button, useToast } from '@/design-system/primitives';
 import { ErreurApi } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './ImportPage.module.css';
 import filtres from '@/common/FiltreTickets.module.css';
-import { importApi, type RapportImport, type RapportImportEquipements } from './importApi';
+import {
+  etatImports,
+  importApi,
+  type DernierImport,
+  type RapportImport,
+  type RapportImportEquipements,
+} from './importApi';
 
 /** Les deux fichiers que reçoit la DSI. Chacun a sa clé d'idempotence et son compte-rendu. */
 type Nature = 'tickets' | 'equipements';
@@ -13,6 +26,34 @@ const NATURES: { cle: Nature; libelle: string }[] = [
   { cle: 'tickets', libelle: 'Tickets du jour' },
   { cle: 'equipements', libelle: 'Inventaire' },
 ];
+const LIBELLE_DETAIL: Record<string, string> = {
+  total: 'lus',
+  crees: 'créés',
+  mis_a_jour: 'mis à jour',
+  inchanges: 'inchangés',
+  ignores: 'sans code immo',
+  detenteurs_non_rapproches: 'détenteurs à rattacher',
+  demandeurs_crees: 'demandeurs créés',
+  incidents: 'incidents',
+  demandes: 'demandes',
+  lus: 'lus',
+};
+
+function horodatageImport(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/** Le dernier dépôt date d'aujourd'hui ? La couleur répond avant la lecture. */
+function importFrais(iso: string): boolean {
+  return new Date(iso).toDateString() === new Date().toDateString();
+}
+
 const TEXTES: Record<Nature, { sous: string; zone: string; bouton: string }> = {
   tickets: {
     sous: 'Chargez le rapport de tickets (.xlsx). Incidents et demandes sont alimentés et mis à jour automatiquement — recharger le même fichier ne crée jamais de doublon.',
@@ -36,6 +77,14 @@ export function ImportPage(): JSX.Element {
   const [survol, setSurvol] = useState(false);
   const champ = useRef<HTMLInputElement>(null);
   const { notifier } = useToast();
+  // La mémoire des dépôts : sait-on si l'import du jour a été fait ? Persistant (journal d'audit).
+  const [derniers, setDerniers] = useState<DernierImport[]>([]);
+  const chargerEtat = useCallback((): void => {
+    void etatImports()
+      .then((r) => setDerniers(r.derniers))
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => chargerEtat(), [chargerEtat]);
 
   const traiter = async (fichier: File): Promise<void> => {
     setErreur(null);
@@ -51,6 +100,7 @@ export function ImportPage(): JSX.Element {
           `Import réussi : ${r.total} équipement(s) — ${r.crees} créé(s), ${r.mis_a_jour} mis à jour.`,
           'succes',
         );
+        chargerEtat();
       } else {
         const r = await importApi.tickets(fichier);
         setRapport(r);
@@ -58,6 +108,7 @@ export function ImportPage(): JSX.Element {
           `Import réussi : ${r.total} ticket(s) — ${r.crees} créé(s), ${r.mis_a_jour} mis à jour.`,
           'succes',
         );
+        chargerEtat();
       }
     } catch (err) {
       const msg =
@@ -138,6 +189,37 @@ export function ImportPage(): JSX.Element {
           ))}
         </div>
       </header>
+
+      {derniers.length > 0 && (
+        <div className={styles.etatImports}>
+          {derniers.map((d) => (
+            <div
+              key={d.nature}
+              className={importFrais(d.horodatage) ? styles.etatFrais : styles.etatAncien}
+            >
+              <span className={styles.etatIcone}>
+                <CalendarClock size={16} />
+              </span>
+              <div className={styles.etatCorps}>
+                <span className={styles.etatNature}>
+                  {d.nature === 'tickets' ? 'Tickets du jour' : 'Inventaire'}
+                  <em>{importFrais(d.horodatage) ? "importé aujourd'hui" : 'dernier import'}</em>
+                </span>
+                <span className={styles.etatQuand}>
+                  {horodatageImport(d.horodatage)}
+                  {d.acteur ? ` · par ${d.acteur}` : ''}
+                </span>
+                <span className={styles.etatDetails}>
+                  {Object.entries(d.details)
+                    .filter(([cle, v]) => v > 0 && LIBELLE_DETAIL[cle])
+                    .map(([cle, v]) => `${v} ${LIBELLE_DETAIL[cle]}`)
+                    .join(' · ')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <Card>
         <div

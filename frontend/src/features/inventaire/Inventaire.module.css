@@ -151,3 +151,59 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Tête de fiche : badges d'état ---- */
+.badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.badgeTitre {
+  flex: 1 1 100%;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+/* ---- Historique (journal d'audit) ---- */
+.histo {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.histo .blocTitre {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.histoListe {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.histoLigne {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  font-size: var(--text-sm);
+}
+.histoLigne:last-child {
+  border-bottom: none;
+}
+.histoAction {
+  font-weight: var(--weight-medium);
+}
+.histoActeur {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.histoDate {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

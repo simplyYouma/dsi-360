@@ -31,7 +31,7 @@ import { api, ErreurApi } from '@/lib/api';
 import { TableauBordAgent } from './TableauBordAgent';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
-import { PERIODE_TOUT, type Periode } from '@/common/periode';
+import { PERIODE_DEFAUT, type Periode } from '@/common/periode';
 import { BandeauAgent } from './BandeauAgent';
 import { useAuth } from '@/lib/auth';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -201,7 +201,7 @@ export function MesTicketsPage(): JSX.Element {
   const [fiche, setFiche] = useState<{ base: string; id: string; module: string } | null>(null);
   const [vue, setVue] = useState<'liste' | 'kanban'>('liste');
   const [onglet, setOnglet] = useState<'tickets' | 'taches' | 'analyse'>('tickets');
-  const [periodeAnalyse, setPeriodeAnalyse] = useState<Periode>(PERIODE_TOUT);
+  const [periodeAnalyse, setPeriodeAnalyse] = useState<Periode>(PERIODE_DEFAUT);
   const [taches, setTaches] = useState<MaTache[]>([]);
   const [segment, setSegment] = useState<SegmentTicket>('actifs');
   const [aValider, setAValider] = useState(0);

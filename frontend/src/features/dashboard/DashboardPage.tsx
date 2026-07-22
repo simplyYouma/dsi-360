@@ -20,7 +20,7 @@ import { lienActivite } from '@/common/routesModule';
 import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
-import { PERIODE_TOUT, type Periode } from '@/common/periode';
+import { PERIODE_DEFAUT, type Periode } from '@/common/periode';
 import { infobulle } from '@/common/infobulle';
 import { dashboardApi, type TableauBord } from './dashboardApi';
 import styles from './DashboardPage.module.css';
@@ -332,7 +332,7 @@ function pctDe(part: number, tout: number): number {
 
 export function DashboardPage(): JSX.Element {
   const [tableau, setTableau] = useState<TableauBord | null>(null);
-  const [periode, setPeriode] = useState<Periode>(PERIODE_TOUT);
+  const [periode, setPeriode] = useState<Periode>(PERIODE_DEFAUT);
   const contenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 

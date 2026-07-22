@@ -36,7 +36,7 @@ import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { MatriceMensuelle } from './MatriceMensuelle';
 import type { AnalysesMensuelles } from './analysesApi';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
-import { PERIODE_TOUT, type Periode } from '@/common/periode';
+import { PERIODE_DEFAUT, type Periode } from '@/common/periode';
 import { infobulle } from '@/common/infobulle';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './Analyses.module.css';
@@ -526,7 +526,7 @@ function HistoDelais({ data }: { data: Analyses['distribution_delais'] }): JSX.E
 export function AnalysesPage(): JSX.Element {
   const [a, setA] = useState<Analyses | null>(null);
   const [evals, setEvals] = useState<GestionnaireEval[]>([]);
-  const [periode, setPeriode] = useState<Periode>(PERIODE_TOUT);
+  const [periode, setPeriode] = useState<Periode>(PERIODE_DEFAUT);
   const [onglet, setOnglet] = useState<CleOnglet>('apercu');
   const [gestSel, setGestSel] = useState<string | null>(null);
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);

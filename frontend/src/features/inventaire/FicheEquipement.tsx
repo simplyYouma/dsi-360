@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
-import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
+import { History, TriangleAlert } from 'lucide-react';
+import { Button, Modale, Skeleton, StatusBadge, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
@@ -31,6 +31,24 @@ interface Props {
 
 function montant(valeur: number | null): string {
   return valeur === null ? '—' : Math.round(valeur).toLocaleString('fr-FR');
+}
+
+const LIBELLE_ACTION: Record<string, string> = {
+  CREATION: 'Création',
+  MODIFICATION: 'Modification',
+  SUPPRESSION: 'Suppression',
+  IMPORT: 'Import comptable',
+  COMMENTAIRE: 'Commentaire',
+};
+
+function horodatage(iso: string): string {
+  return new Date(iso).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function jour(iso: string | null): string {
@@ -104,6 +122,23 @@ export function FicheEquipement({
         </div>
       ) : (
         <div className={fiche.fiche}>
+          {/* L'essentiel en badges, d'un coup d'œil : l'état, la provenance, le verdict du bilan.
+              La couleur porte le sens — vert en service, rouge sorti ou amorti. */}
+          <div className={local.badges}>
+            <span className={local.badgeTitre}>{detail.designation}</span>
+            {detail.actif ? (
+              <StatusBadge statut="ok">En service</StatusBadge>
+            ) : (
+              <StatusBadge statut="danger">Sorti du parc</StatusBadge>
+            )}
+            <StatusBadge couleur="var(--cat-5)">
+              {detail.source === 'IMPORT_IMMO' ? 'Import comptable' : 'Saisie DSI'}
+            </StatusBadge>
+            {detail.totalement_amorti && (
+              <StatusBadge couleur="var(--text-muted)">Totalement amorti</StatusBadge>
+            )}
+          </div>
+
           {detail.amortissement_incoherent && (
             <p className={local.avertissement}>
               <TriangleAlert size={15} />
@@ -206,6 +241,7 @@ export function FicheEquipement({
                   valeur={detail.emplacement_id}
                   onChange={(v) => void patch({ emplacement_id: v })}
                   gerable={estAdmin}
+                  compact
                   entite="emplacement"
                   onAjouter={(l) => inventaireApi.ajouterReferentiel('emplacements', l)}
                   onModifie={onReferentiels}
@@ -221,6 +257,7 @@ export function FicheEquipement({
                   valeur={detail.departement_id}
                   onChange={(v) => void patch({ departement_id: v })}
                   gerable={estAdmin}
+                  compact
                   entite="département"
                   onAjouter={(l) => inventaireApi.ajouterReferentiel('departements', l)}
                   onModifie={onReferentiels}
@@ -238,6 +275,7 @@ export function FicheEquipement({
                   placeholder="Non attribué"
                   permettreVide
                   libelleVide="Non attribué"
+                  indiceReaffectation="Réassigner"
                   desactive={!estAdmin}
                 />
                 {/* Le fichier nomme un matricule qu'aucun compte ne porte : à rattacher. */}
@@ -248,17 +286,27 @@ export function FicheEquipement({
                 )}
               </dd>
             </div>
-            <div className={fiche.metaItem}>
-              <dt>Provenance</dt>
-              <dd className={fiche.valeur}>
-                {detail.source === 'IMPORT_IMMO' ? 'Import comptable' : 'Saisie DSI'}
-              </dd>
-            </div>
-            <div className={fiche.metaItem}>
-              <dt>État</dt>
-              <dd className={fiche.valeur}>{detail.actif ? 'En service' : 'Sorti du parc'}</dd>
-            </div>
           </dl>
+
+          {/* La mémoire administrative du matériel : qui a fait quoi, quand. */}
+          {detail.historique.length > 0 && (
+            <section className={local.histo}>
+              <span className={local.blocTitre}>
+                <History size={13} /> Historique
+              </span>
+              <ul className={local.histoListe}>
+                {detail.historique.map((h, i) => (
+                  <li key={i} className={local.histoLigne}>
+                    <span className={local.histoAction}>
+                      {LIBELLE_ACTION[h.action] ?? h.action}
+                    </span>
+                    <span className={local.histoActeur}>{h.acteur ?? '—'}</span>
+                    <span className={local.histoDate}>{horodatage(h.horodatage)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {estAdmin && (
             <div className={local.actions}>
