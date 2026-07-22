@@ -37,22 +37,6 @@ function jour(iso: string | null): string {
   });
 }
 
-/** Avancement d'une campagne : recensés sur parc actif (ouverte) ou total constaté (clôturée). */
-function Avancement({ c, parc }: { c: CampagneInventaire; parc: number }): JSX.Element {
-  const denominateur = c.statut === 'OUVERTE' ? Math.max(parc, c.constates) : c.constates;
-  const pct = denominateur === 0 ? 0 : Math.round((c.constates * 100) / denominateur);
-  return (
-    <div className={local.avancee}>
-      <span className={local.avanceePiste}>
-        <span className={local.avanceePlein} style={{ width: `${pct}%` }} />
-      </span>
-      <span className={local.avanceeTexte}>
-        {c.statut === 'OUVERTE' ? `${c.constates} / ${denominateur} recensés` : `${c.constates} recensés`}
-      </span>
-    </div>
-  );
-}
-
 /** Campagnes d'inventaire : recenser le parc, constater bon/rebut/cassé, clôturer.
  *  Les cartes se lisent côte à côte — c'est la comparaison d'une année sur l'autre. */
 export function CampagnesPage(): JSX.Element {
@@ -291,47 +275,88 @@ export function CampagnesPage(): JSX.Element {
         </div>
       )}
 
-      <div className={local.cartesCampagnes}>
-        {cartes.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={c.id === active ? local.carteCampagneOn : local.carteCampagne}
-            onClick={() => setActive(c.id)}
-          >
-            <span className={local.carteTete}>
-              <span className={local.carteLibelle}>{c.libelle}</span>
-              {c.statut === 'OUVERTE' ? (
-                <StatusBadge statut="ok">En cours</StatusBadge>
-              ) : (
-                <StatusBadge couleur="var(--text-muted)">Clôturée</StatusBadge>
-              )}
-            </span>
+      {/* Rare, mais possible : plusieurs campagnes la même année — on choisit par segments. */}
+      {cartes.length > 1 && (
+        <div className={filtres.segments} role="group" aria-label="Choisir la campagne">
+          {cartes.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={c.id === active ? filtres.segmentOn : filtres.segment}
+              onClick={() => setActive(c.id)}
+            >
+              {c.libelle}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {campagne !== null && (
+        <>
+          <div className={local.campagneTete}>
+            <span className={local.carteLibelle}>{campagne.libelle}</span>
+            {campagne.statut === 'OUVERTE' ? (
+              <StatusBadge statut="ok">En cours</StatusBadge>
+            ) : (
+              <StatusBadge couleur="var(--text-muted)">Clôturée</StatusBadge>
+            )}
             <span className={local.carteQuand}>
-              {c.statut === 'OUVERTE'
-                ? `Ouverte le ${jour(c.ouverte_le)}`
-                : `Clôturée le ${jour(c.cloturee_le)}`}
-              {c.ouverte_par !== null ? ` · ${c.ouverte_par}` : ''}
+              {campagne.statut === 'OUVERTE'
+                ? `Ouverte le ${jour(campagne.ouverte_le)}`
+                : `Clôturée le ${jour(campagne.cloturee_le)}`}
+              {campagne.ouverte_par !== null ? ` · ${campagne.ouverte_par}` : ''}
             </span>
-            <Avancement c={c} parc={parc} />
-            {/* La comparaison annuelle tient dans ces quatre chiffres, carte contre carte. */}
-            <span className={local.carteComptes}>
-              <span style={{ color: 'var(--status-ok)' }}>
-                <b>{c.bons}</b> bons
-              </span>
-              <span style={{ color: 'var(--status-warn)' }}>
-                <b>{c.rebuts}</b> rebuts
-              </span>
-              <span style={{ color: 'var(--status-danger)' }}>
-                <b>{c.casses}</b> cassés
-              </span>
-              <span style={{ color: c.non_retrouves > 0 ? 'var(--status-danger)' : 'var(--text-muted)' }}>
-                <b>{c.non_retrouves}</b> non retrouvés
-              </span>
+          </div>
+
+          {/* La campagne en petites cartes : l'avancement d'abord, puis chaque constat
+              dans sa couleur — le même langage que les compteurs de l'inventaire. */}
+          <div className={local.compteurs} style={{ marginBottom: 'var(--space-4)' }}>
+            {(() => {
+              const denominateur =
+                campagne.statut === 'OUVERTE'
+                  ? Math.max(parc, campagne.constates)
+                  : campagne.constates;
+              const pct =
+                denominateur === 0 ? 0 : Math.round((campagne.constates * 100) / denominateur);
+              return (
+                <span className={local.compteurAvancee}>
+                  <b>
+                    {campagne.constates}
+                    <em> / {denominateur}</em>
+                  </b>
+                  <span className={local.avanceePiste}>
+                    <span className={local.avanceePlein} style={{ width: `${pct}%` }} />
+                  </span>
+                  <span>Recensés · {pct} %</span>
+                </span>
+              );
+            })()}
+            <span className={local.compteur}>
+              <b style={{ color: 'var(--status-ok)' }}>{campagne.bons}</b>
+              <span>Bons</span>
             </span>
-          </button>
-        ))}
-      </div>
+            <span className={local.compteur}>
+              <b style={{ color: 'var(--status-warn)' }}>{campagne.rebuts}</b>
+              <span>Rebuts</span>
+            </span>
+            <span className={local.compteur}>
+              <b style={{ color: 'var(--status-danger)' }}>{campagne.casses}</b>
+              <span>Cassés</span>
+            </span>
+            <span className={campagne.non_retrouves > 0 ? local.compteurAlerte : local.compteur}>
+              <b
+                style={{
+                  color:
+                    campagne.non_retrouves > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
+                }}
+              >
+                {campagne.non_retrouves}
+              </b>
+              <span>Non retrouvés</span>
+            </span>
+          </div>
+        </>
+      )}
 
       {campagne !== null && (
         <>
