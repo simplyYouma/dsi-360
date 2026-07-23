@@ -658,7 +658,8 @@ function OngletJournal(): JSX.Element {
             Réinitialiser
           </button>
         )}
-        <BoutonsExport base="/admin/journal" />
+        {/* L'export suit la vue : on emporte ce qu'on regarde, pas 30 000 lignes de plus. */}
+        <BoutonsExport base="/admin/journal" filtres={{ q, module, action }} />
       </div>
       <Table
         colonnes={colonnes}

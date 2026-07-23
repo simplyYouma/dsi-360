@@ -666,14 +666,25 @@ async def exporter_journal(
     courant: Courant,
     session: Session,
     format: Annotated[str, Query(alias="format")] = "xlsx",
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    module: Annotated[str | None, Query(max_length=40)] = None,
+    action: Annotated[str | None, Query(max_length=40)] = None,
 ) -> Response:
-    """Export du journal d'audit (Excel ou CSV) — colonnes lisibles, comme à l'écran."""
+    """Export du journal d'audit (Excel ou CSV) — colonnes lisibles, comme à l'écran.
+
+    L'export suit les mêmes filtres que la liste : un fichier qui dirait autre chose que
+    l'écran dont il sort serait un piège, surtout quand il part en pièce jointe à un auditeur.
+    """
     entetes = ["Date et heure", "Acteur", "Module", "Action", "Cible"]
+    params: dict[str, Any] = {}
+    conditions = _filtres_journal(q, module, action, params)
     lignes = await session.execute(
         text(
             "SELECT horodatage, acteur_email AS acteur, module, action, "
-            "cible_type, cible_id FROM audit.journal ORDER BY id DESC LIMIT 50000"
-        )
+            f"cible_type, cible_id FROM audit.journal WHERE 1 = 1{conditions} "
+            "ORDER BY id DESC LIMIT 50000"
+        ),
+        params,
     )
     donnees = [
         [
