@@ -31,208 +31,277 @@ from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 random.seed(42)
 
-# Tous les utilisateurs du système sont de la DSI (les autres noms des fichiers importés — DBS —
-# ne deviennent pas des comptes). Profils métier : cf. docs/adr/0003.
+#: Domaine des comptes de démonstration. Neutre à dessein : une démonstration se montre aussi
+#: hors de la maison, et n'a alors à exposer ni l'identité de collaborateurs réels, ni le
+#: domaine de l'entreprise. Il n'a pas à figurer dans `domaines_email_autorises` : le seed
+#: écrit directement en base, il ne passe pas par la validation de l'administration.
+DOMAINE_DEMO = "gmail.com"
+
+# Équipe fictive de la démonstration. Profils métier : cf. docs/adr/0003.
 UTILISATEURS = [
-    ("a.toure@afgbank.ml", "Touré", "Aïcha", "ADMIN", "DSI"),
-    ("m.diallo@afgbank.ml", "Diallo", "Moussa", "SUPPORT_APP_HELPDESK", "DSI"),
-    ("f.keita@afgbank.ml", "Keïta", "Fanta", "SUPPORT_APP_HELPDESK", "DSI"),
-    ("o.sanogo@afgbank.ml", "Sanogo", "Oumar", "RESEAU_TELECOM", "DSI"),
-    ("k.coulibaly@afgbank.ml", "Coulibaly", "Kadia", "SYSTEME_RESEAU_TELECOM", "DSI"),
-    ("s.traore@afgbank.ml", "Traoré", "Salif", "SUPPORT_APP", "DSI"),
+    (f"b.sissoko@{DOMAINE_DEMO}", "Sissoko", "Bakary", "ADMIN", "DSI"),
+    (f"a.cisse@{DOMAINE_DEMO}", "Cissé", "Awa", "SUPPORT_APP_HELPDESK", "DSI"),
+    (f"i.doumbia@{DOMAINE_DEMO}", "Doumbia", "Ibrahim", "SUPPORT_APP_HELPDESK", "DSI"),
+    (f"n.bah@{DOMAINE_DEMO}", "Bah", "Nafissatou", "RESEAU_TELECOM", "DSI"),
+    (f"m.camara@{DOMAINE_DEMO}", "Camara", "Modibo", "SYSTEME_RESEAU_TELECOM", "DSI"),
+    (f"r.sylla@{DOMAINE_DEMO}", "Sylla", "Rokia", "SUPPORT_APP", "DSI"),
 ]
 EMAILS_DEMO = [u[0] for u in UTILISATEURS]
 
+#: Auteur des écritures de journal fabriquées par la démonstration.
+EMAIL_JOURNAL_DEMO = f"demo@{DOMAINE_DEMO}"
+#: Valeurs à purger au reset : la nouvelle **et** les anciennes, sinon une base déjà semée
+#: garderait des lignes de journal orphelines que plus rien ne nettoierait.
+EMAILS_JOURNAL_A_PURGER = (EMAIL_JOURNAL_DEMO, "demo@afgbank.ml")
+
+# Sujets de démonstration. Volontairement **neutres** : ces titres s'affichent dans chaque liste
+# et finissent dans les captures d'écran d'une plaquette commerciale. Ils doivent parler à une
+# banque comme à une industrie ou à une administration — donc aucun nom de produit maison,
+# aucune ville, aucun régulateur, aucun terme propre à un métier.
 TITRES: dict[str, list[str]] = {
     "incident": [
-        "Panne messagerie Exchange", "Lenteur application OAS", "Coupure réseau agence Niaréla",
-        "Échec sauvegarde nocturne", "Imprimante guichet HS", "Saturation disque serveur SI",
-        "Erreur batch interbancaire", "Accès VPN instable", "Téléphonie IP en panne",
-        "Indisponibilité Payway",
+        "Messagerie inaccessible depuis le siège", "Lenteurs sur l'application de gestion",
+        "Coupure réseau sur le site secondaire", "Échec de la sauvegarde nocturne",
+        "Imprimante de l'accueil hors service", "Saturation du disque serveur",
+        "Traitement de nuit interrompu", "Connexion à distance instable",
+        "Téléphonie interne muette", "Portail client inaccessible",
+        "Poste de travail bloqué au démarrage", "Partage de fichiers inaccessible",
+        "Certificat expiré sur l'intranet", "Salle de réunion sans affichage",
     ],
     "demande": [
-        "Création compte agent", "Habilitation module crédit", "Installation antivirus poste",
-        "Ouverture VPN prestataire", "Nouveau poste de travail", "Assistance Excel reporting",
-        "Réinitialisation mot de passe", "Accès partage RH",
+        "Compte pour un nouvel arrivant", "Habilitation à l'outil de gestion",
+        "Installation d'un poste de travail", "Accès distant pour un prestataire",
+        "Remplacement d'un ordinateur portable", "Assistance sur un tableau de reporting",
+        "Réinitialisation de mot de passe", "Accès au dossier partagé des ressources humaines",
+        "Adresse de messagerie partagée", "Téléphone mobile professionnel",
+        "Licence logicielle supplémentaire", "Départ d'un collaborateur : clôture des accès",
     ],
     "changement": [
-        "Mise à jour pare-feu", "Migration base PostgreSQL", "Déploiement correctif core banking",
-        "Bascule lien opérateur", "Montée de version OAS", "Changement certificat TLS",
+        "Mise à jour du pare-feu", "Montée de version de la base de données",
+        "Correctif éditeur sur l'application métier", "Changement d'opérateur du lien principal",
+        "Renouvellement du certificat du portail", "Bascule vers le nouveau serveur de fichiers",
+        "Ouverture d'un flux vers un partenaire", "Campagne de mise à jour des postes",
     ],
     "audit": [
-        "Renforcer la revue des accès", "Tracer les opérations sensibles", "Plan reprise à formaliser",
-        "Cloisonner les environnements", "Chiffrer les sauvegardes", "Revue des comptes dormants",
+        "Formaliser la revue des accès", "Tracer les opérations sensibles",
+        "Formaliser et tester le plan de reprise", "Cloisonner les environnements",
+        "Chiffrer les sauvegardes", "Désactiver les comptes dormants",
+        "Documenter les procédures d'exploitation", "Encadrer les accès des prestataires",
     ],
     "risque": [
-        "Indisponibilité datacenter", "Fuite de données clients", "Dépendance fournisseur unique",
-        "Obsolescence d'un applicatif", "Cyberattaque par rançongiciel", "Perte de compétence clé",
+        "Indisponibilité du centre de données", "Fuite de données personnelles",
+        "Dépendance à un fournisseur unique", "Obsolescence d'une application métier",
+        "Attaque par rançongiciel", "Perte d'une compétence clé",
+        "Défaillance de la chaîne de sauvegarde", "Non-conformité réglementaire",
     ],
     "cybersecurite": [
-        "Revue des comptes administrateurs", "Vulnérabilité critique serveur web", "Activation MFA agences",
-        "Habilitation sensible à valider", "Correctif système d'exploitation", "Contrôle IAM trimestriel",
+        "Revue des comptes à privilèges", "Vulnérabilité critique sur un serveur exposé",
+        "Généralisation de la double authentification", "Habilitation sensible à valider",
+        "Campagne de correctifs de sécurité", "Contrôle trimestriel des habilitations",
+        "Sensibilisation à l'hameçonnage", "Revue des règles du pare-feu",
     ],
     "gouvernance": [
-        "COPIL trimestriel DSI", "Comité sécurité mensuel", "Décision DG budget cloud",
-        "Engagement sur les SLA", "Plan d'actions audit BCEAO",
+        "Comité de pilotage trimestriel", "Comité sécurité mensuel",
+        "Arbitrage budgétaire sur l'hébergement", "Engagement sur les délais de service",
+        "Plan d'actions issu du dernier audit", "Revue annuelle des contrats fournisseurs",
+        "Feuille de route à douze mois",
     ],
     "projet": [
-        "Migration cœur bancaire", "Refonte du portail agences", "Déploiement MFA groupe",
-        "Datacenter de secours (PRA)", "Dématérialisation des dossiers crédit",
-        "Mise en conformité BCEAO", "Modernisation du réseau interagences",
-        "Nouveau SI décisionnel", "Migration messagerie cloud", "Refonte du site institutionnel",
-        "Centralisation de la sauvegarde", "Automatisation des rapprochements",
+        "Refonte du portail interne", "Déploiement de la double authentification",
+        "Site de secours informatique", "Dématérialisation des dossiers",
+        "Mise en conformité réglementaire", "Modernisation du réseau inter-sites",
+        "Nouvel outil décisionnel", "Migration de la messagerie",
+        "Refonte du site institutionnel", "Centralisation des sauvegardes",
+        "Automatisation des rapprochements", "Renouvellement du parc informatique",
     ],
 }
 
-# Description réelle par activité (clé = titre). Donne du corps aux fiches de démonstration :
-# une description crédible, dans le contexte d'AFG Bank Mali, plutôt qu'un texte générique.
+# Description de chaque sujet (clé = titre). Donne du corps aux fiches : un texte crédible
+# plutôt qu'une ligne générique. Neutre à dessein — ces fiches se montrent en démonstration.
 DESCRIPTIONS: dict[str, str] = {
     # Incidents
-    "Panne messagerie Exchange": "Les utilisateurs du siège ne reçoivent plus leurs e-mails "
-    "depuis ce matin. Le service de transport Exchange ne redémarre pas après la bascule de nuit ; "
-    "les files d'attente saturent.",
-    "Lenteur application OAS": "Temps de réponse dégradés sur l'applicatif OAS aux heures de "
-    "pointe (10h–12h). Les agents de crédit signalent des écrans figés à la validation des dossiers.",
-    "Coupure réseau agence Niaréla": "L'agence de Niaréla est isolée du SI central. Le lien "
-    "opérateur principal est tombé et la bascule sur le lien de secours n'a pas été automatique.",
-    "Échec sauvegarde nocturne": "La sauvegarde planifiée de 2h a échoué sur le serveur de "
-    "fichiers. Espace insuffisant sur le volume de destination signalé dans les journaux.",
-    "Imprimante guichet HS": "L'imprimante du guichet 3 n'imprime plus les reçus clients. Voyant "
-    "d'erreur allumé, redémarrage sans effet.",
-    "Saturation disque serveur SI": "Le volume système du serveur applicatif atteint 96 %. "
+    "Messagerie inaccessible depuis le siège": "Les collaborateurs du siège ne reçoivent plus "
+    "leurs messages depuis ce matin. Le service de transport ne redémarre pas après la bascule "
+    "de nuit et les files d'attente saturent.",
+    "Lenteurs sur l'application de gestion": "Temps de réponse dégradés aux heures de pointe "
+    "(10 h – 12 h). Les utilisateurs signalent des écrans figés au moment de valider un dossier.",
+    "Coupure réseau sur le site secondaire": "Le site secondaire est isolé du système central. "
+    "Le lien principal est tombé et la bascule sur le lien de secours ne s'est pas faite "
+    "automatiquement.",
+    "Échec de la sauvegarde nocturne": "La sauvegarde planifiée de 2 h a échoué sur le serveur "
+    "de fichiers : espace insuffisant sur le volume de destination, signalé dans les journaux.",
+    "Imprimante de l'accueil hors service": "L'imprimante de l'accueil n'imprime plus. Voyant "
+    "d'erreur allumé, redémarrage sans effet, file d'impression bloquée.",
+    "Saturation du disque serveur": "Le volume système du serveur applicatif atteint 96 %. "
     "Risque d'arrêt des services si le seuil n'est pas résorbé rapidement.",
-    "Erreur batch interbancaire": "Le traitement batch des virements interbancaires s'est arrêté "
-    "en erreur cette nuit : un fichier d'entrée présente un format non conforme.",
-    "Accès VPN instable": "Déconnexions répétées du VPN pour les agents en télétravail ; les "
-    "sessions tombent toutes les quinze minutes environ.",
-    "Téléphonie IP en panne": "La téléphonie sur IP est muette au siège. Aucun appel entrant ni "
-    "sortant ; le serveur de communication ne répond plus aux terminaux.",
-    "Indisponibilité Payway": "La plateforme Payway est inaccessible depuis les agences ; les "
-    "opérations de paiement par carte sont bloquées.",
+    "Traitement de nuit interrompu": "Le traitement automatique de la nuit s'est arrêté en "
+    "erreur : un fichier d'entrée présente un format non conforme.",
+    "Connexion à distance instable": "Déconnexions répétées pour les collaborateurs en "
+    "télétravail ; les sessions tombent toutes les quinze minutes environ.",
+    "Téléphonie interne muette": "Plus aucun appel entrant ni sortant depuis le siège. Le "
+    "serveur de communication ne répond plus aux terminaux.",
+    "Portail client inaccessible": "Le portail est injoignable depuis l'extérieur. Les demandes "
+    "en ligne ne parviennent plus aux équipes.",
+    "Poste de travail bloqué au démarrage": "Un poste ne dépasse plus l'écran de démarrage "
+    "depuis la dernière mise à jour. L'utilisateur travaille sur un poste de prêt.",
+    "Partage de fichiers inaccessible": "Le dossier partagé d'un service n'est plus accessible : "
+    "les droits semblent avoir été perdus lors de la dernière opération de maintenance.",
+    "Certificat expiré sur l'intranet": "Le navigateur affiche un avertissement de sécurité à "
+    "l'ouverture de l'intranet : le certificat a expiré ce week-end.",
+    "Salle de réunion sans affichage": "L'écran de la salle du conseil ne reçoit plus le signal. "
+    "Réunion de direction prévue en fin de matinée.",
     # Demandes
-    "Création compte agent": "Ouverture d'un compte pour un agent recruté à la direction crédit : "
-    "messagerie, poste de travail et applicatifs métier selon la fiche de poste.",
-    "Habilitation module crédit": "Demande d'habilitation au module d'octroi de crédit pour un "
-    "analyste : profil consultation et saisie, sans droit de validation.",
-    "Installation antivirus poste": "Poste de travail neuf à équiper de l'antivirus d'entreprise "
-    "avant mise en service.",
-    "Ouverture VPN prestataire": "Accès VPN temporaire pour un prestataire chargé de la "
-    "maintenance de l'applicatif décisionnel ; durée limitée à l'intervention.",
-    "Nouveau poste de travail": "Fourniture et configuration d'un poste complet pour un agent "
-    "muté au service des opérations.",
-    "Assistance Excel reporting": "Aide à la mise en place d'un tableau de reporting mensuel : "
-    "formules, tableau croisé et mise en forme.",
-    "Réinitialisation mot de passe": "Compte verrouillé après plusieurs tentatives. L'agent "
-    "demande la réinitialisation de son mot de passe.",
-    "Accès partage RH": "Demande d'accès au dossier partagé des ressources humaines pour un "
-    "gestionnaire de paie.",
+    "Compte pour un nouvel arrivant": "Ouverture d'un compte pour une personne recrutée : "
+    "messagerie, poste de travail et applications métier selon la fiche de poste.",
+    "Habilitation à l'outil de gestion": "Demande d'accès à l'outil de gestion pour un analyste : "
+    "profil consultation et saisie, sans droit de validation.",
+    "Installation d'un poste de travail": "Poste neuf à préparer avant mise en service : "
+    "système, applications standard, sécurisation et raccordement au domaine.",
+    "Accès distant pour un prestataire": "Accès temporaire pour un prestataire chargé d'une "
+    "opération de maintenance ; durée limitée à la durée de l'intervention.",
+    "Remplacement d'un ordinateur portable": "Portable en fin de vie à remplacer : reprise des "
+    "données, configuration à l'identique et restitution de l'ancien matériel.",
+    "Assistance sur un tableau de reporting": "Aide à la mise en place d'un tableau de suivi "
+    "mensuel : formules, tableau croisé et mise en forme.",
+    "Réinitialisation de mot de passe": "Compte verrouillé après plusieurs tentatives. "
+    "L'utilisateur demande la réinitialisation de son mot de passe.",
+    "Accès au dossier partagé des ressources humaines": "Demande d'accès au dossier partagé des "
+    "ressources humaines pour un gestionnaire nouvellement affecté.",
+    "Adresse de messagerie partagée": "Création d'une boîte partagée pour un service, avec les "
+    "droits de lecture et d'envoi pour les membres de l'équipe.",
+    "Téléphone mobile professionnel": "Attribution d'un mobile à un cadre : ligne, terminal et "
+    "configuration de la messagerie professionnelle.",
+    "Licence logicielle supplémentaire": "Un poste supplémentaire nécessite une licence de "
+    "l'outil métier ; commande et affectation à faire.",
+    "Départ d'un collaborateur : clôture des accès": "Fin de contrat : désactivation des comptes, "
+    "restitution du matériel et transfert des dossiers en cours à son remplaçant.",
     # Changements
-    "Mise à jour pare-feu": "Application des dernières règles et du correctif de sécurité sur le "
-    "pare-feu périmétrique. Fenêtre de maintenance nocturne, plan de retour arrière prévu.",
-    "Migration base PostgreSQL": "Montée de version majeure de la base PostgreSQL de l'applicatif "
-    "décisionnel : migration des données, tests de non-régression et bascule le week-end.",
-    "Déploiement correctif core banking": "Déploiement du correctif éditeur sur le cœur bancaire "
-    "pour corriger une anomalie de calcul d'intérêts. Recette validée par le métier.",
-    "Bascule lien opérateur": "Changement de l'opérateur du lien principal inter-agences : "
-    "bascule progressive site par site avec surveillance renforcée.",
-    "Montée de version OAS": "Passage de l'applicatif OAS à la version supérieure apportant des "
-    "corrections de performance, en coordination avec l'éditeur.",
-    "Changement certificat TLS": "Renouvellement du certificat TLS du portail agences arrivant à "
-    "expiration, sans interruption de service.",
+    "Mise à jour du pare-feu": "Application des dernières règles et du correctif de sécurité sur "
+    "le pare-feu. Fenêtre de maintenance nocturne, plan de retour arrière prévu.",
+    "Montée de version de la base de données": "Montée de version majeure de la base : migration "
+    "des données, tests de non-régression et bascule le week-end.",
+    "Correctif éditeur sur l'application métier": "Déploiement du correctif éditeur corrigeant "
+    "une anomalie de calcul. Recette validée par les utilisateurs métier.",
+    "Changement d'opérateur du lien principal": "Bascule progressive site par site vers le "
+    "nouvel opérateur, avec surveillance renforcée pendant la période de recouvrement.",
+    "Renouvellement du certificat du portail": "Renouvellement du certificat arrivant à "
+    "expiration, sans interruption de service pour les utilisateurs.",
+    "Bascule vers le nouveau serveur de fichiers": "Migration des partages vers le nouveau "
+    "serveur : copie des données, reprise des droits et bascule des accès un samedi.",
+    "Ouverture d'un flux vers un partenaire": "Ouverture d'un flux sécurisé vers un partenaire "
+    "externe : règles de filtrage, chiffrement et tests de bout en bout.",
+    "Campagne de mise à jour des postes": "Déploiement du lot de mises à jour sur l'ensemble du "
+    "parc, par vagues successives pour limiter le risque.",
     # Audit & recommandations
-    "Renforcer la revue des accès": "Recommandation de l'audit groupe : instaurer une revue "
-    "trimestrielle formalisée des droits d'accès aux applicatifs sensibles.",
+    "Formaliser la revue des accès": "Recommandation de l'audit : instaurer une revue "
+    "trimestrielle formalisée des droits d'accès aux applications sensibles.",
     "Tracer les opérations sensibles": "Mettre en place une journalisation exhaustive des "
-    "opérations à risque et son archivage inviolable, conformément aux exigences BCEAO.",
-    "Plan reprise à formaliser": "Formaliser et tester le plan de reprise d'activité "
-    "informatique, aujourd'hui documenté partiellement.",
+    "opérations à risque et son archivage inviolable.",
+    "Formaliser et tester le plan de reprise": "Formaliser le plan de reprise d'activité, "
+    "aujourd'hui documenté partiellement, et l'éprouver par un test annuel.",
     "Cloisonner les environnements": "Séparer strictement les environnements de production, de "
     "recette et de développement, actuellement partiellement mutualisés.",
-    "Chiffrer les sauvegardes": "Chiffrer les sauvegardes contenant des données clients, au repos "
-    "comme lors des transferts.",
-    "Revue des comptes dormants": "Identifier et désactiver les comptes inactifs depuis plus de "
-    "quatre-vingt-dix jours.",
-    # Risques IT
-    "Indisponibilité datacenter": "Un incident majeur sur l'unique datacenter interromprait "
-    "l'ensemble des services ; absence de site de secours opérationnel.",
-    "Fuite de données clients": "Exposition possible de données clients en cas de compromission "
-    "d'un poste ou d'un compte à privilèges.",
-    "Dépendance fournisseur unique": "Le cœur bancaire repose sur un éditeur unique sans clause "
-    "de réversibilité, exposant la banque à un blocage contractuel.",
-    "Obsolescence d'un applicatif": "Un applicatif métier n'est plus maintenu par son éditeur ; "
-    "les correctifs de sécurité ne sont plus fournis.",
-    "Cyberattaque par rançongiciel": "Un rançongiciel chiffrant les serveurs paralyserait "
-    "l'activité. Sensibilisation et sauvegardes hors ligne à renforcer.",
-    "Perte de compétence clé": "Le départ de l'unique expert d'un applicatif critique laisserait "
-    "la banque sans compétence interne.",
+    "Chiffrer les sauvegardes": "Chiffrer les sauvegardes contenant des données personnelles, "
+    "au repos comme lors des transferts.",
+    "Désactiver les comptes dormants": "Identifier et désactiver les comptes inactifs depuis "
+    "plus de quatre-vingt-dix jours, puis instaurer un contrôle périodique.",
+    "Documenter les procédures d'exploitation": "Rédiger les procédures d'exploitation "
+    "courantes, aujourd'hui transmises oralement, et les rendre accessibles à l'équipe.",
+    "Encadrer les accès des prestataires": "Formaliser l'octroi, la durée et la revue des accès "
+    "accordés aux intervenants extérieurs.",
+    # Risques
+    "Indisponibilité du centre de données": "Un incident majeur sur l'unique centre de données "
+    "interromprait l'ensemble des services ; aucun site de secours n'est opérationnel.",
+    "Fuite de données personnelles": "Exposition possible de données personnelles en cas de "
+    "compromission d'un poste ou d'un compte à privilèges.",
+    "Dépendance à un fournisseur unique": "Une application critique repose sur un éditeur unique "
+    "sans clause de réversibilité, exposant l'organisation à un blocage contractuel.",
+    "Obsolescence d'une application métier": "Une application métier n'est plus maintenue par "
+    "son éditeur ; les correctifs de sécurité ne sont plus fournis.",
+    "Attaque par rançongiciel": "Un rançongiciel chiffrant les serveurs paralyserait l'activité. "
+    "Sensibilisation et sauvegardes hors ligne à renforcer.",
+    "Perte d'une compétence clé": "Le départ de l'unique spécialiste d'une application critique "
+    "laisserait l'organisation sans compétence interne.",
+    "Défaillance de la chaîne de sauvegarde": "Les sauvegardes sont exécutées mais rarement "
+    "testées : une restauration pourrait échouer au moment où elle serait vitale.",
+    "Non-conformité réglementaire": "Certaines obligations ne sont pas encore couvertes par une "
+    "procédure écrite, exposant l'organisation en cas de contrôle.",
     # Cybersécurité
-    "Revue des comptes administrateurs": "Passer en revue tous les comptes à privilèges, "
-    "justifier chaque accès et retirer les droits non nécessaires.",
-    "Vulnérabilité critique serveur web": "Une vulnérabilité critique a été détectée sur le "
-    "serveur web exposé : correctif éditeur à appliquer en urgence.",
-    "Activation MFA agences": "Déployer l'authentification à deux facteurs pour tous les agents "
-    "des agences.",
-    "Habilitation sensible à valider": "Demande d'accès à une fonction sensible en attente de "
-    "validation par le RSSI.",
-    "Correctif système d'exploitation": "Appliquer le lot mensuel de correctifs de sécurité sur "
-    "l'ensemble du parc serveur.",
-    "Contrôle IAM trimestriel": "Contrôle périodique de la gestion des identités et des accès : "
-    "cohérence des profils avec les fiches de poste.",
+    "Revue des comptes à privilèges": "Passer en revue tous les comptes à privilèges, justifier "
+    "chaque accès et retirer les droits qui ne sont plus nécessaires.",
+    "Vulnérabilité critique sur un serveur exposé": "Une vulnérabilité critique a été détectée "
+    "sur un serveur accessible depuis l'extérieur : correctif à appliquer en urgence.",
+    "Généralisation de la double authentification": "Déployer l'authentification à deux facteurs "
+    "pour l'ensemble des collaborateurs, en commençant par les accès distants.",
+    "Habilitation sensible à valider": "Demande d'accès à une fonction sensible, en attente de "
+    "validation par le responsable de la sécurité.",
+    "Campagne de correctifs de sécurité": "Appliquer le lot mensuel de correctifs sur "
+    "l'ensemble du parc serveur, par vagues et avec fenêtre de retour arrière.",
+    "Contrôle trimestriel des habilitations": "Contrôle périodique des identités et des accès : "
+    "cohérence des profils avec les fiches de poste réelles.",
+    "Sensibilisation à l'hameçonnage": "Campagne de sensibilisation et simulation d'hameçonnage "
+    "auprès de l'ensemble des collaborateurs, avec mesure du taux de clic.",
+    "Revue des règles du pare-feu": "Revue des règles accumulées au fil des années : "
+    "suppression des règles obsolètes et documentation de celles qui restent.",
     # Gouvernance
-    "COPIL trimestriel DSI": "Comité de pilotage trimestriel : avancement des projets, respect "
-    "des SLA, arbitrages budgétaires.",
-    "Comité sécurité mensuel": "Revue mensuelle de la posture de sécurité : incidents, "
-    "vulnérabilités et plan d'actions.",
-    "Décision DG budget cloud": "Arbitrage de la Direction Générale sur l'enveloppe budgétaire "
-    "allouée à la migration cloud.",
-    "Engagement sur les SLA": "Formalisation des engagements de niveau de service entre la DSI et "
-    "les directions métier.",
-    "Plan d'actions audit BCEAO": "Suivi du plan d'actions issu de la mission BCEAO : échéances, "
-    "responsables et preuves de mise en œuvre.",
-    # Projets (cadrage plus étoffé)
-    "Migration cœur bancaire": "Remplacement du système central de la banque par une solution "
-    "moderne. Le projet couvre la reprise des données, l'intégration aux applicatifs périphériques "
-    "et la formation des équipes, avec une bascule en une seule fenêtre pour limiter l'indisponibilité.",
-    "Refonte du portail agences": "Modernisation du portail utilisé quotidiennement par les "
-    "agences : ergonomie repensée, performances améliorées et nouveaux services en libre-service "
+    "Comité de pilotage trimestriel": "Comité de pilotage : avancement des projets, respect des "
+    "engagements de service, arbitrages budgétaires.",
+    "Comité sécurité mensuel": "Revue mensuelle de la sécurité : incidents survenus, "
+    "vulnérabilités ouvertes et avancement du plan d'actions.",
+    "Arbitrage budgétaire sur l'hébergement": "Arbitrage de la direction sur l'enveloppe allouée "
+    "à l'hébergement : maintien interne ou externalisation partielle.",
+    "Engagement sur les délais de service": "Formalisation des engagements de délai entre "
+    "l'équipe informatique et les directions métier.",
+    "Plan d'actions issu du dernier audit": "Suivi du plan d'actions issu de la dernière "
+    "mission d'audit : échéances, responsables et preuves de mise en œuvre.",
+    "Revue annuelle des contrats fournisseurs": "Passage en revue des contrats arrivant à "
+    "échéance : niveaux de service obtenus, coûts et opportunités de renégociation.",
+    "Feuille de route à douze mois": "Construction de la feuille de route de l'année : projets "
+    "retenus, priorités, ressources nécessaires et jalons de décision.",
+    # Projets
+    "Refonte du portail interne": "Modernisation du portail utilisé quotidiennement par les "
+    "équipes : ergonomie repensée, performances améliorées et nouveaux services en libre-service "
     "pour réduire les sollicitations du support.",
-    "Déploiement MFA groupe": "Généralisation de l'authentification à deux facteurs à l'ensemble "
-    "du groupe, afin de sécuriser les accès distants et les comptes sensibles selon les standards "
-    "groupe.",
-    "Datacenter de secours (PRA)": "Mise en place d'un site de secours et d'un plan de reprise "
-    "d'activité éprouvé. Objectif : garantir la continuité des services critiques en cas de "
-    "sinistre du site principal.",
-    "Dématérialisation des dossiers crédit": "Passage au dossier de crédit entièrement numérique, "
-    "de la constitution à l'archivage. Gains attendus sur les délais d'octroi et la traçabilité "
-    "réglementaire.",
-    "Mise en conformité BCEAO": "Programme de mise en conformité aux exigences de la BCEAO : "
-    "traçabilité, sécurité des données et reporting réglementaire, en plusieurs chantiers "
-    "coordonnés sur l'année.",
-    "Modernisation du réseau interagences": "Refonte des liens réseau entre le siège et les "
-    "agences pour plus de débit et de résilience, avec redondance automatique des liens opérateurs.",
-    "Nouveau SI décisionnel": "Construction d'un système décisionnel consolidant les données de "
-    "la banque pour le pilotage : tableaux de bord directionnels et indicateurs réglementaires.",
-    "Migration messagerie cloud": "Migration de la messagerie interne vers une solution cloud du "
-    "groupe : reprise des boîtes, des archives et des listes de diffusion, sans coupure pour les "
-    "utilisateurs.",
-    "Refonte du site institutionnel": "Refonte du site public de la banque : nouvelle identité "
-    "visuelle, contenus actualisés et conformité aux exigences d'accessibilité.",
-    "Centralisation de la sauvegarde": "Unification des sauvegardes disparates en une plateforme "
+    "Déploiement de la double authentification": "Généralisation de l'authentification à deux "
+    "facteurs à l'ensemble de l'organisation, afin de sécuriser les accès distants et les "
+    "comptes sensibles.",
+    "Site de secours informatique": "Mise en place d'un site de secours et d'un plan de reprise "
+    "éprouvé. Objectif : garantir la continuité des services critiques en cas de sinistre du "
+    "site principal.",
+    "Dématérialisation des dossiers": "Passage au dossier entièrement numérique, de la "
+    "constitution à l'archivage. Gains attendus sur les délais de traitement et la traçabilité.",
+    "Mise en conformité réglementaire": "Programme de mise en conformité : traçabilité, sécurité "
+    "des données et production des états réglementaires, en plusieurs chantiers coordonnés sur "
+    "l'année.",
+    "Modernisation du réseau inter-sites": "Refonte des liens réseau entre le siège et les "
+    "sites : plus de débit, plus de résilience, et redondance automatique des liens opérateurs.",
+    "Nouvel outil décisionnel": "Construction d'un outil décisionnel consolidant les données de "
+    "l'organisation pour le pilotage : tableaux de bord de direction et indicateurs de suivi.",
+    "Migration de la messagerie": "Migration de la messagerie interne vers une solution "
+    "moderne : reprise des boîtes, des archives et des listes de diffusion, sans coupure pour "
+    "les utilisateurs.",
+    "Refonte du site institutionnel": "Refonte du site public : nouvelle identité visuelle, "
+    "contenus actualisés et conformité aux exigences d'accessibilité.",
+    "Centralisation des sauvegardes": "Unification des sauvegardes disparates en une plateforme "
     "centralisée et chiffrée, avec politique de rétention et tests de restauration réguliers.",
-    "Automatisation des rapprochements": "Automatisation des rapprochements comptables "
-    "interbancaires aujourd'hui manuels : réduction des délais de clôture et fiabilisation des "
-    "écritures.",
+    "Automatisation des rapprochements": "Automatisation de rapprochements aujourd'hui manuels : "
+    "réduction des délais de clôture et fiabilisation des écritures.",
+    "Renouvellement du parc informatique": "Remplacement des postes de travail les plus anciens, "
+    "avec reprise des données, recyclage du matériel sorti et mise à jour de l'inventaire.",
 }
 
 # Modules dont les tickets proviennent de l'import (incidents/demandes = import-only).
 MODULES_IMPORTES = {"incident", "demande"}
 
-# Gestionnaires du rapport quotidien qui ne sont pas des nôtres : leurs tickets sont chez DBS.
-GESTIONNAIRES_DBS = ["Issa Konaté", "Awa Camara", "Prestataire DBS", "Cheick Oumar Sissoko"]
-# Agents de la banque qui ouvrent les tickets (rapprochés dans core.demandeur, sans compte).
+# Intervenants extérieurs cités par le rapport importé : ils n'ont pas de compte chez nous,
+# leurs dossiers sont donc suivis au niveau « prestataire ».
+GESTIONNAIRES_DBS = [
+    "Prestataire infogérance", "Support éditeur", "Hervé Lantier", "Aminata Barry",
+]
+# Collaborateurs qui ouvrent les dossiers (rapprochés dans core.demandeur, sans compte).
 DEMANDEURS_DEMO = [
-    "Mariam Doumbia", "Sékou Touré", "Rokia Sangaré", "Boubacar Cissé", "Nana Kouyaté",
-    "Adama Dembélé", "Fatou Diakité", "Modibo Keïta", "Assitan Traoré", "Youssouf Maïga",
+    "Mariam Doumbia", "Sékou Diarra", "Rokia Sangaré", "Boubacar Fofana", "Nana Kouyaté",
+    "Adama Dembélé", "Fatou Diakité", "Salif Berthé", "Assitan Coulibaly", "Youssouf Maïga",
 ]
 # Modules « fiche » à statuts génériques.
 STATUTS: dict[str, list[str]] = {
@@ -244,7 +313,9 @@ STATUTS: dict[str, list[str]] = {
     "gouvernance": ["À engager", "En cours", "En cours", "Réalisé", "Reporté"],
 }
 TERMINAUX = {"Clôturé", "Clôturée", "Résolu", "Résolue", "Annulé", "Rejeté", "Réalisé", "Implémenté"}
-SPONSORS = ["Direction Générale", "DSI", "Direction des Risques", "Direction Métier"]
+SPONSORS = [
+    "Direction générale", "Systèmes d'information", "Direction des risques", "Direction métier",
+]
 
 TACHES_TITRES = [
     "Cadrer le besoin", "Analyser l'existant", "Rédiger la spécification", "Développer",
@@ -257,7 +328,7 @@ COMMENTAIRES: dict[str, list[str]] = {
     "incident": [
         "Prise en charge, analyse des journaux en cours.",
         "Reproduit en recette : le service ne redémarre pas après la bascule.",
-        "Contournement en place, les guichets peuvent travailler.",
+        "Contournement en place, les équipes peuvent travailler.",
         "Escaladé au support niveau 2, l'éditeur est sollicité.",
         "Correctif appliqué, à confirmer côté métier avant clôture.",
     ],
@@ -266,7 +337,7 @@ COMMENTAIRES: dict[str, list[str]] = {
         "Compte créé, habilitations positionnées selon la fiche de poste.",
         "En attente de la validation du propriétaire de l'application.",
         "Matériel commandé, livraison annoncée sous dix jours.",
-        "Accès VPN ouvert et testé avec l'agent.",
+        "Accès distant ouvert et testé avec l'utilisateur.",
     ],
     "projet": [
         "Comité de pilotage tenu : le périmètre de la phase 1 est validé.",
@@ -278,8 +349,8 @@ COMMENTAIRES: dict[str, list[str]] = {
     ],
     "changement": [
         "Analyse d'impact complétée, le plan de retour arrière est testé.",
-        "Passage en CAB demandé pour la fenêtre de samedi soir.",
-        "Le CAB approuve sous réserve d'une communication préalable aux agences.",
+        "Validation demandée pour la fenêtre de samedi soir.",
+        "Approuvé sous réserve d'une communication préalable aux utilisateurs.",
         "Bascule réalisée dans la fenêtre ; surveillance renforcée pendant 48 h.",
         "Bilan post-implémentation rédigé, aucun incident consécutif.",
     ],
@@ -298,11 +369,11 @@ COMMENTAIRES: dict[str, list[str]] = {
     "cybersecurite": [
         "Revue des comptes administrateurs terminée, trois comptes dormants désactivés.",
         "Correctif de sécurité déployé sur l'ensemble du parc serveur.",
-        "MFA activé pour les agences, quelques agents restent à enrôler.",
+        "Double authentification activée sur les sites, quelques comptes restent à enrôler.",
         "Vulnérabilité confirmée par le scan, correctif éditeur attendu.",
     ],
     "gouvernance": [
-        "Décision entérinée en COPIL, la DG en est informée.",
+        "Décision entérinée en comité, la direction en est informée.",
         "Engagement reporté au prochain comité faute de quorum.",
         "Plan d'actions mis à jour, deux actions soldées sur cinq.",
         "Compte rendu diffusé aux membres du comité.",
@@ -320,14 +391,14 @@ DOCS_MODULE: dict[str, list[tuple[str, str]]] = {
         ("Note de cadrage.txt", "Note de cadrage\n\nContexte, objectifs, périmètre et livrables du "
          "projet. Jalons principaux, budget prévisionnel, risques identifiés et gouvernance "
          "(comité de pilotage mensuel)."),
-        ("Compte rendu COPIL.txt", "Compte rendu du comité de pilotage\n\nAvancement par lot, "
+        ("Compte rendu du comite.txt", "Compte rendu du comité de pilotage\n\nAvancement par lot, "
          "points bloquants, décisions prises et prochaines échéances. Budget consommé et reste à "
          "faire."),
         ("Planning previsionnel.txt", "Planning prévisionnel\n\nPhases : cadrage, conception, "
          "réalisation, recette, déploiement. Dates clés et dépendances entre les lots."),
     ],
     "changement": [
-        ("Analyse d'impact.txt", "Analyse d'impact\n\nApplications et agences concernées, fenêtre "
+        ("Analyse d'impact.txt", "Analyse d'impact\n\nApplications et sites concernés, fenêtre "
          "de maintenance, indisponibilité attendue et populations impactées."),
         ("Plan de retour arriere.txt", "Plan de retour arrière\n\nProcédure de restauration en cas "
          "d'échec, points de contrôle et critères de décision de rollback."),
@@ -359,8 +430,8 @@ JALONS_TITRES = [
 ]
 # Champs RFC (SI-12.04) pour les changements.
 RFC_TEXTES = {
-    "analyse_impact": "Impact sur le core banking et les agences ; interruption planifiée hors "
-    "heures ouvrées ; utilisateurs concernés : back-office et guichets.",
+    "analyse_impact": "Impact sur l'application métier et les sites distants ; interruption "
+    "planifiée hors heures ouvrées ; utilisateurs concernés : équipes support et accueil.",
     "analyse_risque": "Risque de régression maîtrisé ; environnement de pré-production validé ; "
     "fenêtre de repli identifiée.",
     "plan_deploiement": "1) Sauvegarde complète. 2) Bascule progressive. 3) Contrôles post-bascule. "
@@ -446,14 +517,14 @@ async def _journal_cycle_de_vie(
         nouvelle = {"statut": etat, "source": "IMPORT_SD"}
         av, nv = _serialiser(ancienne), _serialiser(nouvelle)
         hash_courant = _empreinte(
-            [precedent or "", horodatage.isoformat(), "demo@afgbank.ml", module, action,
+            [precedent or "", horodatage.isoformat(), EMAIL_JOURNAL_DEMO, module, action,
              module, reference, av or "", nv or "", ""]
         )
         await conn.execute(
             "INSERT INTO audit.journal (horodatage, acteur_email, module, action, cible_type, "
             " cible_id, ancienne_valeur, nouvelle_valeur, hash_precedent, hash_courant) "
             "VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10)",
-            horodatage, "demo@afgbank.ml", module, action, module, reference,
+            horodatage, EMAIL_JOURNAL_DEMO, module, action, module, reference,
             av, nv, precedent, hash_courant,
         )
         # Séjours vraisemblables : parts inégales du parcours, jamais nulles.
@@ -464,7 +535,8 @@ async def _journal_cycle_de_vie(
 
 async def _reset(conn: asyncpg.Connection) -> None:
     """Vide toutes les données transactionnelles + utilisateurs de démo (dev only)."""
-    await conn.execute("DELETE FROM core.activite")  # cascade : tache, document, commentaire, acteur
+    # cascade : tache, document, commentaire, acteur, note, lien, jalon
+    await conn.execute("DELETE FROM core.activite")
     await conn.execute("DELETE FROM core.notification")
     await conn.execute("DELETE FROM core.demandeur")
     await conn.execute("DELETE FROM core.equipement")
@@ -475,46 +547,60 @@ async def _reset(conn: asyncpg.Connection) -> None:
     # démo est la seule à écrire sous cet acteur.
     await conn.execute("ALTER TABLE audit.journal DISABLE TRIGGER trg_journal_pas_de_delete")
     try:
-        await conn.execute("DELETE FROM audit.journal WHERE acteur_email = 'demo@afgbank.ml'")
+        await conn.execute(
+            "DELETE FROM audit.journal WHERE acteur_email = ANY($1::text[])",
+            list(EMAILS_JOURNAL_A_PURGER),
+        )
     finally:
         await conn.execute("ALTER TABLE audit.journal ENABLE TRIGGER trg_journal_pas_de_delete")
 
 
-async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
-    """L'équipe de la démo : les agents réels s'ils existent, des personnages sinon.
-
-    Une démo à la DSI parle mieux avec les vrais noms de l'équipe. Mais les notifications
-    partent aussi par e-mail : on **coupe le canal e-mail** de chaque agent embarqué —
-    préférence par utilisateur, réversible depuis son profil — pour que les données fictives
-    ne remplissent aucune boîte réelle. L'administrateur, lui, n'est jamais acteur de la démo.
-    """
-    equipe = [
-        r["id"]
-        for r in await conn.fetch(
-            "SELECT u.id FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
-            "WHERE u.actif AND p.code <> 'ADMIN' ORDER BY u.nom, u.prenom"
+async def _creer_personnages(conn: asyncpg.Connection) -> None:
+    """Crée l'équipe fictive. Idempotent : relancer la démo ne duplique rien."""
+    empreinte = hacher_mot_de_passe("changez-moi")
+    for email, nom, prenom, profil, direction in UTILISATEURS:
+        await conn.execute(
+            "INSERT INTO core.utilisateur"
+            "(email, nom, prenom, profil_id, direction_id, source_auth, mot_de_passe_hash, "
+            " doit_changer_mdp) VALUES ($1,$2,$3,"
+            " (SELECT id FROM core.profil WHERE code=$4),"
+            " (SELECT id FROM core.direction WHERE code=$5),'LOCAL',$6,false) "
+            "ON CONFLICT (email) DO NOTHING",
+            email, nom, prenom, profil, direction, empreinte,
         )
-    ]
+
+
+async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
+    """L'équipe qui joue la démonstration.
+
+    **Par défaut : des personnages fictifs.** Une démonstration se montre aussi à l'extérieur,
+    et les noms des collaborateurs n'ont pas à y figurer — ni sur un écran partagé, ni dans une
+    capture qui finira dans une plaquette commerciale.
+
+    `DSI360_DEMO_EQUIPE_REELLE=1` rétablit l'ancien comportement — les vrais agents, plus
+    parlants pour une démonstration interne. Le canal e-mail de chaque acteur est alors coupé
+    (préférence réversible depuis son profil) pour qu'aucune donnée fictive ne remplisse une
+    boîte réelle. L'administrateur, lui, n'est jamais acteur de la démonstration.
+    """
+    reelle = os.environ.get("DSI360_DEMO_EQUIPE_REELLE") == "1"
+    lecture = (
+        "SELECT u.id FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
+        "WHERE u.actif AND p.code <> 'ADMIN' AND u.email {} ORDER BY u.nom, u.prenom"
+    )
+
+    if not reelle:
+        await _creer_personnages(conn)
+        equipe = [r["id"] for r in await conn.fetch(lecture.format("= ANY($1::text[])"), EMAILS_DEMO)]
+        if equipe:
+            return equipe
+        # Aucun personnage créé (profils absents d'une base neuve) : mieux vaut une démonstration
+        # peuplée que vide — on retombe sur les comptes existants, en le disant.
+        print("Personnages de démonstration indisponibles : repli sur les comptes existants.")
+
+    equipe = [r["id"] for r in await conn.fetch(lecture.format("IS NOT NULL"))]
     if len(equipe) < 3:
-        # Pas assez d'agents réels : on complète avec les personnages historiques.
-        empreinte = hacher_mot_de_passe("changez-moi")
-        for email, nom, prenom, profil, direction in UTILISATEURS:
-            await conn.execute(
-                "INSERT INTO core.utilisateur"
-                "(email, nom, prenom, profil_id, direction_id, source_auth, mot_de_passe_hash, "
-                " doit_changer_mdp) VALUES ($1,$2,$3,"
-                " (SELECT id FROM core.profil WHERE code=$4),"
-                " (SELECT id FROM core.direction WHERE code=$5),'LOCAL',$6,false) "
-                "ON CONFLICT (email) DO NOTHING",
-                email, nom, prenom, profil, direction, empreinte,
-            )
-        equipe = [
-            r["id"]
-            for r in await conn.fetch(
-                "SELECT u.id FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
-                "WHERE u.actif AND p.code <> 'ADMIN' ORDER BY u.nom, u.prenom"
-            )
-        ]
+        await _creer_personnages(conn)
+        equipe = [r["id"] for r in await conn.fetch(lecture.format("IS NOT NULL"))]
     for uid in equipe:
         await conn.execute(
             "INSERT INTO core.preference_notification (utilisateur_id, email) "
@@ -527,39 +613,42 @@ async def _assurer_utilisateurs(conn: asyncpg.Connection) -> list[str]:
 # --- Inventaire : un parc plausible, pour éprouver l'amortissement et les rattachements ---
 
 # Emplacements et rattachements observés dans le fichier réel d'AFG.
+# Sites et rattachements : neutres, comme le reste de la démonstration.
 _EMPLACEMENTS = (
-    "GAB EXT",
-    "Agence Zone Industrielle",
-    "Agence Yirimadio",
-    "Agence Sébénicoro",
-    "Agence Djélibougou",
-    "Siège — Direction Générale",
+    "Siège — Direction générale",
     "Siège — Salle serveurs",
+    "Siège — Open space",
+    "Site Nord",
+    "Site Sud",
+    "Site Est",
+    "Entrepôt logistique",
 )
 _DEPARTEMENTS = (
-    "Salle GAB",
-    "GAB Syama",
-    "Total Faladié",
-    "Direction des Systèmes d'Information",
-    "Direction de l'Exploitation",
-    "Réseau & Télécom",
+    "Direction générale",
+    "Systèmes d'information",
+    "Exploitation",
+    "Réseau & télécoms",
+    "Finances & comptabilité",
+    "Ressources humaines",
+    "Accueil & services généraux",
 )
 
-# (désignation, modèle, valeur mini, valeur maxi, taux, durée) — matériel bancaire courant.
+# (désignation, modèle, valeur mini, valeur maxi, taux, durée) — matériel d'entreprise courant.
 _TYPES_MATERIEL: tuple[tuple[str, str, int, int, int, int], ...] = (
-    ("GAB NCR SelfServ 25", "NCR SelfServ 25", 11_000_000, 24_000_000, 25, 4),
-    ("GAB Wincor Cineo", "Wincor Cineo C4060", 12_000_000, 23_000_000, 25, 4),
     ("Serveur lame", "HPE ProLiant DL380", 8_000_000, 15_000_000, 20, 5),
     ("Baie de stockage", "Dell EMC Unity", 18_000_000, 30_000_000, 20, 5),
     ("Onduleur", "APC Smart-UPS 10kVA", 2_500_000, 6_000_000, 20, 5),
     ("Commutateur cœur", "Cisco Catalyst 9300", 3_000_000, 7_500_000, 20, 5),
     ("Pare-feu", "Fortinet FortiGate 200F", 4_000_000, 9_000_000, 20, 5),
+    ("Borne Wi-Fi", "Ubiquiti UniFi U6", 180_000, 420_000, 25, 4),
     ("Poste de travail", "Dell Latitude 5540", 450_000, 950_000, 25, 4),
     ("Poste de travail", "HP EliteBook 840", 500_000, 1_100_000, 25, 4),
+    ("Poste fixe", "Lenovo ThinkCentre M70", 380_000, 760_000, 25, 4),
     ("Imprimante réseau", "HP LaserJet M507", 350_000, 800_000, 25, 4),
-    ("Imprimante chèques", "Olivetti PR2 Plus", 900_000, 1_800_000, 25, 4),
+    ("Copieur multifonction", "Ricoh IM C3000", 1_800_000, 3_400_000, 20, 5),
     ("Scanner de production", "Kodak i3450", 1_200_000, 2_600_000, 25, 4),
-    ("Compteuse de billets", "Glory GFS-120", 2_000_000, 4_500_000, 20, 5),
+    ("Vidéoprojecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4),
+    ("Écran de salle", "Samsung QM65R", 900_000, 1_900_000, 25, 4),
 )
 
 
@@ -589,11 +678,27 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
     }
 
     # Matricules sur les comptes : sans eux, aucun équipement ne trouverait son détenteur.
-    for rang, uid in enumerate(utilisateurs, start=1):
-        await conn.execute(
-            "UPDATE core.utilisateur SET matricule = $2 WHERE id = $1 AND matricule IS NULL",
-            uid, f"AFG-{4500 + rang:04d}",
+    # On ne réattribue jamais un matricule déjà porté — une base déjà semée en garde d'anciens,
+    # et le matricule est unique en base : une collision faisait échouer toute la génération.
+    pris = {
+        r["matricule"]
+        for r in await conn.fetch(
+            "SELECT upper(btrim(matricule)) AS matricule FROM core.utilisateur "
+            "WHERE matricule IS NOT NULL"
         )
+    }
+    numero = 4501
+    for uid in utilisateurs:
+        if await conn.fetchval("SELECT matricule FROM core.utilisateur WHERE id = $1", uid):
+            continue
+        while f"MAT-{numero:04d}" in pris:
+            numero += 1
+        matricule = f"MAT-{numero:04d}"
+        await conn.execute(
+            "UPDATE core.utilisateur SET matricule = $2 WHERE id = $1", uid, matricule
+        )
+        pris.add(matricule)
+        numero += 1
 
     aujourdhui = date.today()
     cree = 0
@@ -688,6 +793,81 @@ async def _constats(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
             )
             poses += 1
     return poses
+
+
+#: Notes du journal de bord (projets, changements) : ce qu'on écrit en marge d'un dossier,
+#: distinct de la discussion — un constat daté plutôt qu'un échange.
+NOTES_MODULE: dict[str, list[tuple[str, str]]] = {
+    "projet": [
+        ("Réunion de lancement tenue avec les référents métier ; périmètre confirmé.", "Cadrage"),
+        ("Budget révisé après consultation : enveloppe complémentaire à arbitrer.", "En cours"),
+        ("Décalage de deux semaines sur la recette, sans impact sur la date de bascule.", "En cours"),
+        ("Bilan de fin de projet rédigé : objectifs atteints, deux réserves mineures.", "Clôturé"),
+    ],
+    "changement": [
+        ("Fenêtre de maintenance retenue : samedi 22 h – 2 h, communication faite la veille.", "Planifié"),
+        ("Retour arrière testé à blanc sur l'environnement de recette : concluant.", "Planifié"),
+        ("Opération réalisée dans la fenêtre, surveillance renforcée pendant 48 h.", "Implémenté"),
+    ],
+}
+
+#: Liens utiles rattachés aux dossiers : documentation, procédures, sources externes. Les URL
+#: pointent volontairement vers un intranet fictif — une démonstration ne doit ouvrir aucun site.
+LIENS_MODULE: dict[str, list[tuple[str, str]]] = {
+    "projet": [
+        ("Espace projet", "https://intranet.exemple/projets/espace"),
+        ("Planning partagé", "https://intranet.exemple/projets/planning"),
+        ("Fiche budgétaire", "https://intranet.exemple/finances/budget"),
+    ],
+    "risque": [
+        ("Cartographie des risques", "https://intranet.exemple/risques/cartographie"),
+        ("Procédure de traitement", "https://intranet.exemple/risques/procedure"),
+    ],
+    "audit": [
+        ("Rapport d'audit complet", "https://intranet.exemple/audit/rapport"),
+        ("Suivi du plan d'actions", "https://intranet.exemple/audit/suivi"),
+    ],
+    "cybersecurite": [
+        ("Bulletin de sécurité", "https://intranet.exemple/securite/bulletin"),
+        ("Politique de sécurité", "https://intranet.exemple/securite/politique"),
+    ],
+    "gouvernance": [
+        ("Compte rendu du comité", "https://intranet.exemple/comites/compte-rendu"),
+        ("Tableau de bord de direction", "https://intranet.exemple/pilotage/tableau-de-bord"),
+    ],
+}
+
+
+async def _notes(
+    conn: asyncpg.Connection, activite_id: str, module: str, cree_le: datetime, auteur: str
+) -> None:
+    """Journal de bord du dossier. Sans lui, l'onglet « Notes » paraît mort en démonstration."""
+    modeles = NOTES_MODULE.get(module)
+    if not modeles:
+        return
+    for texte, contexte in random.sample(modeles, k=random.randint(1, min(2, len(modeles)))):
+        await conn.execute(
+            "INSERT INTO core.note (activite_id, texte, contexte, auteur_email, cree_le) "
+            "VALUES ($1,$2,$3,$4,$5)",
+            activite_id, texte, contexte, auteur,
+            cree_le + timedelta(days=random.uniform(1, 20)),
+        )
+
+
+async def _liens(
+    conn: asyncpg.Connection, activite_id: str, module: str, cree_le: datetime, auteur: str
+) -> None:
+    """Liens utiles du dossier : la documentation vit ailleurs, le dossier sait où."""
+    modeles = LIENS_MODULE.get(module)
+    if not modeles:
+        return
+    for libelle, url in random.sample(modeles, k=random.randint(1, len(modeles))):
+        await conn.execute(
+            "INSERT INTO core.lien (activite_id, libelle, url, cree_par, cree_le) "
+            "VALUES ($1,$2,$3,$4,$5)",
+            activite_id, libelle, url, auteur,
+            cree_le + timedelta(days=random.uniform(0.5, 12)),
+        )
 
 
 async def _categories(conn: asyncpg.Connection, module: str) -> list[str]:
@@ -922,7 +1102,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         responsable = None  # chez DBS : hors de nos comptes
                         gestionnaire_nom = random.choice(GESTIONNAIRES_DBS)
                     else:
-                        gestionnaire_nom = "Support DSI"
+                        gestionnaire_nom = "Support interne"
                     donnees.update({
                         "ttr_minutes": ttr,
                         "ttrespond_minutes": trep,
@@ -1026,6 +1206,12 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     await _commentaires(
                         conn, activite_id, utilisateurs, cree_le, random.randint(2, 4), module
                     )
+                # Journal de bord et liens utiles : chaque onglet de la fiche doit avoir quelque
+                # chose à montrer, sans quoi la démonstration paraît inachevée.
+                if random.random() < 0.6:
+                    await _notes(conn, activite_id, module, cree_le, EMAILS_DEMO[0])
+                if random.random() < 0.65:
+                    await _liens(conn, activite_id, module, cree_le, EMAILS_DEMO[0])
                 if responsable is not None and random.random() < 0.5:
                     await _acteurs(conn, activite_id, utilisateurs, responsable, statut, module)
 
