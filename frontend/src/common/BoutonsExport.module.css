@@ -1,0 +1,17 @@
+/* Rotation de l'indicateur d'attente : le seul mouvement toléré par la charte, parce qu'il
+   dit qu'un travail est en cours — jamais pour décorer. */
+.tourne {
+  animation: tourne 0.9s linear infinite;
+}
+
+@keyframes tourne {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tourne {
+    animation: none;
+  }
+}

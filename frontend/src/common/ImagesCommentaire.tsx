@@ -15,6 +15,11 @@ export function ImagesCommentaire({ commentaireId, images }: Props): JSX.Element
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [agrandie, setAgrandie] = useState<ImageCommentaire | null>(null);
 
+  // Dépendance sur les identifiants, pas sur le tableau : celui-ci change d'identité à chaque
+  // rendu du parent. L'effet se rejouait alors sans cesse et le nettoyage révoquait les URL
+  // encore affichées — d'où des images brisées quelques instants après leur apparition.
+  const cle = images.map((i) => i.id).join(',');
+
   useEffect(() => {
     if (images.length === 0) return;
     let vivant = true;
@@ -24,19 +29,23 @@ export function ImagesCommentaire({ commentaireId, images }: Props): JSX.Element
         const blob = await commentairesApi.image(commentaireId, img.id);
         return [img.id, URL.createObjectURL(blob)] as const;
       }),
-    ).then((paires) => {
-      if (!vivant) {
-        paires.forEach(([, url]) => URL.revokeObjectURL(url));
-        return;
-      }
-      paires.forEach(([, url]) => crees.push(url));
-      setUrls(Object.fromEntries(paires));
-    });
+    )
+      .then((paires) => {
+        if (!vivant) {
+          paires.forEach(([, url]) => URL.revokeObjectURL(url));
+          return;
+        }
+        paires.forEach(([, url]) => crees.push(url));
+        setUrls(Object.fromEntries(paires));
+      })
+      // Une image illisible ne doit pas laisser un cadre brisé : la vignette reste en attente.
+      .catch(() => undefined);
     return () => {
       vivant = false;
       crees.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [commentaireId, images]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `cle` résume `images` de façon stable
+  }, [commentaireId, cle]);
 
   useEffect(() => {
     if (agrandie === null) return;

@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import InterfaceError, OperationalError
@@ -117,7 +117,13 @@ def _monter_frontend(app: FastAPI, settings: Settings) -> None:
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
     @app.get("/{chemin:path}", include_in_schema=False)
-    async def spa(chemin: str) -> FileResponse:
+    async def spa(chemin: str) -> Response:
+        # Une adresse d'API inconnue doit répondre 404 en JSON, jamais l'application. Sinon un
+        # appel mal formé reçoit une page HTML avec un code 200 : le client tente de la lire
+        # comme du JSON et échoue sur un message incompréhensible, et l'erreur de routage se
+        # déguise en « module à venir » à l'écran.
+        if chemin.startswith("api/"):
+            return JSONResponse({"detail": "Ressource introuvable."}, status_code=404)
         cible = dist / chemin
         if chemin and cible.is_file():
             return FileResponse(cible)
@@ -156,7 +162,11 @@ def creer_app() -> FastAPI:
         # styles couvre les `style=` de la charte ; les scripts, eux, restent stricts ('self').
         reponse.headers["Content-Security-Policy"] = (
             "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; "
-            "img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+            # `blob:` : les images de la discussion sont téléchargées par le jeton puis affichées
+            # depuis la mémoire du navigateur — sans lui, elles s'affichaient brisées en prod.
+            # Aucune image DISTANTE n'est autorisée : les vignettes d'aperçu passent par l'API,
+            # pour qu'un lien collé ne puisse pas pister qui l'a lu.
+            "img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; "
             "script-src 'self'; connect-src 'self'; form-action 'self'"
         )
         # HSTS seulement hors dev (là où le TLS est présent : uvicorn --ssl ou reverse-proxy).

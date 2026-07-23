@@ -43,11 +43,14 @@ _EN_COURS = phases_sql.en_cours()
 # Cartes du tableau de bord : un ÉTAT GÉNÉRAL, transverse à tous les modules (pas centré incidents).
 _CARTES = f"""
 SELECT
-  count(*) FILTER (WHERE a.cloture_le IS NULL
-    AND a.statut NOT IN ('Annulé','Rejeté','Rejetée','Reporté')) AS activites_ouvertes,
-  count(*) FILTER (WHERE a.cloture_le IS NULL
+  -- « Ouvert » = la phase du domaine, jamais l'absence de date de clôture ni une liste de
+  -- statuts écrite ici. « Résolu », « Réalisé », « Maîtrisé », « Corrigé » ne posent aucun
+  -- `cloture_le` : comptés sur l'horodatage, ces dossiers finis gonflaient la carte, qui ne
+  -- s'accordait plus avec les compteurs des listes.
+  count(*) FILTER (WHERE {_EN_COURS}) AS activites_ouvertes,
+  count(*) FILTER (WHERE {_EN_COURS}
     AND (a.priorite = 1 OR nullif(a.donnees->>'criticite','')::int >= 4)) AS critiques,
-  count(*) FILTER (WHERE a.cloture_le IS NULL AND a.responsable_id IS NOT NULL) AS charge_dsi,
+  count(*) FILTER (WHERE {_EN_COURS} AND a.responsable_id IS NOT NULL) AS charge_dsi,
   count(*) FILTER (WHERE {_EN_COURS}
     AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()) AS en_retard,
   count(*) FILTER (WHERE a.resolu_le IS NOT NULL OR a.cloture_le IS NOT NULL) AS resolues,

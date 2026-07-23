@@ -14,7 +14,7 @@ from typing import Annotated, Any
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from dsi360.interface.schemas import ApercuLien
 from dsi360.interface.securite import utilisateur_courant
@@ -94,6 +94,60 @@ async def _recuperer(url: str) -> str | None:
                 return None
             return reponse.text[:_TAILLE_MAX]
     return None
+
+
+#: Formats de vignette acceptés. Tout autre type est refusé : on ne relaie pas n'importe quoi.
+_IMAGES_ACCEPTEES = ("image/png", "image/jpeg", "image/gif", "image/webp", "image/avif")
+_IMAGE_MAX = 3 * 1024 * 1024
+
+
+async def _recuperer_image(url: str) -> tuple[bytes, str] | None:
+    """Octets d'une vignette distante, mêmes gardes que la page : hôte public, taille bornée."""
+    async with httpx.AsyncClient(
+        timeout=_DELAI, follow_redirects=False, headers={"User-Agent": "DSI360-Apercu/1.0"}
+    ) as client:
+        courant = url
+        for _ in range(_MAX_REDIR):
+            hote = urlparse(courant).hostname
+            if hote is None or not _hote_autorise(hote):
+                return None
+            reponse = await client.get(courant)
+            if reponse.is_redirect:
+                cible = reponse.headers.get("location")
+                if cible is None:
+                    return None
+                courant = urljoin(courant, cible)
+                continue
+            type_contenu = reponse.headers.get("content-type", "").split(";")[0].strip().lower()
+            if type_contenu not in _IMAGES_ACCEPTEES:
+                return None
+            octets = reponse.content
+            return (octets, type_contenu) if 0 < len(octets) <= _IMAGE_MAX else None
+    return None
+
+
+@routeur.get("/image")
+async def image(
+    _courant: Courant, url: Annotated[str, Query(min_length=8, max_length=2048)]
+) -> Response:
+    """Relaie la vignette d'un lien, au lieu de laisser le navigateur la charger.
+
+    Deux raisons de passer par ici plutôt que d'autoriser les images distantes : le navigateur
+    n'expose alors ni son adresse ni sa présence au site lié — un lien collé ne peut pas servir
+    de mouchard —, et la politique de sécurité de la page reste stricte (`img-src 'self'`).
+    """
+    parse = urlparse(url)
+    if parse.scheme not in ("http", "https") or parse.hostname is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL invalide.")
+    resultat = await _recuperer_image(url)
+    if resultat is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vignette indisponible.")
+    octets, type_mime = resultat
+    return Response(
+        content=octets,
+        media_type=type_mime,
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=86400"},
+    )
 
 
 @routeur.get("", response_model=ApercuLien)
