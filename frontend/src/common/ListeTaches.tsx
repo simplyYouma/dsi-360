@@ -190,8 +190,13 @@ export function ListeTaches({
               </button>
             )}
             <div className={styles.tacheTitreBloc}>
-              <span className={cx(styles.tacheTitre, t.statut === 'Terminée' && styles.faite)}>
-                {t.titre}
+              {/* Le barré ne porte que sur l'intitulé : une décoration de texte se propage aux
+                  descendants et rien ne l'y annule — la pastille « Terminée avec 3 j de retard »
+                  se retrouvait rayée, donc illisible, alors qu'elle porte le verdict. */}
+              <span className={styles.tacheTitre}>
+                <span className={t.statut === 'Terminée' ? styles.faite : undefined}>
+                  {t.titre}
+                </span>
                 <EtatEcheance tache={t} />
               </span>
               {renduSousTitre && <div className={styles.tacheSousTitre}>{renduSousTitre(t)}</div>}

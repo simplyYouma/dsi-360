@@ -66,9 +66,13 @@
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-.tacheTitre.faite {
+/* Barre l'intitulé seul : appliqué au conteneur, le trait traverserait aussi les pastilles
+   d'échéance — une décoration héritée ne se retire pas depuis l'enfant. */
+.faite {
   color: var(--text-muted);
   text-decoration: line-through;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 /* État d'échéance : pastilles sobres (couleur = sens). */
 .pilRetard,

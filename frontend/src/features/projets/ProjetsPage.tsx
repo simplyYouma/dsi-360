@@ -5,6 +5,7 @@ import { Button, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { BandeauStats } from '@/common/BandeauStats';
 import { SablierSla } from '@/common/SablierSla';
+import { BadgeCategorie } from '@/common/BadgeCategorie';
 import { BadgeStatut } from '@/common/statuts';
 import { BarreAvancement } from '@/common/BarreAvancement';
 import { CelluleActeur } from '@/common/CelluleActeur';
@@ -54,6 +55,12 @@ const COLONNES: Colonne<Projet>[] = [
         vide="—"
       />
     ),
+  },
+  {
+    cle: 'categorie',
+    entete: 'Type',
+    valeur: (p) => p.categorie ?? '',
+    rendu: (p) => <BadgeCategorie libelle={p.categorie} />,
   },
   {
     cle: 'avancement',
