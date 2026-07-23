@@ -8,6 +8,7 @@
   écrivent souvent l'absence (« None », « N/A », « - »…) au lieu de laisser la case vide.
 """
 
+import re
 import unicodedata
 
 # Ce qu'un fichier importé écrit quand il n'y a personne. Ce ne sont pas des noms : ce sont des
@@ -65,3 +66,14 @@ def phrase_propre(valeur: str | None) -> str | None:
         return None
     base = _condenser(valeur)
     return base[:1].upper() + base[1:] if base else base
+
+
+def code_technique(libelle: str) -> str | None:
+    """Code stable dérivé d'un libellé (MAJUSCULES, alphanumérique, séparé par ``_``).
+
+    Les accents sont dépliés d'abord : « Réseau télécom » donne RESEAU_TELECOM, et non
+    R_SEAU_T_L_COM. ``None`` si le libellé ne contient rien d'exploitable.
+    """
+    sans_accent = unicodedata.normalize("NFKD", libelle).encode("ascii", "ignore").decode()
+    code = re.sub(r"[^A-Z0-9]+", "_", sans_accent.upper()).strip("_")
+    return code or None

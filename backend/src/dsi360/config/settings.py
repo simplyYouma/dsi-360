@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # veille ») : on les active explicitement quand un relais SMTP est fourni. Les e-mails de compte
     # (activation, réinitialisation) ne sont pas concernés : sans eux, personne n'entre.
     notif_email_active: bool = False
+    # Garde-fou : hors production, aucun e-mail ne part réellement, même avec un relais SMTP
+    # configuré. Un jeu de démonstration crée des centaines d'assignations — autant d'e-mails vers
+    # de vraies boîtes. Mettre à `true` le temps de vérifier le relais de bout en bout.
+    email_reel_hors_prod: bool = False
 
     max_upload_mb: int = 20
     # Applique les migrations SQL en attente au démarrage de l'API (idempotent). Désactivable en

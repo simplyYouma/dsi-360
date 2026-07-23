@@ -38,10 +38,13 @@ async def _changement_avec_tache(
     )
     from sqlalchemy import text
 
+    # Porteur ET échéance dès la création : sans eux, le serveur refuse tout changement de
+    # statut (cf. `_exiger_tache_engagee`) — ce n'est pas ce que ces tests éprouvent.
     tache = await session.scalar(
         text(
-            "INSERT INTO core.tache (activite_id, titre, statut, assigne_id) "
-            "VALUES (cast(:aid as uuid), 'Déployer', 'À faire', cast(:uid as uuid)) "
+            "INSERT INTO core.tache (activite_id, titre, statut, assigne_id, echeance) "
+            "VALUES (cast(:aid as uuid), 'Déployer', 'À faire', cast(:uid as uuid), "
+            "        current_date + 7) "
             "RETURNING id::text"
         ),
         {"aid": changement, "uid": gens["porteur"]},

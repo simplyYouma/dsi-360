@@ -20,7 +20,7 @@ import type { MajTache, NouvelleTache, Tache } from '@/common/tacheTypes';
 import fiche from '@/common/FicheTransition.module.css';
 import styles from './ProjetPage.module.css';
 import { JournalNotes } from '@/common/JournalNotes';
-import { projetsApi, type Jalon, type ProjetDetail } from './projetsApi';
+import { projetsApi, type Jalon, type ProjetDetail, type TypeProjet } from './projetsApi';
 
 function formaterDateCourte(iso: string | null): string {
   if (!iso) return '';
@@ -39,9 +39,13 @@ const TITRE_LECTURE = 'Réservé au chef de projet, aux contributeurs et à l’
 function Jalons({
   projetId,
   peutTravailler,
+  version,
 }: {
   projetId: string;
   peutTravailler: boolean;
+  /** Change quand le type du projet change : les jalons qu'il apporte arrivent alors sans
+   *  qu'on ait à recharger la page. */
+  version: string;
 }): JSX.Element {
   const [jalons, setJalons] = useState<Jalon[]>([]);
   const [titre, setTitre] = useState('');
@@ -51,7 +55,7 @@ function Jalons({
   const charger = useCallback((): void => {
     void projetsApi.jalons(projetId).then(setJalons);
   }, [projetId]);
-  useEffect(() => charger(), [charger]);
+  useEffect(() => charger(), [charger, version]);
 
   const ajouter = async (): Promise<void> => {
     if (titre.trim().length < 2) return;
@@ -178,6 +182,7 @@ export function ProjetPage(): JSX.Element {
   const [detail, setDetail] = useState<ProjetDetail | null>(null);
   const [taches, setTaches] = useState<Tache[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [types, setTypes] = useState<TypeProjet[]>([]);
   const [introuvable, setIntrouvable] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const { moi } = useAuth();
@@ -193,6 +198,7 @@ export function ProjetPage(): JSX.Element {
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
   const [description, setDescription] = useState('');
+  const [type, setType] = useState<string | null>(null);
 
   const chargerTaches = useCallback((): void => {
     if (id !== undefined) void projetsApi.taches(id).then(setTaches);
@@ -213,9 +219,38 @@ export function ProjetPage(): JSX.Element {
   }, [charger]);
   useEffect(() => {
     void chargerAgents('projets').then(setAgents);
+    void projetsApi.types().then(setTypes);
   }, []);
 
   const optionsAgents = agents.map((a) => ({ valeur: a.id, libelle: a.nom }));
+  const optionsTypes = types.map((t) => ({
+    valeur: t.id,
+    libelle: t.libelle,
+    // Un type que des projets portent déjà ne se retire plus : le serveur refuserait.
+    supprimable: !t.utilise,
+  }));
+
+  // Enrichir le vocabulaire là où l'on s'en sert. Le serveur réécrit le libellé et refuse les
+  // doublons : ce qui revient est toujours la forme propre, jamais la saisie brute.
+  const ajouterType = async (libelle: string): Promise<string | null> => {
+    try {
+      const cree = await projetsApi.creerType(libelle);
+      setTypes(await projetsApi.types());
+      return cree.id;
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Type non ajouté.', 'erreur');
+      return null;
+    }
+  };
+  const retirerType = async (typeId: string): Promise<void> => {
+    try {
+      await projetsApi.supprimerType(typeId);
+      setTypes(await projetsApi.types());
+      if (type === typeId) setType(null);
+    } catch (e) {
+      notifier(e instanceof ErreurApi ? e.message : 'Type non retiré.', 'erreur');
+    }
+  };
 
   // Applique une modification : PATCH en mode détail, mise à jour du brouillon en mode création.
   const patch = async (corps: Parameters<typeof projetsApi.modifier>[1]): Promise<void> => {
@@ -239,6 +274,7 @@ export function ProjetPage(): JSX.Element {
         date_debut: dateDebut || null,
         date_fin: dateFin || null,
         responsable_id: chef,
+        categorie_id: type,
       });
       navigate(`/projets/${nouvel}`);
     } catch (e) {
@@ -322,7 +358,10 @@ export function ProjetPage(): JSX.Element {
     dateDebut: creation ? dateDebut : (detail?.date_debut ?? ''),
     dateFin: creation ? dateFin : (detail?.date_fin ?? ''),
     description: creation ? description : (detail?.description ?? ''),
+    type: creation ? type : (detail?.categorie_id ?? null),
   };
+  // Déroulé annoncé par le type choisi : en création, on montre ce que le projet recevra.
+  const jalonsDuType = types.find((t) => t.id === v.type)?.jalons ?? [];
 
   return (
     <div className={styles.page}>
@@ -374,6 +413,33 @@ export function ProjetPage(): JSX.Element {
                     desactive={!creation && !permissions.peut_assigner}
                     titreDesactive="Seul l’administrateur désigne le chef de projet."
                   />
+                </dd>
+              </div>
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Type de projet</dt>
+                <dd>
+                  {/* Tous les projets ne se conduisent pas de la même façon : le type dit lequel
+                      on mène, et pose son déroulé (jalons) dès la création. */}
+                  <SelecteurListe
+                    options={optionsTypes}
+                    valeur={v.type}
+                    onChange={(val) =>
+                      creation ? setType(val) : void patch({ categorie_id: val })
+                    }
+                    permettreVide
+                    libelleVide="Non typé"
+                    placeholder="Choisir un type"
+                    onCreer={ajouterType}
+                    onSupprimer={retirerType}
+                    desactive={!creation && !permissions.peut_travailler}
+                    titreDesactive={TITRE_LECTURE}
+                  />
+                  {creation && jalonsDuType.length > 0 && (
+                    <p className={styles.note}>
+                      Ce type pose {jalonsDuType.length} jalons :{' '}
+                      {jalonsDuType.map((j) => j.titre).join(' · ')}.
+                    </p>
+                  )}
                 </dd>
               </div>
               <div className={styles.metaItem}>
@@ -516,7 +582,11 @@ export function ProjetPage(): JSX.Element {
           {!creation && id !== undefined && (
             <section className={styles.carte}>
               <span className={styles.carteTitre}>Jalons</span>
-              <Jalons projetId={id} peutTravailler={permissions.peut_travailler} />
+              <Jalons
+                projetId={id}
+                peutTravailler={permissions.peut_travailler}
+                version={detail?.categorie_id ?? ''}
+              />
             </section>
           )}
         </div>
@@ -546,21 +616,27 @@ export function ProjetPage(): JSX.Element {
                   </span>
                   {detail.transitions_possibles.map((etat) => {
                     const c = couleurStatut(etat);
+                    // Le serveur dit ce qu'il refuserait, et pourquoi : le bouton est grisé et
+                    // le motif se lit au survol, plutôt qu'après un clic et une erreur.
+                    const blocage = detail.transitions_bloquees?.[etat];
                     return (
-                      <button
-                        key={etat}
-                        type="button"
-                        className={fiche.chip}
-                        style={{
-                          color: c,
-                          background: `color-mix(in srgb, ${c} 14%, transparent)`,
-                        }}
-                        disabled={envoi}
-                        onClick={() => void transitionner(etat)}
-                      >
-                        {etat}
-                        <ArrowRight size={13} />
-                      </button>
+                      // L'infobulle vit sur l'enveloppe : un bouton désactivé n'écoute plus la
+                      // souris, et le motif du refus resterait invisible.
+                      <span key={etat} title={blocage}>
+                        <button
+                          type="button"
+                          className={fiche.chip}
+                          style={{
+                            color: c,
+                            background: `color-mix(in srgb, ${c} 14%, transparent)`,
+                          }}
+                          disabled={envoi || blocage !== undefined}
+                          onClick={() => void transitionner(etat)}
+                        >
+                          {etat}
+                          <ArrowRight size={13} />
+                        </button>
+                      </span>
                     );
                   })}
                 </div>

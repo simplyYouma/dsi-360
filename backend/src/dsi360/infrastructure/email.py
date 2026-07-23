@@ -1,6 +1,7 @@
 """Envoi d'e-mails via SMTP (paramètres fournis par l'environnement, cf. infra/env/.env).
 
-Sans hôte SMTP configuré, on journalise au lieu d'envoyer (mode dev). Tout échec d'envoi est
+Sans hôte SMTP configuré — ou hors production, quel que soit le relais — on journalise le message
+au lieu de l'envoyer : une base de démonstration ne doit écrire à personne. Tout échec d'envoi est
 journalisé et n'interrompt jamais l'appelant (scanner SLA, flux d'auth…).
 
 L'envoi est **asynchrone** (fil d'arrière-plan) : l'e-mail est best-effort et ne doit jamais
@@ -19,6 +20,7 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, cast
 
+from dsi360.config import get_settings
 from dsi360.infrastructure.email_modeles import CID_LOGO
 
 _log = logging.getLogger("dsi360.email")
@@ -37,6 +39,17 @@ def _logo_octets() -> bytes | None:
         return _LOGO.read_bytes()
     except OSError:
         return None
+
+
+def _envoi_autorise() -> bool:
+    """Hors production, rien ne part — même avec un relais SMTP configuré.
+
+    Un jeu de démonstration recrée des centaines d'assignations et de rappels : autant d'e-mails
+    vers de vraies boîtes, envoyés par une base de test. La garde se lève avec
+    `DSI360_EMAIL_REEL_HORS_PROD=true`, le temps de vérifier le relais de bout en bout.
+    """
+    reglages = get_settings()
+    return reglages.environnement == "prod" or reglages.email_reel_hors_prod
 
 
 def _config() -> dict[str, str | int | bool]:
@@ -59,6 +72,13 @@ def envoyer(destinataire: str, sujet: str, corps: str, html: str | None = None) 
     Sans SMTP configuré : journalise (mode dev). Pendant une panne réseau (disjoncteur ouvert) :
     ignore l'envoi et journalise — l'application reste pleinement utilisable hors ligne.
     """
+    if not _envoi_autorise():
+        # Le corps est journalisé : c'est ainsi qu'on récupère un lien d'activation en dev,
+        # sans qu'aucun message ne quitte la machine.
+        _log.info(
+            "EMAIL (simulé, hors production) -> %s | %s\n%s", destinataire, sujet, corps[:600]
+        )
+        return
     cfg = _config()
     if not cfg["hote"]:
         _log.info("EMAIL (simulé, SMTP absent) -> %s | %s", destinataire, sujet)

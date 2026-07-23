@@ -1,7 +1,5 @@
 """Administration (§9) : utilisateurs, matrice d'accès, journal d'audit."""
 
-import re
-import unicodedata
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -12,7 +10,7 @@ from dsi360.application.auth import envoyer_lien_mot_de_passe
 from dsi360.config import get_settings
 from dsi360.config.acces import MODULES, PROFIL_ADMIN
 from dsi360.domain.sla import MODULES_SLA
-from dsi360.domain.texte import nom_propre
+from dsi360.domain.texte import code_technique, nom_propre
 from dsi360.infrastructure import audit, email, email_modeles
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
@@ -222,9 +220,8 @@ def _code_technique(libelle: str, quoi: str) -> str:
     Les accents sont dépliés d'abord : « Réseau télécom » donne RESEAU_TELECOM, et non
     R_SEAU_T_L_COM.
     """
-    sans_accent = unicodedata.normalize("NFKD", libelle).encode("ascii", "ignore").decode()
-    code = re.sub(r"[^A-Z0-9]+", "_", sans_accent.upper()).strip("_")
-    if not code:
+    code = code_technique(libelle)
+    if code is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Libellé de {quoi} invalide.",

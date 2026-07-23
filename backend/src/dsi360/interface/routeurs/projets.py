@@ -11,14 +11,20 @@ from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdit
 from dsi360.application.autorisations import ACTEUR, capacites, charger_roles
 from dsi360.application.notifications import notifier
 from dsi360.application.projets import creer_projet, maj_projet
-from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
+from dsi360.application.taches import (
+    blocages_transitions,
+    creer_tache,
+    maj_tache,
+    supprimer_tache,
+)
 from dsi360.domain.etats import est_etat_terminal, transitions_possibles
-from dsi360.domain.texte import phrase_propre
+from dsi360.domain.texte import code_technique, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
 from dsi360.infrastructure.repositories import jalon as jalon_repo
+from dsi360.infrastructure.repositories import modele_jalon
 from dsi360.infrastructure.repositories import tache as tache_repo
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.routeurs.liens_communs import enregistrer_liens
@@ -27,6 +33,8 @@ from dsi360.interface.schemas import (
     JalonCreation,
     JalonItem,
     JalonMaj,
+    ModeleJalonCreation,
+    ModeleJalonItem,
     NoteCreation,
     NoteItem,
     PageProjets,
@@ -39,6 +47,8 @@ from dsi360.interface.schemas import (
     TacheCreation,
     TacheMaj,
     TransitionDemande,
+    TypeProjetCreation,
+    TypeProjetItem,
 )
 from dsi360.interface.securite import (
     ContexteActivite,
@@ -97,6 +107,8 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "direction": r["direction"],
         "chef": _chef(r),
         "responsable_id": r["resp_id"],
+        "categorie_id": r["categorie_id"],
+        "categorie": r["categorie"],
         "avancement": int(d.get("avancement", 0)),
         "budget": d.get("budget"),
         "date_fin": d.get("date_fin"),
@@ -123,6 +135,9 @@ async def _detail_complet(
     base = _detail(r)
     clos = est_etat_terminal(MODULE, r["statut"])
     base["permissions"] = capacites(await charger_roles(session, r, courant), clos=clos)
+    base["transitions_bloquees"] = await blocages_transitions(
+        session, MODULE, r["id"], r["statut"], base["transitions_possibles"]
+    )
     return base
 
 
@@ -137,6 +152,183 @@ async def _charger(session: AsyncSession, ident: str, courant: dict[str, Any]) -
     if r is None or not _visible(r, courant):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Projet introuvable.")
     return r
+
+
+# --- Types de projet (vocabulaire du module) et leur déroulé type ---
+#
+# Tous les projets ne se ressemblent pas : le type dit lequel on conduit, et amène ses jalons.
+# Le vocabulaire s'enrichit là où l'on s'en sert — depuis la fiche, sans détour par
+# l'administration —, mais reste normalisé : le libellé est réécrit proprement avant d'entrer.
+# Le retrait, lui, n'est possible que tant qu'aucun projet ne le porte.
+
+
+def _libelle_type(brut: str) -> str:
+    """Libellé normalisé d'un type saisi à la volée. Refuse ce qui ne fait pas un nom."""
+    libelle = phrase_propre(" ".join(brut.split())) or ""
+    if len(libelle) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Libellé de type invalide."
+        )
+    return libelle
+
+
+def _code_type(libelle: str) -> str:
+    """Code stable du type. C'est lui qui fait l'unicité : « migration » et « Migration  »
+    ne créent qu'une seule entrée, quelle que soit la façon dont on les a tapés."""
+    code = code_technique(libelle)
+    if code is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Libellé de type invalide."
+        )
+    return code
+
+
+async def _types(session: AsyncSession) -> list[dict[str, Any]]:
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT c.id::text AS id, c.code, c.libelle, "
+                "  EXISTS (SELECT 1 FROM core.activite a WHERE a.categorie_id = c.id) AS utilise "
+                "FROM core.categorie c WHERE c.module = :m ORDER BY c.libelle"
+            ),
+            {"m": MODULE},
+        )
+    ).mappings().all()
+    types: list[dict[str, Any]] = [dict(x) for x in lignes]
+    for t in types:
+        t["jalons"] = [dict(j) for j in await modele_jalon.lister(session, str(t["id"]))]
+    return types
+
+
+async def _type_existant(session: AsyncSession, type_id: str | None) -> str | None:
+    """Vérifie qu'un type appartient bien au module avant de l'attacher à un projet."""
+    if type_id is None:
+        return None
+    if await modele_jalon.categorie(session, type_id, MODULE) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Type de projet inconnu."
+        )
+    return type_id
+
+
+@routeur.get("/types", response_model=list[TypeProjetItem])
+async def lister_types(_courant: Courant, session: Session) -> list[dict[str, Any]]:
+    return await _types(session)
+
+
+@routeur.post("/types", response_model=TypeProjetItem, status_code=status.HTTP_201_CREATED)
+async def creer_type(
+    corps: TypeProjetCreation, courant: Courant, session: Session
+) -> dict[str, Any]:
+    libelle = _libelle_type(corps.libelle)
+    code = _code_type(libelle)
+    existant = (
+        await session.execute(
+            text(
+                "SELECT id::text AS id, code, libelle FROM core.categorie "
+                "WHERE module = :m AND code = :c"
+            ),
+            {"m": MODULE, "c": code},
+        )
+    ).mappings().first()
+    if existant is not None:
+        # Un doublon n'est pas une faute : on rend le type déjà en place, l'écran le sélectionne.
+        jalons = [dict(j) for j in await modele_jalon.lister(session, str(existant["id"]))]
+        return {
+            "id": existant["id"],
+            "code": existant["code"],
+            "libelle": existant["libelle"],
+            "jalons": jalons,
+            "utilise": False,
+        }
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.categorie (module, code, libelle) VALUES (:m, :c, :l) "
+                "RETURNING id::text AS id, code, libelle"
+            ),
+            {"m": MODULE, "c": code, "l": libelle},
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="categorie",
+        cible_id=f"{MODULE}/{libelle}",
+        nouvelle={"module": MODULE, "code": code, "libelle": libelle},
+    )
+    await session.commit()
+    return {
+        "id": ligne["id"],
+        "code": ligne["code"],
+        "libelle": ligne["libelle"],
+        "jalons": [],
+        "utilise": False,
+    }
+
+
+@routeur.delete("/types/{type_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_type(type_id: str, courant: Courant, session: Session) -> None:
+    cible = await modele_jalon.categorie(session, type_id, MODULE)
+    if cible is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Type introuvable.")
+    utilise = await session.scalar(
+        text("SELECT 1 FROM core.activite WHERE categorie_id = cast(:id as uuid) LIMIT 1"),
+        {"id": type_id},
+    )
+    if utilise:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Des projets portent ce type — il ne peut plus être retiré.",
+        )
+    await session.execute(
+        text("DELETE FROM core.categorie WHERE id = cast(:id as uuid)"), {"id": type_id}
+    )
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="categorie",
+        cible_id=f"{MODULE}/{cible['libelle']}",
+        ancienne={"module": MODULE, "libelle": cible["libelle"]},
+    )
+    await session.commit()
+
+
+@routeur.post(
+    "/types/{type_id}/jalons",
+    response_model=list[ModeleJalonItem],
+    status_code=status.HTTP_201_CREATED,
+)
+async def ajouter_modele_jalon(
+    type_id: str, corps: ModeleJalonCreation, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    """Ajoute une étape au déroulé type. Les projets déjà ouverts ne bougent pas."""
+    if await modele_jalon.categorie(session, type_id, MODULE) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Type introuvable.")
+    titre = phrase_propre(" ".join(corps.titre.split())) or ""
+    if len(titre) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Libellé de jalon invalide."
+        )
+    await modele_jalon.creer(session, type_id, titre)
+    await session.commit()
+    return [dict(j) for j in await modele_jalon.lister(session, type_id)]
+
+
+@routeur.delete("/types/{type_id}/jalons/{modele_id}", response_model=list[ModeleJalonItem])
+async def retirer_modele_jalon(
+    type_id: str, modele_id: str, courant: Courant, session: Session
+) -> list[dict[str, Any]]:
+    if not await modele_jalon.supprimer(session, modele_id, type_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Jalon introuvable.")
+    await session.commit()
+    return [dict(j) for j in await modele_jalon.lister(session, type_id)]
 
 
 @routeur.get("/stats", response_model=StatsListe)
@@ -231,6 +423,7 @@ async def creer(corps: ProjetCreation, courant: Courant, session: Session) -> di
         titre=corps.titre,
         description=corps.description,
         direction_id=corps.direction_id,
+        categorie_id=await _type_existant(session, corps.categorie_id),
         responsable_id=corps.responsable_id,
         sponsor=corps.sponsor,
         budget=corps.budget,
@@ -255,6 +448,8 @@ async def modifier(
     if "responsable_id" in champs:
         exiger_admin(courant)
         await exiger_agent_designable(session, champs["responsable_id"], _ACCES)
+    if champs.get("categorie_id") is not None:
+        await _type_existant(session, champs["categorie_id"])
     if champs:
         await maj_projet(session, ident, champs, courant)
         await session.commit()
@@ -322,12 +517,18 @@ _TRANSITIONS_JUSTIFIEES = frozenset({"Suspendu", "Clôturé"})
 async def transitionner(
     ident: str, corps: TransitionDemande, courant: Acteur, session: Session
 ) -> dict[str, Any]:
-    await _charger(session, ident, courant)
+    avant = await _charger(session, ident, courant)
     if corps.vers in _TRANSITIONS_JUSTIFIEES and not (corps.note or "").strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Une note de justification est requise pour « {corps.vers} ».",
         )
+    # Le grisage à l'écran n'est pas une barrière : la même règle est appliquée ici.
+    bloque = await blocages_transitions(
+        session, MODULE, ident, avant["statut"], [corps.vers]
+    )
+    if corps.vers in bloque:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=bloque[corps.vers])
     try:
         await transition(session, MODULE, ident, corps.vers, courant)
     except ActiviteIntrouvable as exc:

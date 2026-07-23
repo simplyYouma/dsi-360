@@ -19,6 +19,9 @@ export interface Projet {
   chef: Chef | null;
   contributeur: string | null;
   responsable_id: string | null;
+  /** Type de projet : c'est lui qui amène le déroulé (jalons) à la création. */
+  categorie_id: string | null;
+  categorie: string | null;
   avancement: number;
   budget: number | null;
   date_fin: string | null;
@@ -40,6 +43,8 @@ export interface ProjetDetail extends Projet {
   budget: number | null;
   date_debut: string | null;
   transitions_possibles: string[];
+  /** Transitions offertes mais refusées pour l'instant, avec leur motif (dit au survol). */
+  transitions_bloquees: Record<string, string>;
   /** Ce que l'appelant peut faire ici, calculé par le serveur. */
   permissions: Permissions;
 }
@@ -52,6 +57,23 @@ export interface NouveauProjet {
   date_debut: string | null;
   date_fin: string | null;
   responsable_id: string | null;
+  categorie_id: string | null;
+}
+
+export interface ModeleJalon {
+  id: string;
+  titre: string;
+  ordre: number;
+}
+
+/** Un type de projet et le déroulé qu'il pose d'office sur les projets qu'on lui rattache. */
+export interface TypeProjet {
+  id: string;
+  code: string;
+  libelle: string;
+  jalons: ModeleJalon[];
+  /** Déjà porté par des projets : il ne se retire plus. */
+  utilise: boolean;
 }
 
 export interface DocumentItem {
@@ -117,6 +139,15 @@ export const projetsApi = {
     api.del(`/projets/${id}/taches/${tacheId}`),
   reordonnerTaches: (id: string, ordre: string[]): Promise<ProjetDetail> =>
     api.patch(`/projets/${id}/taches`, { ordre }),
+  // Types de projet : le vocabulaire s'enrichit là où l'on s'en sert, sans passer par
+  // l'administration. Le serveur réécrit le libellé et refuse le retrait d'un type utilisé.
+  types: (): Promise<TypeProjet[]> => api.get('/projets/types'),
+  creerType: (libelle: string): Promise<TypeProjet> => api.post('/projets/types', { libelle }),
+  supprimerType: (typeId: string): Promise<void> => api.del(`/projets/types/${typeId}`),
+  ajouterModeleJalon: (typeId: string, titre: string): Promise<ModeleJalon[]> =>
+    api.post(`/projets/types/${typeId}/jalons`, { titre }),
+  retirerModeleJalon: (typeId: string, modeleId: string): Promise<ModeleJalon[]> =>
+    api.del(`/projets/types/${typeId}/jalons/${modeleId}`),
   jalons: (id: string): Promise<Jalon[]> => api.get(`/projets/${id}/jalons`),
   creerJalon: (id: string, corps: { titre: string; echeance?: string | null }): Promise<Jalon> =>
     api.post(`/projets/${id}/jalons`, corps),

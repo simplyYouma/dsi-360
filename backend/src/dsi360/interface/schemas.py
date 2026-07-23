@@ -198,6 +198,9 @@ class ActiviteDetail(ActiviteResume):
     resolu_le: datetime | None
     cloture_le: datetime | None
     transitions_possibles: list[str]
+    #: Transitions offertes mais actuellement refusées, avec leur motif (affiché au survol).
+    #: Le serveur les refuse aussi : l'écran ne fait que dire pourquoi, à l'avance.
+    transitions_bloquees: dict[str, str] = {}
     etats: list[str]
     en_attente_validation: bool = False
     historique: list[EntreeHistorique]
@@ -874,6 +877,7 @@ class ProjetCreation(BaseModel):
     titre: str = Field(min_length=3, max_length=200)
     description: str | None = None
     direction_id: str | None = None
+    categorie_id: str | None = None  # type de projet — amène ses jalons par défaut
     responsable_id: str | None = None  # chef de projet
     sponsor: str | None = None
     budget: float | None = None
@@ -886,6 +890,7 @@ class ProjetMaj(BaseModel):
 
     titre: str | None = Field(default=None, min_length=3, max_length=200)
     description: str | None = None
+    categorie_id: str | None = None
     sponsor: str | None = None
     budget: float | None = None
     date_debut: str | None = None
@@ -901,6 +906,8 @@ class ProjetResume(BaseModel):
     direction: str | None
     chef: ResponsableBref | None
     responsable_id: str | None = None
+    categorie_id: str | None = None
+    categorie: str | None = None
     avancement: int
     budget: float | None
     date_fin: str | None
@@ -914,6 +921,8 @@ class ProjetDetail(ProjetResume):
     #: Fin réelle d'un projet clôturé : porte le verdict d'échéance (à temps / en retard).
     cloture_le: datetime | None = None
     transitions_possibles: list[str]
+    #: Transitions offertes mais refusées pour l'instant, avec leur motif (cf. ActiviteDetail).
+    transitions_bloquees: dict[str, str] = {}
     permissions: PermissionsActivite = PermissionsActivite()
 
 
@@ -926,6 +935,32 @@ class PageProjets(BaseModel):
 
 class AvancementDemande(BaseModel):
     avancement: int = Field(ge=0, le=100)
+
+
+class ModeleJalonItem(BaseModel):
+    """Un jalon du déroulé type d'un type de projet (recopié à la création d'un projet)."""
+
+    id: str
+    titre: str
+    ordre: int
+
+
+class ModeleJalonCreation(BaseModel):
+    titre: str = Field(min_length=2, max_length=200)
+
+
+class TypeProjetItem(BaseModel):
+    id: str
+    code: str
+    libelle: str
+    #: Déroulé type — vide tant que personne ne l'a écrit.
+    jalons: list[ModeleJalonItem] = []
+    #: Type déjà porté par des projets : il ne se retire plus (l'écran le dit avant le clic).
+    utilise: bool = False
+
+
+class TypeProjetCreation(BaseModel):
+    libelle: str = Field(min_length=2, max_length=80)
 
 
 class JalonItem(BaseModel):

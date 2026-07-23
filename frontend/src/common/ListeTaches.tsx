@@ -21,6 +21,35 @@ interface OptionAgent {
   libelle: string;
 }
 
+/** Ce qui empêche encore de faire avancer cette tâche, ou `null` si elle est prête.
+ *
+ *  Une tâche sans porteur ni date qu'on passe à « Terminée » fait mentir l'avancement du
+ *  projet, et personne ne peut dire qui l'a faite ni quand elle était due. On le dit avant
+ *  le clic — le serveur, lui, refuse l'écriture. */
+function manqueTache(t: Tache): string | null {
+  const manquants = [
+    t.assigne_id === null ? 'un responsable' : null,
+    t.echeance === null ? 'une échéance' : null,
+  ].filter((m): m is string => m !== null);
+  if (manquants.length === 0) return null;
+  // Une tâche déjà engagée garde son sélecteur : on ne bloque pas une correction en cours.
+  if (t.statut !== 'À faire') return null;
+  return `Renseignez ${manquants.join(' et ')} avant de changer le statut.`;
+}
+
+/** Une tâche terminée est un fait acquis : porteur et échéance ne se retouchent plus.
+ *  Sinon on repousse la date d'une tâche finie en retard et elle paraît tenue. Pour corriger,
+ *  on rouvre — le statut, lui, reste ouvert, et la réouverture laisse une trace. */
+const TITRE_TACHE_CLOSE =
+  'Tâche terminée : repassez-la « À faire » ou « En cours » pour la modifier.';
+
+/** Verdict de délai d'une tâche close : tenue ou dépassée. `null` tant qu'elle vit. */
+function verdictEcheance(t: Tache): 'tenue' | 'depassee' | null {
+  if (t.statut !== 'Terminée' || t.echeance === null || !t.terminee_le) return null;
+  const fin = new Date(t.echeance).setHours(23, 59, 59, 999);
+  return new Date(t.terminee_le).getTime() > fin ? 'depassee' : 'tenue';
+}
+
 interface Props {
   taches: Tache[];
   agents: OptionAgent[];
@@ -177,7 +206,9 @@ export function ListeTaches({
           )}
           <div className={styles.tacheChamps}>
             <div className={styles.tacheChamp}>
-              {/* Son porteur rend compte de l'avancement : c'est le seul champ qu'il change. */}
+              {/* Son porteur rend compte de l'avancement : c'est le seul champ qu'il change.
+                  Et une tâche ne s'engage pas sans porteur ni date — le serveur refuse de
+                  toute façon ; ici on dit d'avance ce qui manque. */}
               <SelecteurListe
                 options={STATUTS_TACHE.map((s) => ({ valeur: s, libelle: s }))}
                 valeur={t.statut}
@@ -185,8 +216,11 @@ export function ListeTaches({
                 placeholder="Statut"
                 couleurs={COULEUR_STATUT_TACHE}
                 icones={ICONE_STATUT_TACHE}
-                desactive={!peutTravailler && t.assigne_id !== moiId}
-                titreDesactive="Seul l’assigné de cette tâche en change le statut."
+                desactive={(!peutTravailler && t.assigne_id !== moiId) || manqueTache(t) !== null}
+                titreDesactive={
+                  manqueTache(t) ??
+                  'Seul l’assigné de cette tâche en change le statut.'
+                }
               />
             </div>
             <div className={styles.tacheChamp}>
@@ -197,8 +231,10 @@ export function ListeTaches({
                 placeholder="Assigner…"
                 permettreVide
                 libelleVide="Non assigné"
-                desactive={!peutTravailler}
-                titreDesactive={RESERVE_AUX_ACTEURS}
+                desactive={!peutTravailler || t.statut === 'Terminée'}
+                titreDesactive={
+                  t.statut === 'Terminée' ? TITRE_TACHE_CLOSE : RESERVE_AUX_ACTEURS
+                }
                 indiceReaffectation="Réassigner"
               />
             </div>
@@ -208,8 +244,11 @@ export function ListeTaches({
                 onChange={(v) => void onMaj(t.id, { echeance: v })}
                 placeholder="Échéance"
                 remplissageEcheance={t.statut !== 'Terminée'}
-                desactive={!peutTravailler}
-                titreDesactive={RESERVE_AUX_ACTEURS}
+                verdict={verdictEcheance(t)}
+                desactive={!peutTravailler || t.statut === 'Terminée'}
+                titreDesactive={
+                  t.statut === 'Terminée' ? TITRE_TACHE_CLOSE : RESERVE_AUX_ACTEURS
+                }
               />
             </div>
           </div>

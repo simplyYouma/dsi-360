@@ -29,7 +29,12 @@ from dsi360.application.activites import (
 )
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.notifications import notifier
-from dsi360.application.taches import creer_tache, maj_tache, supprimer_tache
+from dsi360.application.taches import (
+    blocages_transitions,
+    creer_tache,
+    maj_tache,
+    supprimer_tache,
+)
 from dsi360.domain import etats
 from dsi360.domain.etats import (
     est_etat_terminal,
@@ -617,6 +622,11 @@ def creer_routeur(
         base["valideurs_verrouilles"] = clos or any(
             v["decision"] is not None for v in base["valideurs"]
         )
+        if avec_taches:
+            # On ne déclare pas abouti un dossier dont des tâches restent en plan.
+            base["transitions_bloquees"] = await blocages_transitions(
+                session, module, r["id"], r["statut"], base["transitions_possibles"]
+            )
         return base
 
     # Un incident ou une demande n'est pas pilotable ici, mais la DSI veut le suivre :
@@ -766,6 +776,15 @@ def creer_routeur(
         ) -> dict[str, Any]:
             """Faire avancer le sujet : gestionnaire, contributeurs et administrateur."""
             courant = ctx.courant
+            if avec_taches:
+                # Le grisage à l'écran n'est pas une barrière : la règle s'applique ici aussi.
+                bloque = await blocages_transitions(
+                    session, module, ident, ctx.activite["statut"], [corps.vers]
+                )
+                if corps.vers in bloque:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT, detail=bloque[corps.vers]
+                    )
             try:
                 await transition(session, module, ident, corps.vers, courant)
             except ActiviteIntrouvable as exc:
@@ -1231,6 +1250,63 @@ def creer_routeur(
     return routeur
 
 
+#: Statuts qui affirment qu'un travail est engagé ou fini. « À faire » n'affirme rien : une
+#: tâche fraîchement créée y reste sans qu'on ait encore désigné qui la porte.
+_STATUTS_ENGAGES = ("En cours", "Terminée")
+#: Statuts par lesquels on rouvre une tâche close.
+_STATUTS_OUVERTS = ("À faire", "En cours")
+
+
+def _exiger_tache_ouverte(tache: dict[str, Any], champs: dict[str, Any]) -> None:
+    """Une tâche terminée est un fait acquis : ni son porteur ni son échéance ne se retouchent.
+
+    Sans quoi le verdict de délai devient réécrivable — on repousse la date d'une tâche finie en
+    retard et elle paraît tenue, ou l'on change de porteur après coup et plus personne ne sait
+    qui l'a réellement faite. Pour corriger, on rouvre : la réouverture est tracée, la retouche
+    silencieuse ne l'était pas. Rouvrir et corriger dans le même geste reste permis.
+    """
+    if tache.get("statut") != "Terminée":
+        return
+    if champs.get("statut") in _STATUTS_OUVERTS:
+        return
+    if any(champ != "statut" for champ in champs):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Cette tâche est terminée : rouvrez-la avant d'en modifier le responsable, "
+                "l'échéance ou le libellé."
+            ),
+        )
+
+
+def _exiger_tache_engagee(tache: dict[str, Any], champs: dict[str, Any]) -> None:
+    """Une tâche ne s'engage ni ne se termine sans porteur ni échéance.
+
+    Le cas observé en production : des tâches passées « Terminée » en lot alors qu'elles
+    n'étaient assignées à personne et n'avaient aucune date. Le projet paraissait avancer,
+    l'avancement calculé mentait, et nul ne pouvait dire qui avait fait quoi ni quand c'était dû.
+    On l'interdit **ici**, côté serveur : griser le sélecteur à l'écran ne serait pas une barrière.
+    """
+    if champs.get("statut") not in _STATUTS_ENGAGES:
+        return
+    # L'appel peut renseigner l'assigné ou l'échéance dans le même geste : on juge l'état final.
+    assigne = champs["assigne_id"] if "assigne_id" in champs else tache.get("assigne_id")
+    echeance = champs["echeance"] if "echeance" in champs else tache.get("echeance")
+    manquants = [
+        libelle
+        for valeur, libelle in ((assigne, "un responsable"), (echeance, "une échéance"))
+        if valeur is None
+    ]
+    if manquants:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cette tâche n'a pas {' ni '.join(manquants)} : renseignez-la avant d'en "
+                "changer le statut."
+            ),
+        )
+
+
 def _tache_resume(r: RowMapping) -> dict[str, Any]:
     assigne = None
     if r["assigne_email"] is not None:
@@ -1328,6 +1404,8 @@ def _enregistrer_taches(
         tache = await _charger_tache(session, ident, tache_id, courant)
         champs = corps.model_dump(exclude_unset=True)
         exiger_champs_tache(ctx.roles, tache, courant, champs)
+        _exiger_tache_ouverte(dict(tache), champs)
+        _exiger_tache_engagee(dict(tache), champs)
         await _verifier_agent(session, champs.get("assigne_id"))
         if champs.get("titre") is not None:
             champs["titre"] = phrase_propre(champs["titre"])

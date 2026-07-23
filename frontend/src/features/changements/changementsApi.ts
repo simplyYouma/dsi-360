@@ -40,6 +40,8 @@ export interface ChangementDetail {
   responsable_id: string | null;
   demandeur: string | null;
   transitions_possibles: string[];
+  /** Transitions offertes mais refusées pour l'instant, avec leur motif (dit au survol). */
+  transitions_bloquees?: Record<string, string>;
   etats: string[];
   en_attente_validation?: boolean;
   historique: { statut: string; horodatage: string; acteur: string | null }[];

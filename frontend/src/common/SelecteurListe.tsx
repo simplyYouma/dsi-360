@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Check, Search, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Check, Plus, Search, Trash2, type LucideIcon } from 'lucide-react';
 import { cx } from './cx';
 import styles from './SelecteurListe.module.css';
 
@@ -10,6 +10,8 @@ export interface OptionListe {
   /** Option « vue » et non élément de la liste (Non assignés, DBS, Tous les agents…) : elle ne
    *  désigne personne en particulier, et se distingue donc visuellement des vrais choix. */
   special?: boolean;
+  /** Cette entrée du référentiel peut être retirée d'ici (cf. `onSupprimer`). */
+  supprimable?: boolean;
 }
 
 interface Props {
@@ -34,6 +36,13 @@ interface Props {
   /** Action en pied de liste (ex. « Détenteur hors système… ») : le geste vit là où l'on
    *  cherche, plutôt qu'à côté du champ où il faut penser à le trouver. */
   action?: { libelle: string; icone?: LucideIcon; onClick: () => void };
+  /** Enrichir le référentiel à la volée depuis le champ de recherche. Reçoit la saisie brute et
+   *  rend la valeur à sélectionner — le serveur, lui, réécrit le libellé proprement.
+   *  Sa présence force l'affichage du champ de recherche, quel que soit le nombre d'options. */
+  onCreer?: (libelle: string) => Promise<string | null>;
+  /** Retirer une entrée du référentiel, depuis la liste. N'apparaît que sur les options
+   *  marquées `supprimable`. */
+  onSupprimer?: (valeur: string) => Promise<void>;
 }
 
 /** Liste déroulante maison (popover) — aucun composant natif navigateur. */
@@ -66,15 +75,20 @@ export function SelecteurListe({
   titreDesactive,
   indiceReaffectation,
   action,
+  onCreer,
+  onSupprimer,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
   const [filtre, setFiltre] = useState('');
+  const [occupe, setOccupe] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const declencheur = useRef<HTMLButtonElement>(null);
 
-  const recherche = options.length > SEUIL_RECHERCHE;
+  // Le champ de recherche est aussi le champ de saisie d'une nouvelle entrée : dès qu'on peut
+  // créer, il est là — même sur une liste courte.
+  const recherche = options.length > SEUIL_RECHERCHE || onCreer !== undefined;
   const optionsFiltrees = useMemo(() => {
     const q = filtre.trim().toLowerCase();
     if (q === '') return options;
@@ -151,6 +165,34 @@ export function SelecteurListe({
     setOuvert(false);
   };
 
+  // Saisie qui ne correspond à aucune entrée : on propose de l'ajouter au référentiel.
+  const saisie = filtre.trim();
+  const inedit =
+    onCreer !== undefined &&
+    saisie.length >= 2 &&
+    !options.some((o) => o.libelle.toLowerCase() === saisie.toLowerCase());
+
+  const creer = async (): Promise<void> => {
+    if (onCreer === undefined || !inedit || occupe) return;
+    setOccupe(true);
+    try {
+      const nouvelle = await onCreer(saisie);
+      if (nouvelle !== null) choisir(nouvelle);
+    } finally {
+      setOccupe(false);
+    }
+  };
+
+  const supprimer = async (v: string): Promise<void> => {
+    if (onSupprimer === undefined || occupe) return;
+    setOccupe(true);
+    try {
+      await onSupprimer(v);
+    } finally {
+      setOccupe(false);
+    }
+  };
+
   // État coloré : le champ ENTIER prend la teinte du badge (fond, bordure, texte, chevron).
   const teinte = courant !== undefined ? couleurs?.[courant.valeur] : undefined;
   const IconeCourante = courant !== undefined ? icones?.[courant.valeur] : undefined;
@@ -217,6 +259,7 @@ export function SelecteurListe({
                       e.preventDefault();
                       const premier = optionsFiltrees[0];
                       if (premier) choisir(premier.valeur);
+                      else if (inedit) void creer();
                     } else if (e.key === 'Escape') {
                       setOuvert(false);
                     }
@@ -245,7 +288,7 @@ export function SelecteurListe({
               {optionsFiltrees.map((o, i) => {
                 const Icone = icones?.[o.valeur];
                 return (
-                <li key={o.valeur}>
+                <li key={o.valeur} className={styles.ligne}>
                   <button
                     type="button"
                     className={cx(
@@ -281,10 +324,44 @@ export function SelecteurListe({
                     </span>
                     {o.valeur === valeur && <Check size={15} />}
                   </button>
+                  {onSupprimer !== undefined && o.supprimable === true && (
+                    <button
+                      type="button"
+                      className={styles.retirer}
+                      title={`Retirer « ${o.libelle} » de la liste`}
+                      aria-label={`Retirer ${o.libelle}`}
+                      disabled={occupe}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void supprimer(o.valeur);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </li>
                 );
               })}
-              {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
+              {optionsFiltrees.length === 0 && !inedit && (
+                <li className={styles.aucun}>Aucun résultat</li>
+              )}
+              {inedit && (
+                <li>
+                  {/* Ajouter depuis l'endroit où l'on a cherché : le libellé sera réécrit
+                      proprement par le serveur, pas laissé tel qu'il a été tapé. */}
+                  <button
+                    type="button"
+                    className={cx(styles.option, styles.optionAction)}
+                    disabled={occupe}
+                    onClick={() => void creer()}
+                  >
+                    <span className={styles.optionLibelle}>
+                      <Plus size={15} className={styles.icone} aria-hidden="true" />
+                      Ajouter « {saisie} »
+                    </span>
+                  </button>
+                </li>
+              )}
               {action !== undefined && (
                 <li>
                   <button

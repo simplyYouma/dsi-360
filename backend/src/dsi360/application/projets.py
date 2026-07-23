@@ -11,6 +11,7 @@ from dsi360.domain.etats import etat_initial
 from dsi360.domain.texte import nom_propre, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import modele_jalon
 
 MODULE = "projet"
 
@@ -21,6 +22,7 @@ async def creer_projet(
     titre: str,
     description: str | None,
     direction_id: str | None,
+    categorie_id: str | None,
     responsable_id: str | None,
     sponsor: str | None,
     budget: float | None,
@@ -46,12 +48,17 @@ async def creer_projet(
             "titre": phrase_propre(titre),
             "description": description,
             "direction_id": direction_id,
+            "categorie_id": categorie_id,
             "demandeur_id": acteur["id"],
             "responsable_id": responsable_id,
             "statut": statut,
             "donnees": json.dumps(donnees),
         },
     )
+    # Le type de projet apporte son déroulé : les jalons sont posés d'emblée, plutôt que laissés
+    # à la mémoire du chef de projet. Recopiés, donc modifiables — ce n'est qu'un point de départ.
+    if categorie_id is not None:
+        await modele_jalon.poser_sur_projet(session, identifiant, categorie_id)
     await audit.consigner(
         session,
         action="CREATION",
@@ -66,8 +73,10 @@ async def creer_projet(
 
 
 # Champs stockés en colonnes (core.activite) vs dans le JSON `donnees`.
-_COLONNES_MAJ = {"titre", "description", "responsable_id"}
+_COLONNES_MAJ = {"titre", "description", "responsable_id", "categorie_id"}
 _DONNEES_MAJ = {"sponsor", "budget", "date_debut", "date_fin"}
+#: Colonnes à convertir en uuid côté SQL (le corps de requête ne transporte que du texte).
+_COLONNES_UUID = {"responsable_id", "categorie_id"}
 
 
 async def maj_projet(
@@ -81,12 +90,16 @@ async def maj_projet(
         fragments = []
         for c in colonnes:
             fragments.append(
-                f"{c} = cast(:{c} as uuid)" if c == "responsable_id" else f"{c} = :{c}"
+                f"{c} = cast(:{c} as uuid)" if c in _COLONNES_UUID else f"{c} = :{c}"
             )
         await session.execute(
             text(f"UPDATE core.activite SET {', '.join(fragments)} WHERE id::text = :id"),
             {"id": identifiant, **colonnes},
         )
+    # Type renseigné après coup : le projet reçoit son déroulé s'il n'a pas encore de jalon.
+    # La garde vit dans le repository — jamais de doublon, jamais d'écrasement.
+    if colonnes.get("categorie_id") is not None:
+        await modele_jalon.poser_sur_projet(session, identifiant, colonnes["categorie_id"])
     fragment_json = {c: v for c, v in champs.items() if c in _DONNEES_MAJ}
     if "sponsor" in fragment_json:
         fragment_json["sponsor"] = nom_propre(fragment_json["sponsor"])

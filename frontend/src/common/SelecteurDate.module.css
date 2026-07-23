@@ -58,6 +58,14 @@
 .champJauge:has(.jaugePleine) {
   border-color: color-mix(in srgb, var(--status-danger) 55%, transparent);
 }
+/* Échéance close et tenue : le verdict reste affiché, en vert. Le compteur ne court plus —
+   la couleur ne dit plus « il reste du temps », elle dit « c'était dans les délais ». */
+.jaugeTenue {
+  background: color-mix(in srgb, var(--status-ok) 26%, transparent);
+}
+.champJauge:has(.jaugeTenue) {
+  border-color: color-mix(in srgb, var(--status-ok) 50%, transparent);
+}
 .icone,
 .contenu {
   position: relative;

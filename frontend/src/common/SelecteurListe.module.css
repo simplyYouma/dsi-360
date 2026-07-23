@@ -96,6 +96,33 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+/* Une entrée de référentiel porte son propre retrait : le bouton vit dans la ligne, discret,
+   et ne se montre qu'au survol — la liste reste une liste, pas un panneau d'administration. */
+.ligne {
+  display: flex;
+  align-items: center;
+}
+.retirer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-right: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: pointer;
+}
+.ligne:hover .retirer,
+.retirer:focus-visible {
+  opacity: 1;
+}
+.retirer:hover {
+  color: var(--status-danger);
+  background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+}
 .option {
   display: flex;
   align-items: center;

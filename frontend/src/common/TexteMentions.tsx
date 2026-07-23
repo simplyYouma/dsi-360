@@ -56,7 +56,7 @@ export function TexteMentions({ texte, agents }: Props): JSX.Element {
           rel="noopener noreferrer"
           title={url}
           style={{
-            color: 'var(--secondary)',
+            color: 'var(--lien)',
             textDecoration: 'underline',
             wordBreak: 'break-all',
           }}

@@ -6,6 +6,7 @@ la clôture reste manuelle (décision COPIL).
 """
 
 import json
+from collections.abc import Iterable
 from typing import Any
 
 from sqlalchemy import text
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import transition
 from dsi360.application.notifications import notifier
+from dsi360.domain.etats import RECUL, est_aboutissement, est_termine, ton
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import activite as activite_repo
 from dsi360.infrastructure.repositories import tache as repo
@@ -31,6 +33,93 @@ _AUTO_ACHEVEMENT: dict[str, tuple[str, str]] = {
 }
 
 
+async def blocage_cloture(session: AsyncSession, activite_id: str) -> str | None:
+    """Ce qui empêche d'aboutir : des tâches encore ouvertes. ``None`` si la voie est libre.
+
+    Clore un dossier dont des tâches restent en plan, c'est déclarer fini ce qui ne l'est pas :
+    l'avancement affiché ment, et le travail restant disparaît des écrans de ceux qui le portent.
+    On le dit avant le clic, et on le refuse au serveur.
+    """
+    total, terminees = await repo.compter(session, activite_id)
+    reste = total - terminees
+    if reste <= 0:
+        return None
+    if reste == 1:
+        return "Une tâche n'est pas terminée : achevez-la ou retirez-la avant de clôturer."
+    return f"{reste} tâches ne sont pas terminées : achevez-les ou retirez-les avant de clôturer."
+
+
+async def blocages_transitions(
+    session: AsyncSession, module: str, activite_id: str, statut: str, possibles: Iterable[str]
+) -> dict[str, str]:
+    """Parmi les transitions offertes, celles que le serveur refuserait — et pourquoi.
+
+    Seul l'**aboutissement** est gardé : abandonner ou rejeter reste toujours possible, sinon un
+    dossier dont le travail s'arrête n'aurait plus d'issue. Et un dossier déjà en repli (retour
+    arrière, suspension) se clôt sans finir ses tâches : elles sont devenues sans objet.
+    """
+    if ton(module, statut) == RECUL:
+        return {}
+    cibles = [e for e in possibles if est_aboutissement(module, e)]
+    if not cibles:
+        return {}
+    motif = await blocage_cloture(session, activite_id)
+    return {} if motif is None else dict.fromkeys(cibles, motif)
+
+
+async def _signaler_taches_achevees(
+    session: AsyncSession, activite_id: str, avancement: int, acteur: dict[str, Any]
+) -> None:
+    """Prévient le responsable, **une seule fois**, quand la dernière tâche tombe.
+
+    Le repère vit dans `donnees` : sans lui, chaque modification ultérieure d'une tâche
+    rejouerait l'annonce. Il se lève dès qu'une tâche rouvre, pour que le prochain achèvement
+    soit à nouveau signalé.
+    """
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT reference, titre, responsable_id::text AS resp, statut, module, "
+                "  coalesce((donnees->>'taches_achevees_signalees')::boolean, false) AS signale "
+                "FROM core.activite WHERE id = cast(:a as uuid)"
+            ),
+            {"a": activite_id},
+        )
+    ).mappings().first()
+    if ligne is None:
+        return
+    if avancement < 100:
+        if ligne["signale"]:
+            await _marquer_signale(session, activite_id, valeur=False)
+        return
+    if ligne["signale"] or est_termine(ligne["module"], ligne["statut"]):
+        return
+    await _marquer_signale(session, activite_id, valeur=True)
+    if not ligne["resp"] or ligne["resp"] == acteur["id"]:
+        return
+    await notifier(
+        session,
+        destinataire_id=ligne["resp"],
+        activite_id=activite_id,
+        type_="TACHE",
+        titre=f"Toutes les tâches sont terminées — {ligne['reference']}",
+        message=(
+            f"Les tâches de {ligne['reference']} « {ligne['titre']} » sont toutes terminées. "
+            "Vous pouvez clôturer le dossier depuis son cycle de vie."
+        ),
+    )
+
+
+async def _marquer_signale(session: AsyncSession, activite_id: str, *, valeur: bool) -> None:
+    await session.execute(
+        text(
+            "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+            "WHERE id = cast(:a as uuid)"
+        ),
+        {"a": activite_id, "f": json.dumps({"taches_achevees_signalees": valeur})},
+    )
+
+
 async def _recalculer(
     session: AsyncSession, activite_id: str, module: str, acteur: dict[str, Any]
 ) -> None:
@@ -45,6 +134,7 @@ async def _recalculer(
     )
     if total == 0:
         return
+    await _signaler_taches_achevees(session, activite_id, avancement, acteur)
     a = await activite_repo.par_id(session, module, activite_id)
     if a is None:
         return

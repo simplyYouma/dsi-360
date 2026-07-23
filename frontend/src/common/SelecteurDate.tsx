@@ -16,6 +16,9 @@ interface Props {
   desactive?: boolean;
   /** Raison du grisage, en infobulle. */
   titreDesactive?: string;
+  /** Verdict figé d'une échéance close : « tenue » (vert) ou « depassee » (rouge).
+   *  Le décompte s'arrête, le résultat reste — prime sur `remplissageEcheance`. */
+  verdict?: 'tenue' | 'depassee' | null;
 }
 
 /** Proportion 0→1 de « temps consommé » avant l'échéance (1 = atteinte ou dépassée). */
@@ -73,6 +76,7 @@ export function SelecteurDate({
   depuis,
   desactive = false,
   titreDesactive,
+  verdict = null,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<CSSProperties | null>(null);
@@ -126,7 +130,14 @@ export function SelecteurDate({
     setOuvert(false);
   };
 
-  const jauge = remplissageEcheance && valeur ? proportionEcheance(valeur, depuis) : null;
+  // Un verdict rendu fige la jauge à plein : elle ne mesure plus un délai qui court, elle
+  // rapporte comment il s'est terminé.
+  const jauge =
+    verdict !== null && valeur
+      ? 1
+      : remplissageEcheance && valeur
+        ? proportionEcheance(valeur, depuis)
+        : null;
 
   return (
     <div className={styles.conteneur} ref={ref}>
@@ -140,7 +151,10 @@ export function SelecteurDate({
       >
         {jauge !== null && (
           <span
-            className={cx(styles.jauge, jauge >= 1 && styles.jaugePleine)}
+            className={cx(
+              styles.jauge,
+              jauge >= 1 && (verdict === 'tenue' ? styles.jaugeTenue : styles.jaugePleine),
+            )}
             style={{ width: `${Math.round(jauge * 100)}%` }}
             aria-hidden="true"
           />

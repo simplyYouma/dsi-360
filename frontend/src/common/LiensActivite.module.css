@@ -28,6 +28,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Le vert de la marque dit « ceci s'ouvre ailleurs » — le soulignement ne vient qu'au survol,
+     pour que la liste reste calme quand on ne fait que la parcourir. */
+  color: var(--lien);
+}
+.libelle:hover {
+  color: var(--lien-hover);
+  text-decoration: underline;
 }
 
 .action {

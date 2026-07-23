@@ -15,6 +15,12 @@
   --secondary-subtle: #eef7df;
   --on-secondary: #14161a;
 
+  /* Lien cliquable : le vert de la marque, assombri pour rester lisible.
+     Le vert du logo est trop clair pour du texte sur fond blanc (contraste < 3) ; ce ton
+     descend la luminosité juste assez pour passer le seuil de lecture, sans changer de teinte. */
+  --lien: #4f8210;
+  --lien-hover: #3d6a06;
+
   /* Palette catégorielle — touche de couleur pour graphiques, badges, pastilles.
      N'a PAS de valeur de statut (≠ ok/warn/danger). Tons premium et lisibles. */
   --cat-1: #4f6bed; /* indigo */
@@ -79,6 +85,9 @@
   --secondary-hover: #a3e635;
   --secondary-subtle: #1e2a12;
   --on-secondary: #14161a;
+  /* Sur fond sombre, c'est l'inverse : le vert doit s'éclaircir pour se détacher. */
+  --lien: #a3e635;
+  --lien-hover: #bef264;
   --cat-1: #7d92ff;
   --cat-2: #3fc2b2;
   --cat-3: #edb963;

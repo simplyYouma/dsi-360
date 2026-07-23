@@ -627,21 +627,25 @@ export function ChangementPage(): JSX.Element {
                   {/* Faire avancer le sujet appartient aux acteurs : les autres lisent le parcours. */}
                   {(permissions.peut_travailler ? detail.transitions_possibles : []).map((etat) => {
                     const c = couleurStatut(etat, 'changement');
+                    // Le serveur dit ce qu'il refuserait, et pourquoi. L'infobulle vit sur
+                    // l'enveloppe : un bouton désactivé n'écoute plus la souris.
+                    const blocage = detail.transitions_bloquees?.[etat];
                     return (
-                      <button
-                        key={etat}
-                        type="button"
-                        className={fiche.chip}
-                        style={{
-                          color: c,
-                          background: `color-mix(in srgb, ${c} 14%, transparent)`,
-                        }}
-                        disabled={envoi}
-                        onClick={() => lancerTransition(etat)}
-                      >
-                        {libelleStatut(etat, 'changement')}
-                        <ArrowRight size={13} />
-                      </button>
+                      <span key={etat} title={blocage}>
+                        <button
+                          type="button"
+                          className={fiche.chip}
+                          style={{
+                            color: c,
+                            background: `color-mix(in srgb, ${c} 14%, transparent)`,
+                          }}
+                          disabled={envoi || blocage !== undefined}
+                          onClick={() => lancerTransition(etat)}
+                        >
+                          {libelleStatut(etat, 'changement')}
+                          <ArrowRight size={13} />
+                        </button>
+                      </span>
                     );
                   })}
                 </div>

@@ -204,6 +204,19 @@ def est_termine(module: str, etat: str) -> bool:
     return phase(module, etat) in PHASES_FINIES
 
 
+def est_aboutissement(module: str, etat: str) -> bool:
+    """L'état déclare un travail **mené à son terme** — pas seulement arrêté.
+
+    « Clôturé » et « Réalisé » en sont ; « Annulé », « Rejeté » n'en sont pas. La nuance compte
+    pour les gardes : exiger que tout soit fini avant d'aboutir est juste ; l'exiger avant
+    d'abandonner enfermerait le dossier.
+    """
+    etats = ETATS.get(module)
+    if etats is None or etat not in etats:
+        return False
+    return etats[etat].phase == TERMINE and etats[etat].ton == SUCCES
+
+
 # --- Verrou : « sans suite » = lecture seule (distinct de la phase) -------------------------------
 
 
