@@ -512,7 +512,10 @@
   gap: 6px;
   margin-top: var(--space-4);
 }
+/* `flex: 1` (hérité de la barre de campagne, posée en ligne) s'applique ICI à la hauteur,
+   puisque le conteneur est en colonne : la barre s'écrasait à zéro et paraissait absente. */
 .jaugeAmorti .avanceePiste {
+  flex: none;
   width: 100%;
   height: 8px;
 }

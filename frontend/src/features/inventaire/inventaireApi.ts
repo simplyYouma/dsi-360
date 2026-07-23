@@ -200,6 +200,4 @@ export const campagnesApi = {
     api.put(`/inventaire/campagnes/${id}/constats/${equipementId}`, { etat, justification }),
   retirerConstat: (id: string, equipementId: string): Promise<void> =>
     api.del(`/inventaire/campagnes/${id}/constats/${equipementId}`),
-  cloturer: (id: string): Promise<{ non_retrouves: number; campagne: CampagneInventaire }> =>
-    api.post(`/inventaire/campagnes/${id}/cloture`),
 };

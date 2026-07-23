@@ -698,18 +698,70 @@ async def exporter_journal(
     )
 
 
+def _filtres_journal(
+    q: str | None, module: str | None, action: str | None, params: dict[str, Any]
+) -> str:
+    """Conditions du journal. Un journal qu'on ne peut pas interroger ne prouve rien : à
+    30 000 lignes, retrouver « qui a touché à INC-2026-0001 » doit tenir en une recherche."""
+    conditions = ""
+    if q is not None and q.strip() != "":
+        conditions += (
+            " AND (acteur_email ILIKE :q OR cible_id ILIKE :q OR module ILIKE :q"
+            " OR action ILIKE :q)"
+        )
+        params["q"] = f"%{q.strip()}%"
+    if module:
+        conditions += " AND module = :module"
+        params["module"] = module
+    if action:
+        conditions += " AND action = :action"
+        params["action"] = action
+    return conditions
+
+
+@routeur.get("/journal/referentiels")
+async def referentiels_journal(courant: Courant, session: Session) -> dict[str, list[str]]:
+    """Modules et actions réellement présents au journal : les filtres ne proposent que
+    ce qui existe, plutôt qu'une liste théorique où l'on chercherait en vain."""
+    lignes = await session.execute(
+        text(
+            "SELECT DISTINCT module, action FROM audit.journal "
+            "WHERE module IS NOT NULL OR action IS NOT NULL"
+        )
+    )
+    modules, actions = set(), set()
+    for e in lignes.mappings().all():
+        if e["module"]:
+            modules.add(e["module"])
+        if e["action"]:
+            actions.add(e["action"])
+    return {"modules": sorted(modules), "actions": sorted(actions)}
+
+
 @routeur.get("/journal", response_model=PageJournal)
 async def lister_journal(
-    courant: Courant, session: Session, page: Annotated[int, Query(ge=1)] = 1
+    courant: Courant,
+    session: Session,
+    page: Annotated[int, Query(ge=1)] = 1,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    module: Annotated[str | None, Query(max_length=40)] = None,
+    action: Annotated[str | None, Query(max_length=40)] = None,
 ) -> dict[str, Any]:
-    total = await session.scalar(text("SELECT count(*) FROM audit.journal")) or 0
+    params: dict[str, Any] = {}
+    conditions = _filtres_journal(q, module, action, params)
+    total = (
+        await session.scalar(
+            text(f"SELECT count(*) FROM audit.journal WHERE 1 = 1{conditions}"), params
+        )
+        or 0
+    )
     lignes = await session.execute(
         text(
             "SELECT horodatage, acteur_email AS acteur, module, action, "
-            "cible_type, cible_id FROM audit.journal "
+            f"cible_type, cible_id FROM audit.journal WHERE 1 = 1{conditions} "
             "ORDER BY id DESC LIMIT :l OFFSET :o"
         ),
-        {"l": _TAILLE, "o": (page - 1) * _TAILLE},
+        {**params, "l": _TAILLE, "o": (page - 1) * _TAILLE},
     )
     return {
         "elements": [

@@ -38,9 +38,9 @@ async def importer_classeur(
     """Charge le classeur. Retourne le compte-rendu affiché à l'écran."""
     lignes = analyser_classeur(contenu)
     cache_matricules = await index_matricules(session)
-    # Une campagne ouverte : les croix bon/rebut/casse du fichier deviennent des constats.
-    # Sans campagne, elles sont seulement comptées — un état hors campagne ne se rattache à rien.
-    campagne = await repo_campagne.ouverte(session)
+    # Le dernier inventaire créé reçoit les croix bon/rebut/casse du fichier. Sans inventaire,
+    # elles sont seulement comptées — un état qui ne se rattache à rien ne se conserve pas.
+    campagne = await repo_campagne.courante(session)
 
     crees = maj = ignores = 0
     sans_detenteur = 0

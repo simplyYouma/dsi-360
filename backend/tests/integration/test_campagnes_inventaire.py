@@ -30,35 +30,36 @@ async def _ouvrir(client: AsyncClient, uid: str, libelle: str) -> dict[str, Any]
     return dict(r.json())
 
 
-async def test_une_seule_campagne_ouverte_a_la_fois(
+async def test_plusieurs_inventaires_cohabitent(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Deux campagnes ouvertes sèmeraient la confusion : où irait le constat ?"""
+    """On lance un inventaire sans avoir à clore le précédent : les deux se relisent.
+
+    L'ancienne règle (une seule campagne ouverte, à clôturer avant la suivante) ajoutait un
+    cycle de vie que le besoin ne réclamait pas — relever l'état du parc, c'est tout.
+    """
     admin = await _admin(session, "admin.camp1@afgbank.ml")
-    await _ouvrir(client, admin, "Inventaire 2026")
 
-    refus = await client.post(
-        "/inventaire/campagnes", json={"libelle": "Doublon"}, headers=entetes(admin)
-    )
-    assert refus.status_code == 409, refus.text
-    assert "déjà ouverte" in refus.json()["detail"]
+    premier = await _ouvrir(client, admin, "Inventaire camp1 A")
+    second = await _ouvrir(client, admin, "Inventaire camp1 B")
 
-    # On nettoie pour les autres tests : la contrainte est globale à la base.
-    campagne = (await client.get("/inventaire/campagnes", headers=entetes(admin))).json()
-    ouverte = next(c for c in campagne["campagnes"] if c["statut"] == "OUVERTE")
-    await client.post(f"/inventaire/campagnes/{ouverte['id']}/cloture", headers=entetes(admin))
+    liste = (await client.get("/inventaire/campagnes", headers=entetes(admin))).json()
+    ids = [c["id"] for c in liste["campagnes"]]
+    assert premier["id"] in ids and second["id"] in ids
+    # La liste arrive du plus récent au plus ancien : le dernier lancé se remplit.
+    assert ids.index(second["id"]) < ids.index(premier["id"])
 
 
 async def test_le_recensement_est_un_travail_d_equipe(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """L'admin ouvre et clôture ; **tout agent du module** pose des constats (ADR-0003)."""
+    """L'admin lance l'inventaire ; **tout agent du module** y pose des constats (ADR-0003)."""
     admin = await _admin(session, "admin.camp2@afgbank.ml")
     agent = await creer_utilisateur(session, email="agent.camp2@afgbank.ml")
     equipement = await _equipement(client, admin, "Poste recensé")
     campagne = await _ouvrir(client, admin, "Recensement partagé")
 
-    # L'agent ne peut pas ouvrir…
+    # L'agent ne lance pas d'inventaire…
     refus = await client.post(
         "/inventaire/campagnes", json={"libelle": "Tentative"}, headers=entetes(agent)
     )
@@ -94,11 +95,16 @@ async def test_le_recensement_est_un_travail_d_equipe(
         headers=entetes(agent),
     )
     assert retire.status_code == 204
-    await client.post(f"/inventaire/campagnes/{campagne['id']}/cloture", headers=entetes(admin))
 
 
-async def test_non_retrouve_ne_se_saisit_pas(client: AsyncClient, session: AsyncSession) -> None:
-    """« Non retrouvé » se déduit à la clôture : en campagne, c'est juste « pas encore vu »."""
+async def test_seuls_les_trois_constats_du_terrain_se_saisissent(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Bon, rebut, cassé : ce qu'un agent voit. « Non retrouvé » ne se coche pas.
+
+    Un matériel qu'on n'a pas vu n'est pas un constat, c'est une absence de constat — la
+    ligne reste vide, et le compteur « à recenser » la porte.
+    """
     admin = await _admin(session, "admin.camp3@afgbank.ml")
     equipement = await _equipement(client, admin, "Matériel discret")
     campagne = await _ouvrir(client, admin, "Constats stricts")
@@ -109,55 +115,38 @@ async def test_non_retrouve_ne_se_saisit_pas(client: AsyncClient, session: Async
         headers=entetes(admin),
     )
     assert refus.status_code == 422, refus.text
-    await client.post(f"/inventaire/campagnes/{campagne['id']}/cloture", headers=entetes(admin))
 
 
-async def test_la_cloture_releve_les_non_retrouves(
+async def test_un_constat_sans_motif_est_refuse(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Clôturer fige la campagne et marque « non retrouvé » tout actif jamais recensé."""
+    """Cliquer « Rebut » engage : sans un mot sur ce qui a été vu, le constat ne prouve rien."""
     admin = await _admin(session, "admin.camp4@afgbank.ml")
-    vu = await _equipement(client, admin, "Serveur vu")
-    disparu = await _equipement(client, admin, "Écran disparu")
-    campagne = await _ouvrir(client, admin, "Clôture 2026")
-    await client.put(
-        f"/inventaire/campagnes/{campagne['id']}/constats/{vu}",
-        json={"etat": "BON", "justification": "Vu en salle serveurs"},
+    equipement = await _equipement(client, admin, "Serveur à justifier")
+    campagne = await _ouvrir(client, admin, "Inventaire motivé")
+
+    sans_motif = await client.put(
+        f"/inventaire/campagnes/{campagne['id']}/constats/{equipement}",
+        json={"etat": "REBUT"},
         headers=entetes(admin),
     )
+    assert sans_motif.status_code == 422, sans_motif.text
 
-    cloture = await client.post(
-        f"/inventaire/campagnes/{campagne['id']}/cloture", headers=entetes(admin)
-    )
-
-    assert cloture.status_code == 200, cloture.text
-    r = cloture.json()
-    assert r["non_retrouves"] >= 1, "l'écran disparu doit être relevé"
-    assert r["campagne"]["statut"] == "CLOTUREE"
-    lignes = (
-        await client.get(
-            f"/inventaire/campagnes/{campagne['id']}/recensement", headers=entetes(admin)
-        )
-    ).json()
-    assert next(x for x in lignes if x["id"] == disparu)["etat"] == "NON_RETROUVE"
-    assert next(x for x in lignes if x["id"] == vu)["etat"] == "BON"
-
-    # Campagne figée : plus aucun constat n'y entre.
-    fige = await client.put(
-        f"/inventaire/campagnes/{campagne['id']}/constats/{vu}",
-        json={"etat": "REBUT", "justification": "Tentative sur campagne close"},
+    avec_motif = await client.put(
+        f"/inventaire/campagnes/{campagne['id']}/constats/{equipement}",
+        json={"etat": "REBUT", "justification": "Obsolète, pièces introuvables"},
         headers=entetes(admin),
     )
-    assert fige.status_code == 409
+    assert avec_motif.status_code == 204, avec_motif.text
 
 
-async def test_l_import_alimente_la_campagne_ouverte(
+async def test_l_import_alimente_le_dernier_inventaire(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Les croix bon/rebut/casse du fichier deviennent des constats si une campagne est ouverte."""
+    """Les croix bon/rebut/casse du fichier rejoignent le dernier inventaire lancé."""
     admin_id = await _admin(session, "admin.camp5@afgbank.ml")
     acteur = {"id": admin_id, "email": "admin.camp5@afgbank.ml"}
-    campagne = await _ouvrir(client, admin_id, "Campagne alimentée par import")
+    campagne = await _ouvrir(client, admin_id, "Inventaire alimenté par import")
 
     contenu = _classeur(
         [
@@ -178,4 +167,6 @@ async def test_l_import_alimente_la_campagne_ouverte(
     assert par_code["INF90001"] == "BON"
     assert par_code["INF90002"] == "CASSE"
     assert par_code["INF90003"] is None, "sans croix, pas de constat inventé"
-    await client.post(f"/inventaire/campagnes/{campagne['id']}/cloture", headers=entetes(admin_id))
+    # Personne n'a cliqué : le motif dit d'où vient le constat, plutôt que d'imiter le terrain.
+    motifs = {x["code_immo"]: x["justification"] for x in lignes if x["code_immo"]}
+    assert motifs["INF90001"] == "Coché dans le fichier d'inventaire importé"

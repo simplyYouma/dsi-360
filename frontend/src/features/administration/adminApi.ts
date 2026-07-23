@@ -92,6 +92,17 @@ export const adminApi = {
   acces: (): Promise<Matrice> => api.get('/admin/acces'),
   definirAcces: (profil: string, acces: string[]): Promise<void> =>
     api.put('/admin/acces', { profil, acces }),
-  journal: (page: number): Promise<{ elements: EntreeJournal[]; total: number }> =>
-    api.get(`/admin/journal?page=${page}`),
+  journal: (
+    page: number,
+    f?: { q?: string; module?: string | null; action?: string | null },
+  ): Promise<{ elements: EntreeJournal[]; total: number }> => {
+    const p = new URLSearchParams({ page: String(page) });
+    if (f?.q && f.q.trim() !== '') p.set('q', f.q.trim());
+    if (f?.module) p.set('module', f.module);
+    if (f?.action) p.set('action', f.action);
+    return api.get(`/admin/journal?${p.toString()}`);
+  },
+  /** Modules et actions réellement présents : les filtres ne proposent que ce qui existe. */
+  journalReferentiels: (): Promise<{ modules: string[]; actions: string[] }> =>
+    api.get('/admin/journal/referentiels'),
 };

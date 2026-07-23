@@ -1,9 +1,13 @@
-"""Campagnes d'inventaire (lot 3) : recenser le parc, constater, clôturer.
+"""Inventaires physiques : recenser le parc et consigner l'état de chaque matériel.
 
 Routeur distinct du référentiel du parc pour une raison de routage : `/inventaire/{ident}`
 attraperait `/inventaire/campagnes` — il doit donc être enregistré **avant** lui dans l'app.
 
-Partage des rôles : l'administrateur ouvre et clôture ; **tout agent du module recense** — le
+Sans cérémonie : un inventaire se crée, on y pose ses constats, et il cohabite avec les
+précédents. Ni ouverture à déclarer, ni clôture — le cahier demandait de relever l'état du
+parc, pas d'administrer un cycle de vie.
+
+Partage des rôles : l'administrateur crée l'inventaire ; **tout agent du module recense** — le
 recensement est un travail de terrain, pas un privilège. Le serveur fait foi (ADR-0003).
 """
 
@@ -20,7 +24,6 @@ from dsi360.infrastructure.repositories import equipement as repo_equipement
 from dsi360.interface.schemas import (
     CampagneCreation,
     CampagneInventaire,
-    ClotureCampagne,
     ConstatCreation,
     LigneRecensement,
     PageCampagnes,
@@ -57,31 +60,20 @@ async def _charger(session: AsyncSession, ident: str) -> RowMapping:
     return r
 
 
-def _exiger_ouverte(campagne: RowMapping) -> None:
-    if campagne["statut"] != "OUVERTE":
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "La campagne est clôturée : ses constats sont figés."
-        )
-
-
 @routeur.get("", response_model=PageCampagnes)
 async def lister(courant: Courant, session: Session) -> dict[str, Any]:
-    """Toutes les campagnes avec leurs comptes — la comparaison annuelle se lit ici."""
+    """Tous les inventaires avec leurs comptes — la comparaison d'une année à l'autre se lit ici."""
     return {
         "campagnes": [_campagne(r) for r in await repo.lister(session)],
-        # L'avancement d'une campagne ouverte se mesure contre le parc actif du moment.
+        # L'avancement se mesure contre le parc actif du moment.
         "parc_actif": await repo.parc_actif(session),
     }
 
 
 @routeur.post("", response_model=CampagneInventaire, status_code=status.HTTP_201_CREATED)
 async def ouvrir(corps: CampagneCreation, courant: Courant, session: Session) -> dict[str, Any]:
+    """Créer un inventaire. Rien d'autre : ni ouverture à déclarer, ni précédent à clore."""
     exiger_admin(courant)
-    if await repo.ouverte(session) is not None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "Une campagne est déjà ouverte : clôturez-la avant d'en ouvrir une autre.",
-        )
     ident = await repo.creer(session, corps.libelle, courant["id"])
     await audit.consigner(
         session,
@@ -114,7 +106,6 @@ async def constater(
 ) -> None:
     """Poser (ou remplacer) le constat d'un équipement. Ouvert à tout agent du module."""
     campagne = await _charger(session, ident)
-    _exiger_ouverte(campagne)
     equipement = await repo_equipement.par_id(session, equipement_id)
     if equipement is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Équipement introuvable.")
@@ -145,28 +136,6 @@ async def retirer(
     ident: str, equipement_id: str, courant: Courant, session: Session
 ) -> None:
     """Annuler un constat posé par erreur : l'équipement redevient « à recenser »."""
-    campagne = await _charger(session, ident)
-    _exiger_ouverte(campagne)
+    await _charger(session, ident)
     await repo.retirer_constat(session, ident, equipement_id)
     await session.commit()
-
-
-@routeur.post("/{ident}/cloture", response_model=ClotureCampagne)
-async def cloturer(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
-    """Clôturer : tout matériel actif jamais recensé devient NON RETROUVÉ. Irréversible."""
-    exiger_admin(courant)
-    campagne = await _charger(session, ident)
-    _exiger_ouverte(campagne)
-    non_retrouves = await repo.cloturer(session, ident, courant["id"])
-    await audit.consigner(
-        session,
-        action="CLOTURE",
-        acteur_id=courant["id"],
-        acteur_email=courant["email"],
-        module="inventaire",
-        cible_type="campagne",
-        cible_id=campagne["libelle"],
-        nouvelle={"non_retrouves": non_retrouves},
-    )
-    await session.commit()
-    return {"non_retrouves": non_retrouves, "campagne": _campagne(await _charger(session, ident))}

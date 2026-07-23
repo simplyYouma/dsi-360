@@ -40,22 +40,26 @@ async def par_id(session: AsyncSession, ident: str) -> RowMapping | None:
     return next((c for c in lignes if c["id"] == ident), None)
 
 
-async def ouverte(session: AsyncSession) -> RowMapping | None:
-    """La campagne en cours, s'il y en a une — l'index unique garantit qu'il n'y en a qu'une."""
+async def courante(session: AsyncSession) -> RowMapping | None:
+    """Le dernier inventaire créé — celui qu'on est en train de remplir. ``None`` s'il n'y en a
+    aucun : l'import compte alors les états lus sans les rattacher à quoi que ce soit."""
     r = await session.execute(
         text(
             "SELECT id::text AS id, libelle FROM core.campagne_inventaire "
-            "WHERE statut = 'OUVERTE'"
+            "ORDER BY ouverte_le DESC LIMIT 1"
         )
     )
     return r.mappings().first()
 
 
 async def creer(session: AsyncSession, libelle: str, acteur_id: str) -> str:
+    """Crée l'inventaire. `clock_timestamp()` et non `now()` : ce dernier fige l'heure au début
+    de la transaction, et deux inventaires créés coup sur coup se retrouveraient à égalité —
+    l'ordre « du plus récent au plus ancien » deviendrait arbitraire."""
     ident = await session.scalar(
         text(
-            "INSERT INTO core.campagne_inventaire (libelle, ouverte_par) "
-            "VALUES (btrim(:l), cast(:a as uuid)) RETURNING id::text"
+            "INSERT INTO core.campagne_inventaire (libelle, ouverte_par, ouverte_le) "
+            "VALUES (btrim(:l), cast(:a as uuid), clock_timestamp()) RETURNING id::text"
         ),
         {"l": libelle, "a": acteur_id},
     )
@@ -102,37 +106,6 @@ async def retirer_constat(session: AsyncSession, campagne_id: str, equipement_id
         ),
         {"c": campagne_id, "e": equipement_id},
     )
-
-
-async def cloturer(session: AsyncSession, campagne_id: str, acteur_id: str) -> int:
-    """Clôture la campagne et pose NON_RETROUVE sur tout matériel actif jamais recensé.
-
-    Retourne le nombre de non retrouvés — c'est le chiffre que la clôture vient chercher.
-    """
-    non_retrouves = await session.scalar(
-        text(
-            "WITH poses AS ("
-            "  INSERT INTO core.constat_inventaire "
-            "  (campagne_id, equipement_id, etat, constate_par, justification) "
-            "  SELECT cast(:c as uuid), e.id, 'NON_RETROUVE', cast(:a as uuid), "
-            "         'Jamais recensé avant la clôture de la campagne' "
-            "  FROM core.equipement e "
-            "  WHERE e.actif AND NOT EXISTS ("
-            "    SELECT 1 FROM core.constat_inventaire k "
-            "    WHERE k.campagne_id = cast(:c as uuid) AND k.equipement_id = e.id) "
-            "  RETURNING 1) "
-            "SELECT count(*) FROM poses"
-        ),
-        {"c": campagne_id, "a": acteur_id},
-    )
-    await session.execute(
-        text(
-            "UPDATE core.campagne_inventaire SET statut = 'CLOTUREE', cloturee_le = now() "
-            "WHERE id = cast(:c as uuid)"
-        ),
-        {"c": campagne_id},
-    )
-    return int(non_retrouves or 0)
 
 
 # Le recensement, équipement par équipement : le parc actif, chacun avec son constat (ou non).

@@ -102,9 +102,6 @@ export function InventairePage(): JSX.Element {
   const [constats, setConstats] = useState<Record<string, string>>({});
   // Motif de chaque constat posé : relu en infobulle, pour savoir sur quoi il se fonde.
   const [motifs, setMotifs] = useState<Record<string, string>>({});
-  const [ouvertureVisible, setOuvertureVisible] = useState(false);
-  const [libelleCampagne, setLibelleCampagne] = useState('');
-  const [clotureVisible, setClotureVisible] = useState(false);
   const [envoiCampagne, setEnvoiCampagne] = useState(false);
 
   const chargerCampagnes = useCallback(async (): Promise<void> => {
@@ -119,7 +116,9 @@ export function InventairePage(): JSX.Element {
   }, [chargerCampagnes]);
 
   const campagne = campagnes.find((c) => c.id === campagneId) ?? null;
-  const enRecensement = campagne?.statut === 'OUVERTE';
+  // On remplit le dernier inventaire lancé ; les précédents se relisent, ils ne se réécrivent
+  // pas — un inventaire est la photo d'un moment (la liste arrive du plus récent au plus ancien).
+  const enRecensement = campagne !== null && campagnes[0]?.id === campagne.id;
 
   // Les constats de la campagne affichée, par équipement — la colonne de la liste s'en nourrit.
   useEffect(() => {
@@ -190,37 +189,25 @@ export function InventairePage(): JSX.Element {
     }
   };
 
-  const ouvrirCampagne = async (): Promise<void> => {
+  /** Créer l'inventaire de l'année, sans rien demander : le libellé se déduit de la date, et
+   *  un chiffre s'ajoute si l'on en lance un second dans la même année. */
+  const nouvelInventaire = async (): Promise<void> => {
     setEnvoiCampagne(true);
     try {
-      const creee = await campagnesApi.ouvrir(libelleCampagne);
-      setOuvertureVisible(false);
-      setLibelleCampagne('');
+      const annee = new Date().getFullYear();
+      const dejaCetteAnnee = campagnes.filter(
+        (c) => new Date(c.ouverte_le).getFullYear() === annee,
+      ).length;
+      const libelle =
+        dejaCetteAnnee === 0
+          ? `Inventaire physique ${annee}`
+          : `Inventaire physique ${annee} (${dejaCetteAnnee + 1})`;
+      const creee = await campagnesApi.ouvrir(libelle);
       setCampagneId(creee.id);
       await chargerCampagnes();
-      notifier(`Campagne « ${creee.libelle} » ouverte : le recensement peut commencer.`, 'succes');
+      notifier(`${creee.libelle} — le recensement peut commencer.`, 'succes');
     } catch (e) {
-      erreurCampagne(e, 'Ouverture impossible.');
-    } finally {
-      setEnvoiCampagne(false);
-    }
-  };
-
-  const cloturerCampagne = async (): Promise<void> => {
-    if (campagne === null) return;
-    setEnvoiCampagne(true);
-    try {
-      const r = await campagnesApi.cloturer(campagne.id);
-      setClotureVisible(false);
-      await chargerCampagnes();
-      notifier(
-        r.non_retrouves === 0
-          ? 'Campagne clôturée : tout le parc a été retrouvé.'
-          : `Campagne clôturée : ${r.non_retrouves} équipement(s) non retrouvé(s).`,
-        r.non_retrouves === 0 ? 'succes' : 'erreur',
-      );
-    } catch (e) {
-      erreurCampagne(e, 'Clôture impossible.');
+      erreurCampagne(e, 'Création impossible.');
     } finally {
       setEnvoiCampagne(false);
     }
@@ -395,10 +382,14 @@ export function InventairePage(): JSX.Element {
           <p className={styles.sous}>Parc matériel de la DSI et valeur des immobilisations.</p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-          {estAdmin && !campagnes.some((c) => c.statut === 'OUVERTE') && (
-            <Button variante="secondaire" onClick={() => setOuvertureVisible(true)}>
+          {estAdmin && (
+            <Button
+              variante="secondaire"
+              onClick={() => void nouvelInventaire()}
+              disabled={envoiCampagne}
+            >
               <ClipboardCheck size={16} />
-              Ouvrir une campagne
+              Nouvel inventaire
             </Button>
           )}
           <BoutonsExport base="/inventaire" />
@@ -439,8 +430,8 @@ export function InventairePage(): JSX.Element {
         </div>
       )}
 
-      {/* La campagne d'inventaire vit dans la même liste que le parc : on choisit laquelle
-          regarder, et la colonne « Constat » suit. Pas de page à part pour cliquer trois fois. */}
+      {/* L'inventaire vit dans la même liste que le parc : on choisit lequel regarder, et la
+          colonne « Constat » suit. Le dernier créé est celui qu'on remplit. */}
       {campagnes.length > 0 && (
         <div className={local.bandeauCampagne}>
           <div className={local.campagneTete}>
@@ -449,44 +440,29 @@ export function InventairePage(): JSX.Element {
                 options={campagnes.map((c) => ({ valeur: c.id, libelle: c.libelle }))}
                 valeur={campagneId}
                 onChange={setCampagneId}
-                placeholder="Voir une campagne"
+                placeholder="Voir un inventaire"
                 permettreVide
-                libelleVide="Aucune campagne affichée"
+                libelleVide="Aucun inventaire affiché"
               />
             </span>
             {campagne !== null && (
               <>
-                {campagne.statut === 'OUVERTE' ? (
-                  <StatusBadge statut="ok">En cours</StatusBadge>
-                ) : (
-                  <StatusBadge couleur="var(--text-muted)">Clôturée</StatusBadge>
-                )}
+                {enRecensement && <StatusBadge statut="ok">En cours</StatusBadge>}
                 <span className={local.carteQuand}>
-                  {campagne.statut === 'OUVERTE'
-                    ? `Ouverte le ${jourLong(campagne.ouverte_le)}`
-                    : `Clôturée le ${jourLong(campagne.cloturee_le)}`}
+                  Lancé le {jourLong(campagne.ouverte_le)}
                   {campagne.ouverte_par !== null ? ` · ${campagne.ouverte_par}` : ''}
                 </span>
-                {enRecensement && estAdmin && (
-                  <Button
-                    variante="secondaire"
-                    className={local.btnCloture}
-                    onClick={() => setClotureVisible(true)}
-                  >
-                    <ClipboardCheck size={15} />
-                    Clôturer
-                  </Button>
-                )}
               </>
             )}
           </div>
           {campagne !== null && (
             <div className={local.compteurs}>
               {(() => {
-                const denominateur =
-                  campagne.statut === 'OUVERTE'
-                    ? Math.max(parcActif, campagne.constates)
-                    : campagne.constates;
+                // L'inventaire en cours se mesure contre le parc d'aujourd'hui ; un inventaire
+                // passé contre ce qu'il a lui-même recensé — le parc a changé depuis.
+                const denominateur = enRecensement
+                  ? Math.max(parcActif, campagne.constates)
+                  : campagne.constates;
                 const pct =
                   denominateur === 0 ? 0 : Math.round((campagne.constates * 100) / denominateur);
                 return (
@@ -500,9 +476,7 @@ export function InventairePage(): JSX.Element {
                     </span>
                     {/* « 60 % du parc a été vu » se comprend ; « Recensés · 60 % » se devine. */}
                     <span>
-                      {campagne.statut === 'OUVERTE'
-                        ? `${pct} % du parc déjà recensé`
-                        : `${pct} % du parc recensé à la clôture`}
+                      {enRecensement ? `${pct} % du parc déjà recensé` : `${pct} % du parc recensé`}
                     </span>
                   </span>
                 );
@@ -519,16 +493,13 @@ export function InventairePage(): JSX.Element {
                 <b style={{ color: 'var(--status-danger)' }}>{campagne.casses}</b>
                 <span>Cassés</span>
               </span>
-              <span className={campagne.non_retrouves > 0 ? local.compteurAlerte : local.compteur}>
-                <b
-                  style={{
-                    color:
-                      campagne.non_retrouves > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
-                  }}
-                >
-                  {campagne.non_retrouves}
+              {/* Ce qui reste à voir : le travail de terrain qui attend, sans rien présumer
+                  du sort de ces matériels. */}
+              <span className={local.compteur}>
+                <b style={{ color: 'var(--text-muted)' }}>
+                  {Math.max(0, parcActif - campagne.constates)}
                 </b>
-                <span>Non retrouvés</span>
+                <span>{enRecensement ? 'À recenser' : 'Non recensés'}</span>
               </span>
             </div>
           )}
@@ -668,40 +639,6 @@ export function InventairePage(): JSX.Element {
         }
       />
 
-      <Modale
-        ouverte={ouvertureVisible}
-        onFermer={() => setOuvertureVisible(false)}
-        titre="Ouvrir une campagne d'inventaire"
-        pied={
-          <>
-            <Button variante="secondaire" onClick={() => setOuvertureVisible(false)}>
-              Annuler
-            </Button>
-            <Button
-              onClick={() => void ouvrirCampagne()}
-              disabled={envoiCampagne || libelleCampagne.trim().length < 2}
-            >
-              {envoiCampagne ? 'Ouverture…' : 'Ouvrir'}
-            </Button>
-          </>
-        }
-      >
-        <label className={styles.champ}>
-          <span>Libellé</span>
-          <input
-            autoFocus
-            value={libelleCampagne}
-            onChange={(e) => setLibelleCampagne(e.target.value)}
-            placeholder="Ex. Inventaire physique 2026"
-          />
-        </label>
-        <p className={local.noteModale}>
-          Une seule campagne peut être ouverte à la fois. La colonne « Constat » apparaît dans la
-          liste : chaque agent du module y pose ce qu'il voit ; la clôture relèvera les non
-          retrouvés.
-        </p>
-      </Modale>
-
       {/* Le motif du constat : ce qu'on a vu, en une phrase. Il se relira dans un an. */}
       <Modale
         ouverte={motif !== null}
@@ -750,28 +687,6 @@ export function InventairePage(): JSX.Element {
         )}
       </Modale>
 
-      <Modale
-        ouverte={clotureVisible}
-        onFermer={() => setClotureVisible(false)}
-        titre="Clôturer la campagne"
-        pied={
-          <>
-            <Button variante="secondaire" onClick={() => setClotureVisible(false)}>
-              Annuler
-            </Button>
-            <Button onClick={() => void cloturerCampagne()} disabled={envoiCampagne}>
-              {envoiCampagne ? 'Clôture…' : 'Clôturer'}
-            </Button>
-          </>
-        }
-      >
-        <p className={local.noteModale}>
-          {campagne !== null &&
-            `${campagne.constates} équipement(s) recensé(s) sur ${Math.max(parcActif, campagne.constates)}. ` +
-              `Les ${Math.max(0, parcActif - campagne.constates)} restants seront marqués « non retrouvés ». `}
-          La clôture est définitive : les constats seront figés.
-        </p>
-      </Modale>
     </div>
   );
 }

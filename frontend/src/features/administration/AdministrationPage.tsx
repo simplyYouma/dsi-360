@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, Mail, Trash2, Ban, ShieldCheck, Check } from 'lucide-react';
+import { Plus, Pencil, Mail, Trash2, Ban, ShieldCheck, Check, Search, X } from 'lucide-react';
 import {
   Button,
   Modale,
@@ -21,6 +21,7 @@ import { cx } from '@/common/cx';
 import { api, ErreurApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import filtres from '@/common/FiltreTickets.module.css';
 import a from './AdministrationPage.module.css';
 import {
   adminApi,
@@ -560,17 +561,38 @@ function OngletJournal(): JSX.Element {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [chargement, setChargement] = useState(true);
+  // Un journal qu'on ne peut pas interroger ne prouve rien : à 30 000 lignes, « qui a touché
+  // à INC-2026-0001 ? » doit tenir en une recherche.
+  const [q, setQ] = useState('');
+  const [module, setModule] = useState<string | null>(null);
+  const [action, setAction] = useState<string | null>(null);
+  const [refs, setRefs] = useState<{ modules: string[]; actions: string[] }>({
+    modules: [],
+    actions: [],
+  });
+
+  useEffect(() => {
+    void adminApi
+      .journalReferentiels()
+      .then(setRefs)
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => setPage(1), [q, module, action]);
 
   useEffect(() => {
     setChargement(true);
-    void adminApi
-      .journal(page)
-      .then((d) => {
-        setItems(d.elements);
-        setTotal(d.total);
-      })
-      .finally(() => setChargement(false));
-  }, [page]);
+    // La frappe ne déclenche pas une requête par lettre : on laisse la saisie se poser.
+    const minuteur = setTimeout(() => {
+      void adminApi
+        .journal(page, { q, module, action })
+        .then((d) => {
+          setItems(d.elements);
+          setTotal(d.total);
+        })
+        .finally(() => setChargement(false));
+    }, 250);
+    return () => clearTimeout(minuteur);
+  }, [page, q, module, action]);
 
   const colonnes: Colonne<EntreeJournal>[] = [
     {
@@ -589,15 +611,53 @@ function OngletJournal(): JSX.Element {
     { cle: 'cible', entete: 'Cible', rendu: (e) => e.cible ?? '—' },
   ];
 
+  const filtreActif = q.trim() !== '' || module !== null || action !== null;
+
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginBottom: 'var(--space-3)',
-        }}
-      >
+      <div className={filtres.barre}>
+        <label className={filtres.recherche}>
+          <Search size={16} />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher (acteur, cible, module, action)…"
+          />
+        </label>
+        <div className={filtres.filtre}>
+          <SelecteurListe
+            options={refs.modules.map((m) => ({ valeur: m, libelle: m }))}
+            valeur={module}
+            onChange={setModule}
+            placeholder="Tous les modules"
+            permettreVide
+            libelleVide="Tous les modules"
+          />
+        </div>
+        <div className={filtres.filtre}>
+          <SelecteurListe
+            options={refs.actions.map((a) => ({ valeur: a, libelle: libelleAction(a) }))}
+            valeur={action}
+            onChange={setAction}
+            placeholder="Toutes les actions"
+            permettreVide
+            libelleVide="Toutes les actions"
+          />
+        </div>
+        {filtreActif && (
+          <button
+            type="button"
+            className={filtres.reset}
+            onClick={() => {
+              setQ('');
+              setModule(null);
+              setAction(null);
+            }}
+          >
+            <X size={14} />
+            Réinitialiser
+          </button>
+        )}
         <BoutonsExport base="/admin/journal" />
       </div>
       <Table
@@ -605,7 +665,7 @@ function OngletJournal(): JSX.Element {
         lignes={items}
         cleLigne={(e) => `${e.horodatage}-${e.action}-${e.cible ?? ''}`}
         chargement={chargement}
-        vide="Journal vide."
+        vide={filtreActif ? 'Aucune entrée pour ces critères.' : 'Journal vide.'}
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
     </>
