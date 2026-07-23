@@ -504,12 +504,17 @@
   color: var(--text-muted);
 }
 
-/* Jauge d'amortissement de la fiche : la même barre que la liste, en pleine largeur. */
+/* Jauge d'amortissement de la fiche : la barre occupe TOUTE la largeur, la légende dessous.
+   Côte à côte, un texte un peu long écrasait la barre jusqu'à la faire disparaître. */
 .jaugeAmorti {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--space-4);
+}
+.jaugeAmorti .avanceePiste {
+  width: 100%;
+  height: 8px;
 }
 
 /* ---- Couleur des colonnes de valeur, en liste ---- */

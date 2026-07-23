@@ -63,19 +63,33 @@ async def creer(session: AsyncSession, libelle: str, acteur_id: str) -> str:
 
 
 async def poser_constat(
-    session: AsyncSession, campagne_id: str, equipement_id: str, etat: str, acteur_id: str
+    session: AsyncSession,
+    campagne_id: str,
+    equipement_id: str,
+    etat: str,
+    acteur_id: str,
+    justification: str,
 ) -> None:
-    """Un constat par équipement et par campagne : reposer remplace le précédent."""
+    """Un constat par équipement et par campagne : reposer remplace le précédent.
+
+    La justification suit le constat : se raviser, c'est aussi dire pourquoi.
+    """
     await session.execute(
         text(
             "INSERT INTO core.constat_inventaire "
-            "(campagne_id, equipement_id, etat, constate_par) "
-            "VALUES (cast(:c as uuid), cast(:e as uuid), :etat, cast(:a as uuid)) "
+            "(campagne_id, equipement_id, etat, constate_par, justification) "
+            "VALUES (cast(:c as uuid), cast(:e as uuid), :etat, cast(:a as uuid), :j) "
             "ON CONFLICT (campagne_id, equipement_id) "
             "DO UPDATE SET etat = excluded.etat, constate_le = now(), "
-            "constate_par = excluded.constate_par"
+            "constate_par = excluded.constate_par, justification = excluded.justification"
         ),
-        {"c": campagne_id, "e": equipement_id, "etat": etat, "a": acteur_id},
+        {
+            "c": campagne_id,
+            "e": equipement_id,
+            "etat": etat,
+            "a": acteur_id,
+            "j": justification.strip(),
+        },
     )
 
 
@@ -99,8 +113,9 @@ async def cloturer(session: AsyncSession, campagne_id: str, acteur_id: str) -> i
         text(
             "WITH poses AS ("
             "  INSERT INTO core.constat_inventaire "
-            "  (campagne_id, equipement_id, etat, constate_par) "
-            "  SELECT cast(:c as uuid), e.id, 'NON_RETROUVE', cast(:a as uuid) "
+            "  (campagne_id, equipement_id, etat, constate_par, justification) "
+            "  SELECT cast(:c as uuid), e.id, 'NON_RETROUVE', cast(:a as uuid), "
+            "         'Jamais recensé avant la clôture de la campagne' "
             "  FROM core.equipement e "
             "  WHERE e.actif AND NOT EXISTS ("
             "    SELECT 1 FROM core.constat_inventaire k "
@@ -125,7 +140,7 @@ _RECENSEMENT = text(
     "SELECT e.id::text AS id, e.code_immo, e.designation, e.numero_serie, "
     "emp.libelle AS emplacement, "
     "coalesce(u.prenom || ' ' || u.nom, e.matricule_brut) AS detenteur, "
-    "k.etat, k.constate_le, ku.prenom || ' ' || ku.nom AS constate_par "
+    "k.etat, k.constate_le, k.justification, ku.prenom || ' ' || ku.nom AS constate_par "
     "FROM core.equipement e "
     "LEFT JOIN core.emplacement emp ON emp.id = e.emplacement_id "
     "LEFT JOIN core.utilisateur u ON u.id = e.detenteur_id "

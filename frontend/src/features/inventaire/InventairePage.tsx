@@ -100,6 +100,8 @@ export function InventairePage(): JSX.Element {
   const [parcActif, setParcActif] = useState(0);
   const [campagneId, setCampagneId] = useState<string | null>(null);
   const [constats, setConstats] = useState<Record<string, string>>({});
+  // Motif de chaque constat posé : relu en infobulle, pour savoir sur quoi il se fonde.
+  const [motifs, setMotifs] = useState<Record<string, string>>({});
   const [ouvertureVisible, setOuvertureVisible] = useState(false);
   const [libelleCampagne, setLibelleCampagne] = useState('');
   const [clotureVisible, setClotureVisible] = useState(false);
@@ -123,33 +125,68 @@ export function InventairePage(): JSX.Element {
   useEffect(() => {
     if (campagneId === null) {
       setConstats({});
+      setMotifs({});
       return;
     }
     void campagnesApi
       .recensement(campagneId)
-      .then((lignes) =>
-        setConstats(
+      .then((lignes) => {
+        const poses = lignes.filter((l) => l.etat !== null);
+        setConstats(Object.fromEntries(poses.map((l) => [l.id, l.etat as string])));
+        setMotifs(
           Object.fromEntries(
-            lignes.filter((l) => l.etat !== null).map((l) => [l.id, l.etat as string]),
+            poses
+              .filter((l) => l.justification !== null)
+              .map((l) => [
+                l.id,
+                `${l.justification ?? ''}${l.constate_par !== null ? ` — ${l.constate_par}` : ''}`,
+              ]),
           ),
-        ),
-      )
-      .catch(() => setConstats({}));
+        );
+      })
+      .catch(() => {
+        setConstats({});
+        setMotifs({});
+      });
   }, [campagneId, campagnes]);
 
   const erreurCampagne = (e: unknown, repli: string): void =>
     notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
 
-  const constater = async (equipementId: string, etat: EtatConstat): Promise<void> => {
+  // Un constat s'appuie sur ce qu'on a vu : on le demande avant d'écrire. Retirer un constat
+  // posé par erreur ne se justifie pas — c'est un effacement, pas une observation.
+  const [motif, setMotif] = useState<{ equipement: Equipement; etat: EtatConstat } | null>(null);
+  const [texteMotif, setTexteMotif] = useState('');
+
+  const demanderConstat = async (equipementId: string, etat: EtatConstat): Promise<void> => {
     if (campagne === null || !enRecensement) return;
-    try {
-      // Recliquer le même constat l'annule : l'équipement redevient « à recenser ».
-      if (constats[equipementId] === etat)
+    if (constats[equipementId] === etat) {
+      try {
         await campagnesApi.retirerConstat(campagne.id, equipementId);
-      else await campagnesApi.constater(campagne.id, equipementId, etat);
+        await chargerCampagnes();
+      } catch (err) {
+        erreurCampagne(err, 'Constat impossible.');
+      }
+      return;
+    }
+    const equipement = items.find((e) => e.id === equipementId);
+    if (equipement !== undefined) {
+      setTexteMotif('');
+      setMotif({ equipement, etat });
+    }
+  };
+
+  const enregistrerConstat = async (): Promise<void> => {
+    if (campagne === null || motif === null) return;
+    setEnvoiCampagne(true);
+    try {
+      await campagnesApi.constater(campagne.id, motif.equipement.id, motif.etat, texteMotif);
+      setMotif(null);
       await chargerCampagnes();
     } catch (err) {
       erreurCampagne(err, 'Constat impossible.');
+    } finally {
+      setEnvoiCampagne(false);
     }
   };
 
@@ -306,7 +343,7 @@ export function InventairePage(): JSX.Element {
         const pose = constats[e.id];
         if (enRecensement) {
           return (
-            <span className={local.constats}>
+            <span className={local.constats} title={motifs[e.id]}>
               {CONSTATS.map(({ etat, libelle, couleur }) => (
                 <button
                   key={etat}
@@ -323,7 +360,7 @@ export function InventairePage(): JSX.Element {
                   onClick={(ev) => {
                     // Sans quoi le clic ouvrirait la fiche de la ligne.
                     ev.stopPropagation();
-                    void constater(e.id, etat);
+                    void demanderConstat(e.id, etat);
                   }}
                 >
                   {libelle}
@@ -337,6 +374,7 @@ export function InventairePage(): JSX.Element {
         return (
           <span
             className={local.constatFinal}
+            title={motifs[e.id]}
             style={{ '--constat': COULEUR_ETAT[pose] ?? 'var(--text-muted)' } as React.CSSProperties}
           >
             {LIBELLE_ETAT[pose] ?? pose}
@@ -460,7 +498,12 @@ export function InventairePage(): JSX.Element {
                     <span className={local.avanceePiste}>
                       <span className={local.avanceePlein} style={{ width: `${pct}%` }} />
                     </span>
-                    <span>Recensés · {pct} %</span>
+                    {/* « 60 % du parc a été vu » se comprend ; « Recensés · 60 % » se devine. */}
+                    <span>
+                      {campagne.statut === 'OUVERTE'
+                        ? `${pct} % du parc déjà recensé`
+                        : `${pct} % du parc recensé à la clôture`}
+                    </span>
                   </span>
                 );
               })()}
@@ -601,7 +644,7 @@ export function InventairePage(): JSX.Element {
             ? {
                 libelle: campagne.libelle,
                 etat: constats[ficheId] ?? null,
-                onConstat: (etat) => void constater(ficheId, etat),
+                onConstat: (etat) => void demanderConstat(ficheId, etat),
               }
             : null
         }
@@ -657,6 +700,54 @@ export function InventairePage(): JSX.Element {
           liste : chaque agent du module y pose ce qu'il voit ; la clôture relèvera les non
           retrouvés.
         </p>
+      </Modale>
+
+      {/* Le motif du constat : ce qu'on a vu, en une phrase. Il se relira dans un an. */}
+      <Modale
+        ouverte={motif !== null}
+        onFermer={() => setMotif(null)}
+        titre={
+          motif !== null
+            ? `Constat « ${CONSTATS.find((c) => c.etat === motif.etat)?.libelle ?? ''} »`
+            : 'Constat'
+        }
+        pied={
+          <>
+            <Button variante="secondaire" onClick={() => setMotif(null)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => void enregistrerConstat()}
+              disabled={envoiCampagne || texteMotif.trim().length < 3}
+            >
+              {envoiCampagne ? 'Enregistrement…' : 'Enregistrer le constat'}
+            </Button>
+          </>
+        }
+      >
+        {motif !== null && (
+          <>
+            <p className={local.noteModale}>
+              {motif.equipement.designation}
+              {motif.equipement.code_immo !== null ? ` · ${motif.equipement.code_immo}` : ''}
+            </p>
+            <label className={styles.champ}>
+              <span>Qu'avez-vous constaté ?</span>
+              <input
+                autoFocus
+                value={texteMotif}
+                onChange={(ev) => setTexteMotif(ev.target.value)}
+                onKeyDown={(ev) => {
+                  if (ev.key === 'Enter' && texteMotif.trim().length >= 3) {
+                    void enregistrerConstat();
+                  }
+                }}
+                placeholder="Ex. écran fêlé, retrouvé en réserve, ne démarre plus…"
+                maxLength={200}
+              />
+            </label>
+          </>
+        )}
       </Modale>
 
       <Modale

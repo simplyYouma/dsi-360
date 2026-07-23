@@ -139,6 +139,7 @@ _LIBELLE_CHAMP = {
     # Constats d'inventaire : posés par les campagnes, relus dans l'historique de la fiche.
     "etat": "état constaté",
     "campagne": "campagne",
+    "motif": "motif",
 }
 
 #: Unité d'un champ chiffré. Un taux se lit « 25 % », pas « 25.000 » : la base stocke des

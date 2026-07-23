@@ -636,6 +636,28 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
     return cree
 
 
+#: Motifs de constat plausibles, par état : ce qu'un agent écrit vraiment sur le terrain.
+_MOTIFS_CONSTAT: dict[str, tuple[str, ...]] = {
+    "BON": (
+        "Vu sur site, en service",
+        "Retrouvé au poste de son détenteur",
+        "En fonctionnement, aucun défaut apparent",
+        "Contrôlé en salle serveurs",
+    ),
+    "REBUT": (
+        "Obsolète, ne répond plus aux besoins",
+        "Hors service depuis plusieurs mois",
+        "Pièces détachées introuvables",
+    ),
+    "CASSE": (
+        "Écran fêlé, inutilisable",
+        "Ne démarre plus après surtension",
+        "Boîtier endommagé lors du transport",
+    ),
+    "NON_RETROUVE": ("Introuvable à l'emplacement déclaré",),
+}
+
+
 async def _campagnes(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
     """Deux campagnes d'inventaire : l'an passé clôturée, celle-ci en cours.
 
@@ -667,11 +689,12 @@ async def _campagnes(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
             continue
         await conn.execute(
             "INSERT INTO core.constat_inventaire "
-            "(campagne_id, equipement_id, etat, constate_le, constate_par) "
-            "VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
+            "(campagne_id, equipement_id, etat, constate_le, constate_par, justification) "
+            "VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
             passee, ident, etat,
             ouverture + timedelta(days=random.uniform(1, 20)),
             random.choice(utilisateurs),
+            random.choice(_MOTIFS_CONSTAT[etat]),
         )
 
     # --- Celle-ci, ouverte : recensement à mi-course, le reste attend le terrain. ---
@@ -682,14 +705,15 @@ async def _campagnes(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
         f"Inventaire physique {aujourdhui.year}", debut, random.choice(utilisateurs),
     )
     for ident in random.sample(actifs, k=int(len(actifs) * 0.6)):
+        etat = random.choices(["BON", "REBUT", "CASSE"], weights=[90, 6, 4])[0]
         await conn.execute(
             "INSERT INTO core.constat_inventaire "
-            "(campagne_id, equipement_id, etat, constate_le, constate_par) "
-            "VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
-            courante, ident,
-            random.choices(["BON", "REBUT", "CASSE"], weights=[90, 6, 4])[0],
+            "(campagne_id, equipement_id, etat, constate_le, constate_par, justification) "
+            "VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
+            courante, ident, etat,
             debut + timedelta(days=random.uniform(0.5, 8.5)),
             random.choice(utilisateurs),
+            random.choice(_MOTIFS_CONSTAT[etat]),
         )
     return 2
 

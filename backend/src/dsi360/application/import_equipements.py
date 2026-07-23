@@ -112,7 +112,14 @@ async def importer_classeur(
         # NON_RETROUVE ne vient jamais du fichier : il se déduit à la clôture de la campagne.
         if campagne is not None and ligne["etat_constate"] in repo_campagne.ETATS_SAISIE:
             await repo_campagne.poser_constat(
-                session, campagne["id"], equipement_id, ligne["etat_constate"], acteur["id"]
+                session,
+                campagne["id"],
+                equipement_id,
+                ligne["etat_constate"],
+                acteur["id"],
+                # Personne n'a cliqué : le motif dit d'où vient le constat, plutôt que de
+                # laisser croire à une observation de terrain.
+                "Coché dans le fichier d'inventaire importé",
             )
             constats += 1
 

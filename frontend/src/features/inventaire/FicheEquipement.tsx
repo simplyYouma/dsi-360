@@ -306,22 +306,13 @@ export function FicheEquipement({
                     }}
                   />
                 </span>
-                {/* Un pourcentage seul ne dit rien : on l'écrit en francs et en dates. */}
+                {/* Un pourcentage seul ne dit rien : on l'écrit aussi en francs. */}
                 <span className={local.amortiTexte}>
                   <b>{detail.amorti_pct} % amorti</b>
-                  {detail.totalement_amorti ? (
-                    <em>
-                      {' '}
-                      — le bien ne pèse plus au bilan depuis le {jour(detail.fin_amortissement)}
-                    </em>
-                  ) : (
-                    <em>
-                      {' '}
-                      — {montant(detail.amortissement_cumule)} déjà passés en charges, il reste{' '}
-                      {montant(detail.valeur_nette)} à passer d'ici le{' '}
-                      {jour(detail.fin_amortissement)}
-                    </em>
-                  )}
+                  <em>
+                    {' '}
+                    — {montant(detail.amortissement_cumule)} déjà passés en charges
+                  </em>
                 </span>
               </div>
             )}

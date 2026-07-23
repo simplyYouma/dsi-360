@@ -381,6 +381,9 @@ class CampagneCreation(BaseModel):
 class ConstatCreation(BaseModel):
     #: NON_RETROUVE ne se saisit pas : il se déduit à la clôture.
     etat: Literal["BON", "REBUT", "CASSE"]
+    #: Ce qui a été observé, en une phrase (« écran fêlé », « retrouvé en réserve »). Exigé :
+    #: un constat sans motif n'est qu'une opinion, et se relit un an plus tard sans rien dire.
+    justification: str = Field(min_length=3, max_length=200)
 
 
 class LigneRecensement(BaseModel):
@@ -395,6 +398,8 @@ class LigneRecensement(BaseModel):
     etat: str | None
     constate_le: datetime | None
     constate_par: str | None
+    #: Le motif du constat, tel qu'il a été saisi sur le terrain.
+    justification: str | None = None
 
 
 class ClotureCampagne(BaseModel):

@@ -67,13 +67,13 @@ async def test_le_recensement_est_un_travail_d_equipe(
     # …mais il constate, et peut se raviser (re-poser remplace, retirer efface).
     ok = await client.put(
         f"/inventaire/campagnes/{campagne['id']}/constats/{equipement}",
-        json={"etat": "BON"},
+        json={"etat": "BON", "justification": "Vu au bureau 214, en service"},
         headers=entetes(agent),
     )
     assert ok.status_code == 204, ok.text
     change = await client.put(
         f"/inventaire/campagnes/{campagne['id']}/constats/{equipement}",
-        json={"etat": "CASSE"},
+        json={"etat": "CASSE", "justification": "Écran fêlé, ne démarre plus"},
         headers=entetes(agent),
     )
     assert change.status_code == 204
@@ -86,6 +86,8 @@ async def test_le_recensement_est_un_travail_d_equipe(
     constate = next(x for x in lignes if x["id"] == equipement)
     assert constate["etat"] == "CASSE", "le dernier constat remplace le précédent"
     assert constate["constate_par"] is not None
+    # Se raviser, c'est aussi dire pourquoi : le motif suit le constat.
+    assert constate["justification"] == "Écran fêlé, ne démarre plus"
 
     retire = await client.delete(
         f"/inventaire/campagnes/{campagne['id']}/constats/{equipement}",
@@ -103,7 +105,7 @@ async def test_non_retrouve_ne_se_saisit_pas(client: AsyncClient, session: Async
 
     refus = await client.put(
         f"/inventaire/campagnes/{campagne['id']}/constats/{equipement}",
-        json={"etat": "NON_RETROUVE"},
+        json={"etat": "NON_RETROUVE", "justification": "Introuvable"},
         headers=entetes(admin),
     )
     assert refus.status_code == 422, refus.text
@@ -120,7 +122,7 @@ async def test_la_cloture_releve_les_non_retrouves(
     campagne = await _ouvrir(client, admin, "Clôture 2026")
     await client.put(
         f"/inventaire/campagnes/{campagne['id']}/constats/{vu}",
-        json={"etat": "BON"},
+        json={"etat": "BON", "justification": "Vu en salle serveurs"},
         headers=entetes(admin),
     )
 
@@ -143,7 +145,7 @@ async def test_la_cloture_releve_les_non_retrouves(
     # Campagne figée : plus aucun constat n'y entre.
     fige = await client.put(
         f"/inventaire/campagnes/{campagne['id']}/constats/{vu}",
-        json={"etat": "REBUT"},
+        json={"etat": "REBUT", "justification": "Tentative sur campagne close"},
         headers=entetes(admin),
     )
     assert fige.status_code == 409

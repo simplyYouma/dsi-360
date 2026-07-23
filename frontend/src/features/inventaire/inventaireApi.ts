@@ -131,6 +131,8 @@ export interface LigneRecensement {
   etat: string | null;
   constate_le: string | null;
   constate_par: string | null;
+  /** Ce qui a été observé, tel que saisi sur le terrain. */
+  justification: string | null;
 }
 
 export interface TrancheParc {
@@ -189,8 +191,13 @@ export const campagnesApi = {
     api.post('/inventaire/campagnes', { libelle }),
   recensement: (id: string): Promise<LigneRecensement[]> =>
     api.get(`/inventaire/campagnes/${id}/recensement`),
-  constater: (id: string, equipementId: string, etat: EtatConstat): Promise<void> =>
-    api.put(`/inventaire/campagnes/${id}/constats/${equipementId}`, { etat }),
+  constater: (
+    id: string,
+    equipementId: string,
+    etat: EtatConstat,
+    justification: string,
+  ): Promise<void> =>
+    api.put(`/inventaire/campagnes/${id}/constats/${equipementId}`, { etat, justification }),
   retirerConstat: (id: string, equipementId: string): Promise<void> =>
     api.del(`/inventaire/campagnes/${id}/constats/${equipementId}`),
   cloturer: (id: string): Promise<{ non_retrouves: number; campagne: CampagneInventaire }> =>

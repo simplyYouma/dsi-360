@@ -118,8 +118,11 @@ async def constater(
     equipement = await repo_equipement.par_id(session, equipement_id)
     if equipement is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Équipement introuvable.")
-    await repo.poser_constat(session, ident, equipement_id, corps.etat, courant["id"])
-    # Le constat rejoint l'historique de l'équipement : qui l'a vu, quand, dans quel état.
+    await repo.poser_constat(
+        session, ident, equipement_id, corps.etat, courant["id"], corps.justification
+    )
+    # Le constat rejoint l'historique de l'équipement : qui l'a vu, quand, dans quel état — et
+    # sur quoi il s'est fondé. C'est ce motif qui rendra la campagne relisible dans un an.
     await audit.consigner(
         session,
         action="CONSTAT",
@@ -128,7 +131,11 @@ async def constater(
         module="inventaire",
         cible_type="equipement",
         cible_id=equipement["code_immo"] or equipement["designation"],
-        nouvelle={"etat": corps.etat, "campagne": campagne["libelle"]},
+        nouvelle={
+            "etat": corps.etat,
+            "campagne": campagne["libelle"],
+            "motif": corps.justification.strip(),
+        },
     )
     await session.commit()
 
