@@ -255,11 +255,17 @@ async def _noms_pour(session: AsyncSession, uuids: set[str]) -> dict[str, str]:
     return noms
 
 
-def _valeur_journal(valeur: Any, noms: dict[str, str]) -> str:
+#: Unité d'un champ chiffré du journal — « 30 j », pas « 30 » tout court.
+_UNITE_JOURNAL = {"avancement": "%", "duree_jours": "j"}
+
+
+def _valeur_journal(valeur: Any, noms: dict[str, str], cle: str = "") -> str:
     if valeur is None or valeur == "":
         return "—"
     if isinstance(valeur, bool):
         return "oui" if valeur else "non"
+    if isinstance(valeur, int | float) and cle in _UNITE_JOURNAL:
+        return f"{valeur:g} {_UNITE_JOURNAL[cle]}"
     texte_v = str(valeur)
     if _UUID_JOURNAL.fullmatch(texte_v.lower()):
         # Identifiant sans nom connu (compte supprimé…) : trois points valent mieux qu'un uuid.
@@ -286,14 +292,13 @@ def _detail_journal(anciennes: Any, nouvelles: Any, noms: dict[str, str]) -> str
         a, n = avant.get(cle), apres.get(cle)
         libelle = _libelle_cle_journal(cle)
         if cle in avant and cle in apres:
-            if a != n:
-                fragments.append(
-                    f"{libelle} : {_valeur_journal(a, noms)} → {_valeur_journal(n, noms)}"
-                )
+            avant_txt, apres_txt = _valeur_journal(a, noms, cle), _valeur_journal(n, noms, cle)
+            if avant_txt != apres_txt:
+                fragments.append(f"{libelle} : {avant_txt} → {apres_txt}")
         elif cle in apres:
-            fragments.append(f"{libelle} : {_valeur_journal(n, noms)}")
+            fragments.append(f"{libelle} : {_valeur_journal(n, noms, cle)}")
         else:
-            fragments.append(f"{libelle} : {_valeur_journal(a, noms)}")
+            fragments.append(f"{libelle} : {_valeur_journal(a, noms, cle)}")
     return " · ".join(fragments) or None
 
 

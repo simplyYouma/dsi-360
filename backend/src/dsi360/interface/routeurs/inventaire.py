@@ -128,7 +128,7 @@ _LIBELLE_CHAMP = {
     "departement": "département",
     "detenteur": "détenteur",
     "matricule_brut": "matricule",
-    "taux": "taux",
+    "taux": "taux d'amortissement",
     "date_acquisition": "date d'acquisition",
     "duree_annees": "durée",
     "valeur_acquisition": "valeur d'acquisition",
@@ -138,10 +138,25 @@ _LIBELLE_CHAMP = {
     "campagne": "campagne",
 }
 
+#: Unité d'un champ chiffré. Un taux se lit « 25 % », pas « 25.000 » : la base stocke des
+#: décimales de précision, l'écran n'a que faire de leurs zéros.
+_UNITE_CHAMP = {"taux": "%", "duree_annees": "ans", "valeur_acquisition": "FCFA"}
+
 _UUID_BRUT = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+#: Espace fine insécable : le séparateur de milliers français, qui ne coupe pas le nombre.
+_FINE = " "
 
 
-def _valeur_lisible(valeur: Any) -> str:
+def _nombre_fr(valeur: float) -> str:
+    """« 25.000 » -> « 25 », « 12.5 » -> « 12,5 », « 29712835 » -> « 29 712 835 »."""
+    if valeur == int(valeur):
+        return f"{int(valeur):,}".replace(",", _FINE)
+    return (
+        f"{valeur:,.3f}".rstrip("0").rstrip(".").replace(",", _FINE).replace(".", ",")
+    )
+
+
+def _valeur_lisible(valeur: Any, cle: str | None = None) -> str:
     if valeur is None or valeur == "":
         return "—"
     if isinstance(valeur, bool):
@@ -149,7 +164,17 @@ def _valeur_lisible(valeur: Any) -> str:
     texte_brut = str(valeur)
     # Les toutes premières écritures du journal portaient des identifiants : illisibles,
     # on les tait plutôt que d'afficher un uuid.
-    return "…" if _UUID_BRUT.fullmatch(texte_brut.lower()) else texte_brut
+    if _UUID_BRUT.fullmatch(texte_brut.lower()):
+        return "…"
+    unite = _UNITE_CHAMP.get(cle or "")
+    if unite is not None:
+        # Le journal mêle des Decimal sérialisés (« 25.000 ») et des flottants (20.0) : on
+        # ramène les deux à la même écriture, sinon le même taux paraît avoir changé.
+        try:
+            return f"{_nombre_fr(float(texte_brut))}{_FINE}{unite}"
+        except ValueError:
+            return texte_brut
+    return texte_brut
 
 
 def _texte_changement(anciennes: Any, nouvelles: Any) -> str | None:
@@ -157,11 +182,15 @@ def _texte_changement(anciennes: Any, nouvelles: Any) -> str | None:
     if not isinstance(nouvelles, dict):
         return None
     avant = anciennes if isinstance(anciennes, dict) else {}
-    fragments = [
-        f"{_LIBELLE_CHAMP[cle]} : {_valeur_lisible(avant.get(cle))} → {_valeur_lisible(v)}"
-        for cle, v in nouvelles.items()
-        if cle in _LIBELLE_CHAMP and avant.get(cle) != v
-    ]
+    fragments = []
+    for cle, v in nouvelles.items():
+        if cle not in _LIBELLE_CHAMP:
+            continue
+        ancienne, nouvelle = _valeur_lisible(avant.get(cle), cle), _valeur_lisible(v, cle)
+        # Comparaison sur le texte affiché : « 25.000 » et « 25.0 » sont le même taux, et une
+        # ligne « taux : 25 % → 25 % » ne raconterait rien.
+        if ancienne != nouvelle:
+            fragments.append(f"{_LIBELLE_CHAMP[cle]} : {ancienne} → {nouvelle}")
     return " · ".join(fragments) or None
 
 

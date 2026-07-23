@@ -292,6 +292,26 @@ async def test_un_referentiel_inconnu_est_refuse(
     assert r.status_code == 404
 
 
+async def test_l_historique_ecrit_les_chiffres_avec_leur_unite(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« taux d'amortissement : 25 % → 20 % » — pas « taux : 25.000 → 20.0 ».
+
+    La base stocke des décimales de précision (numeric) et le journal mêle Decimal sérialisés
+    et flottants : sans normalisation, le même taux paraît écrit de deux façons, et le lecteur
+    doit deviner l'unité.
+    """
+    admin = await _admin(session, "admin.inv18@afgbank.ml")
+    cree = await _creer(client, admin, designation="Baie de stockage", taux=25)
+
+    r = await client.patch(f"/inventaire/{cree['id']}", json={"taux": 20}, headers=entetes(admin))
+
+    assert r.status_code == 200, r.text
+    details = [h["detail"] for h in r.json()["historique"] if h["detail"] is not None]
+    # Espace fine insécable devant le %, comme le veut la typographie française.
+    assert any("taux d'amortissement : 25 % → 20 %" in d for d in details), details
+
+
 async def test_les_analyses_du_parc_se_calculent_a_la_lecture(
     client: AsyncClient, session: AsyncSession
 ) -> None:
