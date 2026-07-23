@@ -23,7 +23,6 @@ from dsi360.application.inventaire import detenteur_pour, index_matricules
 from dsi360.domain.texte import nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.ingestion_equipements import analyser_classeur
-from dsi360.infrastructure.repositories import campagne as repo_campagne
 from dsi360.infrastructure.repositories import equipement as repo
 
 #: La comptabilité fait foi : ces colonnes sont toujours reprises du fichier.
@@ -38,9 +37,6 @@ async def importer_classeur(
     """Charge le classeur. Retourne le compte-rendu affiché à l'écran."""
     lignes = analyser_classeur(contenu)
     cache_matricules = await index_matricules(session)
-    # Le dernier inventaire créé reçoit les croix bon/rebut/casse du fichier. Sans inventaire,
-    # elles sont seulement comptées — un état qui ne se rattache à rien ne se conserve pas.
-    campagne = await repo_campagne.courante(session)
 
     crees = maj = ignores = 0
     sans_detenteur = 0
@@ -109,17 +105,15 @@ async def importer_classeur(
             await repo.maj(session, existant["id"], champs)
             maj += 1
 
-        # NON_RETROUVE ne vient jamais du fichier : il se déduit à la clôture de la campagne.
-        if campagne is not None and ligne["etat_constate"] in repo_campagne.ETATS_SAISIE:
-            await repo_campagne.poser_constat(
+        # Une croix bon/rebut/casse dans le fichier vaut constat : elle date et signe le
+        # contrôle sur la fiche. Le motif dit d'où il vient — personne n'a rien vu de ses yeux.
+        if ligne["etat_constate"] in ("BON", "REBUT", "CASSE"):
+            await repo.poser_constat(
                 session,
-                campagne["id"],
                 equipement_id,
                 ligne["etat_constate"],
-                acteur["id"],
-                # Personne n'a cliqué : le motif dit d'où vient le constat, plutôt que de
-                # laisser croire à une observation de terrain.
                 "Coché dans le fichier d'inventaire importé",
+                acteur["id"],
             )
             constats += 1
 

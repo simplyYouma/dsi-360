@@ -21,11 +21,13 @@ from dsi360.application.inventaire import (
     supprimer_equipement,
 )
 from dsi360.domain import amortissement
+from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import equipement as repo
 from dsi360.interface.schemas import (
     AnalysesParc,
+    ConstatEquipement,
     EquipementCreation,
     EquipementDetail,
     EquipementMaj,
@@ -84,6 +86,12 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "detenteur": _detenteur(r),
         # Le matricule du compte prime ; à défaut, celui que porte le fichier.
         "matricule": r["det_matricule"] or r["matricule_brut"],
+        # Dernier contrôle de terrain. `etat_constate` à None n'est pas un verdict : personne
+        # n'y est allé — c'est ce que l'inventaire physique vient rattraper.
+        "etat_constate": r["etat_constate"],
+        "constate_le": r["constate_le"],
+        "constate_par": r["constate_par"],
+        "constat_motif": r["constat_motif"],
         "date_acquisition": r["date_acquisition"],
         "valeur_acquisition": _nombre(r["valeur_acquisition"]),
         "valeur_nette": a.valeur_nette,
@@ -261,6 +269,8 @@ async def lister(
     departement_id: Annotated[str | None, Query()] = None,
     detenteur_id: Annotated[str | None, Query()] = None,
     actif: Annotated[bool | None, Query()] = True,
+    etat_constate: Annotated[str | None, Query()] = None,
+    a_controler: Annotated[bool, Query()] = False,
 ) -> dict[str, Any]:
     lignes, total = await repo.lister(
         session,
@@ -271,6 +281,8 @@ async def lister(
         departement_id=departement_id,
         detenteur_id=detenteur_id,
         actif=actif,
+        etat_constate=etat_constate,
+        a_controler=a_controler,
     )
     return {
         "elements": [_resume(r) for r in lignes],
@@ -486,6 +498,58 @@ async def modifier(
         await _refuser_code_deja_pris(session, champs["code_immo"], ident)
     await _valider_references(session, champs)
     await maj_equipement(session, dict(avant), champs, courant)
+    await session.commit()
+    return await _detail(session, await _charger(session, ident))
+
+
+@routeur.put("/{ident}/constat", response_model=EquipementDetail)
+async def constater(
+    ident: str, corps: ConstatEquipement, courant: Courant, session: Session
+) -> dict[str, Any]:
+    """Consigner ce qu'on a vu du matériel : bon, rebut ou cassé, et pourquoi.
+
+    Ouvert à **tout agent du module**, contrairement au reste de la fiche : contrôler le parc
+    est un travail de terrain, pas un privilège d'administrateur (ADR-0003). Ce que l'agent
+    écrit est une observation, pas une décision — sortir un matériel du parc reste à l'admin.
+    """
+    avant = await _charger(session, ident)
+    await repo.poser_constat(session, ident, corps.etat, corps.justification, courant["id"])
+    # Le constat rejoint l'historique du matériel : qui l'a vu, quand, dans quel état, et sur
+    # quoi il se fonde. C'est ce motif qui rendra le contrôle relisible dans un an.
+    await audit.consigner(
+        session,
+        action="CONSTAT",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="inventaire",
+        cible_type="equipement",
+        cible_id=avant["code_immo"] or avant["designation"],
+        ancienne={"etat": avant["etat_constate"]},
+        nouvelle={"etat": corps.etat, "motif": corps.justification.strip()},
+    )
+    await session.commit()
+    return await _detail(session, await _charger(session, ident))
+
+
+@routeur.delete("/{ident}/constat", response_model=EquipementDetail)
+async def retirer_constat(ident: str, courant: Courant, session: Session) -> dict[str, Any]:
+    """Effacer un constat posé par erreur : le matériel redevient « à contrôler ».
+
+    Pas de motif demandé : effacer n'est pas observer.
+    """
+    avant = await _charger(session, ident)
+    await repo.retirer_constat(session, ident)
+    await audit.consigner(
+        session,
+        action="CONSTAT",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="inventaire",
+        cible_type="equipement",
+        cible_id=avant["code_immo"] or avant["designation"],
+        ancienne={"etat": avant["etat_constate"]},
+        nouvelle={"etat": None},
+    )
     await session.commit()
     return await _detail(session, await _charger(session, ident))
 

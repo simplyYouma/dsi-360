@@ -12,6 +12,8 @@ _CHAMPS = """
     e.detenteur_id::text AS detenteur_id, e.matricule_brut, e.detenteur_externe,
     u.prenom AS det_prenom, u.nom AS det_nom, u.matricule AS det_matricule,
     e.taux, e.date_acquisition, e.duree_annees, e.valeur_acquisition,
+    e.etat_constate, e.constate_le, e.constat_motif,
+    ctrl.prenom || ' ' || ctrl.nom AS constate_par,
     e.source, e.actif, e.cree_le, e.maj_le
 """
 
@@ -20,6 +22,7 @@ _BASE = """
     LEFT JOIN core.emplacement emp ON emp.id = e.emplacement_id
     LEFT JOIN core.departement_equipement dep ON dep.id = e.departement_id
     LEFT JOIN core.utilisateur u ON u.id = e.detenteur_id
+    LEFT JOIN core.utilisateur ctrl ON ctrl.id = e.constate_par
     WHERE 1 = 1
 """
 
@@ -40,9 +43,18 @@ CHAMPS_MODIFIABLES = frozenset(
         "duree_annees",
         "valeur_acquisition",
         "actif",
+        # Constat de terrain : posé par sa route dédiée, qui date et signe le contrôle.
+        "etat_constate",
+        "constate_le",
+        "constate_par",
+        "constat_motif",
     }
 )
-_UUID = frozenset({"emplacement_id", "departement_id", "detenteur_id"})
+_UUID = frozenset({"emplacement_id", "departement_id", "detenteur_id", "constate_par"})
+
+#: Au-delà de ce délai, un matériel est réputé « non contrôlé » : c'est ce que l'inventaire
+#: physique vient rattraper. Ce n'est pas un verdict sur le matériel, c'est un trou de suivi.
+MOIS_AVANT_CONTROLE = 12
 
 
 async def par_id(session: AsyncSession, identifiant: str) -> RowMapping | None:
@@ -61,6 +73,14 @@ async def par_code_immo(session: AsyncSession, code: str) -> RowMapping | None:
     return resultat.mappings().first()
 
 
+#: Vues de contrôle. « À contrôler » n'est pas un état du matériel : c'est l'absence de
+#: contrôle récent — le travail de terrain qui attend.
+_CLAUSE_A_CONTROLER = (
+    " AND (e.constate_le IS NULL"
+    f" OR e.constate_le < now() - interval '{MOIS_AVANT_CONTROLE} months')"
+)
+
+
 def _filtres(
     q: str | None,
     emplacement_id: str | None,
@@ -68,6 +88,8 @@ def _filtres(
     detenteur_id: str | None,
     actif: bool | None,
     params: dict[str, Any],
+    etat_constate: str | None = None,
+    a_controler: bool = False,
 ) -> str:
     """Conditions de liste. La recherche passe outre les autres filtres — comme pour les
     activités : chercher, c'est vouloir retrouver un matériel, pas fouiller la vue courante."""
@@ -97,6 +119,11 @@ def _filtres(
     if actif is not None:
         conditions += " AND e.actif = :actif"
         params["actif"] = actif
+    if etat_constate is not None:
+        conditions += " AND e.etat_constate = :etat"
+        params["etat"] = etat_constate
+    if a_controler:
+        conditions += _CLAUSE_A_CONTROLER
     return conditions
 
 
@@ -110,14 +137,25 @@ async def lister(
     departement_id: str | None = None,
     detenteur_id: str | None = None,
     actif: bool | None = True,
+    etat_constate: str | None = None,
+    a_controler: bool = False,
 ) -> tuple[list[RowMapping], int]:
     params: dict[str, Any] = {}
-    conditions = _filtres(q, emplacement_id, departement_id, detenteur_id, actif, params)
+    conditions = _filtres(
+        q, emplacement_id, departement_id, detenteur_id, actif, params, etat_constate, a_controler
+    )
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{conditions}"), params) or 0
+    # Vue « à contrôler » : le plus ancien contrôle d'abord (jamais contrôlé en tête), c'est
+    # l'ordre dans lequel on va sur le terrain.
+    ordre = (
+        "e.constate_le ASC NULLS FIRST, e.designation"
+        if a_controler
+        else "e.designation, e.code_immo"
+    )
     lignes = await session.execute(
         text(
             f"SELECT {_CHAMPS} {_BASE}{conditions} "
-            "ORDER BY e.designation, e.code_immo LIMIT :limite OFFSET :decalage"
+            f"ORDER BY {ordre} LIMIT :limite OFFSET :decalage"
         ),
         {**params, "limite": taille, "decalage": (page - 1) * taille},
     )
@@ -134,7 +172,11 @@ async def lister_tout(session: AsyncSession, limite: int = 20000) -> list[RowMap
 
 
 async def compter(session: AsyncSession) -> dict[str, int | float]:
-    """Compteurs de l'en-tête de liste : effectif, sorties du parc, valeur d'acquisition."""
+    """Compteurs de l'en-tête : effectif, sorties, valeur, et l'état constaté du parc actif.
+
+    Les constats ne comptent que sur le parc en service : l'état d'un matériel cédé l'an dernier
+    ne dit plus rien de ce qu'il y a à contrôler aujourd'hui.
+    """
     ligne = (
         await session.execute(
             text(
@@ -142,7 +184,13 @@ async def compter(session: AsyncSession) -> dict[str, int | float]:
                 "count(*) FILTER (WHERE e.actif) AS en_service, "
                 "count(*) FILTER (WHERE NOT e.actif) AS sortis, "
                 "count(*) FILTER (WHERE e.detenteur_id IS NULL) AS sans_detenteur, "
-                "coalesce(sum(e.valeur_acquisition) FILTER (WHERE e.actif), 0) AS valeur "
+                "coalesce(sum(e.valeur_acquisition) FILTER (WHERE e.actif), 0) AS valeur, "
+                "count(*) FILTER (WHERE e.actif AND e.etat_constate = 'BON') AS bons, "
+                "count(*) FILTER (WHERE e.actif AND e.etat_constate = 'REBUT') AS rebuts, "
+                "count(*) FILTER (WHERE e.actif AND e.etat_constate = 'CASSE') AS casses, "
+                "count(*) FILTER (WHERE e.actif AND (e.constate_le IS NULL "
+                f"  OR e.constate_le < now() - interval '{MOIS_AVANT_CONTROLE} months'))"
+                " AS a_controler "
                 "FROM core.equipement e"
             )
         )
@@ -153,7 +201,41 @@ async def compter(session: AsyncSession) -> dict[str, int | float]:
         "sortis": int(ligne["sortis"]),
         "sans_detenteur": int(ligne["sans_detenteur"]),
         "valeur_acquisition": float(ligne["valeur"] or 0),
+        "bons": int(ligne["bons"]),
+        "rebuts": int(ligne["rebuts"]),
+        "casses": int(ligne["casses"]),
+        "a_controler": int(ligne["a_controler"]),
     }
+
+
+async def poser_constat(
+    session: AsyncSession, identifiant: str, etat: str, motif: str, acteur_id: str
+) -> None:
+    """Consigne ce qui a été vu sur le terrain : l'état, la date, l'auteur et le motif.
+
+    La date et l'auteur ne viennent jamais de l'appelant : un constat vaut par le fait qu'on
+    sache qui l'a posé, et quand.
+    """
+    await session.execute(
+        text(
+            "UPDATE core.equipement SET etat_constate = :etat, constat_motif = btrim(:motif), "
+            "constate_le = now(), constate_par = cast(:acteur as uuid), maj_le = now() "
+            "WHERE id = cast(:id as uuid)"
+        ),
+        {"id": identifiant, "etat": etat, "motif": motif, "acteur": acteur_id},
+    )
+
+
+async def retirer_constat(session: AsyncSession, identifiant: str) -> None:
+    """Efface un constat posé par erreur : le matériel redevient « à contrôler »."""
+    await session.execute(
+        text(
+            "UPDATE core.equipement SET etat_constate = NULL, constat_motif = NULL, "
+            "constate_le = NULL, constate_par = NULL, maj_le = now() "
+            "WHERE id = cast(:id as uuid)"
+        ),
+        {"id": identifiant},
+    )
 
 
 async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:

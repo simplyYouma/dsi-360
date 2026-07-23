@@ -17,6 +17,11 @@ export interface Equipement {
   valeur_nette: number | null;
   amorti_pct: number | null;
   actif: boolean;
+  /** Dernier contrôle de terrain. `null` n'est pas un verdict : personne n'y est allé. */
+  etat_constate: string | null;
+  constate_le: string | null;
+  constate_par: string | null;
+  constat_motif: string | null;
 }
 
 export interface EvenementEquipement {
@@ -52,6 +57,12 @@ export interface StatsInventaire {
   sortis: number;
   sans_detenteur: number;
   valeur_acquisition: number;
+  /** État constaté du parc en service. */
+  bons: number;
+  rebuts: number;
+  casses: number;
+  /** Jamais contrôlés, ou pas depuis plus d'un an : le travail de terrain qui attend. */
+  a_controler: number;
 }
 
 export interface ReferentielItem {
@@ -67,6 +78,10 @@ export interface FiltresInventaire {
   detenteur_id?: string | null;
   /** `false` pour voir ce qui est sorti du parc, `null` pour tout. */
   actif?: boolean | null;
+  /** Dernier état constaté (BON, REBUT, CASSE). */
+  etat_constate?: string | null;
+  /** Jamais contrôlé, ou pas depuis plus d'un an : la liste de travail du terrain. */
+  a_controler?: boolean;
 }
 
 export interface NouvelEquipement {
@@ -87,7 +102,7 @@ export interface NouvelEquipement {
 
 export type MajEquipement = Partial<NouvelEquipement> & { actif?: boolean };
 
-/** Constat saisissable au recensement. NON_RETROUVE se déduit à la clôture, il ne se coche pas. */
+/** Ce qu'un agent peut constater sur le terrain. */
 export type EtatConstat = 'BON' | 'REBUT' | 'CASSE';
 
 /** Les trois constats et leur couleur — partagés entre la liste et la fiche. */
@@ -97,43 +112,17 @@ export const CONSTATS: { etat: EtatConstat; libelle: string; couleur: string }[]
   { etat: 'CASSE', libelle: 'Cassé', couleur: 'var(--status-danger)' },
 ];
 
-/** Couleur d'un constat relu (campagne close) — NON_RETROUVE compris. */
 export const COULEUR_ETAT: Record<string, string> = {
   BON: 'var(--status-ok)',
   REBUT: 'var(--status-warn)',
   CASSE: 'var(--status-danger)',
-  NON_RETROUVE: 'var(--status-danger)',
 };
 
-export interface CampagneInventaire {
-  id: string;
-  libelle: string;
-  /** OUVERTE | CLOTUREE — une seule campagne ouverte à la fois. */
-  statut: string;
-  ouverte_le: string;
-  cloturee_le: string | null;
-  ouverte_par: string | null;
-  constates: number;
-  bons: number;
-  rebuts: number;
-  casses: number;
-  /** Posés à la clôture sur tout matériel actif jamais recensé. */
-  non_retrouves: number;
-}
-
-export interface LigneRecensement {
-  id: string;
-  code_immo: string | null;
-  designation: string;
-  numero_serie: string | null;
-  emplacement: string | null;
-  detenteur: string | null;
-  etat: string | null;
-  constate_le: string | null;
-  constate_par: string | null;
-  /** Ce qui a été observé, tel que saisi sur le terrain. */
-  justification: string | null;
-}
+export const LIBELLE_ETAT: Record<string, string> = {
+  BON: 'Bon',
+  REBUT: 'Rebut',
+  CASSE: 'Cassé',
+};
 
 export interface TrancheParc {
   libelle: string;
@@ -161,6 +150,8 @@ function chaineFiltres(page: number, f?: FiltresInventaire): string {
   if (f?.detenteur_id) p.set('detenteur_id', f.detenteur_id);
   // `actif` non transmis = tout le parc ; sinon on précise l'état voulu.
   if (f?.actif !== null && f?.actif !== undefined) p.set('actif', String(f.actif));
+  if (f?.etat_constate) p.set('etat_constate', f.etat_constate);
+  if (f?.a_controler === true) p.set('a_controler', 'true');
   return p.toString();
 }
 
@@ -182,22 +173,14 @@ export const inventaireApi = {
     libelle: string,
   ): Promise<ReferentielItem> => api.post(`/inventaire/referentiels/${cle}`, { libelle }),
   analyses: (): Promise<AnalysesParc> => api.get('/inventaire/analyses'),
-};
-
-export const campagnesApi = {
-  lister: (): Promise<{ campagnes: CampagneInventaire[]; parc_actif: number }> =>
-    api.get('/inventaire/campagnes'),
-  ouvrir: (libelle: string): Promise<CampagneInventaire> =>
-    api.post('/inventaire/campagnes', { libelle }),
-  recensement: (id: string): Promise<LigneRecensement[]> =>
-    api.get(`/inventaire/campagnes/${id}/recensement`),
+  /** Consigner ce qu'on a vu du matériel. Ouvert à tout agent du module, contrairement au
+   *  reste de la fiche : contrôler le parc est un travail de terrain. */
   constater: (
     id: string,
-    equipementId: string,
     etat: EtatConstat,
     justification: string,
-  ): Promise<void> =>
-    api.put(`/inventaire/campagnes/${id}/constats/${equipementId}`, { etat, justification }),
-  retirerConstat: (id: string, equipementId: string): Promise<void> =>
-    api.del(`/inventaire/campagnes/${id}/constats/${equipementId}`),
+  ): Promise<EquipementDetail> =>
+    api.put(`/inventaire/${id}/constat`, { etat, justification }),
+  retirerConstat: (id: string): Promise<EquipementDetail> =>
+    api.del(`/inventaire/${id}/constat`),
 };

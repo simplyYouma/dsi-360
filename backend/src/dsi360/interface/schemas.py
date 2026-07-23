@@ -257,6 +257,12 @@ class EquipementResume(BaseModel):
     valeur_nette: float | None
     amorti_pct: int | None
     actif: bool
+    #: Dernier contrôle de terrain. ``None`` n'est pas un verdict sur le matériel : personne
+    #: n'y est allé — c'est ce que l'inventaire physique vient rattraper.
+    etat_constate: str | None = None
+    constate_le: datetime | None = None
+    constate_par: str | None = None
+    constat_motif: str | None = None
 
 
 class EvenementEquipement(EvenementJournal):
@@ -296,6 +302,12 @@ class StatsInventaire(BaseModel):
     sortis: int
     sans_detenteur: int
     valeur_acquisition: float
+    #: État constaté du parc en service, et ce qu'il reste à contrôler.
+    bons: int = 0
+    rebuts: int = 0
+    casses: int = 0
+    #: Jamais contrôlés, ou pas depuis plus d'un an : le travail de terrain qui attend.
+    a_controler: int = 0
 
 
 class _EquipementChamps(BaseModel):
@@ -350,62 +362,13 @@ class AnalysesParc(BaseModel):
     par_age: list[TrancheParc]
 
 
-class CampagneInventaire(BaseModel):
-    """Un recensement daté du parc, avec ses comptes par constat."""
+class ConstatEquipement(BaseModel):
+    """Ce qu'un agent a constaté sur le terrain, avec le motif qui le fonde."""
 
-    id: str
-    libelle: str
-    #: OUVERTE | CLOTUREE — une seule campagne ouverte à la fois.
-    statut: str
-    ouverte_le: datetime
-    cloturee_le: datetime | None
-    ouverte_par: str | None
-    constates: int
-    bons: int
-    rebuts: int
-    casses: int
-    #: Posés à la clôture sur tout matériel actif jamais recensé.
-    non_retrouves: int
-
-
-class PageCampagnes(BaseModel):
-    campagnes: list[CampagneInventaire]
-    #: Taille du parc actif : le dénominateur de l'avancement d'une campagne ouverte.
-    parc_actif: int
-
-
-class CampagneCreation(BaseModel):
-    libelle: str = Field(min_length=2, max_length=120)
-
-
-class ConstatCreation(BaseModel):
-    #: NON_RETROUVE ne se saisit pas : il se déduit à la clôture.
     etat: Literal["BON", "REBUT", "CASSE"]
     #: Ce qui a été observé, en une phrase (« écran fêlé », « retrouvé en réserve »). Exigé :
     #: un constat sans motif n'est qu'une opinion, et se relit un an plus tard sans rien dire.
     justification: str = Field(min_length=3, max_length=200)
-
-
-class LigneRecensement(BaseModel):
-    """Un équipement du parc face à la campagne : recensé (avec son constat) ou pas encore."""
-
-    id: str
-    code_immo: str | None
-    designation: str
-    numero_serie: str | None
-    emplacement: str | None
-    detenteur: str | None
-    etat: str | None
-    constate_le: datetime | None
-    constate_par: str | None
-    #: Le motif du constat, tel qu'il a été saisi sur le terrain.
-    justification: str | None = None
-
-
-class ClotureCampagne(BaseModel):
-    #: Le chiffre que la clôture vient chercher.
-    non_retrouves: int
-    campagne: CampagneInventaire
 
 
 class ReferentielItem(BaseModel):

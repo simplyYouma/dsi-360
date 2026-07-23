@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, Plus, Search, X } from 'lucide-react';
-import {
-  Button,
-  Modale,
-  StatusBadge,
-  Table,
-  useToast,
-  type Colonne,
-} from '@/design-system/primitives';
+import { Plus, Search, X } from 'lucide-react';
+import { Button, Modale, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
@@ -20,11 +13,9 @@ import { FicheEquipement } from './FicheEquipement';
 import { ModaleEquipement } from './ModaleEquipement';
 import local from './Inventaire.module.css';
 import {
-  campagnesApi,
   CONSTATS,
-  COULEUR_ETAT,
   inventaireApi,
-  type CampagneInventaire,
+  LIBELLE_ETAT,
   type Equipement,
   type EtatConstat,
   type FiltresInventaire,
@@ -33,13 +24,6 @@ import {
 } from './inventaireApi';
 import { api } from '@/lib/api';
 
-const LIBELLE_ETAT: Record<string, string> = {
-  BON: 'Bon',
-  REBUT: 'Rebut',
-  CASSE: 'Cassé',
-  NON_RETROUVE: 'Non retrouvé',
-};
-
 function jourLong(iso: string | null): string {
   if (iso === null) return '—';
   return new Date(iso).toLocaleDateString('fr-FR', {
@@ -47,6 +31,17 @@ function jourLong(iso: string | null): string {
     month: 'long',
     year: 'numeric',
   });
+}
+
+/** Ce que dit le dernier contrôle : l'état, sa date, son auteur et son motif. */
+function infobulleConstat(e: Equipement): string | undefined {
+  if (e.etat_constate === null) return 'Jamais contrôlé sur le terrain';
+  const morceaux = [
+    `${LIBELLE_ETAT[e.etat_constate] ?? e.etat_constate} — ${jourLong(e.constate_le)}`,
+  ];
+  if (e.constate_par !== null) morceaux.push(`par ${e.constate_par}`);
+  if (e.constat_motif !== null) morceaux.push(`« ${e.constat_motif} »`);
+  return morceaux.join(' · ');
 }
 
 /** Montant en francs CFA, séparé par milliers. Sans décimales : elles n'apportent rien ici. */
@@ -95,121 +90,44 @@ export function InventairePage(): JSX.Element {
   const { notifier } = useToast();
   const estAdmin = moi?.profil === 'ADMIN';
 
-  // --- Campagne d'inventaire : le recensement se fait ici, dans la liste du parc. ---
-  const [campagnes, setCampagnes] = useState<CampagneInventaire[]>([]);
-  const [parcActif, setParcActif] = useState(0);
-  const [campagneId, setCampagneId] = useState<string | null>(null);
-  const [constats, setConstats] = useState<Record<string, string>>({});
-  // Motif de chaque constat posé : relu en infobulle, pour savoir sur quoi il se fonde.
-  const [motifs, setMotifs] = useState<Record<string, string>>({});
-  const [envoiCampagne, setEnvoiCampagne] = useState(false);
-
-  const chargerCampagnes = useCallback(async (): Promise<void> => {
-    const r = await campagnesApi.lister();
-    setCampagnes(r.campagnes);
-    setParcActif(r.parc_actif);
-    // La campagne en cours s'affiche d'elle-même ; les closes restent au sélecteur.
-    setCampagneId((id) => id ?? r.campagnes.find((c) => c.statut === 'OUVERTE')?.id ?? null);
-  }, []);
-  useEffect(() => {
-    void chargerCampagnes().catch(() => undefined);
-  }, [chargerCampagnes]);
-
-  const campagne = campagnes.find((c) => c.id === campagneId) ?? null;
-  // On remplit le dernier inventaire lancé ; les précédents se relisent, ils ne se réécrivent
-  // pas — un inventaire est la photo d'un moment (la liste arrive du plus récent au plus ancien).
-  const enRecensement = campagne !== null && campagnes[0]?.id === campagne.id;
-
-  // Les constats de la campagne affichée, par équipement — la colonne de la liste s'en nourrit.
-  useEffect(() => {
-    if (campagneId === null) {
-      setConstats({});
-      setMotifs({});
-      return;
-    }
-    void campagnesApi
-      .recensement(campagneId)
-      .then((lignes) => {
-        const poses = lignes.filter((l) => l.etat !== null);
-        setConstats(Object.fromEntries(poses.map((l) => [l.id, l.etat as string])));
-        setMotifs(
-          Object.fromEntries(
-            poses
-              .filter((l) => l.justification !== null)
-              .map((l) => [
-                l.id,
-                `${l.justification ?? ''}${l.constate_par !== null ? ` — ${l.constate_par}` : ''}`,
-              ]),
-          ),
-        );
-      })
-      .catch(() => {
-        setConstats({});
-        setMotifs({});
-      });
-  }, [campagneId, campagnes]);
-
-  const erreurCampagne = (e: unknown, repli: string): void =>
-    notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
-
-  // Un constat s'appuie sur ce qu'on a vu : on le demande avant d'écrire. Retirer un constat
-  // posé par erreur ne se justifie pas — c'est un effacement, pas une observation.
+  // --- Contrôle de terrain : le constat se pose directement sur la ligne du matériel. ---
+  // Ce qu'on a vu se justifie : on demande le motif avant d'écrire. Retirer un constat posé
+  // par erreur ne se justifie pas — c'est un effacement, pas une observation.
   const [motif, setMotif] = useState<{ equipement: Equipement; etat: EtatConstat } | null>(null);
   const [texteMotif, setTexteMotif] = useState('');
+  const [envoiConstat, setEnvoiConstat] = useState(false);
 
-  const demanderConstat = async (equipementId: string, etat: EtatConstat): Promise<void> => {
-    if (campagne === null || !enRecensement) return;
-    if (constats[equipementId] === etat) {
+  const erreurConstat = (e: unknown, repli: string): void =>
+    notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
+
+  const demanderConstat = async (equipement: Equipement, etat: EtatConstat): Promise<void> => {
+    // Recliquer le constat déjà posé l'efface : le matériel redevient « à contrôler ».
+    if (equipement.etat_constate === etat) {
       try {
-        await campagnesApi.retirerConstat(campagne.id, equipementId);
-        await chargerCampagnes();
+        await inventaireApi.retirerConstat(equipement.id);
+        await charger();
+        chargerStats();
       } catch (err) {
-        erreurCampagne(err, 'Constat impossible.');
+        erreurConstat(err, 'Constat impossible.');
       }
       return;
     }
-    const equipement = items.find((e) => e.id === equipementId);
-    if (equipement !== undefined) {
-      setTexteMotif('');
-      setMotif({ equipement, etat });
-    }
+    setTexteMotif('');
+    setMotif({ equipement, etat });
   };
 
   const enregistrerConstat = async (): Promise<void> => {
-    if (campagne === null || motif === null) return;
-    setEnvoiCampagne(true);
+    if (motif === null) return;
+    setEnvoiConstat(true);
     try {
-      await campagnesApi.constater(campagne.id, motif.equipement.id, motif.etat, texteMotif);
+      await inventaireApi.constater(motif.equipement.id, motif.etat, texteMotif);
       setMotif(null);
-      await chargerCampagnes();
+      await charger();
+      chargerStats();
     } catch (err) {
-      erreurCampagne(err, 'Constat impossible.');
+      erreurConstat(err, 'Constat impossible.');
     } finally {
-      setEnvoiCampagne(false);
-    }
-  };
-
-  /** Créer l'inventaire de l'année, sans rien demander : le libellé se déduit de la date, et
-   *  un chiffre s'ajoute si l'on en lance un second dans la même année. */
-  const nouvelInventaire = async (): Promise<void> => {
-    setEnvoiCampagne(true);
-    try {
-      const annee = new Date().getFullYear();
-      const dejaCetteAnnee = campagnes.filter(
-        (c) => new Date(c.ouverte_le).getFullYear() === annee,
-      ).length;
-      const libelle =
-        dejaCetteAnnee === 0
-          ? `Inventaire physique ${annee}`
-          : `Inventaire physique ${annee} (${dejaCetteAnnee + 1})`;
-      const creee = await campagnesApi.ouvrir(libelle);
-      setCampagneId(creee.id);
-      await chargerCampagnes();
-      notifier(`${creee.libelle} — le recensement peut commencer.`, 'succes');
-    } catch (e) {
-      erreurCampagne(e, 'Création impossible.');
-    } finally {
-      setEnvoiCampagne(false);
+      setEnvoiConstat(false);
     }
   };
 
@@ -318,61 +236,49 @@ export function InventairePage(): JSX.Element {
     },
   ];
 
-  // La colonne de constat n'existe que lorsqu'une campagne est affichée : pendant le
-  // recensement on clique, sur une campagne close on relit.
-  if (campagne !== null) {
-    colonnes.push({
-      cle: 'constat',
-      entete: `Constat ${new Date(campagne.ouverte_le).getFullYear()}`,
-      largeur: '235px',
-      valeur: (e) => constats[e.id] ?? '',
-      rendu: (e) => {
-        const pose = constats[e.id];
-        if (enRecensement) {
+  // Le contrôle de terrain, sur la ligne du matériel : trois boutons, celui qui est posé
+  // porte sa couleur. L'infobulle rappelle qui a constaté, quand, et sur quoi il se fondait.
+  colonnes.push({
+    cle: 'constat',
+    entete: 'Constat',
+    largeur: '235px',
+    valeur: (e) => e.etat_constate ?? '',
+    rendu: (e) => (
+      <span className={local.constats} title={infobulleConstat(e)}>
+        {CONSTATS.map(({ etat, libelle, couleur }) => {
+          const pose = e.etat_constate === etat;
           return (
-            <span className={local.constats} title={motifs[e.id]}>
-              {CONSTATS.map(({ etat, libelle, couleur }) => (
-                <button
-                  key={etat}
-                  type="button"
-                  className={pose === etat ? local.constatOn : local.constat}
-                  // La couleur sémantique est portée en variable : posé elle remplit le
-                  // bouton, sinon elle s'annonce au survol.
-                  style={
-                    {
-                      '--constat': couleur,
-                      ...(pose === etat ? { background: couleur, borderColor: couleur } : {}),
-                    } as React.CSSProperties
-                  }
-                  onClick={(ev) => {
-                    // Sans quoi le clic ouvrirait la fiche de la ligne.
-                    ev.stopPropagation();
-                    void demanderConstat(e.id, etat);
-                  }}
-                >
-                  {libelle}
-                </button>
-              ))}
-            </span>
+            <button
+              key={etat}
+              type="button"
+              className={pose ? local.constatOn : local.constat}
+              // La couleur sémantique est portée en variable : posée elle remplit le bouton,
+              // sinon elle s'annonce au survol.
+              style={
+                {
+                  '--constat': couleur,
+                  ...(pose ? { background: couleur, borderColor: couleur } : {}),
+                } as React.CSSProperties
+              }
+              onClick={(ev) => {
+                // Sans quoi le clic ouvrirait la fiche de la ligne.
+                ev.stopPropagation();
+                void demanderConstat(e, etat);
+              }}
+            >
+              {libelle}
+            </button>
           );
-        }
-        if (pose === undefined) return <span className={local.vide}>—</span>;
-        // Campagne close : le verdict remplit la cellule, dans sa couleur.
-        return (
-          <span
-            className={local.constatFinal}
-            title={motifs[e.id]}
-            style={{ '--constat': COULEUR_ETAT[pose] ?? 'var(--text-muted)' } as React.CSSProperties}
-          >
-            {LIBELLE_ETAT[pose] ?? pose}
-          </span>
-        );
-      },
-    });
-  }
+        })}
+      </span>
+    ),
+  });
 
   const vue = VUES.find((v) => v.actif === (f.actif ?? null))?.cle ?? 'tous';
-  const filtreActif = Boolean(f.q || f.emplacement_id || f.departement_id || f.detenteur_id);
+  const filtreActif = Boolean(
+    f.q || f.emplacement_id || f.departement_id || f.detenteur_id || f.etat_constate ||
+      f.a_controler,
+  );
 
   return (
     <div className={styles.page}>
@@ -382,16 +288,6 @@ export function InventairePage(): JSX.Element {
           <p className={styles.sous}>Parc matériel de la DSI et valeur des immobilisations.</p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-          {estAdmin && (
-            <Button
-              variante="secondaire"
-              onClick={() => void nouvelInventaire()}
-              disabled={envoiCampagne}
-            >
-              <ClipboardCheck size={16} />
-              Nouvel inventaire
-            </Button>
-          )}
           <BoutonsExport base="/inventaire" />
           {estAdmin && (
             <Button onClick={() => setModale(true)}>
@@ -430,79 +326,70 @@ export function InventairePage(): JSX.Element {
         </div>
       )}
 
-      {/* L'inventaire vit dans la même liste que le parc : on choisit lequel regarder, et la
-          colonne « Constat » suit. Le dernier créé est celui qu'on remplit. */}
-      {campagnes.length > 0 && (
-        <div className={local.bandeauCampagne}>
-          <div className={local.campagneTete}>
-            <span className={local.campagneSelecteur}>
-              <SelecteurListe
-                options={campagnes.map((c) => ({ valeur: c.id, libelle: c.libelle }))}
-                valeur={campagneId}
-                onChange={setCampagneId}
-                placeholder="Voir un inventaire"
-                permettreVide
-                libelleVide="Aucun inventaire affiché"
-              />
-            </span>
-            {campagne !== null && (
-              <>
-                {enRecensement && <StatusBadge statut="ok">En cours</StatusBadge>}
-                <span className={local.carteQuand}>
-                  Lancé le {jourLong(campagne.ouverte_le)}
-                  {campagne.ouverte_par !== null ? ` · ${campagne.ouverte_par}` : ''}
-                </span>
-              </>
-            )}
-          </div>
-          {campagne !== null && (
-            <div className={local.compteurs}>
-              {(() => {
-                // L'inventaire en cours se mesure contre le parc d'aujourd'hui ; un inventaire
-                // passé contre ce qu'il a lui-même recensé — le parc a changé depuis.
-                const denominateur = enRecensement
-                  ? Math.max(parcActif, campagne.constates)
-                  : campagne.constates;
-                const pct =
-                  denominateur === 0 ? 0 : Math.round((campagne.constates * 100) / denominateur);
-                return (
-                  <span className={local.compteurAvancee}>
-                    <b>
-                      {campagne.constates}
-                      <em> / {denominateur}</em>
-                    </b>
-                    <span className={local.avanceePiste}>
-                      <span className={local.avanceePlein} style={{ width: `${pct}%` }} />
-                    </span>
-                    {/* « 60 % du parc a été vu » se comprend ; « Recensés · 60 % » se devine. */}
-                    <span>
-                      {enRecensement ? `${pct} % du parc déjà recensé` : `${pct} % du parc recensé`}
-                    </span>
-                  </span>
-                );
-              })()}
-              <span className={local.compteur}>
-                <b style={{ color: 'var(--status-ok)' }}>{campagne.bons}</b>
-                <span>Bons</span>
-              </span>
-              <span className={local.compteur}>
-                <b style={{ color: 'var(--status-warn)' }}>{campagne.rebuts}</b>
-                <span>Rebuts</span>
-              </span>
-              <span className={local.compteur}>
-                <b style={{ color: 'var(--status-danger)' }}>{campagne.casses}</b>
-                <span>Cassés</span>
-              </span>
-              {/* Ce qui reste à voir : le travail de terrain qui attend, sans rien présumer
-                  du sort de ces matériels. */}
-              <span className={local.compteur}>
-                <b style={{ color: 'var(--text-muted)' }}>
-                  {Math.max(0, parcActif - campagne.constates)}
-                </b>
-                <span>{enRecensement ? 'À recenser' : 'Non recensés'}</span>
-              </span>
-            </div>
-          )}
+      {/* L'état constaté du parc, et surtout ce qu'il reste à contrôler : cliquer sur un
+          compteur filtre la liste, c'est de là que part le travail de terrain. */}
+      {stats !== null && (
+        <div className={local.compteurs}>
+          {(
+            [
+              { cle: 'BON', libelle: 'Bons', valeur: stats.bons, couleur: 'var(--status-ok)' },
+              {
+                cle: 'REBUT',
+                libelle: 'Rebuts',
+                valeur: stats.rebuts,
+                couleur: 'var(--status-warn)',
+              },
+              {
+                cle: 'CASSE',
+                libelle: 'Cassés',
+                valeur: stats.casses,
+                couleur: 'var(--status-danger)',
+              },
+            ] as const
+          ).map((c) => (
+            <button
+              key={c.cle}
+              type="button"
+              className={f.etat_constate === c.cle ? local.compteurActif : local.compteurClic}
+              onClick={() => {
+                setPage(1);
+                setF({
+                  ...f,
+                  actif: true,
+                  a_controler: false,
+                  etat_constate: f.etat_constate === c.cle ? null : c.cle,
+                });
+              }}
+            >
+              <b style={{ color: c.couleur }}>{c.valeur}</b>
+              <span>{c.libelle}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={
+              f.a_controler === true
+                ? local.compteurActif
+                : stats.a_controler > 0
+                  ? local.compteurAlerteClic
+                  : local.compteurClic
+            }
+            onClick={() => {
+              setPage(1);
+              setF({
+                ...f,
+                actif: true,
+                etat_constate: null,
+                a_controler: f.a_controler !== true,
+              });
+            }}
+            title="Jamais contrôlés, ou pas depuis plus d'un an"
+          >
+            <b style={{ color: stats.a_controler > 0 ? 'var(--status-warn)' : 'var(--text-muted)' }}>
+              {stats.a_controler}
+            </b>
+            <span>À contrôler</span>
+          </button>
         </div>
       )}
 
@@ -610,15 +497,7 @@ export function InventairePage(): JSX.Element {
           chargerStats();
         }}
         onReferentiels={chargerReferentiels}
-        recensement={
-          enRecensement && campagne !== null && ficheId !== null
-            ? {
-                libelle: campagne.libelle,
-                etat: constats[ficheId] ?? null,
-                onConstat: (etat) => void demanderConstat(ficheId, etat),
-              }
-            : null
-        }
+        onConstat={(equipement, etat) => void demanderConstat(equipement, etat)}
       />
 
       <ModaleEquipement
@@ -655,9 +534,9 @@ export function InventairePage(): JSX.Element {
             </Button>
             <Button
               onClick={() => void enregistrerConstat()}
-              disabled={envoiCampagne || texteMotif.trim().length < 3}
+              disabled={envoiConstat || texteMotif.trim().length < 3}
             >
-              {envoiCampagne ? 'Enregistrement…' : 'Enregistrer le constat'}
+              {envoiConstat ? 'Enregistrement…' : 'Enregistrer le constat'}
             </Button>
           </>
         }

@@ -43,6 +43,53 @@
   color: var(--secondary);
 }
 
+/* Compteurs cliquables : ils filtrent la liste. C'est de là que part le travail de terrain,
+   il faut qu'ils s'annoncent comme des boutons. */
+.compteurClic,
+.compteurAlerteClic,
+.compteurActif {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.compteurClic b,
+.compteurAlerteClic b,
+.compteurActif b {
+  font-size: 1.15rem;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.compteurClic span:last-child,
+.compteurAlerteClic span:last-child,
+.compteurActif span:last-child {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.compteurClic:hover,
+.compteurAlerteClic:hover {
+  border-color: var(--text-muted);
+}
+/* Reste à contrôler : une vigilance tant que le chiffre n'est pas nul. */
+.compteurAlerteClic {
+  border-color: color-mix(in srgb, var(--status-warn) 45%, var(--border));
+  background: color-mix(in srgb, var(--status-warn) 8%, var(--surface));
+}
+/* Filtre en vigueur : le compteur porte la sélection, comme un segment actif. */
+.compteurActif {
+  border-color: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 10%, var(--surface));
+  box-shadow: 0 0 0 1px var(--secondary);
+}
+
 /* ---- Part amortie, en liste ---- */
 .amorti {
   display: inline-flex;
@@ -137,6 +184,25 @@
 .detenteurAnnuler:hover {
   border-color: var(--status-danger);
   color: var(--status-danger);
+}
+
+/* Dernier contrôle de terrain, en tête de fiche : discret, mais toujours présent. */
+.controle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.controle svg {
+  flex: none;
+}
+.controle b {
+  font-weight: var(--weight-semibold);
 }
 
 /* Valeur venue du fichier, sans compte rapproché : visiblement provisoire. */

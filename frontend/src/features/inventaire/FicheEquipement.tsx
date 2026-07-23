@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { History, TriangleAlert } from 'lucide-react';
+import { ClipboardCheck, History, TriangleAlert } from 'lucide-react';
 import { Button, Modale, Skeleton, StatusBadge, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
@@ -16,7 +16,9 @@ import { CurseurTaux } from './CurseurTaux';
 import { DiscussionEquipement } from './DiscussionEquipement';
 import {
   CONSTATS,
+  COULEUR_ETAT,
   inventaireApi,
+  LIBELLE_ETAT,
   type EquipementDetail,
   type EtatConstat,
   type MajEquipement,
@@ -31,12 +33,8 @@ interface Props {
   onChange: () => void;
   /** Recharge les référentiels après un ajout à la volée. */
   onReferentiels: () => void;
-  /** Campagne ouverte : la fiche permet aussi de poser le constat, comme la liste. */
-  recensement?: {
-    libelle: string;
-    etat: string | null;
-    onConstat: (etat: EtatConstat) => void;
-  } | null;
+  /** Poser le constat depuis la fiche, comme depuis la liste : la page demande le motif. */
+  onConstat: (equipement: EquipementDetail, etat: EtatConstat) => void;
 }
 
 function montant(valeur: number | null): string {
@@ -96,7 +94,7 @@ export function FicheEquipement({
   onFermer,
   onChange,
   onReferentiels,
-  recensement = null,
+  onConstat,
 }: Props): JSX.Element {
   const [detail, setDetail] = useState<EquipementDetail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -141,31 +139,32 @@ export function FicheEquipement({
       largeurPanneau={450}
       panneau={<DiscussionEquipement equipementId={id} agents={agents} />}
       etiquettes={
-        // Les constats de la campagne ouverte, collés au bord du dossier comme des stickers :
-        // ce qu'on voit du matériel, on le dit sans quitter la fiche.
-        recensement !== null && detail !== null && detail.actif ? (
+        // Le constat de terrain, collé au bord du dossier comme des stickers : ce qu'on voit
+        // du matériel, on le dit sans quitter la fiche.
+        detail !== null && detail.actif ? (
           <>
-            {CONSTATS.map(({ etat, libelle, couleur }) => (
-              <button
-                key={etat}
-                type="button"
-                className={recensement.etat === etat ? local.stickerOn : local.sticker}
-                // La couleur sémantique en variable : posée elle remplit le sticker,
-                // sinon elle s'annonce au survol.
-                style={
-                  {
-                    '--constat': couleur,
-                    ...(recensement.etat === etat
-                      ? { background: couleur, borderColor: couleur }
-                      : {}),
-                  } as React.CSSProperties
-                }
-                onClick={() => recensement.onConstat(etat)}
-                title={`Constat — ${recensement.libelle}`}
-              >
-                {libelle}
-              </button>
-            ))}
+            {CONSTATS.map(({ etat, libelle, couleur }) => {
+              const pose = detail.etat_constate === etat;
+              return (
+                <button
+                  key={etat}
+                  type="button"
+                  className={pose ? local.stickerOn : local.sticker}
+                  // La couleur sémantique en variable : posée elle remplit le sticker,
+                  // sinon elle s'annonce au survol.
+                  style={
+                    {
+                      '--constat': couleur,
+                      ...(pose ? { background: couleur, borderColor: couleur } : {}),
+                    } as React.CSSProperties
+                  }
+                  onClick={() => onConstat(detail, etat)}
+                  title={pose ? 'Recliquer efface ce constat' : `Constater : ${libelle}`}
+                >
+                  {libelle}
+                </button>
+              );
+            })}
           </>
         ) : undefined
       }
@@ -223,6 +222,25 @@ export function FicheEquipement({
               <StatusBadge couleur="var(--text-muted)">Totalement amorti</StatusBadge>
             )}
           </div>
+
+          {/* Le dernier contrôle de terrain : ce qui a été vu, quand, par qui, et pourquoi.
+              Jamais contrôlé n'est pas un verdict sur le matériel — c'est un trou de suivi. */}
+          <p className={local.controle}>
+            <ClipboardCheck size={14} />
+            {detail.etat_constate === null ? (
+              <span>Jamais contrôlé sur le terrain</span>
+            ) : (
+              <span>
+                Constaté{' '}
+                <b style={{ color: COULEUR_ETAT[detail.etat_constate] }}>
+                  {LIBELLE_ETAT[detail.etat_constate] ?? detail.etat_constate}
+                </b>{' '}
+                le {jour(detail.constate_le)}
+                {detail.constate_par !== null ? ` par ${detail.constate_par}` : ''}
+                {detail.constat_motif !== null ? ` — « ${detail.constat_motif} »` : ''}
+              </span>
+            )}
+          </p>
 
           {detail.amortissement_incoherent && (
             <p className={local.avertissement}>

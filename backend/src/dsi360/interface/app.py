@@ -28,7 +28,6 @@ from dsi360.interface.routeurs import (
     apercu,
     audit_reco,
     auth,
-    campagnes,
     changements,
     commentaires,
     cybersecurite,
@@ -215,8 +214,6 @@ def creer_app() -> FastAPI:
     v1.include_router(cybersecurite.routeur)
     v1.include_router(gouvernance.routeur)
     v1.include_router(projets.routeur)
-    # Avant `inventaire` : sinon /inventaire/{ident} avalerait /inventaire/campagnes.
-    v1.include_router(campagnes.routeur)
     v1.include_router(inventaire.routeur)
     app.include_router(v1)
     if settings.servir_frontend:
