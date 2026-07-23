@@ -168,6 +168,14 @@
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* Icône d'état : une forme se lit plus vite qu'un point, et sans dépendre de la couleur. */
+.icone {
+  flex-shrink: 0;
+  vertical-align: -2px;
+}
+.valeur .icone {
+  margin-right: var(--space-2);
+}
 
 /* « Réassigner » : effacé, révélé au survol du champ — signale que la place est prise. */
 .indice {

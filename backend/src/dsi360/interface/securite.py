@@ -28,7 +28,6 @@ from dsi360.application.autorisations import (
     visible,
 )
 from dsi360.config.acces import PROFIL_ADMIN
-from dsi360.domain.etats import est_etat_terminal
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo_activite
 from dsi360.infrastructure.repositories import utilisateur as repo
@@ -149,16 +148,16 @@ class ContexteActivite:
 
 
 def exiger_role_activite(
-    module: str, acces: str, requis: set[str] | None = None, *, bloquer_si_clos: bool = False
+    module: str, acces: str, requis: set[str] | None = None
 ) -> Callable[..., Awaitable[ContexteActivite]]:
     """Garde : accès au module, puis périmètre, puis rôle sur cette activité.
 
     ``requis`` vide (ou ``None``) = simple lecture : il suffit de voir l'activité.
     Hors périmètre → 404 : une activité qu'on n'a pas le droit de voir n'existe pas pour nous.
 
-    ``bloquer_si_clos`` : refuse (409) toute mutation d'une activité dans un état terminal. À poser
-    sur les routes de modification du contenu ; laissé à ``False`` pour le dossier (RFC, liens) et
-    la discussion, qui restent ouverts après clôture.
+    La clôture ne ferme rien ici : un dossier clos reste corrigible (demande de la DSI). Ce qui
+    borne l'écriture, c'est le **rôle** — et, pour le statut, les transitions que le domaine
+    autorise. La trace de toute correction vit au journal d'audit (principe n° 4).
     """
     attendus = requis or set()
 
@@ -178,28 +177,20 @@ def exiger_role_activite(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Action non autorisée pour votre rôle sur cette activité.",
             )
-        if bloquer_si_clos and est_etat_terminal(module, r["statut"]):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Activité clôturée : lecture seule. Seuls la discussion, les analyses/plans "
-                    "(RFC) et les liens restent ouverts."
-                ),
-            )
         return ContexteActivite(activite=r, roles=roles, courant=courant)
 
     return _verifier
 
 
 def exiger_role_activite_courant(
-    module: str, acces: str, requis: set[str] | None = None, *, bloquer_si_clos: bool = False
+    module: str, acces: str, requis: set[str] | None = None
 ) -> Callable[..., Awaitable[dict[str, Any]]]:
     """Même garde, mais renvoie l'utilisateur courant.
 
     Les registrars (documents, liens, tâches) attendent une dépendance ``Courant`` : on leur en
     fournit une qui vérifie en plus le rôle sur l'activité, sans changer leur signature.
     """
-    garde = exiger_role_activite(module, acces, requis, bloquer_si_clos=bloquer_si_clos)
+    garde = exiger_role_activite(module, acces, requis)
 
     async def _verifier(ctx: Annotated[ContexteActivite, Depends(garde)]) -> dict[str, Any]:
         return ctx.courant

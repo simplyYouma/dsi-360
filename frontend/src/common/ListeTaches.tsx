@@ -7,6 +7,7 @@ import { SelecteurListe } from '@/common/SelecteurListe';
 import { cx } from '@/common/cx';
 import {
   COULEUR_STATUT_TACHE,
+  ICONE_STATUT_TACHE,
   STATUTS_TACHE,
   type MajTache,
   type NouvelleTache,
@@ -183,6 +184,7 @@ export function ListeTaches({
                 onChange={(v) => v !== null && void onMaj(t.id, { statut: v as StatutTache })}
                 placeholder="Statut"
                 couleurs={COULEUR_STATUT_TACHE}
+                icones={ICONE_STATUT_TACHE}
                 desactive={!peutTravailler && t.assigne_id !== moiId}
                 titreDesactive="Seul l’assigné de cette tâche en change le statut."
               />

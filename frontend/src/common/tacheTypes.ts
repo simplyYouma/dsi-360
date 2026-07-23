@@ -1,4 +1,5 @@
 /** Types partagés des tâches (projets, changements…). */
+import { Circle, CircleCheck, CircleDashed, type LucideIcon } from 'lucide-react';
 
 export type StatutTache = 'À faire' | 'En cours' | 'Terminée';
 export const STATUTS_TACHE: StatutTache[] = ['À faire', 'En cours', 'Terminée'];
@@ -8,6 +9,14 @@ export const COULEUR_STATUT_TACHE: Record<StatutTache, string> = {
   'À faire': 'var(--text-muted)',
   'En cours': 'var(--status-warn)',
   Terminée: 'var(--status-ok)',
+};
+
+// Forme = sens, avant même la couleur : cercle vide (rien n'est fait), cercle entamé (en
+// chemin), coche (abouti). Se lit d'un coup d'œil, sans avoir à distinguer les teintes.
+export const ICONE_STATUT_TACHE: Record<StatutTache, LucideIcon> = {
+  'À faire': Circle,
+  'En cours': CircleDashed,
+  Terminée: CircleCheck,
 };
 
 export interface Chef {

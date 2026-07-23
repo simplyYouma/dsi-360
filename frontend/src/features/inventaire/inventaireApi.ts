@@ -33,6 +33,8 @@ export interface EquipementDetail extends Equipement {
   emplacement_id: string | null;
   departement_id: string | null;
   detenteur_id: string | null;
+  /** Nom libre quand le détenteur n'a pas de compte (agence, prestataire). */
+  detenteur_externe: string | null;
   taux: number | null;
   duree_annees: number | null;
   source: string;
@@ -75,6 +77,8 @@ export interface NouvelEquipement {
   emplacement_id?: string | null;
   departement_id?: string | null;
   detenteur_id?: string | null;
+  /** Détenteur sans compte : saisi librement, exclusif avec `detenteur_id`. */
+  detenteur_externe?: string | null;
   taux?: number | null;
   date_acquisition?: string | null;
   duree_annees?: number | null;

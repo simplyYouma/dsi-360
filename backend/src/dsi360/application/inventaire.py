@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.domain.texte import nom_significatif, phrase_propre
+from dsi360.domain.texte import nom_propre, nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.repositories import equipement as repo
 
@@ -79,6 +79,9 @@ _REFERENCES = {
     ),
 }
 
+#: Champs libres dont le journal garde la valeur telle quelle (pas de table à interroger).
+_LIBELLE_DIRECT = {"detenteur_externe": "detenteur"}
+
 
 async def _en_libelles(
     session: AsyncSession, avant: dict[str, Any], donnees: dict[str, Any]
@@ -87,6 +90,13 @@ async def _en_libelles(
     anciennes: dict[str, Any] = {}
     nouvelles: dict[str, Any] = {}
     for colonne, valeur in donnees.items():
+        # Nom libre : il est déjà lisible, et partage la clé « detenteur » avec le compte —
+        # passer de l'un à l'autre se lit alors comme un simple changement de détenteur.
+        direct = _LIBELLE_DIRECT.get(colonne)
+        if direct is not None:
+            anciennes.setdefault(direct, avant.get(colonne))
+            nouvelles[direct] = valeur
+            continue
         reference = _REFERENCES.get(colonne)
         if reference is None:
             anciennes[colonne] = _serialisable(avant.get(colonne))
@@ -96,13 +106,17 @@ async def _en_libelles(
         if colonne == "detenteur_id":
             # La ligne chargée porte déjà le nom de l'ancien détenteur (jointure du repository).
             ancien = (
-                f"{avant['det_prenom']} {avant['det_nom']}" if avant.get("det_prenom") else None
+                f"{avant['det_prenom']} {avant['det_nom']}"
+                if avant.get("det_prenom")
+                else avant.get("detenteur_externe")
             )
         else:
             ancien = avant.get(cle)
         nouveau = None if valeur is None else await session.scalar(text(sql), {"id": valeur})
         anciennes[cle] = ancien
-        nouvelles[cle] = nouveau
+        # Un compte désigné remplace le nom libre : on ne réécrit pas la valeur en « — ».
+        if nouveau is not None or nouvelles.get(cle) is None:
+            nouvelles[cle] = nouveau
     return anciennes, nouvelles
 
 
@@ -150,6 +164,14 @@ def _nettoyer(champs: dict[str, Any]) -> dict[str, Any]:
         if texte in propre:
             valeur = nom_significatif(propre[texte])
             propre[texte] = valeur.upper() if texte == "code_immo" and valeur else valeur
+    if "detenteur_externe" in propre:
+        propre["detenteur_externe"] = nom_propre(nom_significatif(propre["detenteur_externe"]))
+    # Un détenteur, c'est une personne, pas deux : désigner un compte efface le nom libre,
+    # et inversement. Sans cela, la fiche afficherait l'un pendant que la base garde l'autre.
+    if propre.get("detenteur_id"):
+        propre["detenteur_externe"] = None
+    elif propre.get("detenteur_externe"):
+        propre["detenteur_id"] = None
     return propre
 
 

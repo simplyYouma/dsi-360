@@ -10,6 +10,7 @@ import {
 } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { useAuth } from '@/lib/auth';
 import { ErreurApi } from '@/lib/api';
@@ -85,6 +86,7 @@ export function InventairePage(): JSX.Element {
   const [stats, setStats] = useState<StatsInventaire | null>(null);
   const [emplacements, setEmplacements] = useState<ReferentielItem[]>([]);
   const [departements, setDepartements] = useState<ReferentielItem[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [f, setF] = useState<FiltresInventaire>({ actif: true });
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
@@ -214,6 +216,9 @@ export function InventairePage(): JSX.Element {
     void inventaireApi.referentiel('departements').then(setDepartements);
   }, []);
   useEffect(() => chargerReferentiels(), [chargerReferentiels]);
+  useEffect(() => {
+    void chargerAgents().then(setAgents);
+  }, []);
 
   const colonnes: Colonne<Equipement>[] = [
     {
@@ -342,7 +347,7 @@ export function InventairePage(): JSX.Element {
   }
 
   const vue = VUES.find((v) => v.actif === (f.actif ?? null))?.cle ?? 'tous';
-  const filtreActif = Boolean(f.q || f.emplacement_id || f.departement_id);
+  const filtreActif = Boolean(f.q || f.emplacement_id || f.departement_id || f.detenteur_id);
 
   return (
     <div className={styles.page}>
@@ -540,6 +545,20 @@ export function InventairePage(): JSX.Element {
             placeholder="Tous les départements"
             permettreVide
             libelleVide="Tous les départements"
+          />
+        </div>
+        {/* « Quel matériel détient X ? » — la question qu'on pose le plus souvent au parc. */}
+        <div className={filtres.filtre}>
+          <SelecteurListe
+            options={agents.map((a) => ({ valeur: a.id, libelle: a.nom }))}
+            valeur={f.detenteur_id ?? null}
+            onChange={(v) => {
+              setPage(1);
+              setF({ ...f, detenteur_id: v });
+            }}
+            placeholder="Tous les détenteurs"
+            permettreVide
+            libelleVide="Tous les détenteurs"
           />
         </div>
         {filtreActif && (

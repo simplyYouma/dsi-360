@@ -59,30 +59,39 @@ async def test_pas_de_comite_sans_valideur(client: AsyncClient, session: AsyncSe
     assert r.json()["statut"] == "CAB"
 
 
-async def test_activite_close_en_lecture_seule_sauf_dossier(
+async def test_activite_close_reste_corrigible(
     client: AsyncClient, session: AsyncSession
 ) -> None:
+    """Un dossier clos se corrige encore — demande de la DSI.
+
+    On rectifie régulièrement après coup : un intitulé inexact, un gestionnaire mal renseigné,
+    un bilan qu'on rédige justement une fois la mise en production faite. Figer le dossier
+    figeait aussi les erreurs. Ce qui protège l'information, c'est le journal d'audit, qui garde
+    qui a changé quoi (principe n° 4) — pas un verrou.
+    """
     admin = await creer_utilisateur(session, email="admin.clos@afgbank.ml", profil="ADMIN")
     changement = await creer_activite(
         session, module="changement", reference="CHG-CLOS-1", statut="Clôturé"
     )
 
-    # Les capacités reflètent la clôture : plus de travail, mais le dossier reste ouvert.
     r = await client.get(f"/changements/{changement}", headers=entetes(admin))
     perms = r.json()["permissions"]
-    assert perms["peut_travailler"] is False
-    assert perms["peut_assigner"] is False
+    assert perms["peut_travailler"] is True
+    assert perms["peut_assigner"] is True
     assert perms["peut_completer_dossier"] is True
+    # Une décision rendue, elle, ne se rejoue pas : c'est un acte, pas une donnée.
+    assert perms["peut_decider"] is False
 
-    # Titre : refusé (impacterait l'état fini).
+    # Corriger l'intitulé d'un dossier clos : accepté.
     r = await client.patch(
         f"/changements/{changement}",
         headers=entetes(admin),
-        json={"titre": "Nouveau titre interdit"},
+        json={"titre": "Intitulé corrigé après clôture"},
     )
-    assert r.status_code == 409, r.text
+    assert r.status_code == 200, r.text
+    assert r.json()["titre"] == "Intitulé corrigé après clôture"
 
-    # Dossier RFC (bilan post-implémentation) : autorisé même clôturé.
+    # Dossier RFC (bilan post-implémentation) : toujours autorisé.
     r = await client.patch(
         f"/changements/{changement}",
         headers=entetes(admin),
@@ -90,14 +99,14 @@ async def test_activite_close_en_lecture_seule_sauf_dossier(
     )
     assert r.status_code == 200, r.text
 
-    # Réassigner le gestionnaire : refusé.
+    # Réassigner le gestionnaire d'un dossier clos : accepté aussi.
     autre = await creer_utilisateur(session, email="autre.clos@afgbank.ml")
     r = await client.post(
         f"/changements/{changement}/assignation",
         headers=entetes(admin),
         json={"responsable_id": autre},
     )
-    assert r.status_code == 409, r.text
+    assert r.status_code == 200, r.text
 
 
 async def test_ma_decision_est_exposee_au_valideur(

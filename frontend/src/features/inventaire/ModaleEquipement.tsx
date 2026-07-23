@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { chargerAgents, type Agent } from '@/common/agentsApi';
+import { ChampDetenteur } from './ChampDetenteur';
 import { Button, Modale } from '@/design-system/primitives';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurDate } from '@/common/SelecteurDate';
@@ -39,6 +41,10 @@ export function ModaleEquipement({
 }: Props): JSX.Element {
   const [v, setV] = useState<NouvelEquipement>(VIDE);
   const [envoi, setEnvoi] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  useEffect(() => {
+    void chargerAgents().then(setAgents);
+  }, []);
 
   const nombre = (brut: string): number | null => {
     const chiffres = brut.replace(/[^\d]/g, '');
@@ -140,6 +146,19 @@ export function ModaleEquipement({
         />
       </div>
 
+      {/* Qui le détient, dès la saisie : un compte de l'annuaire, ou un nom libre pour une
+          agence ou un prestataire. Sans ce champ, tout matériel créé naissait « non attribué ». */}
+      <div className={styles.champ}>
+        <span>Détenteur</span>
+        <ChampDetenteur
+          agents={agents}
+          detenteurId={v.detenteur_id ?? null}
+          detenteurExterne={v.detenteur_externe ?? null}
+          onCompte={(id) => setV({ ...v, detenteur_id: id, detenteur_externe: null })}
+          onExterne={(nom) => setV({ ...v, detenteur_externe: nom, detenteur_id: null })}
+        />
+      </div>
+
       {/* Bloc comptable : c'est lui qui donne la valeur nette. Facultatif à la saisie. */}
       <div className={local.paire}>
         <div className={styles.champ}>
@@ -169,7 +188,16 @@ export function ModaleEquipement({
           <span>Durée (années)</span>
           <input
             value={v.duree_annees ?? ''}
-            onChange={(e) => setV({ ...v, duree_annees: nombre(e.target.value) })}
+            onChange={(e) => {
+              const duree = nombre(e.target.value);
+              // La durée dit déjà le taux (5 ans = 20 %/an) : on pose celui qui lui correspond
+              // tant qu'aucun n'a été réglé au curseur, qui reprend la main ensuite.
+              const complement =
+                duree !== null && duree > 0 && (v.taux === null || v.taux === undefined)
+                  ? { taux: Math.round((100 / duree) * 1000) / 1000 }
+                  : {};
+              setV({ ...v, duree_annees: duree, ...complement });
+            }}
             placeholder="4"
           />
         </label>

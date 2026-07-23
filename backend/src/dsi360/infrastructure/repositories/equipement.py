@@ -9,7 +9,7 @@ _CHAMPS = """
     e.id::text AS id, e.code_immo, e.numero_serie, e.modele, e.designation,
     e.emplacement_id::text AS emplacement_id, emp.libelle AS emplacement,
     e.departement_id::text AS departement_id, dep.libelle AS departement,
-    e.detenteur_id::text AS detenteur_id, e.matricule_brut,
+    e.detenteur_id::text AS detenteur_id, e.matricule_brut, e.detenteur_externe,
     u.prenom AS det_prenom, u.nom AS det_nom, u.matricule AS det_matricule,
     e.taux, e.date_acquisition, e.duree_annees, e.valeur_acquisition,
     e.source, e.actif, e.cree_le, e.maj_le
@@ -33,6 +33,7 @@ CHAMPS_MODIFIABLES = frozenset(
         "emplacement_id",
         "departement_id",
         "detenteur_id",
+        "detenteur_externe",
         "matricule_brut",
         "taux",
         "date_acquisition",
@@ -78,6 +79,7 @@ def _filtres(
         conditions += (
             " AND (e.code_immo ILIKE :q OR e.numero_serie ILIKE :q OR e.modele ILIKE :q"
             " OR e.designation ILIKE :q OR e.matricule_brut ILIKE :q"
+            " OR e.detenteur_externe ILIKE :q"
             " OR (u.prenom || ' ' || u.nom) ILIKE :q OR u.matricule ILIKE :q"
             " OR emp.libelle ILIKE :q OR dep.libelle ILIKE :q)"
         )

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Check, Search } from 'lucide-react';
+import { ChevronDown, Check, Search, type LucideIcon } from 'lucide-react';
 import { cx } from './cx';
 import styles from './SelecteurListe.module.css';
 
@@ -21,10 +21,13 @@ interface Props {
   libelleVide?: string;
   /** Couleur sémantique par valeur : pastille dans la liste + badge teinté sur la sélection. */
   couleurs?: Record<string, string>;
+  /** Icône par valeur — remplace la pastille : une forme se lit plus vite qu'un point, et
+   *  reste lisible pour qui distingue mal les couleurs. */
+  icones?: Record<string, LucideIcon>;
   /** Grisé : la valeur reste lisible, le choix est fermé (ex. champ réservé à l'administrateur). */
   desactive?: boolean;
   /** Raison du grisage, en infobulle : on n'interdit jamais sans dire pourquoi. */
-  titreDesactive?: string;
+  titreDesactive?: string | undefined;
   /** Mot montré au survol quand une valeur est déjà choisie (ex. « Réassigner ») : on voit
    *  que la case est prise, et qu'un clic la remplace. */
   indiceReaffectation?: string;
@@ -55,6 +58,7 @@ export function SelecteurListe({
   permettreVide = false,
   libelleVide = 'Aucune',
   couleurs,
+  icones,
   desactive = false,
   titreDesactive,
   indiceReaffectation,
@@ -145,6 +149,7 @@ export function SelecteurListe({
 
   // État coloré : le champ ENTIER prend la teinte du badge (fond, bordure, texte, chevron).
   const teinte = courant !== undefined ? couleurs?.[courant.valeur] : undefined;
+  const IconeCourante = courant !== undefined ? icones?.[courant.valeur] : undefined;
 
   return (
     <div className={styles.conteneur} ref={ref}>
@@ -166,6 +171,9 @@ export function SelecteurListe({
         title={desactive ? titreDesactive : undefined}
       >
         <span className={courant ? styles.valeur : styles.placeholder}>
+          {IconeCourante !== undefined && (
+            <IconeCourante size={14} className={styles.icone} aria-hidden="true" />
+          )}
           {courant ? courant.libelle : placeholder}
         </span>
         {indiceReaffectation !== undefined && courant !== undefined && !desactive && (
@@ -230,7 +238,9 @@ export function SelecteurListe({
                   </button>
                 </li>
               )}
-              {optionsFiltrees.map((o, i) => (
+              {optionsFiltrees.map((o, i) => {
+                const Icone = icones?.[o.valeur];
+                return (
                 <li key={o.valeur}>
                   <button
                     type="button"
@@ -246,19 +256,30 @@ export function SelecteurListe({
                     onClick={() => choisir(o.valeur)}
                   >
                     <span className={styles.optionLibelle}>
-                      {couleurs?.[o.valeur] && (
-                        <span
-                          className={styles.pastille}
-                          style={{ background: couleurs[o.valeur] }}
+                      {/* L'icône prime sur la pastille : elle porte le sens, la couleur l'appuie. */}
+                      {Icone !== undefined ? (
+                        <Icone
+                          size={15}
+                          className={styles.icone}
+                          style={{ color: couleurs?.[o.valeur] }}
                           aria-hidden="true"
                         />
+                      ) : (
+                        couleurs?.[o.valeur] && (
+                          <span
+                            className={styles.pastille}
+                            style={{ background: couleurs[o.valeur] }}
+                            aria-hidden="true"
+                          />
+                        )
                       )}
                       {o.libelle}
                     </span>
                     {o.valeur === valeur && <Check size={15} />}
                   </button>
                 </li>
-              ))}
+                );
+              })}
               {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
             </ul>
           </div>,

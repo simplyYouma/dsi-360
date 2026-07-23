@@ -72,6 +72,73 @@
   color: var(--text-muted);
 }
 
+/* ---- Détenteur : un compte de l'annuaire, ou un nom libre ---- */
+.detenteur {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.detenteur > div {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.detenteurHors {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.detenteurHors:hover {
+  border-color: var(--secondary);
+  color: var(--secondary);
+}
+.detenteurSaisie {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.detenteurInput {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--secondary);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.detenteurOk,
+.detenteurAnnuler {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.detenteurOk:hover {
+  border-color: var(--status-ok);
+  color: var(--status-ok);
+}
+.detenteurAnnuler:hover {
+  border-color: var(--status-danger);
+  color: var(--status-danger);
+}
+
 /* Valeur venue du fichier, sans compte rapproché : visiblement provisoire. */
 .brut {
   display: inline-block;
@@ -121,17 +188,23 @@
   color: var(--status-danger);
 }
 
+/* Alerte en aplat : la teinte porte tout le bloc, sans filet de couleur sur un seul bord. */
 .avertissement {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   margin: 0 0 var(--space-4);
-  padding: var(--space-3);
-  border-left: 3px solid var(--status-warn);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--status-warn) 10%, transparent);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--status-warn) 16%, var(--surface));
   font-size: var(--text-sm);
+  line-height: 1.5;
   color: var(--text);
+}
+.avertissement svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--status-warn);
 }
 
 /* Actions sur le matériel, dans le pied de la modale : à gauche, face au bouton Fermer. */

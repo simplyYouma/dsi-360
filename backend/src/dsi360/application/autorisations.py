@@ -77,23 +77,26 @@ def capacites(
     pas — hormis la désignation de contributeurs par l'administrateur, qui met le ticket dans leur
     file sans leur donner prise dessus (ADR-0005).
 
-    ``clos`` : activité dans un état terminal (clôturé, rejeté, annulé, réalisé…). Plus aucune
-    modification de son contenu ne doit l'atteindre — titre, catégorie, acteurs, statut, tâches.
-    Seul reste ouvert le **dossier** : les analyses/plans (RFC, dont le bilan qu'on remplit *après*
-    la mise en production) et les liens, pour les acteurs de travail. La discussion, elle, ne passe
-    pas par ces droits : elle reste toujours ouverte.
+    ``clos`` : activité dans un état terminal (clôturé, rejeté, annulé, réalisé…). **Un dossier
+    clos reste modifiable** : la DSI corrige régulièrement un dossier après coup — un intitulé
+    inexact, un gestionnaire mal renseigné, un bilan qu'on rédige justement une fois la mise en
+    production faite. Interdire ces corrections revenait à figer des erreurs. Ce qui protège
+    l'information, ce n'est pas le verrou : c'est le journal d'audit, qui garde qui a changé
+    quoi et quand (principe n° 4, zéro perte). Deux exceptions demeurent, parce qu'elles
+    réécriraient l'histoire plutôt qu'une donnée : une **décision de valideur** déjà rendue ne
+    se rejoue pas, et le **statut** d'un état terminal ne se change que par les transitions que
+    le domaine autorise (`etats`).
     """
     acteur = roles.est_acteur_travail
     if lecture_seule:
         # Une exception : l'administrateur y désigne des contributeurs, pour que la DSI suive un
         # ticket qu'elle ne traite pas — y compris quand le rapport a mis DBS au gestionnaire.
-        # Close, même cette désignation se ferme : plus rien ne bouge sur un ticket terminé.
         # La description reste saisissable par les acteurs (gestionnaire, contributeurs, admin) :
         # le rapport importé n'a pas de colonne description, on ne l'écrase donc jamais (ADR-0005).
         return {
             "peut_assigner": False,
             "peut_evaluer": False,
-            "peut_gerer_acteurs": roles.est_admin and not clos,
+            "peut_gerer_acteurs": roles.est_admin,
             "peut_travailler": False,
             "peut_decider": False,
             "peut_completer_dossier": False,
@@ -101,10 +104,11 @@ def capacites(
         }
     if clos:
         return {
-            "peut_assigner": False,
-            "peut_evaluer": False,
-            "peut_gerer_acteurs": False,
-            "peut_travailler": False,
+            "peut_assigner": roles.est_admin,
+            "peut_evaluer": roles.est_admin,
+            "peut_gerer_acteurs": roles.est_admin,
+            "peut_travailler": acteur,
+            # Une décision rendue ne se rejoue pas : c'est un acte, pas une donnée.
             "peut_decider": False,
             "peut_completer_dossier": acteur,
             "peut_editer_description": False,

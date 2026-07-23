@@ -50,14 +50,16 @@ def _nombre(valeur: Any) -> float | None:
 
 
 def _detenteur(r: RowMapping) -> str | None:
-    """Nom du détenteur si le matricule a été rapproché d'un compte ; sinon rien.
+    """Nom du détenteur : celui du compte rapproché, sinon celui saisi librement.
 
     On n'affiche jamais le matricule brut à la place d'un nom : il est exposé à part
     (`matricule`), pour qu'on voie qu'un rattachement reste à faire.
     """
-    if r["det_prenom"] is None:
-        return None
-    return f"{r['det_prenom']} {r['det_nom']}"
+    if r["det_prenom"] is not None:
+        return f"{r['det_prenom']} {r['det_nom']}"
+    # Détenteur hors système (agence, prestataire) : un nom, sans compte derrière.
+    externe: str | None = r["detenteur_externe"]
+    return externe
 
 
 def _amortissement(r: RowMapping) -> amortissement.Amortissement:
@@ -98,6 +100,7 @@ async def _detail(session: AsyncSession, r: RowMapping) -> dict[str, Any]:
         "emplacement_id": r["emplacement_id"],
         "departement_id": r["departement_id"],
         "detenteur_id": r["detenteur_id"],
+        "detenteur_externe": r["detenteur_externe"],
         "taux": _nombre(r["taux"]),
         "duree_annees": r["duree_annees"],
         "source": r["source"],
@@ -475,13 +478,9 @@ async def modifier(
     exiger_admin(courant)
     avant = await _charger(session, ident)
     champs = corps.model_dump(exclude_unset=True)
-    # Sorti du parc = dossier clos : figé, comme une activité clôturée. Seule la remise en
-    # service reste ouverte — on ne réécrit pas l'histoire d'un matériel cédé ou détruit.
-    if not avant["actif"] and any(c != "actif" for c in champs):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "Matériel sorti du parc : remettez-le en service avant de le modifier.",
-        )
+    # Un matériel sorti du parc reste modifiable : on corrige une désignation ou un emplacement
+    # de sortie longtemps après coup. Le journal garde qui a changé quoi — c'est lui qui protège
+    # l'information, pas un verrou qui figerait aussi les erreurs.
     if "code_immo" in champs:
         await _refuser_code_deja_pris(session, champs["code_immo"], ident)
     await _valider_references(session, champs)

@@ -456,7 +456,7 @@ def creer_routeur(
     # est chargée une fois par la dépendance et voyage dans le contexte (cf. ADR-0003, docs/04).
     CtxAdmin = Annotated[  # noqa: N806
         ContexteActivite,
-        Depends(exiger_role_activite(module, acces, {ADMIN}, bloquer_si_clos=True)),
+        Depends(exiger_role_activite(module, acces, {ADMIN})),
     ]
 
     # Faire avancer le sujet revient à l'administrateur, au gestionnaire et aux contributeurs.
@@ -464,14 +464,15 @@ def creer_routeur(
     # Incidents et demandes font exception : ils viennent de l'import quotidien, et un ticket sans
     # gestionnaire rapproché n'aurait aucun acteur. Pour eux, l'accès au module suffit encore.
     requis_travail: set[str] = set() if import_uniquement else {ACTEUR}
-    # Verrouillé après clôture : transitions, notes, tâches, documents ne bougent plus.
+    # La clôture ne verrouille plus rien (demande DSI) : un dossier clos se corrige, et le
+    # journal garde la trace. Le statut, lui, reste borné par les transitions du domaine.
     CtxActeur = Annotated[  # noqa: N806
         ContexteActivite,
-        Depends(exiger_role_activite(module, acces, requis_travail, bloquer_si_clos=True)),
+        Depends(exiger_role_activite(module, acces, requis_travail)),
     ]
     CourantActeur = Annotated[  # noqa: N806
         dict[str, Any],
-        Depends(exiger_role_activite_courant(module, acces, requis_travail, bloquer_si_clos=True)),
+        Depends(exiger_role_activite_courant(module, acces, requis_travail)),
     ]
     # Le dossier reste ouvert après clôture : RFC (dont le bilan post-implémentation) et liens.
     CtxDossier = Annotated[  # noqa: N806
@@ -485,7 +486,7 @@ def creer_routeur(
     # à jour une tâche : tous les champs pour un acteur, le statut seul pour son assigné. Bloquée
     # après clôture : une tâche d'activité close ne se modifie plus (même son statut).
     CtxLecture = Annotated[  # noqa: N806
-        ContexteActivite, Depends(exiger_role_activite(module, acces, bloquer_si_clos=True))
+        ContexteActivite, Depends(exiger_role_activite(module, acces))
     ]
 
     async def charger_visible(
@@ -1152,21 +1153,12 @@ def creer_routeur(
         ) -> dict[str, Any]:
             """Titre, description, analyses RFC : c'est du travail, pas de la lecture.
 
-            Après clôture, seul le dossier RFC reste éditable (le bilan post-implémentation se
-            remplit *après* la mise en production) : titre et description sont alors refusés.
+            La clôture ne ferme plus ce chemin : on corrige un intitulé inexact ou l'on complète
+            un bilan longtemps après la mise en production. Le journal d'audit garde qui a changé
+            quoi — c'est lui qui protège l'information, pas un verrou qui figerait les erreurs.
             """
             courant = ctx.courant
             champs = corps.model_dump(exclude_unset=True)
-            if est_etat_terminal(module, ctx.activite["statut"]):
-                hors_dossier = sorted(set(champs) - set(_CHAMPS_RFC))
-                if hors_dossier:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=(
-                            "Activité clôturée : seules les analyses/plans (RFC) restent "
-                            f"modifiables (champs refusés : {', '.join(hors_dossier)})."
-                        ),
-                    )
             avant = await charger_visible(session, ident, courant)
             # Colonnes directes (titre, description).
             fragments = []

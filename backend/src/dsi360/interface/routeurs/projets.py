@@ -61,7 +61,7 @@ Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 # Verrouillé après clôture : transitions, notes, tâches, documents, cadrage ne bougent plus.
 Acteur = Annotated[
     dict[str, Any],
-    Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}, bloquer_si_clos=True)),
+    Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR})),
 ]
 # Les liens restent ouverts après clôture (documenter un projet clos par un lien de suivi).
 ActeurDossier = Annotated[
@@ -70,7 +70,7 @@ ActeurDossier = Annotated[
 # Aucun rôle exigé : il suffit de voir le projet. La route tranche ensuite champ par champ.
 # Bloquée après clôture : une tâche de projet clos ne se modifie plus (même son statut).
 CtxLecture = Annotated[
-    ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES, bloquer_si_clos=True))
+    ContexteActivite, Depends(exiger_role_activite(MODULE, _ACCES))
 ]
 
 

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { History, TriangleAlert } from 'lucide-react';
 import { Button, Modale, Skeleton, StatusBadge, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
-import { SelecteurListe } from '@/common/SelecteurListe';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
@@ -12,6 +11,7 @@ import { ErreurApi } from '@/lib/api';
 import fiche from '@/common/FicheTransition.module.css';
 import { COULEUR_ACTION_JOURNAL } from '@/common/FicheTransition';
 import local from './Inventaire.module.css';
+import { ChampDetenteur } from './ChampDetenteur';
 import { CurseurTaux } from './CurseurTaux';
 import { DiscussionEquipement } from './DiscussionEquipement';
 import {
@@ -46,6 +46,16 @@ function montant(valeur: number | null): string {
 function versEntier(brut: string): number | null {
   const chiffres = brut.replace(/[^\d]/g, '');
   return chiffres === '' ? null : Number(chiffres);
+}
+
+/** Saisir la durée pose du même coup le taux qui lui correspond — tant qu'aucun n'est fixé.
+ *
+ *  Une durée de 5 ans dit déjà 20 % par an : les deux expriment la même règle. On complète donc
+ *  ce qui manque, sans jamais toucher à un taux déjà saisi : la comptabilité peut avoir ses
+ *  raisons, et l'écart, s'il y en a un, reste signalé plus haut. */
+function majDuree(duree: number | null, tauxActuel: number | null): MajEquipement {
+  if (duree === null || duree <= 0 || tauxActuel !== null) return { duree_annees: duree };
+  return { duree_annees: duree, taux: Math.round((100 / duree) * 1000) / 1000 };
 }
 
 
@@ -93,12 +103,10 @@ export function FicheEquipement({
   const { moi } = useAuth();
   const { notifier } = useToast();
   const estAdmin = moi?.profil === 'ADMIN';
-  // Sorti du parc = dossier clos : la fiche se relit, elle ne s'édite plus. Le serveur
-  // refuse de toute façon (409) — ici on évite juste de proposer l'impossible.
-  const modifiable = estAdmin && detail?.actif === true;
-  const raisonVerrou = !estAdmin
-    ? "Réservé à l'administrateur"
-    : 'Sorti du parc : remettez-le en service pour modifier';
+  // Un matériel sorti du parc reste corrigible : ce qui est modifiable le reste, le journal
+  // garde la trace. Seul le profil décide de qui écrit.
+  const modifiable = estAdmin;
+  const raisonVerrou = "Réservé à l'administrateur";
 
   const charger = useCallback(async (): Promise<void> => {
     if (id === null) return;
@@ -264,7 +272,7 @@ export function FicheEquipement({
                 <span>Durée (années)</span>
                 <ChampInline
                   valeur={detail.duree_annees !== null ? String(detail.duree_annees) : ''}
-                  onValider={(v) => void patch({ duree_annees: versEntier(v) })}
+                  onValider={(v) => void patch(majDuree(versEntier(v), detail.taux))}
                   placeholder="—"
                   lectureSeule={!modifiable}
                   titreLectureSeule={raisonVerrou}
@@ -298,7 +306,23 @@ export function FicheEquipement({
                     }}
                   />
                 </span>
-                <span className={local.amortiTexte}>{detail.amorti_pct} % amorti</span>
+                {/* Un pourcentage seul ne dit rien : on l'écrit en francs et en dates. */}
+                <span className={local.amortiTexte}>
+                  <b>{detail.amorti_pct} % amorti</b>
+                  {detail.totalement_amorti ? (
+                    <em>
+                      {' '}
+                      — le bien ne pèse plus au bilan depuis le {jour(detail.fin_amortissement)}
+                    </em>
+                  ) : (
+                    <em>
+                      {' '}
+                      — {montant(detail.amortissement_cumule)} déjà passés en charges, il reste{' '}
+                      {montant(detail.valeur_nette)} à passer d'ici le{' '}
+                      {jour(detail.fin_amortissement)}
+                    </em>
+                  )}
+                </span>
               </div>
             )}
           </section>
@@ -403,15 +427,14 @@ export function FicheEquipement({
             <div className={`${fiche.metaItem} ${fiche.metaLarge}`}>
               <dt>Détenteur</dt>
               <dd>
-                <SelecteurListe
-                  options={agents.map((a) => ({ valeur: a.id, libelle: a.nom }))}
-                  valeur={detail.detenteur_id}
-                  onChange={(v) => void patch({ detenteur_id: v })}
-                  placeholder="Non attribué"
-                  permettreVide
-                  libelleVide="Non attribué"
-                  indiceReaffectation="Réassigner"
+                <ChampDetenteur
+                  agents={agents}
+                  detenteurId={detail.detenteur_id}
+                  detenteurExterne={detail.detenteur_externe}
+                  onCompte={(v) => void patch({ detenteur_id: v })}
+                  onExterne={(nom) => void patch({ detenteur_externe: nom })}
                   desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
                 />
                 {/* Le fichier nomme un matricule qu'aucun compte ne porte : à rattacher. */}
                 {detail.detenteur === null && detail.matricule !== null && (

@@ -269,6 +269,8 @@ class EquipementDetail(EquipementResume):
     emplacement_id: str | None
     departement_id: str | None
     detenteur_id: str | None
+    #: Nom libre quand le détenteur n'a pas de compte (agence, prestataire).
+    detenteur_externe: str | None = None
     taux: float | None
     duree_annees: int | None
     source: str
@@ -305,6 +307,8 @@ class _EquipementChamps(BaseModel):
     emplacement_id: str | None = None
     departement_id: str | None = None
     detenteur_id: str | None = None
+    #: Détenteur sans compte (agence, prestataire, personne extérieure). Exclusif avec l'id.
+    detenteur_externe: str | None = Field(default=None, max_length=120)
     taux: float | None = Field(default=None, ge=0, le=100)
     date_acquisition: date | None = None
     duree_annees: int | None = Field(default=None, ge=0, le=99)

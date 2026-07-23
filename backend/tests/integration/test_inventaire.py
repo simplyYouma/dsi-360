@@ -342,33 +342,60 @@ async def test_les_analyses_du_parc_se_calculent_a_la_lecture(
     assert sorti["id"] not in {e["id"] for e in liste}, "un matériel sorti ne pèse plus"
 
 
-async def test_un_materiel_sorti_du_parc_est_fige(
+async def test_un_materiel_sorti_du_parc_reste_corrigible(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Sorti du parc = dossier clos : figé, comme une activité clôturée.
+    """Ce qui est modifiable le reste, même sorti du parc — demande de la DSI.
 
-    Seule la remise en service reste ouverte — on ne réécrit pas l'histoire d'un matériel
-    cédé ou détruit. Et le serveur fait foi : masquer les champs à l'écran ne suffirait pas.
+    On corrige une désignation ou un emplacement de sortie longtemps après coup ; figer le
+    dossier figerait aussi les erreurs. C'est le journal d'audit qui protège l'information,
+    en gardant qui a changé quoi (principe n° 4).
     """
     admin = await _admin(session, "admin.inv17@afgbank.ml")
     cree = await _creer(client, admin, designation="Matériel cédé", modele="Ancien")
     await client.patch(f"/inventaire/{cree['id']}", json={"actif": False}, headers=entetes(admin))
 
-    fige = await client.patch(
-        f"/inventaire/{cree['id']}", json={"modele": "Réécrit"}, headers=entetes(admin)
-    )
-    assert fige.status_code == 409, fige.text
-    assert "remettez-le en service" in fige.json()["detail"]
-
-    retour = await client.patch(
-        f"/inventaire/{cree['id']}", json={"actif": True}, headers=entetes(admin)
-    )
-    assert retour.status_code == 200, "la remise en service, elle, reste possible"
-    deverrouille = await client.patch(
+    corrige = await client.patch(
         f"/inventaire/{cree['id']}", json={"modele": "Corrigé"}, headers=entetes(admin)
     )
-    assert deverrouille.status_code == 200
-    assert deverrouille.json()["modele"] == "Corrigé"
+
+    assert corrige.status_code == 200, corrige.text
+    assert corrige.json()["modele"] == "Corrigé"
+    assert corrige.json()["actif"] is False, "il reste sorti du parc"
+
+
+async def test_un_detenteur_hors_systeme_se_saisit_librement(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un GAB est détenu par une agence, un poste par un prestataire : pas toujours un compte.
+
+    Les deux chemins s'excluent : désigner un compte efface le nom libre, et inversement —
+    sinon la fiche afficherait l'un pendant que la base garderait l'autre.
+    """
+    admin = await _admin(session, "admin.inv19@afgbank.ml")
+    agent = await creer_utilisateur(session, email="porteur.ext@afgbank.ml")
+
+    cree = await _creer(client, admin, detenteur_externe="Agence de Kayes")
+    assert cree["detenteur"] == "Agence De Kayes"
+    assert cree["detenteur_id"] is None
+
+    # Un compte prend la place du nom libre.
+    bascule = await client.patch(
+        f"/inventaire/{cree['id']}", json={"detenteur_id": agent}, headers=entetes(admin)
+    )
+    assert bascule.status_code == 200, bascule.text
+    assert bascule.json()["detenteur_id"] == agent
+    assert bascule.json()["detenteur_externe"] is None
+
+    # …et réciproquement.
+    retour = await client.patch(
+        f"/inventaire/{cree['id']}",
+        json={"detenteur_externe": "Prestataire Orange Mali"},
+        headers=entetes(admin),
+    )
+    assert retour.status_code == 200, retour.text
+    assert retour.json()["detenteur_id"] is None
+    assert retour.json()["detenteur"] == "Prestataire Orange Mali"
 
 
 async def test_une_reference_forgee_est_refusee_en_clair(
