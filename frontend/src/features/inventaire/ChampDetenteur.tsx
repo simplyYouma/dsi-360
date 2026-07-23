@@ -77,6 +77,8 @@ export function ChampDetenteur({
 
   return (
     <span className={local.detenteur}>
+      {/* Le nom libre se saisit depuis la liste elle-même : le geste vit là où l'on cherche
+          un détenteur, plutôt qu'à côté du champ où il faut penser à le trouver. */}
       <SelecteurListe
         options={agents.map((a) => ({ valeur: a.id, libelle: a.nom }))}
         valeur={detenteurId}
@@ -87,18 +89,19 @@ export function ChampDetenteur({
         indiceReaffectation="Réassigner"
         desactive={desactive}
         titreDesactive={titreDesactive}
+        {...(desactive
+          ? {}
+          : {
+              action: {
+                libelle:
+                  detenteurExterne !== null
+                    ? 'Modifier le détenteur hors système…'
+                    : 'Détenteur hors système (agence, prestataire)…',
+                icone: UserPlus,
+                onClick: () => setSaisie(true),
+              },
+            })}
       />
-      {!desactive && (
-        <button
-          type="button"
-          className={local.detenteurHors}
-          onClick={() => setSaisie(true)}
-          title="Détenteur sans compte : agence, prestataire, personne extérieure"
-        >
-          <UserPlus size={14} />
-          {detenteurExterne !== null ? 'Modifier le nom' : 'Hors système'}
-        </button>
-      )}
     </span>
   );
 }

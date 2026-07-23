@@ -31,6 +31,9 @@ interface Props {
   /** Mot montré au survol quand une valeur est déjà choisie (ex. « Réassigner ») : on voit
    *  que la case est prise, et qu'un clic la remplace. */
   indiceReaffectation?: string;
+  /** Action en pied de liste (ex. « Détenteur hors système… ») : le geste vit là où l'on
+   *  cherche, plutôt qu'à côté du champ où il faut penser à le trouver. */
+  action?: { libelle: string; icone?: LucideIcon; onClick: () => void };
 }
 
 /** Liste déroulante maison (popover) — aucun composant natif navigateur. */
@@ -62,6 +65,7 @@ export function SelecteurListe({
   desactive = false,
   titreDesactive,
   indiceReaffectation,
+  action,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
   const [pos, setPos] = useState<Position | null>(null);
@@ -281,6 +285,25 @@ export function SelecteurListe({
                 );
               })}
               {optionsFiltrees.length === 0 && <li className={styles.aucun}>Aucun résultat</li>}
+              {action !== undefined && (
+                <li>
+                  <button
+                    type="button"
+                    className={cx(styles.option, styles.optionAction)}
+                    onClick={() => {
+                      setOuvert(false);
+                      action.onClick();
+                    }}
+                  >
+                    <span className={styles.optionLibelle}>
+                      {action.icone !== undefined && (
+                        <action.icone size={15} className={styles.icone} aria-hidden="true" />
+                      )}
+                      {action.libelle}
+                    </span>
+                  </button>
+                </li>
+              )}
             </ul>
           </div>,
           document.body,

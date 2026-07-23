@@ -267,6 +267,7 @@ async def lister(
     q: Annotated[str | None, Query(max_length=80)] = None,
     emplacement_id: Annotated[str | None, Query()] = None,
     departement_id: Annotated[str | None, Query()] = None,
+    #: Un identifiant de compte, ou `AUCUN` pour « personne ne le détient ».
     detenteur_id: Annotated[str | None, Query()] = None,
     actif: Annotated[bool | None, Query()] = True,
     etat_constate: Annotated[str | None, Query()] = None,

@@ -179,6 +179,11 @@ export function FicheEquipement({
                 variante="secondaire"
                 className={detail.actif ? local.btnSortir : local.btnRemettre}
                 onClick={() => void patch({ actif: !detail.actif })}
+                title={
+                  detail.actif
+                    ? 'Cédé, détruit ou réformé : il quitte le parc actif'
+                    : 'Le remettre dans le parc actif'
+                }
               >
                 {detail.actif ? 'Sortir du parc' : 'Remettre en service'}
               </Button>
@@ -266,6 +271,7 @@ export function FicheEquipement({
                   }
                   onValider={(v) => void patch({ valeur_acquisition: versEntier(v) })}
                   placeholder="—"
+                  inputMode="numeric"
                   lectureSeule={!modifiable}
                   titreLectureSeule={raisonVerrou}
                   classeTexte={local.valeurEdit}
@@ -292,6 +298,7 @@ export function FicheEquipement({
                   valeur={detail.duree_annees !== null ? String(detail.duree_annees) : ''}
                   onValider={(v) => void patch(majDuree(versEntier(v), detail.taux))}
                   placeholder="—"
+                  inputMode="numeric"
                   lectureSeule={!modifiable}
                   titreLectureSeule={raisonVerrou}
                   classeTexte={local.valeurEdit}

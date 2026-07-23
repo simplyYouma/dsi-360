@@ -173,21 +173,21 @@ export function ModaleEquipement({
           <span>Valeur d'acquisition (FCFA)</span>
           <input
             value={v.valeur_acquisition?.toLocaleString('fr-FR') ?? ''}
+            inputMode="numeric"
             onChange={(e) => setV({ ...v, valeur_acquisition: nombre(e.target.value) })}
             placeholder="0"
           />
         </label>
       </div>
 
+      {/* La durée d'abord : c'est elle qu'on connaît (« un poste, 4 ans »), et elle pose le
+          taux correspondant. Le curseur, à droite, permet ensuite d'ajuster. */}
       <div className={local.paire}>
-        <label className={styles.champ}>
-          <span>Taux d'amortissement</span>
-          <CurseurTaux valeur={v.taux ?? null} onValider={(t) => setV({ ...v, taux: t })} />
-        </label>
         <label className={styles.champ}>
           <span>Durée (années)</span>
           <input
             value={v.duree_annees ?? ''}
+            inputMode="numeric"
             onChange={(e) => {
               const duree = nombre(e.target.value);
               // La durée dit déjà le taux (5 ans = 20 %/an) : on pose celui qui lui correspond
@@ -200,6 +200,10 @@ export function ModaleEquipement({
             }}
             placeholder="4"
           />
+        </label>
+        <label className={styles.champ}>
+          <span>Taux d'amortissement</span>
+          <CurseurTaux valeur={v.taux ?? null} onValider={(t) => setV({ ...v, taux: t })} />
         </label>
       </div>
     </Modale>

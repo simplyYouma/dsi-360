@@ -56,6 +56,10 @@ _UUID = frozenset({"emplacement_id", "departement_id", "detenteur_id", "constate
 #: physique vient rattraper. Ce n'est pas un verdict sur le matériel, c'est un trou de suivi.
 MOIS_AVANT_CONTROLE = 12
 
+#: Valeur de filtre pour « personne ne le détient ». Un mot-clé plutôt qu'un identifiant :
+#: l'absence de détenteur n'est pas un détenteur particulier.
+SANS_DETENTEUR = "AUCUN"
+
 
 async def par_id(session: AsyncSession, identifiant: str) -> RowMapping | None:
     resultat = await session.execute(
@@ -113,7 +117,10 @@ def _filtres(
     if departement_id is not None:
         conditions += " AND e.departement_id = cast(:dep as uuid)"
         params["dep"] = departement_id
-    if detenteur_id is not None:
+    if detenteur_id == SANS_DETENTEUR:
+        # « Non attribué » : ni compte, ni nom libre — les rattachements qui restent à faire.
+        conditions += " AND e.detenteur_id IS NULL AND e.detenteur_externe IS NULL"
+    elif detenteur_id is not None:
         conditions += " AND e.detenteur_id = cast(:det as uuid)"
         params["det"] = detenteur_id
     if actif is not None:

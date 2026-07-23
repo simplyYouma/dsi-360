@@ -448,10 +448,14 @@ export function InventairePage(): JSX.Element {
             libelleVide="Tous les départements"
           />
         </div>
-        {/* « Quel matériel détient X ? » — la question qu'on pose le plus souvent au parc. */}
+        {/* « Quel matériel détient X ? » — la question qu'on pose le plus souvent au parc.
+            « Non attribué » en tête : ce sont les rattachements qui restent à faire. */}
         <div className={filtres.filtre}>
           <SelecteurListe
-            options={agents.map((a) => ({ valeur: a.id, libelle: a.nom }))}
+            options={[
+              { valeur: 'AUCUN', libelle: 'Non attribué', special: true },
+              ...agents.map((a) => ({ valeur: a.id, libelle: a.nom })),
+            ]}
             valeur={f.detenteur_id ?? null}
             onChange={(v) => {
               setPage(1);
