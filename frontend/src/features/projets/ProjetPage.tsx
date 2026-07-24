@@ -397,7 +397,9 @@ export function ProjetPage(): JSX.Element {
           <section className={styles.carte}>
             <span className={styles.carteTitre}>Cadrage</span>
             <dl className={styles.meta}>
-              <div className={cx(styles.metaItem, styles.metaLarge)}>
+              {/* Qui le mène et de quelle nature il est : les deux se lisent d'un coup d'œil,
+                  côte à côte en tête du cadrage. */}
+              <div className={styles.metaItem}>
                 <dt>Chef de projet</dt>
                 <dd>
                   <SelecteurListe
@@ -415,7 +417,7 @@ export function ProjetPage(): JSX.Element {
                   />
                 </dd>
               </div>
-              <div className={cx(styles.metaItem, styles.metaLarge)}>
+              <div className={styles.metaItem}>
                 <dt>Type de projet</dt>
                 <dd>
                   {/* Tous les projets ne se conduisent pas de la même façon : le type dit lequel
