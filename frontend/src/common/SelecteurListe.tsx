@@ -252,7 +252,8 @@ export function SelecteurListe({
                   autoFocus
                   className={styles.recherche}
                   value={filtre}
-                  placeholder="Rechercher…"
+                  // Le champ sert à deux choses quand on peut enrichir la liste : le dire.
+                  placeholder={onCreer !== undefined ? 'Rechercher ou ajouter…' : 'Rechercher…'}
                   onChange={(e) => setFiltre(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -345,19 +346,30 @@ export function SelecteurListe({
               {optionsFiltrees.length === 0 && !inedit && (
                 <li className={styles.aucun}>Aucun résultat</li>
               )}
-              {inedit && (
+              {/* Ajouter depuis l'endroit où l'on cherche : le libellé sera réécrit proprement
+                  par le serveur, pas laissé tel qu'il a été tapé.
+                  La ligne est là DÈS l'ouverture, même sans saisie : une capacité qui n'apparaît
+                  qu'après avoir tapé le bon mot est une capacité que personne ne trouve. */}
+              {onCreer !== undefined && (
                 <li>
-                  {/* Ajouter depuis l'endroit où l'on a cherché : le libellé sera réécrit
-                      proprement par le serveur, pas laissé tel qu'il a été tapé. */}
                   <button
                     type="button"
                     className={cx(styles.option, styles.optionAction)}
-                    disabled={occupe}
+                    disabled={occupe || !inedit}
+                    title={
+                      inedit
+                        ? undefined
+                        : saisie.length === 0
+                          ? 'Saisissez un nom dans le champ ci-dessus pour l’ajouter.'
+                          : saisie.length < 2
+                            ? 'Deux caractères au minimum.'
+                            : 'Cette entrée existe déjà.'
+                    }
                     onClick={() => void creer()}
                   >
                     <span className={styles.optionLibelle}>
                       <Plus size={15} className={styles.icone} aria-hidden="true" />
-                      Ajouter « {saisie} »
+                      {inedit ? `Ajouter « ${saisie} »` : 'Ajouter…'}
                     </span>
                   </button>
                 </li>

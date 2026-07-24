@@ -175,8 +175,14 @@
   color: var(--secondary);
   font-size: var(--text-xs);
 }
-.optionAction:hover {
+.optionAction:hover:not(:disabled) {
   background: color-mix(in srgb, var(--secondary) 8%, transparent);
+}
+/* En attente d'une saisie : la ligne reste lisible — elle annonce ce qu'on peut faire —
+   mais ne se clique pas. Le survol dit ce qui manque. */
+.optionAction:disabled {
+  color: var(--text-muted);
+  cursor: default;
 }
 
 /* Valeur sélectionnée (déborde en points de suspension, jamais sur le voisin). */
