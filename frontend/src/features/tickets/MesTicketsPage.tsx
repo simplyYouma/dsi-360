@@ -60,6 +60,7 @@ const SEGMENTS: { cle: SegmentTicket; libelle: string }[] = [
 const MODULE_COULEUR: Record<string, string> = {
   incident: 'var(--cat-1)',
   demande: 'var(--cat-2)',
+  projet: 'var(--cat-3)',
   changement: 'var(--cat-4)',
   audit: 'var(--cat-5)',
   cybersecurite: 'var(--cat-4)',

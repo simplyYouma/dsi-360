@@ -104,7 +104,8 @@ WHERE {_EN_COURS} AND a.sla_resolution_le IS NOT NULL
 # Un ticket résolu, clôturé, rejeté ou annulé n'attend plus personne : il ne se traite pas.
 _TERMINAUX = sorted({e for m in PREFIXE_REFERENCE for e in etats_terminaux(m)})
 
-# Créations hebdomadaires des tickets importés : la respiration du flux, en miniature.
+# Créations hebdomadaires : la respiration du flux, en miniature. Pas seulement les tickets —
+# projets et changements ouverts sont de l'activité DSI au même titre, ils entrent dans le flux.
 _CREATIONS_HEBDO = """
 WITH semaines AS (
   SELECT generate_series(date_trunc('week', now()) - interval '7 weeks',
@@ -113,7 +114,8 @@ SELECT s.debut, m.module,
   (SELECT count(*) FROM core.activite a
     WHERE a.module = m.module AND a.cree_le >= s.debut
       AND a.cree_le < s.debut + interval '1 week') AS valeur
-FROM semaines s CROSS JOIN (VALUES ('incident'), ('demande')) AS m(module)
+FROM semaines s
+  CROSS JOIN (VALUES ('incident'), ('demande'), ('projet'), ('changement')) AS m(module)
 ORDER BY s.debut
 """
 
@@ -249,9 +251,10 @@ async def tableau_de_bord(
     )
 
     creations = (await session.execute(text(_CREATIONS_HEBDO))).mappings().all()
-    creations_hebdo: dict[str, list[int]] = {"incident": [], "demande": []}
+    # Construit d'après ce que renvoie la requête : ajouter un module au flux ne casse rien ici.
+    creations_hebdo: dict[str, list[int]] = {}
     for c in creations:
-        creations_hebdo[c["module"]].append(c["valeur"])
+        creations_hebdo.setdefault(c["module"], []).append(c["valeur"])
 
     dbs = (await session.execute(text(_DBS_DASH + cond), params)).mappings().one()
     rouverts = await session.scalar(text(_ROUVERTS_30J)) or 0

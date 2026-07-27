@@ -1,4 +1,4 @@
-import { Inbox, AlertTriangle, CheckCircle2, Gauge, Timer } from 'lucide-react';
+import { Inbox, AlertTriangle, CheckCircle2, Gauge, Timer, ListTodo } from 'lucide-react';
 import {
   AreaChart,
   Area,
@@ -26,6 +26,7 @@ const PRIORITE_COULEUR: Record<string, string> = {
 const MODULE_COULEUR: Record<string, string> = {
   incident: 'var(--cat-1)',
   demande: 'var(--cat-2)',
+  projet: 'var(--cat-3)',
   changement: 'var(--cat-4)',
   audit: 'var(--cat-5)',
   cybersecurite: 'var(--cat-4)',
@@ -196,6 +197,22 @@ const KPIS = (
     valeur: s.mttr_jours === null ? '—' : `${s.mttr_jours} j`,
     libelle: 'Délai moyen',
     couleur: 'var(--cat-4)',
+  },
+  // Les tâches de projets et changements comptent comme du travail : elles ont leur place ici,
+  // à côté des tickets. Ouvertes = à faire + en cours ; en retard = échéance dépassée.
+  {
+    cle: 'taches',
+    icone: ListTodo,
+    valeur: String(s.taches.a_faire + s.taches.en_cours),
+    libelle: 'Tâches ouvertes',
+    couleur: 'var(--cat-3)',
+  },
+  {
+    cle: 'taches_retard',
+    icone: AlertTriangle,
+    valeur: String(s.taches.en_retard),
+    libelle: 'Tâches en retard',
+    couleur: s.taches.en_retard > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
   },
 ];
 

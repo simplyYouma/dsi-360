@@ -567,6 +567,8 @@ class MesStats(BaseModel):
     par_module: list[CompteLibelle]
     par_statut: list[CompteLibelle]
     tendance: list[JourResolus]
+    #: Tâches de projets et changements assignées à l'agent : elles comptent aussi comme du travail.
+    taches: StatsTaches
 
 
 class CreationReponse(BaseModel):

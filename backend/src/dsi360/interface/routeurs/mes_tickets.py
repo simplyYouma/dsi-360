@@ -94,8 +94,18 @@ async def _bloc_agent(
         "direction": r["direction"],
     }
 
-_MODULES = "('incident','demande','changement','audit','cybersecurite','gouvernance')"
-_MODULES_LISTE = ("incident", "demande", "changement", "audit", "cybersecurite", "gouvernance")
+# Toute l'activité qu'un agent peut porter — projets compris, au même titre que les changements.
+# (Les risques ont leur analyse dédiée, la matrice de criticité ; ils n'entrent pas dans la file.)
+_MODULES = "('incident','demande','projet','changement','audit','cybersecurite','gouvernance')"
+_MODULES_LISTE = (
+    "incident",
+    "demande",
+    "projet",
+    "changement",
+    "audit",
+    "cybersecurite",
+    "gouvernance",
+)
 # « Terminé sans suite » : états sans transition possible (rejeté/annulé/réalisé/clôturé selon le
 # module). Complète la clôture (cloture_le) pour sortir aussi les cartes mortes de la file active.
 # Terminé = feuille du cycle de vie (clôturé, rejeté, annulé…).
@@ -392,6 +402,11 @@ async def mes_stats(
     dernier = min((au if au is not None else maintenant.date()), maintenant.date())
     tendance = _tendance_resolus(list(resolus), dernier, max(7, portee))
 
+    # Les tâches (projets, changements) sont du travail au même titre que les tickets : on les
+    # compte ici pour que le tableau de bord de l'agent les montre à côté des autres.
+    taches = await tache_repo.lister_pour_utilisateur(session, cible, tous=tous)
+    stats_taches = _stats_taches(taches, maintenant.date())
+
     return {
         "agent": (
             {"nom": "Tous les agents", "profil": "Vue globale", "direction": None}
@@ -410,4 +425,5 @@ async def mes_stats(
         "par_module": _comptes([r["module"] for r in ouverts]),
         "par_statut": _comptes([r["statut"] for r in ouverts]),
         "tendance": tendance,
+        "taches": stats_taches,
     }

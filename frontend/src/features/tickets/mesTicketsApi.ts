@@ -40,6 +40,8 @@ export interface MesStats {
   par_module: CompteLibelle[];
   par_statut: CompteLibelle[];
   tendance: JourResolus[];
+  /** Tâches de projets et changements assignées à l'agent : du travail au même titre. */
+  taches: StatsTaches;
 }
 
 export type SegmentTicket = 'actifs' | 'a_valider' | 'resolus' | 'termines' | 'tout';
