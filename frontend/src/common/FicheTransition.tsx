@@ -168,6 +168,13 @@ export const COULEUR_ACTION_JOURNAL: Record<string, string> = {
   FICHIER_RETIRE: 'var(--status-danger)',
 };
 
+/** Jours jusqu'à une échéance (négatif si dépassée), ou null si pas de date. Même horizon que
+ *  PastilleEcheance : c'est ce qui fait passer une revue « proche » ou « dépassée ». */
+function joursAvant(date: string | null | undefined): number | null {
+  if (date === null || date === undefined || date === '') return null;
+  return Math.ceil((new Date(date).setHours(23, 59, 59, 999) - Date.now()) / 86_400_000);
+}
+
 /** Décision déjà rendue : le choix reste coloré (vert/rouge), l'autre est grisé, non cliquable. */
 function BlocDecisionFigee({ decision }: { decision: string }): JSX.Element {
   const approuve = decision === 'APPROUVE';
@@ -873,22 +880,38 @@ export function FicheTransition({
                     }
                     remplissageEcheance
                   />
-                  <Button
-                    variante="secondaire"
-                    className={styles.boutonRevue}
-                    onClick={() => void revueEffectuee()}
-                    disabled={envoi || !detail.periodicite || !permissions.peut_travailler}
-                    title={
-                      !permissions.peut_travailler
-                        ? TITRE_LECTURE
-                        : detail.periodicite
-                          ? 'Enregistre la revue du jour et reporte l’échéance selon la périodicité'
-                          : 'Définissez d’abord une périodicité'
-                    }
-                  >
-                    <CheckCircle2 size={15} />
-                    Revue effectuée
-                  </Button>
+                  {(() => {
+                    // Attester une revue n'a de sens qu'à son approche (≤ 7 j) ou une fois dépassée
+                    // — exactement quand la pastille passe en « proche ». Trop tôt, on figerait le
+                    // cycle par erreur et on ferait des clics sans objet.
+                    const jRevue = joursAvant(detail.prochaine_revue);
+                    const revueDue = jRevue === null || jRevue <= 7;
+                    const titre = !permissions.peut_travailler
+                      ? TITRE_LECTURE
+                      : !detail.periodicite
+                        ? 'Définissez d’abord une périodicité'
+                        : !revueDue
+                          ? `Prévue le ${formaterDate(detail.prochaine_revue ?? null)} — ` +
+                            'trop tôt pour l’attester (possible à l’approche de l’échéance).'
+                          : 'Enregistre la revue du jour et reporte l’échéance selon la périodicité';
+                    return (
+                      <Button
+                        variante="secondaire"
+                        className={styles.boutonRevue}
+                        onClick={() => void revueEffectuee()}
+                        disabled={
+                          envoi ||
+                          !detail.periodicite ||
+                          !permissions.peut_travailler ||
+                          !revueDue
+                        }
+                        title={titre}
+                      >
+                        <CheckCircle2 size={15} />
+                        Revue effectuée
+                      </Button>
+                    );
+                  })()}
                   {!detail.periodicite && permissions.peut_travailler && (
                     <span className={styles.revueAstuce}>
                       Choisissez une périodicité pour programmer la revue.
