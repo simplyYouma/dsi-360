@@ -50,12 +50,18 @@ async def historique_statuts(
 
 
 # TOUT ce qui a touché le dossier — pas seulement les statuts : assignations, valideurs,
-# contributeurs, échéances… La fiche doit pouvoir tout raconter (zéro perte, principe n° 4).
+# contributeurs, échéances, **liens et pièces jointes**… La fiche doit pouvoir tout raconter
+# (zéro perte, principe n° 4).
+#
+# Liens et documents sont journalisés sous leur propre `cible_type` ('lien', 'document') — sinon
+# ils n'apparaissaient pas dans l'historique. Leur `cible_id` est la référence du dossier, ou
+# « référence/nom-du-fichier » pour un document : on accepte donc l'égalité ET le préfixe.
 _JOURNAL_COMPLET = text(
-    "SELECT action, horodatage, acteur_email AS acteur, "
+    "SELECT action, horodatage, acteur_email AS acteur, cible_type, cible_id, "
     "ancienne_valeur AS anciennes, nouvelle_valeur AS nouvelles "
     "FROM audit.journal "
-    "WHERE module = :module AND cible_type = :module AND cible_id = :reference "
+    "WHERE module = :module AND cible_type IN (:module, 'lien', 'document') "
+    "  AND (cible_id = :reference OR cible_id LIKE :prefixe) "
     "ORDER BY id DESC LIMIT :limite"
 )
 
@@ -65,7 +71,8 @@ async def journal_complet(
 ) -> list[dict[str, Any]]:
     """Dernières écritures du journal sur ce dossier, brutes — l'appelant les rend lisibles."""
     resultat = await session.execute(
-        _JOURNAL_COMPLET, {"module": module, "reference": reference, "limite": limite}
+        _JOURNAL_COMPLET,
+        {"module": module, "reference": reference, "prefixe": f"{reference}/%", "limite": limite},
     )
     return [dict(r) for r in resultat.mappings().all()]
 

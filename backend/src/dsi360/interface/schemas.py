@@ -1063,6 +1063,8 @@ class RisqueDetail(RisqueResume):
     etats: list[str]
     en_attente_validation: bool = False
     historique: list[EntreeHistorique]
+    #: Journal complet du dossier (liens, pièces jointes, revues…), comme les autres modules.
+    journal: list[EvenementJournal] = []
     periodicite: str | None = None
     prochaine_revue: date | None = None
     derniere_revue: date | None = None

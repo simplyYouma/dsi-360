@@ -96,3 +96,30 @@ async def test_chaque_module_a_liens_recoit_et_rend_ses_liens(
     liste = await client.get(f"/{base}/{ident}/liens", headers=entetes(admin))
     assert liste.status_code == 200, liste.text
     assert [lien["libelle"] for lien in liste.json()] == ["Dossier de référence"]
+
+
+@pytest.mark.parametrize(
+    ("base", "module"), [("gouvernance", "gouvernance"), ("risques", "risque")]
+)
+async def test_l_ajout_d_un_lien_apparait_dans_l_historique(
+    client: AsyncClient, session: AsyncSession, base: str, module: str
+) -> None:
+    """Ajouter un lien laisse une trace lisible dans le journal de la fiche — pas seulement en base.
+
+    Le journal filtrait sur ``cible_type = module`` et excluait donc les liens (cible_type 'lien').
+    """
+    admin = await creer_utilisateur(
+        session, email=f"admin.histo.{module}@afgbank.ml", profil="ADMIN"
+    )
+    ident = await creer_activite(session, module=module, reference=f"HISTO-{module.upper()}-1")
+
+    await client.post(
+        f"/{base}/{ident}/liens",
+        headers=entetes(admin),
+        json={"libelle": "Espace COPIL", "url": "https://intranet.afgbank.ml/copil"},
+    )
+
+    detail = (await client.get(f"/{base}/{ident}", headers=entetes(admin))).json()
+    lignes = [e for e in detail["journal"] if e["action"] == "LIEN_AJOUTE"]
+    assert len(lignes) == 1, "l'ajout du lien doit figurer au journal de la fiche"
+    assert "Espace COPIL" in (lignes[0]["detail"] or "")

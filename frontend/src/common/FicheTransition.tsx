@@ -138,6 +138,11 @@ const LIBELLE_ACTION_JOURNAL: Record<string, string> = {
   IMPORT: 'Import',
   CLOTURE: 'Clôture',
   SUPPRESSION: 'Suppression',
+  LIEN_AJOUTE: 'Lien ajouté',
+  LIEN_RETIRE: 'Lien retiré',
+  FICHIER_AJOUTE: 'Fichier ajouté',
+  FICHIER_REMPLACE: 'Fichier remplacé',
+  FICHIER_RETIRE: 'Fichier retiré',
 };
 
 /** Couleur par type d'action : l'œil trie le journal avant de le lire. Les décisions gardent
@@ -156,6 +161,11 @@ export const COULEUR_ACTION_JOURNAL: Record<string, string> = {
   SUPPRESSION: 'var(--status-danger)',
   CONSTAT: 'var(--cat-2)',
   COMMENTAIRE: 'var(--cat-7)',
+  LIEN_AJOUTE: 'var(--cat-3)',
+  LIEN_RETIRE: 'var(--status-danger)',
+  FICHIER_AJOUTE: 'var(--cat-6)',
+  FICHIER_REMPLACE: 'var(--cat-5)',
+  FICHIER_RETIRE: 'var(--status-danger)',
 };
 
 /** Décision déjà rendue : le choix reste coloré (vert/rouge), l'autre est grisé, non cliquable. */

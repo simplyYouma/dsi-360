@@ -308,20 +308,65 @@ def _detail_journal(anciennes: Any, nouvelles: Any, noms: dict[str, str]) -> str
     return " · ".join(fragments) or None
 
 
-async def _journal_lisible(
+# Liens et pièces jointes portent une action générique (CREATION…) : on la spécialise pour
+# l'écran, sinon l'ajout d'un lient s'afficherait « Création » comme celle du dossier lui-même.
+_ACTION_LIEN = {"CREATION": "LIEN_AJOUTE", "SUPPRESSION": "LIEN_RETIRE"}
+_ACTION_DOCUMENT = {
+    "CREATION": "FICHIER_AJOUTE",
+    "MODIFICATION": "FICHIER_REMPLACE",
+    "SUPPRESSION": "FICHIER_RETIRE",
+}
+
+
+def _detail_lien(anciennes: Any, nouvelles: Any) -> str | None:
+    """Libellé (et adresse) du lien concerné, pris dans la nouvelle valeur, sinon l'ancienne."""
+    d = nouvelles if isinstance(nouvelles, dict) and nouvelles else anciennes
+    if not isinstance(d, dict):
+        return None
+    libelle, url = d.get("libelle"), d.get("url")
+    if libelle and url:
+        return f"« {libelle} » — {url}"
+    return libelle or url
+
+
+def _detail_document(cible_id: str | None, reference: str) -> str | None:
+    """Nom du fichier, extrait du `cible_id` « référence/nom » (ou « référence/tâche/nom »)."""
+    if not cible_id:
+        return None
+    prefixe = f"{reference}/"
+    return cible_id[len(prefixe):] if cible_id.startswith(prefixe) else cible_id
+
+
+def _ligne_journal(e: dict[str, Any], noms: dict[str, str], reference: str) -> dict[str, Any]:
+    """Une entrée du journal, rendue lisible — liens et documents reçoivent leur propre libellé."""
+    cible = e.get("cible_type")
+    if cible == "lien":
+        action = _ACTION_LIEN.get(e["action"], e["action"])
+        detail = _detail_lien(e["anciennes"], e["nouvelles"])
+    elif cible == "document":
+        action = _ACTION_DOCUMENT.get(e["action"], e["action"])
+        detail = _detail_document(e.get("cible_id"), reference)
+    else:
+        action = e["action"]
+        detail = _detail_journal(e["anciennes"], e["nouvelles"], noms)
+    return {
+        "action": action,
+        "horodatage": e["horodatage"],
+        "acteur": e["acteur"],
+        "detail": detail,
+    }
+
+
+async def rendre_journal(
     session: AsyncSession, module: str, reference: str
 ) -> list[dict[str, Any]]:
+    """Journal complet d'un dossier, rendu lisible (statuts, acteurs, liens, pièces jointes…).
+
+    Public : partagé avec le module risques, qui a son propre routeur mais la même fiche à l'écran.
+    """
     entrees = await audit.journal_complet(session, module, reference)
     noms = await _noms_pour(session, _collecter_uuids(entrees))
-    return [
-        {
-            "action": e["action"],
-            "horodatage": e["horodatage"],
-            "acteur": e["acteur"],
-            "detail": _detail_journal(e["anciennes"], e["nouvelles"], noms),
-        }
-        for e in entrees
-    ]
+    return [_ligne_journal(e, noms, reference) for e in entrees]
 
 
 def _retard_final(r: RowMapping, historique: list[dict[str, Any]]) -> int | None:
@@ -612,7 +657,7 @@ def creer_routeur(
         base["historique"] = await audit.historique_statuts(session, module, r["reference"])
         base["retard_final_jours"] = _retard_final(r, base["historique"])
         # Le journal complet du dossier : gestionnaire, valideurs, contributeurs, dates… en clair.
-        base["journal"] = await _journal_lisible(session, module, r["reference"])
+        base["journal"] = await rendre_journal(session, module, r["reference"])
         if module in ("incident", "demande"):
             # Fraîcheur du miroir (ADR-0005) : la date du dernier rapport quotidien chargé.
             base["synchronise_le"] = await session.scalar(

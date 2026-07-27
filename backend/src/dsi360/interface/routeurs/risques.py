@@ -17,6 +17,7 @@ from dsi360.domain.revue import calculer_planification, prochaine_revue
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo
+from dsi360.interface.routeurs.activites_communs import rendre_journal
 from dsi360.interface.routeurs.liens_communs import enregistrer_liens
 from dsi360.interface.schemas import (
     AssignationDemande,
@@ -178,6 +179,8 @@ async def _detail_complet(
 ) -> dict[str, Any]:
     base = _detail(r)
     base["historique"] = await audit.historique_statuts(session, MODULE, r["reference"])
+    # Journal complet (liens, pièces jointes, revues…) : même fiche à l'écran que les autres.
+    base["journal"] = await rendre_journal(session, MODULE, r["reference"])
     # Le serveur calcule les capacités de l'appelant ; l'écran obéit.
     base["permissions"] = capacites(await charger_roles(session, r, courant))
     return base
