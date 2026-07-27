@@ -89,14 +89,16 @@ def capacites(
     """
     acteur = roles.est_acteur_travail
     if lecture_seule:
-        # Une exception : l'administrateur y désigne des contributeurs, pour que la DSI suive un
-        # ticket qu'elle ne traite pas — y compris quand le rapport a mis DBS au gestionnaire.
-        # La description reste saisissable par les acteurs (gestionnaire, contributeurs, admin) :
-        # le rapport importé n'a pas de colonne description, on ne l'écrase donc jamais (ADR-0005).
+        # On y désigne des contributeurs pour que la DSI suive un ticket qu'elle ne traite pas —
+        # y compris quand le rapport a mis DBS au gestionnaire. Sur ces miroirs le geste est ouvert
+        # à tout agent du module (et non au seul admin) : quiconque voit le ticket a l'accès requis,
+        # et l'ajouter à la file d'un collègue ne lui donne aucune prise dessus. La description
+        # reste saisissable par les acteurs ; le rapport importé n'en porte pas, on ne l'écrase
+        # donc jamais (ADR-0005).
         return {
             "peut_assigner": False,
             "peut_evaluer": False,
-            "peut_gerer_acteurs": roles.est_admin,
+            "peut_gerer_acteurs": True,
             "peut_travailler": False,
             "peut_decider": False,
             "peut_completer_dossier": False,

@@ -464,6 +464,16 @@ def creer_routeur(
         Depends(exiger_role_activite(module, acces, {ADMIN})),
     ]
 
+    # Désigner un contributeur. Sur un module piloté, c'est distribuer du travail (le contributeur
+    # gagne les droits du gestionnaire) : réservé à l'administrateur. Sur les miroirs incidents et
+    # demandes — en lecture seule — le geste est ouvert à tout agent du module : y ajouter un
+    # collègue le fait suivre le dossier et en discuter, jamais le modifier. La DSI veut cette
+    # entraide sans passer par l'administrateur (ADR-0005).
+    CtxContributeur = Annotated[  # noqa: N806
+        ContexteActivite,
+        Depends(exiger_role_activite(module, acces, set() if import_uniquement else {ADMIN})),
+    ]
+
     # Faire avancer le sujet revient à l'administrateur, au gestionnaire et aux contributeurs.
     #
     # Incidents et demandes font exception : ils viennent de l'import quotidien, et un ticket sans
@@ -629,14 +639,15 @@ def creer_routeur(
             )
         return base
 
-    # Un incident ou une demande n'est pas pilotable ici, mais la DSI veut le suivre :
-    # l'administrateur y désigne des contributeurs de chez nous — y compris quand le rapport a mis
-    # DBS au gestionnaire. Le ticket entre dans leur file, sans qu'ils puissent le modifier.
+    # Un incident ou une demande n'est pas pilotable ici, mais la DSI veut le suivre : on y désigne
+    # des contributeurs de chez nous — y compris quand le rapport a mis DBS au gestionnaire. Le
+    # ticket entre dans leur file, sans qu'ils puissent le modifier. Sur ces miroirs, tout agent du
+    # module peut le faire (CtxContributeur) ; ailleurs, cela reste réservé à l'administrateur.
     @routeur.post("/{ident}/contributeurs", response_model=ActiviteDetail)
     async def ajouter_contributeur(
-        ident: str, corps: ContributeurDemande, ctx: CtxAdmin, session: Session
+        ident: str, corps: ContributeurDemande, ctx: CtxContributeur, session: Session
     ) -> dict[str, Any]:
-        """Un contributeur a les droits de travail du gestionnaire : seul l'admin le désigne."""
+        """Désigne un contributeur (admin partout ; tout agent du module sur incidents/demandes)."""
         courant, avant = ctx.courant, ctx.activite
         await exiger_agent_designable(session, corps.utilisateur_id, acces)
         await repo.ajouter_contributeur(session, ident, corps.utilisateur_id)
@@ -664,9 +675,11 @@ def creer_routeur(
         r = await charger_visible(session, ident, courant)
         return await detail_complet(r, session, courant)
 
+    # Retrait ouvert dans les mêmes conditions que l'ajout : sinon un contributeur ajouté par erreur
+    # sur un miroir resterait bloqué jusqu'à l'intervention d'un admin. Le journal garde la trace.
     @routeur.delete("/{ident}/contributeurs/{utilisateur_id}", response_model=ActiviteDetail)
     async def retirer_contributeur(
-        ident: str, utilisateur_id: str, ctx: CtxAdmin, session: Session
+        ident: str, utilisateur_id: str, ctx: CtxContributeur, session: Session
     ) -> dict[str, Any]:
         courant, avant = ctx.courant, ctx.activite
         await repo.retirer_contributeur(session, ident, utilisateur_id)

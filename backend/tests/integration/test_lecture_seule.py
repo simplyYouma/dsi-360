@@ -142,6 +142,33 @@ async def test_l_admin_designe_un_contributeur_sur_un_ticket_importe(
 
 
 @pytest.mark.parametrize("module", MODULES)
+async def test_un_agent_du_module_designe_un_contributeur_sur_un_miroir(
+    client: AsyncClient, session: AsyncSession, module: str
+) -> None:
+    """Sur incidents et demandes, l'entraide ne passe plus par l'admin : tout agent du module
+    ajoute (et retire) un contributeur. Le ticket entre dans la file du désigné, sans lui donner
+    prise dessus."""
+    ident, _, agent = await _ticket(session, module, f"contrib-libre-{module}")
+    autre = await creer_utilisateur(session, email=f"autre.{module}@afgbank.ml")
+
+    ajout = await client.post(
+        f"/{module}/{ident}/contributeurs",
+        headers=entetes(agent),
+        json={"utilisateur_id": autre},
+    )
+    assert ajout.status_code == 200, ajout.text
+    assert ajout.json()["permissions"]["peut_gerer_acteurs"], "l'agent voit la commande, ouverte"
+
+    files = await client.get("/mes-tickets", headers=entetes(autre))
+    assert any(x["id"] == ident for x in files.json()["elements"]), "le ticket entre dans sa file"
+
+    retrait = await client.delete(
+        f"/{module}/{ident}/contributeurs/{autre}", headers=entetes(agent)
+    )
+    assert retrait.status_code == 200, retrait.text
+
+
+@pytest.mark.parametrize("module", MODULES)
 async def test_un_contributeur_de_ticket_importe_ne_le_modifie_pas(
     client: AsyncClient, session: AsyncSession, module: str
 ) -> None:

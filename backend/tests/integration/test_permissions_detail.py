@@ -124,7 +124,8 @@ async def test_un_incident_importe_ne_se_travaille_pas(
     """Même l'administrateur n'agit pas sur un ticket importé : l'écran ne doit rien proposer.
 
     Sinon il laisserait cliquer là où le serveur répond 404 (ADR-0005). Seule la désignation de
-    contributeurs reste ouverte : suivre un ticket n'est pas le modifier.
+    contributeurs reste ouverte — et à tout agent du module, pas au seul admin : suivre un ticket
+    (ou y ajouter un collègue) n'est pas le modifier.
     """
     admin = await creer_utilisateur(session, email="admin.perminc@afgbank.ml", profil="ADMIN")
     lecteur = await creer_utilisateur(session, email="lecteur.perminc@afgbank.ml")
@@ -133,4 +134,7 @@ async def test_un_incident_importe_ne_se_travaille_pas(
     p = await _permissions(client, "/incidents", incident, admin)
     assert p["peut_gerer_acteurs"]
     assert not any(p[c] for c in TOUTES if c != "peut_gerer_acteurs")
-    assert not any((await _permissions(client, "/incidents", incident, lecteur)).values())
+    # Un simple agent du module a désormais exactement cette capacité, et rien d'autre.
+    pl = await _permissions(client, "/incidents", incident, lecteur)
+    assert pl["peut_gerer_acteurs"]
+    assert not any(pl[c] for c in TOUTES if c != "peut_gerer_acteurs")

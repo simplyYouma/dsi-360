@@ -91,10 +91,13 @@ def test_sur_un_module_importe_personne_ne_travaille() -> None:
         assert not c["peut_assigner"] and not c["peut_evaluer"]
 
 
-def test_sur_un_module_importe_l_admin_designe_encore_des_contributeurs() -> None:
-    """La DSI suit un ticket qu'elle ne traite pas : le contributeur le voit dans sa file."""
+def test_sur_un_module_importe_tout_agent_designe_des_contributeurs() -> None:
+    """La DSI suit un ticket qu'elle ne traite pas. Sur ces miroirs, l'entraide ne passe plus par
+    l'admin : quiconque voit le ticket (donc a l'accès au module) peut y ajouter un contributeur —
+    l'ajouter à la file d'un collègue ne lui donne aucune prise dessus (ADR-0005)."""
     assert capacites(ADMINISTRATEUR, lecture_seule=True)["peut_gerer_acteurs"]
-    assert not capacites(RESPONSABLE, lecture_seule=True)["peut_gerer_acteurs"]
+    assert capacites(RESPONSABLE, lecture_seule=True)["peut_gerer_acteurs"]
+    assert capacites(LECTEUR, lecture_seule=True)["peut_gerer_acteurs"]
 
 
 # --- Satisfaction d'une exigence -----------------------------------------------------------------
