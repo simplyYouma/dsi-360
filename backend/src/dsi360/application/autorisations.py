@@ -92,9 +92,8 @@ def capacites(
         # On y désigne des contributeurs pour que la DSI suive un ticket qu'elle ne traite pas —
         # y compris quand le rapport a mis DBS au gestionnaire. Sur ces miroirs le geste est ouvert
         # à tout agent du module (et non au seul admin) : quiconque voit le ticket a l'accès requis,
-        # et l'ajouter à la file d'un collègue ne lui donne aucune prise dessus. La description
-        # reste saisissable par les acteurs ; le rapport importé n'en porte pas, on ne l'écrase
-        # donc jamais (ADR-0005).
+        # et l'ajouter à la file d'un collègue ne lui donne aucune prise dessus. Même ouverture pour
+        # la description, annotation interne que le rapport importé n'écrase jamais (ADR-0005).
         return {
             "peut_assigner": False,
             "peut_evaluer": False,
@@ -102,7 +101,9 @@ def capacites(
             "peut_travailler": False,
             "peut_decider": False,
             "peut_completer_dossier": False,
-            "peut_editer_description": acteur,
+            # Annotation interne, jamais écrasée par l'import : ouverte à tout agent du module,
+            # comme la discussion et la désignation d'un contributeur.
+            "peut_editer_description": True,
         }
     if clos:
         return {

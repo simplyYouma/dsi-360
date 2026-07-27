@@ -698,19 +698,15 @@ def creer_routeur(
         return await detail_complet(r, session, courant)
 
     # Incident/demande importé : la description est le seul champ de contenu qu'on saisit ici. Le
-    # rapport n'en porte pas, l'import ne l'écrase donc jamais. Réservé aux acteurs de travail
-    # (gestionnaire, contributeurs, admin) ; ouvert même sur un ticket clos (c'est une annotation).
+    # rapport n'en porte pas, l'import ne l'écrase donc jamais. C'est une annotation interne, comme
+    # la discussion ou la désignation d'un contributeur : ouverte à tout agent du module (l'accès
+    # suffit, cf. CtxDossier), et même sur un ticket clos.
     if import_uniquement:
 
         @routeur.patch("/{ident}/description", response_model=ActiviteDetail)
         async def modifier_description(
             ident: str, corps: DescriptionMaj, ctx: CtxDossier, session: Session
         ) -> dict[str, Any]:
-            if not ctx.roles.est_acteur_travail:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Réservé au gestionnaire, aux contributeurs et à l'administrateur.",
-                )
             courant, avant = ctx.courant, ctx.activite
             await session.execute(
                 text("UPDATE core.activite SET description = :d WHERE id = cast(:id as uuid)"),

@@ -25,6 +25,7 @@ import asyncpg
 from dsi360.config import get_settings
 from dsi360.domain.activite import PREFIXE_REFERENCE, calculer_criticite, calculer_priorite
 from dsi360.domain.etats import GATES_VALIDATION, ordre_etats, transitions_possibles
+from dsi360.domain.revue import MOIS_PAR_PERIODICITE, prochaine_revue
 from dsi360.domain.sla import CiblesSla, echeances
 from dsi360.infrastructure.audit import _empreinte, _serialiser
 from dsi360.infrastructure.securite import hacher_mot_de_passe
@@ -444,6 +445,9 @@ RFC_TEXTES = {
 # Revue périodique (cybersécurité, gouvernance, risques).
 PERIODICITES = ["Mensuelle", "Trimestrielle", "Semestrielle", "Annuelle"]
 MODULES_REVUE = {"cybersecurite", "gouvernance", "risque"}
+# Modules dont l'activité se compte en jours et semaines, pas en heures : leur échéance de démo
+# se répartit en jours autour de maintenant (cf. calcul de sla_res plus bas).
+MODULES_LENTS = {"gouvernance", "risque", "audit"}
 
 
 def _dsn() -> str:
@@ -1120,11 +1124,18 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         cloture = resolu if statut.startswith("Clôtur") else None
 
                 # Revue périodique (cybersécurité, gouvernance, risques) sur un échantillon.
+                # La prochaine revue DÉCOULE de la cadence : on tire une dernière revue à un
+                # moment de la période écoulée, la suivante en découle (dernière + période).
+                # Deux tirages indépendants donnaient l'absurde « Annuelle, revue dans 4 mois ».
                 if module in MODULES_REVUE and random.random() < 0.6:
-                    donnees["periodicite"] = random.choice(PERIODICITES)
-                    donnees["prochaine_revue"] = (
-                        maintenant + timedelta(days=random.randint(15, 120))
-                    ).date().isoformat()
+                    periodicite = random.choice(PERIODICITES)
+                    jours_periode = MOIS_PAR_PERIODICITE[periodicite] * 30
+                    derniere = (
+                        maintenant - timedelta(days=random.randint(1, jours_periode))
+                    ).date()
+                    donnees["periodicite"] = periodicite
+                    donnees["derniere_revue"] = derniere.isoformat()
+                    donnees["prochaine_revue"] = prochaine_revue(periodicite, derniere).isoformat()
 
                 # Échéances SLA depuis la matrice du module. Un ticket importé porte une
                 # priorité, donc un engagement : il a des échéances comme les autres (ADR-0005).
@@ -1138,8 +1149,22 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         # Ticket encore ouvert : échéance répartie autour de maintenant, pour une
                         # démo variée (à l'heure / approche / dépassé). Sinon « créé il y a 0–55 j »
                         # + cible courte = presque tout en dépassé (une mer de rouge).
-                        heures = random.choice([96, 72, 48, 120, 36, 24, 12, 6, 2, 1, -4, -24, -72])
-                        sla_res = maintenant + timedelta(hours=heures)
+                        # L'amplitude suit la cadence du module : des heures pour les modules
+                        # rapides (incidents, demandes…), des jours pour les modules lents
+                        # (gouvernance, risques, audit) — sans quoi une gouvernance afficherait une
+                        # échéance à quelques heures, ce qui n'a aucun sens pour un COPIL.
+                        if module in MODULES_LENTS:
+                            jours = random.choice([12, 8, 5, 15, 3, 2, 1, -1, -5, -10])
+                            sla_res = maintenant + timedelta(days=jours)
+                        else:
+                            heures = random.choice(
+                                [96, 72, 48, 120, 36, 24, 12, 6, 2, 1, -4, -24, -72]
+                            )
+                            sla_res = maintenant + timedelta(hours=heures)
+                        # Une échéance ne précède jamais la création : un dossier ouvert hier n'est
+                        # pas dû avant-hier. Le tirage « autour de maintenant » peut tomber avant la
+                        # création d'une activité récente — on la ramène juste après.
+                        sla_res = max(sla_res, cree_le + timedelta(hours=1))
 
                 # Prise en charge (première réponse) : mesurée pour l'importé (via trep), sinon
                 # posée sur la plupart des activités déjà prises en main ; le reste attend encore.
