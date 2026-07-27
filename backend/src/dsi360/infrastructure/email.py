@@ -66,12 +66,26 @@ def _config() -> dict[str, str | int | bool]:
     }
 
 
+#: Objet signé au nom de l'application, sur TOUS les e-mails, sans exception : la DSI reconnaît
+#: un message de DSI 360 d'un coup d'œil, et les règles de tri côté client peuvent s'y accrocher.
+PREFIXE_SUJET = "[DSI 360]"
+
+
+def _sujet_signe(sujet: str) -> str:
+    """Préfixe l'objet au nom de l'app, sans le doubler s'il l'est déjà."""
+    net = sujet.strip()
+    return net if net.startswith(PREFIXE_SUJET) else f"{PREFIXE_SUJET} {net}"
+
+
 def envoyer(destinataire: str, sujet: str, corps: str, html: str | None = None) -> None:
     """Envoie un e-mail (texte + HTML optionnel), en arrière-plan — ne bloque jamais l'appelant.
+
+    L'objet est systématiquement signé au nom de l'application (cf. `_sujet_signe`).
 
     Sans SMTP configuré : journalise (mode dev). Pendant une panne réseau (disjoncteur ouvert) :
     ignore l'envoi et journalise — l'application reste pleinement utilisable hors ligne.
     """
+    sujet = _sujet_signe(sujet)
     if not _envoi_autorise():
         # Le corps est journalisé : c'est ainsi qu'on récupère un lien d'activation en dev,
         # sans qu'aucun message ne quitte la machine.

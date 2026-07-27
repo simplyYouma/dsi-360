@@ -105,7 +105,8 @@ def definir_mot_de_passe(
         duree = f"{heures} heure" + ("s" if heures > 1 else "")
     else:
         duree = f"{validite_minutes} min"
-    sujet = "Activez votre compte DSI 360"
+    # « DSI 360 » n'est plus répété dans l'objet : l'envoi le préfixe déjà ([DSI 360] …).
+    sujet = "Activez votre compte"
     texte = (
         f"Bonjour {prenom},\n\n"
         "Un compte DSI 360 (AFG Bank Mali) a été créé pour vous.\n"
@@ -129,7 +130,7 @@ def definir_mot_de_passe(
 
 
 def reinitialisation(prenom: str, url_reset: str, validite_minutes: int) -> tuple[str, str, str]:
-    sujet = "Réinitialisation de votre mot de passe DSI 360"
+    sujet = "Réinitialisation de votre mot de passe"
     texte = (
         f"Bonjour {prenom},\n\n"
         "Vous avez demandé la réinitialisation de votre mot de passe DSI 360.\n"
@@ -150,7 +151,7 @@ def reinitialisation(prenom: str, url_reset: str, validite_minutes: int) -> tupl
 
 
 def mot_de_passe_change(prenom: str) -> tuple[str, str, str]:
-    sujet = "Votre mot de passe DSI 360 a été modifié"
+    sujet = "Votre mot de passe a été modifié"
     texte = (
         f"Bonjour {prenom},\n\n"
         "Votre mot de passe DSI 360 vient d'être modifié.\n"
@@ -306,7 +307,7 @@ def escalade_p1(
 
 
 def compte_bloque(prenom: str) -> tuple[str, str, str]:
-    sujet = "Votre accès DSI 360 a été suspendu"
+    sujet = "Votre accès a été suspendu"
     texte = (
         f"Bonjour {prenom},\n\n"
         "Votre accès à la plateforme DSI 360 a été suspendu par un administrateur.\n"

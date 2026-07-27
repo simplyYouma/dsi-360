@@ -153,16 +153,15 @@
   color: var(--text-muted);
 }
 
-/* ---- KPI strip ---- */
+/* ---- KPI strip ----
+   Colonnes auto-ajustées : les cartes remplissent toujours la largeur et s'étirent pour la
+   combler. Le nombre de tuiles peut varier (tickets + tâches) sans laisser un trou à droite
+   ni forcer une deuxième ligne à moitié vide — chaque rangée est pleine, quelle que soit la
+   largeur de l'écran. */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--space-4);
-}
-@media (max-width: 920px) {
-  .kpis {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 .kpi {
   display: flex;

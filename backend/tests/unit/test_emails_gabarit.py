@@ -10,6 +10,7 @@ import inspect
 import pytest
 
 from dsi360.infrastructure import email_modeles
+from dsi360.infrastructure.email import PREFIXE_SUJET, _sujet_signe
 
 # Fonctions publiques du module : chacune doit rendre (sujet, texte, html).
 MODELES = [
@@ -125,6 +126,15 @@ def test_la_notification_annonce_sa_nature(type_: str, nature: str, bouton: str)
     )
     assert nature in html and nature in texte
     assert bouton in html, "le bouton doit dire quelle action est attendue"
+
+
+def test_tout_objet_est_signe_au_nom_de_l_app() -> None:
+    """Chaque e-mail se reconnaît d'un coup d'œil : l'objet porte [DSI 360], sans le doubler."""
+    assert _sujet_signe("Activez votre compte") == f"{PREFIXE_SUJET} Activez votre compte"
+    assert _sujet_signe("SLA dépassée — INC-1").startswith(PREFIXE_SUJET)
+    # Idempotent : un objet déjà signé (renvoi, relance) n'accumule pas les préfixes.
+    deja = f"{PREFIXE_SUJET} Escalade P1 — INC-2"
+    assert _sujet_signe(deja) == deja
 
 
 def test_une_notification_de_type_inconnu_reste_presentable() -> None:
