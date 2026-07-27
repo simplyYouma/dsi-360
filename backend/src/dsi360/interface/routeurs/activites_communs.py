@@ -29,6 +29,7 @@ from dsi360.application.activites import (
 )
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
 from dsi360.application.notifications import notifier
+from dsi360.application.revue import ecrire_revue
 from dsi360.application.taches import (
     blocages_transitions,
     creer_tache,
@@ -43,7 +44,7 @@ from dsi360.domain.etats import (
     transition_reservee,
     transitions_possibles,
 )
-from dsi360.domain.revue import prochaine_revue
+from dsi360.domain.revue import calculer_planification, prochaine_revue
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
@@ -1017,20 +1018,10 @@ def creer_routeur(
         ) -> dict[str, Any]:
             courant = ctx.courant
             avant = await charger_visible(session, ident, courant)
-            fragment = corps.model_dump(exclude_unset=True, mode="json")
-            # Choisir une périodicité fixe la prochaine revue : inutile de resaisir une date.
-            if fragment.get("periodicite") and "prochaine_revue" not in fragment:
-                fragment["prochaine_revue"] = prochaine_revue(
-                    fragment["periodicite"], datetime.now(UTC).date()
-                ).isoformat()
-            if fragment:
-                await session.execute(
-                    text(
-                        "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
-                        "WHERE id = cast(:id as uuid)"
-                    ),
-                    {"id": ident, "f": json.dumps(fragment)},
-                )
+            corps_dict = corps.model_dump(exclude_unset=True, mode="json")
+            fragment, a_effacer = calculer_planification(corps_dict, datetime.now(UTC).date())
+            if fragment or a_effacer:
+                await ecrire_revue(session, ident, fragment, a_effacer)
                 await audit.consigner(
                     session,
                     action="MODIFICATION",
@@ -1039,7 +1030,7 @@ def creer_routeur(
                     module=module,
                     cible_type=module,
                     cible_id=avant["reference"],
-                    nouvelle=fragment,
+                    nouvelle=fragment or {"revue": "désactivée"},
                 )
                 await session.commit()
             r = await charger_visible(session, ident, courant)

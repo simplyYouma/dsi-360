@@ -300,6 +300,41 @@ async def test_les_acteurs_planifient_la_revue_d_un_risque(
     assert r.status_code == 200, r.text
 
 
+async def test_choisir_une_periodicite_pose_la_premiere_echeance(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """La cadence suffit : la prochaine revue en découle, sans resaisir de date."""
+    risque, gens = await _risque_dote(session, "revue-pose")
+
+    r = await client.post(
+        f"/risques/{risque}/revue",
+        headers=entetes(gens["admin"]),
+        json={"periodicite": "Trimestrielle"},
+    )
+
+    corps = r.json()
+    assert corps["periodicite"] == "Trimestrielle"
+    assert corps["prochaine_revue"] is not None, "la périodicité fixe seule l'échéance"
+
+
+async def test_retirer_la_periodicite_efface_le_cycle_en_base(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Sans cadence, aucune date orpheline : prochaine et dernière revue disparaissent."""
+    risque, gens = await _risque_dote(session, "revue-efface")
+    h = entetes(gens["admin"])
+    # On installe un cycle complet, puis on atteste une revue (pose derniere_revue).
+    await client.post(f"/risques/{risque}/revue", headers=h, json={"periodicite": "Mensuelle"})
+    await client.post(f"/risques/{risque}/revue/effectuee", headers=h)
+
+    r = await client.post(f"/risques/{risque}/revue", headers=h, json={"periodicite": None})
+
+    corps = r.json()
+    assert corps["periodicite"] is None
+    assert corps["prochaine_revue"] is None, "pas d'échéance sans cadence"
+    assert corps["derniere_revue"] is None, "le cycle est bien effacé, pas seulement masqué"
+
+
 @pytest.mark.parametrize("role", NON_ACTEURS)
 async def test_un_tiers_ne_planifie_pas_la_revue(
     client: AsyncClient, session: AsyncSession, role: str

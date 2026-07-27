@@ -13,7 +13,7 @@ from dsi360.domain.etats import (
     transition_reservee,
     transitions_possibles,
 )
-from dsi360.domain.revue import prochaine_revue
+from dsi360.domain.revue import calculer_planification, prochaine_revue
 from dsi360.domain.sla import echeances, statut_sla
 
 
@@ -166,6 +166,35 @@ class TestRevuePeriodique:
     def test_periodicite_inconnue(self) -> None:
         with pytest.raises(ValueError):
             prochaine_revue("Hebdomadaire", date(2026, 1, 1))
+
+
+class TestPlanificationRevue:
+    """La périodicité pilote : la choisir programme, la retirer ferme le cycle."""
+
+    AUJ = date(2026, 7, 27)
+
+    def test_periodicite_seule_fixe_la_premiere_echeance(self) -> None:
+        fragment, a_effacer = calculer_planification({"periodicite": "Annuelle"}, self.AUJ)
+        assert fragment == {"periodicite": "Annuelle", "prochaine_revue": "2027-07-27"}
+        assert a_effacer == []
+
+    def test_une_date_fournie_n_est_pas_ecrasee(self) -> None:
+        fragment, a_effacer = calculer_planification(
+            {"periodicite": "Annuelle", "prochaine_revue": "2026-12-31"}, self.AUJ
+        )
+        assert fragment["prochaine_revue"] == "2026-12-31"
+        assert a_effacer == []
+
+    def test_retirer_la_periodicite_efface_tout_le_cycle(self) -> None:
+        """Aucune date orpheline : sans cadence, ni prochaine ni dernière revue ne survit."""
+        fragment, a_effacer = calculer_planification({"periodicite": None}, self.AUJ)
+        assert fragment == {}
+        assert set(a_effacer) == {"periodicite", "prochaine_revue", "derniere_revue"}
+
+    def test_ajuster_seulement_la_date_ne_touche_pas_la_cadence(self) -> None:
+        fragment, a_effacer = calculer_planification({"prochaine_revue": "2026-09-01"}, self.AUJ)
+        assert fragment == {"prochaine_revue": "2026-09-01"}
+        assert a_effacer == []
 
 
 class TestDossierRfc:

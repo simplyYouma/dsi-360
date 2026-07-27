@@ -348,6 +348,12 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
+/* Guide discret tant qu'aucune périodicité n'est posée : dit le premier geste, sans alarmer. */
+.revueAstuce {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
 
 /* Panneau de discussion latéral (colonne droite de la modale) : en-tête et composeur figés,
    seul le fil défile. */

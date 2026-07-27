@@ -846,12 +846,21 @@ export function FicheTransition({
                     desactive={!permissions.peut_travailler}
                     titreDesactive={TITRE_LECTURE}
                   />
+                  {/* La périodicité pilote : sans elle, pas de cycle. Le calendrier reste donc
+                      grisé tant qu'aucune cadence n'est choisie — on n'affiche pas une échéance de
+                      revue qu'aucune périodicité ne gouverne et qu'on ne pourrait pas clore. La
+                      choisir pose déjà la première échéance ; la date ne fait que l'ajuster. */}
                   <SelecteurDate
                     valeur={detail.prochaine_revue ?? null}
                     onChange={(v) => void planifierRevue('prochaine_revue', v)}
                     placeholder="Prochaine revue"
-                    desactive={!permissions.peut_travailler}
-                    titreDesactive={TITRE_LECTURE}
+                    desactive={!permissions.peut_travailler || !detail.periodicite}
+                    titreDesactive={
+                      !permissions.peut_travailler
+                        ? TITRE_LECTURE
+                        : 'Choisissez d’abord une périodicité : elle fixe la prochaine revue, ' +
+                          'que cette date ne fait qu’ajuster.'
+                    }
                     remplissageEcheance
                   />
                   <Button
@@ -870,6 +879,11 @@ export function FicheTransition({
                     <CheckCircle2 size={15} />
                     Revue effectuée
                   </Button>
+                  {!detail.periodicite && permissions.peut_travailler && (
+                    <span className={styles.revueAstuce}>
+                      Choisissez une périodicité pour programmer la revue.
+                    </span>
+                  )}
                   {detail.derniere_revue != null && (
                     <span className={styles.revueDerniere}>
                       Dernière revue : {formaterDate(detail.derniere_revue)}

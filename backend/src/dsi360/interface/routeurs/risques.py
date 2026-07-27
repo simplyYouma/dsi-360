@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
+from dsi360.application.revue import ecrire_revue
 from dsi360.application.risques import creer_risque
 from dsi360.domain.etats import est_porte_validation, ordre_etats, transitions_possibles
-from dsi360.domain.revue import prochaine_revue
+from dsi360.domain.revue import calculer_planification, prochaine_revue
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.repositories import activite as repo
@@ -272,20 +273,10 @@ async def planifier_revue(
     """Planifie la revue périodique du risque (périodicité + prochaine revue)."""
     courant = ctx.courant
     avant = await _charger(session, ident, courant)
-    fragment = corps.model_dump(exclude_unset=True, mode="json")
-    # Choisir une périodicité fixe la prochaine revue : inutile de resaisir une date.
-    if fragment.get("periodicite") and "prochaine_revue" not in fragment:
-        fragment["prochaine_revue"] = prochaine_revue(
-            fragment["periodicite"], datetime.now(UTC).date()
-        ).isoformat()
-    if fragment:
-        await session.execute(
-            text(
-                "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
-                "WHERE id = cast(:id as uuid)"
-            ),
-            {"id": ident, "f": json.dumps(fragment)},
-        )
+    corps_dict = corps.model_dump(exclude_unset=True, mode="json")
+    fragment, a_effacer = calculer_planification(corps_dict, datetime.now(UTC).date())
+    if fragment or a_effacer:
+        await ecrire_revue(session, ident, fragment, a_effacer)
         await audit.consigner(
             session,
             action="MODIFICATION",
@@ -294,7 +285,7 @@ async def planifier_revue(
             module=MODULE,
             cible_type=MODULE,
             cible_id=avant["reference"],
-            nouvelle=fragment,
+            nouvelle=fragment or {"revue": "désactivée"},
         )
         await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
