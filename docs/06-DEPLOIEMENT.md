@@ -348,6 +348,22 @@ Remplacer `<IP>` et `<URL_DU_DEPOT>` par les valeurs réelles.
 
 ---
 
+## Annexe — Sécurité des dépendances (`npm audit`)
+
+Le build affiche `7 high severity vulnerabilities`. **Ne pas lancer `npm audit fix --force`** : la
+commande dégrade la situation (elle rétrograde react-router et casse le linter). Ces alertes ont
+été analysées une à une ; **aucune n'est exploitable dans ce produit** :
+
+| Alerte | Nature | Pourquoi non actionnable |
+|---|---|---|
+| `brace-expansion` / `minimatch` (×6) | **Dev-only** : chaîne interne d'**eslint** (le linter). | Jamais expédié au navigateur. Le correctif (`brace-expansion@5.0.8`) **casse eslint** (5.x incompatible avec `@eslint/config-array`) ; le patch rétroporté compatible (`2.1.2`) n'est pas reconnu par l'audit. Ne se résout proprement qu'en montant **eslint en version majeure** (rupture), sans gain de sécurité réel — le DoS exige un motif glob hostile, absent quand on lint son propre code. |
+| `react-router` **RSC CSRF** (×1) | Runtime, mais **mode React Server Components** uniquement. | L'app est une **SPA `<BrowserRouter>`** : elle n'utilise ni RSC, ni actions serveur → **non exploitable**. Aucune version corrigée n'existe encore (7.18.1 est la dernière ; l'avis couvre 7.12–8.2). Rétrograder **réintroduirait** l'open-redirect modéré (corrigé en 7.18). On reste donc en **7.18.1**. |
+
+**À refaire quand react-router publie un correctif > 8.2** : `npm install react-router-dom@<version>`,
+puis `typecheck` + `lint` + `build`. D'ici là, l'état est **connu et accepté**.
+
+---
+
 ## Annexe — Option reverse-proxy (si un jour requis)
 
 Si l'app doit être publiée par **nom d'hôte** ou sur le **443 standard**, placer IIS/Nginx devant et
