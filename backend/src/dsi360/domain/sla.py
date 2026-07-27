@@ -23,9 +23,19 @@ SLA_DEFAUT: dict[int, CiblesSla] = {
     5: CiblesSla(2 * 24 * 60, 10 * 24 * 60),
 }
 
-# Modules dont les cibles SLA (P1..P5) sont paramétrables par module dans l'administration.
-# Les autres (projet, risque, audit, gouvernance) suivent une logique d'échéance propre.
-MODULES_SLA: tuple[str, ...] = ("incident", "demande", "changement", "cybersecurite")
+# Modules dont l'échéance se déduit d'une cible SLA (P1..P5) : elle est donc paramétrable par
+# module dans l'administration — un incident P1 ≠ une gouvernance P1. Ce sont exactement les
+# modules qui portent une priorité (impact × urgence) à la création.
+# En sont exclus : projet (échéance = date de fin, fixée à la main) et risque (pas d'échéance SLA —
+# il vit sur la criticité et la revue périodique).
+MODULES_SLA: tuple[str, ...] = (
+    "incident",
+    "demande",
+    "changement",
+    "cybersecurite",
+    "gouvernance",
+    "audit",
+)
 
 
 class Echeances(NamedTuple):

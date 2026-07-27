@@ -691,6 +691,8 @@ const LIBELLES_MODULE_SLA: Record<string, string> = {
   demande: 'Demandes',
   changement: 'Changements',
   cybersecurite: 'Cybersécurité',
+  gouvernance: 'Gouvernance',
+  audit: 'Audit & recommandations',
 };
 
 function OngletSla(): JSX.Element {
