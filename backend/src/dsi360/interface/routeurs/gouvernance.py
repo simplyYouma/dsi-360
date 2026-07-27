@@ -12,4 +12,5 @@ routeur = creer_routeur(
     tag="gouvernance",
     avec_documents=True,
     avec_revue=True,
+    avec_liens=True,
 )

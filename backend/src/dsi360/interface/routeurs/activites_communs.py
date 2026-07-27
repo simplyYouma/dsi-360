@@ -444,6 +444,7 @@ def creer_routeur(
     avec_documents: bool = False,
     avec_revue: bool = False,
     avec_notes: bool = False,
+    avec_liens: bool = False,
     editable: bool = False,
 ) -> APIRouter:
     """Routeur générique d'un module d'activités.
@@ -452,7 +453,10 @@ def creer_routeur(
     proviennent exclusivement de l'import du rapport SD. On n'expose alors pas le POST de création.
 
     avec_taches=True (changement…) : expose la gestion des tâches (l'avancement et une partie du
-    cycle de vie s'en déduisent, cf. application/taches.py).
+    cycle de vie s'en déduisent, cf. application/taches.py). Implique les liens utiles.
+
+    avec_liens=True (gouvernance, cybersécurité, audit) : expose les liens utiles sans les tâches.
+    Sans quoi l'écran proposerait un ajout de lien que le serveur ne saurait pas recevoir.
     """
     routeur = APIRouter(prefix=prefixe, tags=[tag])
     Courant = Annotated[dict[str, Any], Depends(exiger_acces(acces))]  # noqa: N806
@@ -1236,8 +1240,11 @@ def creer_routeur(
             routeur, module, charger_visible, Courant, detail_complet, CourantActeur,
             CtxLecture, acces,
         )
-        # Les modules à tâches ont aussi les liens utiles. Ils restent ouverts après clôture
-        # (documenter un changement clos par un lien de suivi doit rester possible).
+    # Liens utiles : les modules à tâches les ont d'office, les autres sur demande (avec_liens).
+    # Ils restent ouverts après clôture — documenter un dossier clos par un lien de suivi doit
+    # rester possible. L'écran de gouvernance/cybersécurité/audit propose l'ajout : la route doit
+    # exister, sinon le POST tombe dans le vide (405) et l'utilisateur voit une erreur.
+    if avec_taches or avec_liens:
         enregistrer_liens(
             routeur,
             module=module,

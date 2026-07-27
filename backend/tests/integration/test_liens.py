@@ -4,11 +4,24 @@ Un lien (espace documentaire, wiki, dossier réseau) sert le sujet, pas une éta
 Éparpillés sur les tâches, ils devenaient introuvables une fois la tâche terminée.
 """
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.integration.conftest import creer_activite, creer_utilisateur, entetes
+
+# Modules dont l'écran (FicheTransition avecLiens / PageActiviteCategorie) propose l'ajout de
+# liens : chacun DOIT exposer la route côté serveur, sinon l'utilisateur voit une erreur en prod.
+# (base d'URL, module de l'activité). Gouvernance/cybersécurité/audit ont longtemps manqué.
+MODULES_AVEC_LIENS = [
+    ("changements", "changement"),
+    ("projets", "projet"),
+    ("risques", "risque"),
+    ("audit", "audit"),
+    ("cybersecurite", "cybersecurite"),
+    ("gouvernance", "gouvernance"),
+]
 
 
 async def test_la_colonne_de_liaison_a_une_tache_a_disparu(session: AsyncSession) -> None:
@@ -59,16 +72,27 @@ async def test_le_parametre_tache_n_est_plus_reconnu(
     assert len(r.json()) == 1, "les liens de l'activité, quel que soit le paramètre résiduel"
 
 
-async def test_les_projets_exposent_aussi_leurs_liens(
-    client: AsyncClient, session: AsyncSession
+@pytest.mark.parametrize(("base", "module"), MODULES_AVEC_LIENS)
+async def test_chaque_module_a_liens_recoit_et_rend_ses_liens(
+    client: AsyncClient, session: AsyncSession, base: str, module: str
 ) -> None:
-    admin = await creer_utilisateur(session, email="admin.lien3@afgbank.ml", profil="ADMIN")
-    projet = await creer_activite(session, module="projet", reference="PRJ-LIEN-1")
+    """Là où l'écran propose l'ajout, le serveur doit le recevoir (POST) et le restituer (GET).
 
-    r = await client.post(
-        f"/projets/{projet}/liens",
-        headers=entetes(admin),
-        json={"libelle": "Dossier COPIL", "url": "https://intranet.afgbank.ml/copil"},
+    Le POST échouait en 405 pour gouvernance, cybersécurité et audit : la route n'était câblée
+    que pour les modules à tâches. L'utilisateur voyait alors une erreur en prod.
+    """
+    admin = await creer_utilisateur(
+        session, email=f"admin.lien.{module}@afgbank.ml", profil="ADMIN"
     )
+    ident = await creer_activite(session, module=module, reference=f"LIEN-{module.upper()}-1")
 
-    assert r.status_code == 201, r.text
+    ajout = await client.post(
+        f"/{base}/{ident}/liens",
+        headers=entetes(admin),
+        json={"libelle": "Dossier de référence", "url": "https://intranet.afgbank.ml/ref"},
+    )
+    assert ajout.status_code == 201, ajout.text
+
+    liste = await client.get(f"/{base}/{ident}/liens", headers=entetes(admin))
+    assert liste.status_code == 200, liste.text
+    assert [lien["libelle"] for lien in liste.json()] == ["Dossier de référence"]
