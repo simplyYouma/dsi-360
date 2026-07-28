@@ -249,6 +249,8 @@ class EquipementResume(BaseModel):
     numero_serie: str | None
     modele: str | None
     designation: str
+    #: Nature du matériel (portable, serveur, imprimante…), tirée du référentiel de types.
+    type: str | None = None
     emplacement: str | None
     departement: str | None
     #: Détenteur rapproché d'un compte ; sinon le matricule brut du fichier reste seul.
@@ -275,6 +277,7 @@ class EvenementEquipement(EvenementJournal):
 class EquipementDetail(EquipementResume):
     #: Dernières actions (création, modifications, import), du plus récent au plus ancien.
     historique: list[EvenementEquipement] = []
+    type_id: str | None = None
     emplacement_id: str | None
     departement_id: str | None
     detenteur_id: str | None
@@ -319,6 +322,7 @@ class _EquipementChamps(BaseModel):
     code_immo: str | None = Field(default=None, max_length=40)
     numero_serie: str | None = Field(default=None, max_length=80)
     modele: str | None = Field(default=None, max_length=120)
+    type_id: str | None = None
     emplacement_id: str | None = None
     departement_id: str | None = None
     detenteur_id: str | None = None

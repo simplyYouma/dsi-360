@@ -6,6 +6,8 @@ export interface Equipement {
   numero_serie: string | null;
   modele: string | null;
   designation: string;
+  /** Nature du matériel (portable, serveur, imprimante…), tirée du référentiel de types. */
+  type: string | null;
   emplacement: string | null;
   departement: string | null;
   /** Nom du détenteur si son matricule a été rapproché d'un compte. */
@@ -35,6 +37,7 @@ export interface EvenementEquipement {
 export interface EquipementDetail extends Equipement {
   /** Dernières actions journalisées (création, modifications, import), plus récentes d'abord. */
   historique: EvenementEquipement[];
+  type_id: string | null;
   emplacement_id: string | null;
   departement_id: string | null;
   detenteur_id: string | null;
@@ -71,8 +74,12 @@ export interface ReferentielItem {
   actif: boolean;
 }
 
+/** Les trois référentiels du parc : type de matériel, emplacement, département. */
+export type CleReferentiel = 'types' | 'emplacements' | 'departements';
+
 export interface FiltresInventaire {
   q?: string | null;
+  type_id?: string | null;
   emplacement_id?: string | null;
   departement_id?: string | null;
   detenteur_id?: string | null;
@@ -89,6 +96,7 @@ export interface NouvelEquipement {
   code_immo?: string | null;
   numero_serie?: string | null;
   modele?: string | null;
+  type_id?: string | null;
   emplacement_id?: string | null;
   departement_id?: string | null;
   detenteur_id?: string | null;
@@ -145,6 +153,7 @@ export interface AnalysesParc {
 function chaineFiltres(page: number, f?: FiltresInventaire): string {
   const p = new URLSearchParams({ page: String(page) });
   if (f?.q && f.q.trim() !== '') p.set('q', f.q.trim());
+  if (f?.type_id) p.set('type_id', f.type_id);
   if (f?.emplacement_id) p.set('emplacement_id', f.emplacement_id);
   if (f?.departement_id) p.set('departement_id', f.departement_id);
   if (f?.detenteur_id) p.set('detenteur_id', f.detenteur_id);
@@ -166,12 +175,12 @@ export const inventaireApi = {
   modifier: (id: string, corps: MajEquipement): Promise<EquipementDetail> =>
     api.patch(`/inventaire/${id}`, corps),
   supprimer: (id: string): Promise<void> => api.del(`/inventaire/${id}`),
-  referentiel: (cle: 'emplacements' | 'departements'): Promise<ReferentielItem[]> =>
+  referentiel: (cle: CleReferentiel): Promise<ReferentielItem[]> =>
     api.get(`/inventaire/referentiels/${cle}`),
-  ajouterReferentiel: (
-    cle: 'emplacements' | 'departements',
-    libelle: string,
-  ): Promise<ReferentielItem> => api.post(`/inventaire/referentiels/${cle}`, { libelle }),
+  ajouterReferentiel: (cle: CleReferentiel, libelle: string): Promise<ReferentielItem> =>
+    api.post(`/inventaire/referentiels/${cle}`, { libelle }),
+  supprimerReferentiel: (cle: CleReferentiel, id: string): Promise<void> =>
+    api.del(`/inventaire/referentiels/${cle}/${id}`),
   analyses: (): Promise<AnalysesParc> => api.get('/inventaire/analyses'),
   /** Consigner ce qu'on a vu du matériel. Ouvert à tout agent du module, contrairement au
    *  reste de la fiche : contrôler le parc est un travail de terrain. */

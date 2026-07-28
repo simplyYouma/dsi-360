@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 _CHAMPS = """
     e.id::text AS id, e.code_immo, e.numero_serie, e.modele, e.designation,
+    e.type_id::text AS type_id, typ.libelle AS type,
     e.emplacement_id::text AS emplacement_id, emp.libelle AS emplacement,
     e.departement_id::text AS departement_id, dep.libelle AS departement,
     e.detenteur_id::text AS detenteur_id, e.matricule_brut, e.detenteur_externe,
@@ -19,6 +20,7 @@ _CHAMPS = """
 
 _BASE = """
     FROM core.equipement e
+    LEFT JOIN core.type_equipement typ ON typ.id = e.type_id
     LEFT JOIN core.emplacement emp ON emp.id = e.emplacement_id
     LEFT JOIN core.departement_equipement dep ON dep.id = e.departement_id
     LEFT JOIN core.utilisateur u ON u.id = e.detenteur_id
@@ -33,6 +35,7 @@ CHAMPS_MODIFIABLES = frozenset(
         "numero_serie",
         "modele",
         "designation",
+        "type_id",
         "emplacement_id",
         "departement_id",
         "detenteur_id",
@@ -50,7 +53,7 @@ CHAMPS_MODIFIABLES = frozenset(
         "constat_motif",
     }
 )
-_UUID = frozenset({"emplacement_id", "departement_id", "detenteur_id", "constate_par"})
+_UUID = frozenset({"type_id", "emplacement_id", "departement_id", "detenteur_id", "constate_par"})
 
 #: Au-delà de ce délai, un matériel est réputé « non contrôlé » : c'est ce que l'inventaire
 #: physique vient rattraper. Ce n'est pas un verdict sur le matériel, c'est un trou de suivi.
@@ -94,6 +97,7 @@ def _filtres(
     params: dict[str, Any],
     etat_constate: str | None = None,
     a_controler: bool = False,
+    type_id: str | None = None,
 ) -> str:
     """Conditions de liste. La recherche passe outre les autres filtres — comme pour les
     activités : chercher, c'est vouloir retrouver un matériel, pas fouiller la vue courante."""
@@ -111,6 +115,9 @@ def _filtres(
         )
         params["q"] = f"%{q.strip()}%"
         return conditions
+    if type_id is not None:
+        conditions += " AND e.type_id = cast(:typ as uuid)"
+        params["typ"] = type_id
     if emplacement_id is not None:
         conditions += " AND e.emplacement_id = cast(:emp as uuid)"
         params["emp"] = emplacement_id
@@ -146,10 +153,12 @@ async def lister(
     actif: bool | None = True,
     etat_constate: str | None = None,
     a_controler: bool = False,
+    type_id: str | None = None,
 ) -> tuple[list[RowMapping], int]:
     params: dict[str, Any] = {}
     conditions = _filtres(
-        q, emplacement_id, departement_id, detenteur_id, actif, params, etat_constate, a_controler
+        q, emplacement_id, departement_id, detenteur_id, actif, params, etat_constate,
+        a_controler, type_id,
     )
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{conditions}"), params) or 0
     # Vue « à contrôler » : le plus ancien contrôle d'abord (jamais contrôlé en tête), c'est
@@ -284,19 +293,42 @@ async def supprimer(session: AsyncSession, identifiant: str) -> None:
 
 # --- Référentiels de localisation -----------------------------------------------------------
 
-#: Table par clé de référentiel. Liste blanche : le nom de table ne vient jamais de l'appelant.
+#: Table + colonne de rattachement par clé de référentiel. Liste blanche : ni le nom de table ni
+#: celui de la colonne ne viennent jamais de l'appelant (les deux sont interpolés dans le SQL).
 TABLES_REFERENTIEL = {
-    "emplacements": "core.emplacement",
-    "departements": "core.departement_equipement",
+    "types": ("core.type_equipement", "type_id"),
+    "emplacements": ("core.emplacement", "emplacement_id"),
+    "departements": ("core.departement_equipement", "departement_id"),
 }
 
 
 async def lister_referentiel(session: AsyncSession, cle: str) -> list[RowMapping]:
-    table = TABLES_REFERENTIEL[cle]
+    table, _ = TABLES_REFERENTIEL[cle]
     lignes = await session.execute(
         text(f"SELECT id::text AS id, libelle, actif FROM {table} ORDER BY libelle")
     )
     return list(lignes.mappings().all())
+
+
+async def referentiel_utilise(session: AsyncSession, cle: str, identifiant: str) -> bool:
+    """Vrai si au moins un équipement pointe cette entrée : on ne la retire pas dans son dos."""
+    _, colonne = TABLES_REFERENTIEL[cle]
+    return bool(
+        await session.scalar(
+            text(f"SELECT 1 FROM core.equipement WHERE {colonne} = cast(:id as uuid) LIMIT 1"),
+            {"id": identifiant},
+        )
+    )
+
+
+async def supprimer_referentiel(session: AsyncSession, cle: str, identifiant: str) -> bool:
+    """Retire une entrée du référentiel. Renvoie ``False`` si elle n'existait pas."""
+    table, _ = TABLES_REFERENTIEL[cle]
+    ligne = await session.execute(
+        text(f"DELETE FROM {table} WHERE id = cast(:id as uuid) RETURNING libelle"),
+        {"id": identifiant},
+    )
+    return ligne.first() is not None
 
 
 async def trouver_ou_creer_referentiel(
@@ -309,7 +341,7 @@ async def trouver_ou_creer_referentiel(
     """
     if libelle is None or libelle.strip() == "":
         return None
-    table = TABLES_REFERENTIEL[cle]
+    table, _ = TABLES_REFERENTIEL[cle]
     identifiant = await session.scalar(
         text(
             f"INSERT INTO {table} (libelle) VALUES (btrim(:l)) "

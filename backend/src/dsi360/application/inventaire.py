@@ -65,6 +65,10 @@ async def creer_equipement(
 #: C'est ce qui rend l'acheminement d'un matériel racontable (« Siège → Agence Kayes ») —
 #: un uuid dans l'historique ne raconte rien.
 _REFERENCES = {
+    "type_id": (
+        "type",
+        "SELECT libelle FROM core.type_equipement WHERE id = cast(:id as uuid)",
+    ),
     "emplacement_id": (
         "emplacement",
         "SELECT libelle FROM core.emplacement WHERE id = cast(:id as uuid)",

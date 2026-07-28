@@ -27,6 +27,7 @@ import {
 
 interface Props {
   id: string | null;
+  types: ReferentielItem[];
   emplacements: ReferentielItem[];
   departements: ReferentielItem[];
   onFermer: () => void;
@@ -89,6 +90,7 @@ function jour(iso: string | null): string {
  *  gauche, la discussion interne à droite. */
 export function FicheEquipement({
   id,
+  types,
   emplacements,
   departements,
   onFermer,
@@ -401,6 +403,25 @@ export function FicheEquipement({
                   onChange={(d) => void patch({ date_acquisition: d })}
                   placeholder="jj/mm/aaaa"
                   desactive={!modifiable}
+                />
+              </dd>
+            </div>
+            <div className={`${fiche.metaItem} ${fiche.metaLarge}`}>
+              <dt>Type</dt>
+              <dd>
+                <SelecteurCategorie
+                  categories={types}
+                  valeur={detail.type_id}
+                  onChange={(v) => void patch({ type_id: v })}
+                  gerable={modifiable}
+                  compact
+                  accent="var(--cat-3)"
+                  entite="type"
+                  onAjouter={(l) => inventaireApi.ajouterReferentiel('types', l)}
+                  onSupprimer={(tid) => inventaireApi.supprimerReferentiel('types', tid)}
+                  onModifie={onReferentiels}
+                  desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
                 />
               </dd>
             </div>

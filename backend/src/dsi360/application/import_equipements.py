@@ -28,7 +28,14 @@ from dsi360.infrastructure.repositories import equipement as repo
 #: La comptabilité fait foi : ces colonnes sont toujours reprises du fichier.
 _COMPTABLES = ("designation", "taux", "date_acquisition", "duree_annees", "valeur_acquisition")
 #: La DSI fait foi : l'import ne comble que les trous, il n'écrase jamais une saisie.
-_TERRAIN = ("numero_serie", "modele", "emplacement_id", "departement_id", "matricule_brut")
+_TERRAIN = (
+    "numero_serie",
+    "modele",
+    "type_id",
+    "emplacement_id",
+    "departement_id",
+    "matricule_brut",
+)
 
 
 async def importer_classeur(
@@ -57,6 +64,9 @@ async def importer_classeur(
         if matricule is not None and detenteur is None:
             sans_detenteur += 1
 
+        type_id = await repo.trouver_ou_creer_referentiel(
+            session, "types", nom_significatif(ligne["type"])
+        )
         emplacement_id = await repo.trouver_ou_creer_referentiel(
             session, "emplacements", nom_significatif(ligne["emplacement"])
         )
@@ -74,6 +84,7 @@ async def importer_classeur(
         terrain = {
             "numero_serie": nom_significatif(ligne["numero_serie"]),
             "modele": nom_significatif(ligne["modele"]),
+            "type_id": type_id,
             "emplacement_id": emplacement_id,
             "departement_id": departement_id,
             "matricule_brut": matricule,

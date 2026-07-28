@@ -44,6 +44,18 @@ function infobulleConstat(e: Equipement): string | undefined {
   return morceaux.join(' · ');
 }
 
+/** Couleur stable d'un type : la même étiquette garde toujours la même teinte (hash → palette
+ *  catégorielle). Chaque type se repère ainsi d'un coup d'œil, sans jamais changer de couleur. */
+const _PALETTE_TYPE = [
+  'var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)',
+  'var(--cat-5)', 'var(--cat-6)', 'var(--cat-7)', 'var(--cat-8)',
+];
+export function couleurType(libelle: string): string {
+  let h = 0;
+  for (let i = 0; i < libelle.length; i++) h = (h * 31 + libelle.charCodeAt(i)) >>> 0;
+  return _PALETTE_TYPE[h % _PALETTE_TYPE.length] ?? 'var(--cat-1)';
+}
+
 /** Montant en francs CFA, séparé par milliers. Sans décimales : elles n'apportent rien ici. */
 export function formaterMontant(valeur: number | null): string {
   if (valeur === null) return '—';
@@ -79,6 +91,7 @@ export function InventairePage(): JSX.Element {
   const [page, setPage] = useState(1);
   const [chargement, setChargement] = useState(true);
   const [stats, setStats] = useState<StatsInventaire | null>(null);
+  const [types, setTypes] = useState<ReferentielItem[]>([]);
   const [emplacements, setEmplacements] = useState<ReferentielItem[]>([]);
   const [departements, setDepartements] = useState<ReferentielItem[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -154,6 +167,7 @@ export function InventairePage(): JSX.Element {
   }, [charger]);
   useEffect(() => chargerStats(), [chargerStats, total]);
   const chargerReferentiels = useCallback((): void => {
+    void inventaireApi.referentiel('types').then(setTypes);
     void inventaireApi.referentiel('emplacements').then(setEmplacements);
     void inventaireApi.referentiel('departements').then(setDepartements);
   }, []);
@@ -182,6 +196,23 @@ export function InventairePage(): JSX.Element {
       tronque: true,
       valeur: (e) => e.designation,
       rendu: (e) => <strong title={e.designation}>{e.designation}</strong>,
+    },
+    {
+      cle: 'type',
+      entete: 'Type',
+      valeur: (e) => e.type ?? '',
+      rendu: (e) =>
+        e.type !== null ? (
+          <span
+            className={local.typeBadge}
+            style={{ background: couleurType(e.type), color: 'var(--on-accent)' }}
+            title={e.type}
+          >
+            {e.type}
+          </span>
+        ) : (
+          <span className={local.vide}>—</span>
+        ),
     },
     // Le modèle, la valeur d'acquisition et la date d'achat restent dans la fiche : la liste
     // garde l'essentiel — identifier, localiser, savoir ce que ça vaut encore.
@@ -276,8 +307,8 @@ export function InventairePage(): JSX.Element {
 
   const vue = VUES.find((v) => v.actif === (f.actif ?? null))?.cle ?? 'tous';
   const filtreActif = Boolean(
-    f.q || f.emplacement_id || f.departement_id || f.detenteur_id || f.etat_constate ||
-      f.a_controler,
+    f.q || f.type_id || f.emplacement_id || f.departement_id || f.detenteur_id ||
+      f.etat_constate || f.a_controler,
   );
 
   return (
@@ -424,6 +455,19 @@ export function InventairePage(): JSX.Element {
 
         <div className={filtres.filtre}>
           <SelecteurListe
+            options={types.map((t) => ({ valeur: t.id, libelle: t.libelle }))}
+            valeur={f.type_id ?? null}
+            onChange={(v) => {
+              setPage(1);
+              setF({ ...f, type_id: v });
+            }}
+            placeholder="Tous les types"
+            permettreVide
+            libelleVide="Tous les types"
+          />
+        </div>
+        <div className={filtres.filtre}>
+          <SelecteurListe
             options={emplacements.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
             valeur={f.emplacement_id ?? null}
             onChange={(v) => {
@@ -493,6 +537,7 @@ export function InventairePage(): JSX.Element {
 
       <FicheEquipement
         id={ficheId}
+        types={types}
         emplacements={emplacements}
         departements={departements}
         onFermer={() => setFicheId(null)}
@@ -506,6 +551,7 @@ export function InventairePage(): JSX.Element {
 
       <ModaleEquipement
         ouverte={modale}
+        types={types}
         emplacements={emplacements}
         departements={departements}
         gerable={estAdmin}

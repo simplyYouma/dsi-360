@@ -24,6 +24,7 @@ from dsi360.domain import amortissement
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
 from dsi360.infrastructure.export import vers_csv, vers_xlsx
+from dsi360.infrastructure.modele_import_equipements import construire_modele
 from dsi360.infrastructure.repositories import equipement as repo
 from dsi360.interface.schemas import (
     AnalysesParc,
@@ -81,6 +82,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "numero_serie": r["numero_serie"],
         "modele": r["modele"],
         "designation": r["designation"],
+        "type": r["type"],
         "emplacement": r["emplacement"],
         "departement": r["departement"],
         "detenteur": _detenteur(r),
@@ -105,6 +107,7 @@ async def _detail(session: AsyncSession, r: RowMapping) -> dict[str, Any]:
     return {
         "historique": await _historique(session, r),
         **_resume(r),
+        "type_id": r["type_id"],
         "emplacement_id": r["emplacement_id"],
         "departement_id": r["departement_id"],
         "detenteur_id": r["detenteur_id"],
@@ -135,6 +138,7 @@ _LIBELLE_CHAMP = {
     "code_immo": "code immo",
     "numero_serie": "n° de série",
     "modele": "modèle",
+    "type": "type",
     "emplacement": "emplacement",
     "departement": "département",
     "detenteur": "détenteur",
@@ -230,6 +234,7 @@ async def _charger(session: AsyncSession, ident: str) -> RowMapping:
 
 #: Références acceptées au PATCH/POST : table où l'identifiant doit exister, et nom d'écran.
 _CIBLES_REFERENCE = {
+    "type_id": ("core.type_equipement", "Le type"),
     "emplacement_id": ("core.emplacement", "L'emplacement"),
     "departement_id": ("core.departement_equipement", "Le département"),
     "detenteur_id": ("core.utilisateur", "Le détenteur"),
@@ -265,6 +270,7 @@ async def lister(
     session: Session,
     page: Annotated[int, Query(ge=1)] = 1,
     q: Annotated[str | None, Query(max_length=80)] = None,
+    type_id: Annotated[str | None, Query()] = None,
     emplacement_id: Annotated[str | None, Query()] = None,
     departement_id: Annotated[str | None, Query()] = None,
     #: Un identifiant de compte, ou `AUCUN` pour « personne ne le détient ».
@@ -278,6 +284,7 @@ async def lister(
         page=page,
         taille=_TAILLE,
         q=q,
+        type_id=type_id,
         emplacement_id=emplacement_id,
         departement_id=departement_id,
         detenteur_id=detenteur_id,
@@ -409,6 +416,7 @@ async def analyses_parc(courant: Courant, session: Session) -> dict[str, Any]:
 _ENTETES_EXPORT = [
     "Code immo",
     "Désignation",
+    "Type",
     "N° série",
     "Modèle",
     "Emplacement",
@@ -421,6 +429,18 @@ _ENTETES_EXPORT = [
     "Amorti (%)",
     "En service",
 ]
+
+
+@routeur.get("/modele-import")
+async def modele_import(courant: Courant) -> Response:
+    """Le classeur modèle à remplir pour l'import : feuille de saisie + mode d'emploi."""
+    return Response(
+        content=construire_modele(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="modele-import-inventaire.xlsx"'
+        },
+    )
 
 
 @routeur.get("/export")
@@ -437,6 +457,7 @@ async def exporter(
             [
                 v["code_immo"] or "",
                 v["designation"],
+                v["type"] or "",
                 v["numero_serie"] or "",
                 v["modele"] or "",
                 v["emplacement"] or "",
@@ -604,3 +625,24 @@ async def ajouter_referentiel(
     ident = await repo.trouver_ou_creer_referentiel(session, cle, corps.libelle)
     await session.commit()
     return {"id": ident, "libelle": corps.libelle.strip(), "actif": True}
+
+
+@routeur.delete("/referentiels/{cle}/{ident}", status_code=status.HTTP_204_NO_CONTENT)
+async def retirer_referentiel(
+    cle: str, ident: str, courant: Courant, session: Session
+) -> None:
+    """Retire une entrée d'un référentiel (type, emplacement, département).
+
+    Refusé si un équipement la porte encore : la supprimer le détacherait sans le dire.
+    """
+    exiger_admin(courant)
+    if cle not in repo.TABLES_REFERENTIEL:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Référentiel inconnu.")
+    if await repo.referentiel_utilise(session, cle, ident):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Cette entrée est utilisée par des équipements — impossible de la supprimer.",
+        )
+    if not await repo.supprimer_referentiel(session, cle, ident):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entrée introuvable.")
+    await session.commit()

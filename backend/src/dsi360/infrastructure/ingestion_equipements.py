@@ -37,6 +37,11 @@ ENTETES = _ENTETES = {
     "modele": "modele",
     "designtion": "designation",  # faute de frappe du fichier source
     "designation": "designation",
+    "type": "type",
+    "type equipement": "type",
+    "type d'equipement": "type",
+    "nature": "type",
+    "categorie": "type",
     "emplacement": "emplacement",
     "departement": "departement",
     "taux": "taux",
@@ -53,6 +58,20 @@ ENTETES = _ENTETES = {
     "rebut ou casse": "etat_rebut",
     "casse": "etat_casse",
     "non retrouve": "etat_non_retrouve",
+    # Colonne unique « État constaté » (Bon / Rebut / Cassé) — plus simple à remplir que trois
+    # cases à cocher. Le fichier comptable historique garde ses colonnes X, toujours acceptées.
+    "etat": "etat_valeur",
+    "etat constate": "etat_valeur",
+    "etat du materiel": "etat_valeur",
+    "constat": "etat_valeur",
+}
+
+#: Colonne unique « État » -> constat. Insensible à la casse et aux accents (via `normaliser`).
+_ETAT_UNIQUE = {
+    "bon": "BON",
+    "rebut": "REBUT",
+    "casse": "CASSE",
+    "non retrouve": "NON_RETROUVE",
 }
 
 # Sans ces deux colonnes, ce n'est pas un fichier d'inventaire : mieux vaut le dire tout de suite
@@ -106,10 +125,16 @@ def analyser_classeur(contenu: bytes) -> list[dict[str, Any]]:
             for cle, constat in _ETATS.items()
             if _coche(valeur_cellule(ligne, index, cle))
         ]
+        # À défaut de cases cochées, la colonne unique « État constaté » (Bon/Rebut/Cassé).
+        if not etats:
+            valeur = _ETAT_UNIQUE.get(normaliser(valeur_cellule(ligne, index, "etat_valeur")))
+            if valeur is not None:
+                etats.append(valeur)
         equipements.append(
             {
                 "code_immo": _texte(valeur_cellule(ligne, index, "code_immo")),
                 "designation": designation,
+                "type": _texte(valeur_cellule(ligne, index, "type")),
                 "matricule": _texte(valeur_cellule(ligne, index, "matricule")),
                 "numero_serie": _texte(valeur_cellule(ligne, index, "numero_serie")),
                 "modele": _texte(valeur_cellule(ligne, index, "modele")),

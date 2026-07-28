@@ -637,22 +637,24 @@ _DEPARTEMENTS = (
     "Accueil & services généraux",
 )
 
-# (désignation, modèle, valeur mini, valeur maxi, taux, durée) — matériel d'entreprise courant.
-_TYPES_MATERIEL: tuple[tuple[str, str, int, int, int, int], ...] = (
-    ("Serveur lame", "HPE ProLiant DL380", 8_000_000, 15_000_000, 20, 5),
-    ("Baie de stockage", "Dell EMC Unity", 18_000_000, 30_000_000, 20, 5),
-    ("Onduleur", "APC Smart-UPS 10kVA", 2_500_000, 6_000_000, 20, 5),
-    ("Commutateur cœur", "Cisco Catalyst 9300", 3_000_000, 7_500_000, 20, 5),
-    ("Pare-feu", "Fortinet FortiGate 200F", 4_000_000, 9_000_000, 20, 5),
-    ("Borne Wi-Fi", "Ubiquiti UniFi U6", 180_000, 420_000, 25, 4),
-    ("Poste de travail", "Dell Latitude 5540", 450_000, 950_000, 25, 4),
-    ("Poste de travail", "HP EliteBook 840", 500_000, 1_100_000, 25, 4),
-    ("Poste fixe", "Lenovo ThinkCentre M70", 380_000, 760_000, 25, 4),
-    ("Imprimante réseau", "HP LaserJet M507", 350_000, 800_000, 25, 4),
-    ("Copieur multifonction", "Ricoh IM C3000", 1_800_000, 3_400_000, 20, 5),
-    ("Scanner de production", "Kodak i3450", 1_200_000, 2_600_000, 25, 4),
-    ("Vidéoprojecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4),
-    ("Écran de salle", "Samsung QM65R", 900_000, 1_900_000, 25, 4),
+# (désignation, modèle, valeur mini, valeur maxi, taux, durée, type) — matériel courant. Le type
+# reprend le référentiel des types d'inventaire (semé par migration ; les intitulés absents sont
+# créés à la volée, comme à l'import).
+_TYPES_MATERIEL: tuple[tuple[str, str, int, int, int, int, str], ...] = (
+    ("Serveur lame", "HPE ProLiant DL380", 8_000_000, 15_000_000, 20, 5, "Serveur"),
+    ("Baie de stockage", "Dell EMC Unity", 18_000_000, 30_000_000, 20, 5, "Baie de stockage"),
+    ("Onduleur", "APC Smart-UPS 10kVA", 2_500_000, 6_000_000, 20, 5, "Onduleur"),
+    ("Commutateur cœur", "Cisco Catalyst 9300", 3_000_000, 7_500_000, 20, 5, "Switch réseau"),
+    ("Pare-feu", "Fortinet FortiGate 200F", 4_000_000, 9_000_000, 20, 5, "Pare-feu"),
+    ("Borne Wi-Fi", "Ubiquiti UniFi U6", 180_000, 420_000, 25, 4, "Point d'accès Wi-Fi"),
+    ("Poste de travail", "Dell Latitude 5540", 450_000, 950_000, 25, 4, "Ordinateur portable"),
+    ("Poste de travail", "HP EliteBook 840", 500_000, 1_100_000, 25, 4, "Ordinateur portable"),
+    ("Poste fixe", "Lenovo ThinkCentre M70", 380_000, 760_000, 25, 4, "Ordinateur fixe"),
+    ("Imprimante réseau", "HP LaserJet M507", 350_000, 800_000, 25, 4, "Imprimante"),
+    ("Copieur multifonction", "Ricoh IM C3000", 1_800_000, 3_400_000, 20, 5, "Imprimante"),
+    ("Scanner de production", "Kodak i3450", 1_200_000, 2_600_000, 25, 4, "Scanner"),
+    ("Vidéoprojecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4, "Vidéoprojecteur"),
+    ("Écran de salle", "Samsung QM65R", 900_000, 1_900_000, 25, 4, "Écran"),
 )
 
 
@@ -679,6 +681,16 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
             libelle,
         )
         for libelle in _DEPARTEMENTS
+    }
+    # Types d'inventaire : on réutilise ceux semés par migration, on crée les autres à la volée.
+    types = {
+        libelle: await conn.fetchval(
+            "INSERT INTO core.type_equipement (libelle) VALUES ($1) "
+            "ON CONFLICT (upper(btrim(libelle))) DO UPDATE SET libelle = excluded.libelle "
+            "RETURNING id",
+            libelle,
+        )
+        for libelle in {materiel[6] for materiel in _TYPES_MATERIEL}
     }
 
     # Matricules sur les comptes : sans eux, aucun équipement ne trouverait son détenteur.
@@ -707,7 +719,7 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
     aujourdhui = date.today()
     cree = 0
     for i in range(1, 121):
-        designation, modele, mini, maxi, taux, duree = random.choice(_TYPES_MATERIEL)
+        designation, modele, mini, maxi, taux, duree, type_libelle = random.choice(_TYPES_MATERIEL)
         # Ancienneté pondérée vers le récent : un parc se renouvelle. Tirer uniformément sur
         # vingt ans donnerait un parc amorti à 80 %, où la valeur nette ne dirait plus rien —
         # alors que c'est précisément ce qu'on vient lire. Les vieux GAB restent la minorité.
@@ -723,14 +735,15 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
         actif = random.random() > 0.08
         await conn.execute(
             "INSERT INTO core.equipement (code_immo, designation, modele, numero_serie, "
-            " emplacement_id, departement_id, detenteur_id, taux, date_acquisition, "
+            " type_id, emplacement_id, departement_id, detenteur_id, taux, date_acquisition, "
             " duree_annees, valeur_acquisition, source, actif) "
-            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'IMPORT_IMMO',$12) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'IMPORT_IMMO',$13) "
             "ON CONFLICT DO NOTHING",
-            f"INF{i:05d}",
+            f"INV{i:05d}",
             designation,
             modele,
             f"SN-{random.randint(100000, 999999)}",
+            types[type_libelle],
             emplacements[random.choice(_EMPLACEMENTS)],
             departements[random.choice(_DEPARTEMENTS)],
             detenteur,
@@ -742,6 +755,54 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
         )
         cree += 1
     return cree
+
+
+async def _journal_equipements(conn: asyncpg.Connection) -> int:
+    """Un peu d'histoire administrative sur une partie du parc : import, déménagement, contrôle.
+
+    La fiche d'un équipement doit pouvoir raconter sa vie comme les autres modules. Or le parc est
+    inséré directement (sans passer par les routes qui journalisent) : sans ces écritures, toutes
+    les fiches auraient un historique vide. On fabrique donc quelques lignes plausibles, chaînées
+    comme le vrai journal.
+    """
+    echantillon = await conn.fetch(
+        "SELECT e.code_immo, e.designation, emp.libelle AS emplacement, e.etat_constate "
+        "FROM core.equipement e LEFT JOIN core.emplacement emp ON emp.id = e.emplacement_id "
+        "WHERE e.code_immo IS NOT NULL ORDER BY random() LIMIT 45"
+    )
+    faits = 0
+    for e in echantillon:
+        base = datetime.now(UTC) - timedelta(days=random.randint(30, 400))
+        # L'entrée dans le parc, puis — parfois — un déménagement et un contrôle daté.
+        etapes: list[tuple[str, dict[str, Any] | None, dict[str, Any]]] = [
+            ("CREATION", None, {"designation": e["designation"], "code_immo": e["code_immo"]}),
+        ]
+        if e["emplacement"] and random.random() < 0.6:
+            autre = random.choice([x for x in _EMPLACEMENTS if x != e["emplacement"]])
+            etapes.append(("MODIFICATION", {"emplacement": autre}, {"emplacement": e["emplacement"]}))
+        if e["etat_constate"]:
+            etapes.append(
+                ("MODIFICATION", {"etat": None}, {"etat": e["etat_constate"], "motif": "Contrôle sur site"})
+            )
+        for j, (action, ancienne, nouvelle) in enumerate(etapes):
+            precedent = await conn.fetchval(
+                "SELECT hash_courant FROM audit.journal ORDER BY id DESC LIMIT 1"
+            )
+            horodatage = base + timedelta(days=j * 3)
+            av, nv = _serialiser(ancienne), _serialiser(nouvelle)
+            hash_courant = _empreinte(
+                [precedent or "", horodatage.isoformat(), EMAIL_JOURNAL_DEMO, "inventaire",
+                 action, "equipement", e["code_immo"], av or "", nv or "", ""]
+            )
+            await conn.execute(
+                "INSERT INTO audit.journal (horodatage, acteur_email, module, action, cible_type, "
+                " cible_id, ancienne_valeur, nouvelle_valeur, hash_precedent, hash_courant) "
+                "VALUES ($1,$2,'inventaire',$3,'equipement',$4,$5::jsonb,$6::jsonb,$7,$8)",
+                horodatage, EMAIL_JOURNAL_DEMO, action, e["code_immo"], av, nv,
+                precedent or "", hash_courant,
+            )
+            faits += 1
+    return faits
 
 
 #: Motifs de constat plausibles, par état : ce qu'un agent écrit vraiment sur le terrain.
@@ -1033,6 +1094,7 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
         await _niveaux_support(conn, utilisateurs)
         equipements = await _inventaire(conn, utilisateurs)
         await _constats(conn, utilisateurs)
+        await _journal_equipements(conn)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
 
         for module, titres in TITRES.items():

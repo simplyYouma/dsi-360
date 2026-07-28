@@ -16,9 +16,10 @@ import {
 
 interface Props {
   ouverte: boolean;
-  /** L'administrateur peut créer un emplacement ou un département sans quitter la modale. */
+  /** L'administrateur peut créer un type, un emplacement ou un département sans quitter la modale. */
   gerable: boolean;
   onReferentiels: () => void;
+  types: ReferentielItem[];
   emplacements: ReferentielItem[];
   departements: ReferentielItem[];
   onFermer: () => void;
@@ -31,6 +32,7 @@ const VIDE: NouvelEquipement = { designation: '' };
 /** Saisie d'un équipement. Seule la désignation est exigée : le reste se complète au fil de l'eau. */
 export function ModaleEquipement({
   ouverte,
+  types,
   emplacements,
   departements,
   gerable,
@@ -95,7 +97,7 @@ export function ModaleEquipement({
           <input
             value={v.code_immo ?? ''}
             onChange={(e) => setV({ ...v, code_immo: e.target.value })}
-            placeholder="INF00208"
+            placeholder="INV00208"
           />
         </label>
         <label className={styles.champ}>
@@ -117,8 +119,22 @@ export function ModaleEquipement({
         />
       </label>
 
-      {/* Emplacement et département se créent à la volée, comme les catégories : on ne quitte
-          pas la saisie pour aller déclarer une agence. */}
+      {/* Type, emplacement et département se créent à la volée, comme les catégories : on ne
+          quitte pas la saisie pour aller déclarer une nature de matériel ou une agence. */}
+      <div className={styles.champ}>
+        <span>Type</span>
+        <SelecteurCategorie
+          categories={types}
+          valeur={v.type_id ?? null}
+          onChange={(x) => setV({ ...v, type_id: x })}
+          gerable={gerable}
+          accent="var(--cat-3)"
+          entite="type"
+          onAjouter={(libelle) => inventaireApi.ajouterReferentiel('types', libelle)}
+          onSupprimer={(tid) => inventaireApi.supprimerReferentiel('types', tid)}
+          onModifie={onReferentiels}
+        />
+      </div>
       <div className={styles.champ}>
         <span>Emplacement</span>
         <SelecteurCategorie

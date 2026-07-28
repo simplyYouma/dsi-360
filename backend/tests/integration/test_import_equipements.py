@@ -219,6 +219,108 @@ class TestDetenteur:
         assert e["detenteur_id"] is None
         assert e["matricule_brut"] == "M-INCONNU"
 
+
+def _classeur_type(lignes: list[dict[str, Any]]) -> bytes:
+    """Classeur au format du modèle : en-tête « Type » et colonne unique « État constaté »."""
+    entetes = ["Code immo", "Désignation", "Type", "État constaté"]
+    classeur = openpyxl.Workbook()
+    feuille = classeur.active
+    assert feuille is not None
+    feuille.append(entetes)
+    for ligne in lignes:
+        feuille.append([ligne.get(e) for e in entetes])
+    tampon = BytesIO()
+    classeur.save(tampon)
+    return tampon.getvalue()
+
+
+class TestType:
+    """Le type d'inventaire s'importe comme le reste du terrain : rempli si vide, jamais écrasé."""
+
+    async def test_le_type_est_lu_et_cree_a_la_volee(self, session: AsyncSession) -> None:
+        acteur = await _acteur(session, "admin.imptype1@afgbank.ml")
+
+        rapport = await importer_classeur(
+            session,
+            _classeur_type([
+                {
+                    "Code immo": "INV00500",
+                    "Désignation": "Portable de test",
+                    "Type": "Ordinateur portable",
+                }
+            ]),
+            acteur,
+        )
+
+        assert rapport["crees"] == 1
+        e = await repo.par_code_immo(session, "INV00500")
+        assert e is not None
+        assert e["type"] == "Ordinateur portable", "le type se crée tout seul et se rattache"
+
+    async def test_un_type_saisi_a_l_ecran_survit_au_reimport(self, session: AsyncSession) -> None:
+        acteur = await _acteur(session, "admin.imptype2@afgbank.ml")
+        await importer_classeur(
+            session,
+            _classeur_type([{"Code immo": "INV00501", "Désignation": "Poste"}]),
+            acteur,
+        )
+        cree = await repo.par_code_immo(session, "INV00501")
+        assert cree is not None
+        # La DSI classe le matériel à l'écran.
+        tid = await repo.trouver_ou_creer_referentiel(session, "types", "Serveur")
+        await repo.maj(session, cree["id"], {"type_id": tid})
+        await session.commit()
+
+        # Le fichier suivant propose un autre type : il ne doit pas écraser la saisie.
+        await importer_classeur(
+            session,
+            _classeur_type([
+                {"Code immo": "INV00501", "Désignation": "Poste", "Type": "Onduleur"}
+            ]),
+            acteur,
+        )
+        apres = await repo.par_code_immo(session, "INV00501")
+        assert apres is not None
+        assert apres["type"] == "Serveur", "le classement fait à l'écran n'est pas écrasé"
+
+    async def test_la_colonne_etat_unique_vaut_constat(self, session: AsyncSession) -> None:
+        """« État constaté : Cassé » pose un constat, comme une croix dans le fichier comptable."""
+        acteur = await _acteur(session, "admin.imptype3@afgbank.ml")
+
+        rapport = await importer_classeur(
+            session,
+            _classeur_type([
+                {"Code immo": "INV00502", "Désignation": "Écran", "État constaté": "Cassé"}
+            ]),
+            acteur,
+        )
+
+        assert rapport["constats_enregistres"] == 1
+        e = await repo.par_code_immo(session, "INV00502")
+        assert e is not None
+        assert e["etat_constate"] == "CASSE"
+
+
+def test_le_modele_d_import_se_relit_par_l_import() -> None:
+    """Le modèle fourni au métier est lu sans accroc par l'import : ses en-têtes sont reconnues."""
+    from dsi360.infrastructure.ingestion_equipements import analyser_classeur
+    from dsi360.infrastructure.modele_import_equipements import construire_modele
+
+    classeur = openpyxl.load_workbook(BytesIO(construire_modele()))
+    feuille = classeur["Inventaire"]
+    feuille.append(
+        ["INV00999", "Portable modèle", "Ordinateur portable", "SN-1", "Latitude",
+         "Siège", "SI", "MAT-1", 25, "12/03/2024", 4, 850000, "Bon"]
+    )
+    tampon = BytesIO()
+    classeur.save(tampon)
+
+    lignes = analyser_classeur(tampon.getvalue())
+    assert len(lignes) == 1
+    assert lignes[0]["code_immo"] == "INV00999"
+    assert lignes[0]["type"] == "Ordinateur portable"
+    assert lignes[0]["etat_constate"] == "BON"
+
     async def test_un_rattachement_manuel_n_est_pas_defait(self, session: AsyncSession) -> None:
         """Si la DSI a désigné le détenteur, un import muet ne doit pas l'effacer."""
         acteur = await _acteur(session, "admin.imp8@afgbank.ml")
