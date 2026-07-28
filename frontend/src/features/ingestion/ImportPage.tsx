@@ -6,10 +6,9 @@ import {
   AlertTriangle,
   Loader2,
   CalendarClock,
-  Download,
 } from 'lucide-react';
 import { Card, Button, useToast } from '@/design-system/primitives';
-import { ErreurApi, telecharger } from '@/lib/api';
+import { ErreurApi } from '@/lib/api';
 import incidents from '@/features/incidents/IncidentsPage.module.css';
 import styles from './ImportPage.module.css';
 import { etatImports, importApi, type DernierImport, type RapportFichier } from './importApi';
@@ -144,11 +143,6 @@ export function ImportPage(): JSX.Element {
             reconnaît le fichier. Recharger le même ne crée jamais de doublon.
           </p>
         </div>
-        {/* Le métier part de ce modèle prêt à remplir : en-têtes reconnues, mode d'emploi inclus. */}
-        <Button variante="secondaire" onClick={() => void telecharger('/inventaire/modele-import')}>
-          <Download size={16} />
-          Modèle d’inventaire
-        </Button>
       </header>
 
       {derniers.length > 0 && (

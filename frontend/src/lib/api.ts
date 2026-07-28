@@ -119,7 +119,9 @@ export async function telecharger(chemin: string): Promise<void> {
   const blob = await res.blob();
   const disposition = res.headers.get('Content-Disposition') ?? '';
   const correspondance = /filename=([^;]+)/.exec(disposition);
-  const nom = correspondance?.[1]?.trim() ?? 'export';
+  // Les guillemets qui entourent parfois le nom (`filename="x.xlsx"`) ne font pas partie du nom :
+  // laissés en place, Windows ne reconnaît plus l'extension et demande avec quelle appli ouvrir.
+  const nom = correspondance?.[1]?.trim().replace(/^"|"$/g, '') ?? 'export';
   const url = URL.createObjectURL(blob);
   const lien = document.createElement('a');
   lien.href = url;

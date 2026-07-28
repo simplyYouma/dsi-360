@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, Download } from 'lucide-react';
 import { Button, Modale, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { useFicheUrl } from '@/common/useFicheUrl';
 import { useAuth } from '@/lib/auth';
-import { ErreurApi } from '@/lib/api';
+import { ErreurApi, telecharger } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import filtres from '@/common/FiltreTickets.module.css';
 import { FicheEquipement } from './FicheEquipement';
@@ -319,6 +319,17 @@ export function InventairePage(): JSX.Element {
           <p className={styles.sous}>Parc matériel de la DSI et valeur des immobilisations.</p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+          {/* Le modèle prêt à remplir vit ici, sur l'inventaire : c'est là qu'on pense au parc.
+              On le remplit, puis on le charge depuis la page Imports. */}
+          {estAdmin && (
+            <Button
+              variante="secondaire"
+              onClick={() => void telecharger('/inventaire/modele-import')}
+            >
+              <Download size={16} />
+              Modèle d’import
+            </Button>
+          )}
           <BoutonsExport base="/inventaire" />
           {estAdmin && (
             <Button onClick={() => setModale(true)}>

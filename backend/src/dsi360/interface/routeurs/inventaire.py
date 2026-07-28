@@ -438,7 +438,7 @@ async def modele_import(courant: Courant) -> Response:
         content=construire_modele(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": 'attachment; filename="modele-import-inventaire.xlsx"'
+            "Content-Disposition": "attachment; filename=modele-import-inventaire.xlsx"
         },
     )
 
