@@ -127,6 +127,13 @@ export interface LignePriorite {
   cible_minutes: number | null;
   cellules: CelluleSla[];
 }
+/** Volumétrie & SLA d'un module (incidents ou demandes), aux cibles SLA propres. */
+export interface BlocVolumetrie {
+  module: string;
+  libelle: string;
+  total_priorites: CelluleSla[];
+  priorites: LignePriorite[];
+}
 export interface CelluleEntite {
   mois: string;
   total: number;
@@ -173,8 +180,8 @@ export interface AnalysesMensuelles {
   debut: string;
   fin: string;
   mois: MoisEntete[];
-  total_priorites: CelluleSla[];
-  priorites: LignePriorite[];
+  /** Un tableau volumétrie/SLA par module (incidents, demandes) : cibles SLA distinctes. */
+  volumetrie: BlocVolumetrie[];
   entites: LigneEntite[];
   niveaux: LigneNiveau[];
 }

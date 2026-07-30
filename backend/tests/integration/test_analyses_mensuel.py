@@ -78,15 +78,23 @@ async def test_repartition_mensuelle(client: AsyncClient, session: AsyncSession)
     i = cles.index("2023-03")
     assert data["mois"][i]["libelle"] == "mars 23"
 
-    p1 = next(p for p in data["priorites"] if p["priorite"] == 1)
+    # Un tableau par module : incidents et demandes ont des cibles SLA distinctes.
+    volumetrie = {b["module"]: b for b in data["volumetrie"]}
+    assert set(volumetrie) == {"incident", "demande"}
+
+    inc = volumetrie["incident"]
+    p1 = next(p for p in inc["priorites"] if p["priorite"] == 1)
     cell = p1["cellules"][i]
     assert cell["total"] == 2
     assert cell["population_sla"] == 2
     assert cell["sla_taux"] == 50.0  # 1 des 2 dans les temps
 
-    total = data["total_priorites"][i]
+    total = inc["total_priorites"][i]
     assert total["total"] == 2
     assert total["sla_taux"] == 50.0
+
+    # Les demandes ont leur propre tableau, vide ici — plus de mélange avec les incidents.
+    assert volumetrie["demande"]["total_priorites"][i]["total"] == 0
 
     par_entite = {e["cle"]: e for e in data["entites"]}
     assert par_entite["DSI"]["cellules"][i]["total"] == 1

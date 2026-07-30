@@ -666,7 +666,8 @@ async def gestionnaire_detail(
 # Volumétrie par priorité et respect SLA, par bucket de temps. TTR = durée réelle importée ; la
 # cible vient de la règle SLA du module/priorité. `population` = tickets à durée mesurable.
 _MENSUEL_PRIORITE = """
-SELECT to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket, a.priorite AS niveau,
+SELECT a.module AS module, to_char(date_trunc('{trunc}', a.cree_le), '{fmt}') AS bucket,
+       a.priorite AS niveau,
        count(*) AS total,
        count(*) FILTER (WHERE {ttr} > 0) AS population,
        count(*) FILTER (WHERE {ttr} > 0 AND {ttr} <= {cible}) AS dans_delai
@@ -675,7 +676,7 @@ JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module
 LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD' AND a.priorite IS NOT NULL
   AND a.cree_le >= :b_debut AND a.cree_le < :b_fin{cond}
-GROUP BY 1, 2
+GROUP BY 1, 2, 3
 """
 
 # Répartition DSI (compte rattaché) / DBS (gestionnaire externe) / non renseigné, par bucket.
@@ -784,13 +785,12 @@ async def analyses_mensuelles(
     entetes = [{"cle": _cle_bucket(unit, b), "libelle": _libelle_bucket(unit, b)} for b in buckets]
     cles = [e["cle"] for e in entetes]
 
-    # Cible SLA par priorité (pour l'infobulle « P1 (SLA: 4h) »), module incident par défaut.
+    # Cible SLA par (module, priorité) : incidents et demandes ont des cibles distinctes.
     cibles = {
-        r["priorite"]: r["resolution_minutes"]
+        (str(r["module"]), int(r["priorite"])): r["resolution_minutes"]
         for r in await _lignes(
             session,
-            "SELECT priorite, min(resolution_minutes) AS resolution_minutes "
-            "FROM core.sla_regle GROUP BY priorite",
+            "SELECT module, priorite, resolution_minutes FROM core.sla_regle",
             {},
         )
     }
@@ -803,32 +803,48 @@ async def analyses_mensuelles(
             "sla_taux": round(ok * 100 / pop, 1) if pop else None,
         }
 
-    # --- Priorités × bucket --- (+ accumulateurs pour la ligne d'en-tête « toutes priorités »)
+    # --- Priorités × bucket, PAR MODULE --- un tableau volumétrie/SLA distinct par module, car
+    # incidents et demandes n'ont pas les mêmes cibles (un incident P1 ≠ une demande P1).
     lignes_p = await _lignes(
         session,
         _MENSUEL_PRIORITE.format(trunc=trunc, fmt=fmt, ttr=_TTR, cible=_CIBLE, cond=cond_agg),
         params,
     )
-    par = {(int(r["niveau"]), str(r["bucket"])): r for r in lignes_p}
-    tot_mois: dict[str, int] = dict.fromkeys(cles, 0)
-    pop_mois: dict[str, int] = dict.fromkeys(cles, 0)
-    ok_mois: dict[str, int] = dict.fromkeys(cles, 0)
-    priorites = []
-    for niveau in (1, 2, 3, 4, 5):
-        cellules = []
-        for cle in cles:
-            r = par.get((niveau, cle))
-            total = int(r["total"]) if r else 0
-            pop = int(r["population"]) if r else 0
-            ok = int(r["dans_delai"]) if r else 0
-            tot_mois[cle] += total
-            pop_mois[cle] += pop
-            ok_mois[cle] += ok
-            cellules.append(_cell_sla(total, pop, ok, cle))
-        priorites.append(
-            {"priorite": niveau, "cible_minutes": cibles.get(niveau), "cellules": cellules}
+    par = {(str(r["module"]), int(r["niveau"]), str(r["bucket"])): r for r in lignes_p}
+    volumetrie = []
+    for module, libelle in (("incident", "Incidents"), ("demande", "Demandes")):
+        tot_mois: dict[str, int] = dict.fromkeys(cles, 0)
+        pop_mois: dict[str, int] = dict.fromkeys(cles, 0)
+        ok_mois: dict[str, int] = dict.fromkeys(cles, 0)
+        priorites = []
+        for niveau in (1, 2, 3, 4, 5):
+            cellules = []
+            for cle in cles:
+                r = par.get((module, niveau, cle))
+                total = int(r["total"]) if r else 0
+                pop = int(r["population"]) if r else 0
+                ok = int(r["dans_delai"]) if r else 0
+                tot_mois[cle] += total
+                pop_mois[cle] += pop
+                ok_mois[cle] += ok
+                cellules.append(_cell_sla(total, pop, ok, cle))
+            priorites.append(
+                {
+                    "priorite": niveau,
+                    "cible_minutes": cibles.get((module, niveau)),
+                    "cellules": cellules,
+                }
+            )
+        volumetrie.append(
+            {
+                "module": module,
+                "libelle": libelle,
+                "total_priorites": [
+                    _cell_sla(tot_mois[c], pop_mois[c], ok_mois[c], c) for c in cles
+                ],
+                "priorites": priorites,
+            }
         )
-    total_p = [_cell_sla(tot_mois[c], pop_mois[c], ok_mois[c], c) for c in cles]
 
     # --- Entités (DSI / DBS) × bucket ---
     lignes_e = await _lignes(
@@ -907,8 +923,7 @@ async def analyses_mensuelles(
         "debut": params["b_debut"],
         "fin": params["b_fin"],
         "mois": entetes,
-        "total_priorites": total_p,
-        "priorites": priorites,
+        "volumetrie": volumetrie,
         "entites": entites,
         "niveaux": niveaux,
     }

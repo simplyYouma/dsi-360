@@ -1289,6 +1289,16 @@ class LignePriorite(BaseModel):
     cellules: list[CelluleSla]
 
 
+class BlocVolumetrie(BaseModel):
+    """Volumétrie & conformité SLA d'un module. Incidents et demandes ont des cibles SLA
+    distinctes (un incident P1 ≠ une demande P1) : chaque module a donc son propre tableau."""
+
+    module: str  # incident | demande
+    libelle: str
+    total_priorites: list[CelluleSla]  # ligne « toutes priorités » du module
+    priorites: list[LignePriorite]
+
+
 class CelluleEntite(BaseModel):
     mois: str
     total: int
@@ -1339,7 +1349,7 @@ class AnalysesMensuelles(BaseModel):
     debut: datetime
     fin: datetime
     mois: list[MoisEntete]  # colonnes de l'axe de temps (nom historique)
-    total_priorites: list[CelluleSla]  # ligne d'en-tête (toutes priorités confondues)
-    priorites: list[LignePriorite]
+    # Un tableau volumétrie/SLA par module (incidents, demandes) : cibles SLA distinctes.
+    volumetrie: list[BlocVolumetrie]
     entites: list[LigneEntite]
     niveaux: list[LigneNiveau]  # répartition par niveau de support (N1/N2/DBS), incidents+demandes

@@ -178,7 +178,7 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
   if (data === null || data.mois.length === 0) {
     return <p className={styles.vide}>Aucune donnée importée sur la période.</p>;
   }
-  const { mois, priorites, total_priorites, entites, niveaux, granularite } = data;
+  const { mois, volumetrie, entites, niveaux, granularite } = data;
   const ligneFiltree = statut ? STATUT_LIGNE[statut] : undefined;
   const pas = PAR_PAS[granularite];
   // Colonnes d'état du tableau par gestionnaire : un filtre d'état ne garde que la colonne concernée
@@ -253,51 +253,62 @@ export function MatriceMensuelle({ data, statut }: MatriceProps): JSX.Element {
         </span>
       </p>
 
-      {/* ---- 1. Volumétrie par priorité & conformité SLA ---- */}
-      <Card data-visuel="Volumétrie par priorité & conformité SLA">
-        <BoutonExportPng nom="Volumétrie par priorité & conformité SLA" />
-        <h2 className={styles.titre}>Volumétrie par priorité &amp; conformité SLA</h2>
-        <p className={styles.sous}>Nombre de tickets par priorité et respect des SLA, {pas}.</p>
-        <div className={styles.zone}>
-          <table className={styles.matrice}>
-            <thead>
-              <tr>
-                <th className={styles.figee}>Priorité</th>
-                {mois.map((m) => (
-                  <th key={m.cle}>{m.libelle}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className={styles.ligneTotale}>
-                <td className={styles.figee}>Toutes</td>
-                {total_priorites.map((c) => (
-                  <td key={c.mois}>
-                    <span className={styles.volume}>{c.total}</span>
-                    <PastilleSla taux={c.sla_taux} />
-                  </td>
-                ))}
-              </tr>
-              {priorites.map((p) => (
-                <tr key={p.priorite}>
-                  <td className={styles.figee}>
-                    <strong>P{p.priorite}</strong>
-                    {p.cible_minutes !== null && (
-                      <span className={styles.cible}> · {cibleLisible(p.cible_minutes)}</span>
-                    )}
-                  </td>
-                  {p.cellules.map((c) => (
+      {/* ---- 1. Volumétrie par priorité & conformité SLA — un tableau PAR MODULE ----
+          Incidents et demandes n'ont pas les mêmes cibles SLA (un incident P1 ≠ une demande P1) :
+          les mêler dans un seul tableau donnerait une conformité qui ne veut rien dire. */}
+      {volumetrie.map((bloc) => (
+        <Card
+          key={bloc.module}
+          data-visuel={`Volumétrie par priorité & conformité SLA — ${bloc.libelle}`}
+        >
+          <BoutonExportPng nom={`Volumétrie & SLA — ${bloc.libelle}`} />
+          <h2 className={styles.titre}>
+            Volumétrie par priorité &amp; conformité SLA — {bloc.libelle}
+          </h2>
+          <p className={styles.sous}>
+            Nombre de {bloc.libelle.toLowerCase()} par priorité et respect des SLA, {pas}.
+          </p>
+          <div className={styles.zone}>
+            <table className={styles.matrice}>
+              <thead>
+                <tr>
+                  <th className={styles.figee}>Priorité</th>
+                  {mois.map((m) => (
+                    <th key={m.cle}>{m.libelle}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className={styles.ligneTotale}>
+                  <td className={styles.figee}>Toutes</td>
+                  {bloc.total_priorites.map((c) => (
                     <td key={c.mois}>
-                      <span className={styles.volume}>{c.total || '—'}</span>
-                      {c.total > 0 && <PastilleSla taux={c.sla_taux} />}
+                      <span className={styles.volume}>{c.total}</span>
+                      <PastilleSla taux={c.sla_taux} />
                     </td>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                {bloc.priorites.map((p) => (
+                  <tr key={p.priorite}>
+                    <td className={styles.figee}>
+                      <strong>P{p.priorite}</strong>
+                      {p.cible_minutes !== null && (
+                        <span className={styles.cible}> · {cibleLisible(p.cible_minutes)}</span>
+                      )}
+                    </td>
+                    {p.cellules.map((c) => (
+                      <td key={c.mois}>
+                        <span className={styles.volume}>{c.total || '—'}</span>
+                        {c.total > 0 && <PastilleSla taux={c.sla_taux} />}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
 
       {/* ---- 2. Répartition DSI vs DBS ---- */}
       <Card data-visuel="Répartition DSI vs DBS">
