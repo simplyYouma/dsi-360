@@ -120,6 +120,8 @@ _REGLES = (
     "écrasée.",
     "• Réimporter le même fichier ne crée pas de doublon.",
     "• Seule la « Désignation » est obligatoire ; tout le reste peut rester vide.",
+    "• La plateforme attribue elle-même une référence « INV-… » à chaque équipement : elle n'est "
+    "pas dans le fichier, ne la saisissez pas.",
 )
 
 
