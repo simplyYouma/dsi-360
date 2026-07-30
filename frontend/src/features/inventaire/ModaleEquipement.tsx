@@ -43,6 +43,10 @@ export function ModaleEquipement({
 }: Props): JSX.Element {
   const [v, setV] = useState<NouvelEquipement>(VIDE);
   const [envoi, setEnvoi] = useState(false);
+  // Le taux suit la durée (5 ans → 20 %) tant qu'on ne l'a pas réglé à la main au curseur.
+  // Sans ce drapeau, on ne distinguait pas un taux « auto » d'un taux « choisi » : une fois posé
+  // par la première durée, il se figeait et ne suivait plus les durées suivantes.
+  const [tauxManuel, setTauxManuel] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   useEffect(() => {
     void chargerAgents().then(setAgents);
@@ -58,6 +62,7 @@ export function ModaleEquipement({
     try {
       const cree = await inventaireApi.creer(v);
       setV(VIDE);
+      setTauxManuel(false);
       onCree(cree);
     } catch (e) {
       onErreur(e);
@@ -206,10 +211,10 @@ export function ModaleEquipement({
             inputMode="numeric"
             onChange={(e) => {
               const duree = nombre(e.target.value);
-              // La durée dit déjà le taux (5 ans = 20 %/an) : on pose celui qui lui correspond
-              // tant qu'aucun n'a été réglé au curseur, qui reprend la main ensuite.
+              // La durée dit déjà le taux (5 ans = 20 %/an) : on le recalcule à CHAQUE changement
+              // de durée, tant que le curseur n'a pas repris la main.
               const complement =
-                duree !== null && duree > 0 && (v.taux === null || v.taux === undefined)
+                duree !== null && duree > 0 && !tauxManuel
                   ? { taux: Math.round((100 / duree) * 1000) / 1000 }
                   : {};
               setV({ ...v, duree_annees: duree, ...complement });
@@ -219,7 +224,14 @@ export function ModaleEquipement({
         </label>
         <label className={styles.champ}>
           <span>Taux d'amortissement</span>
-          <CurseurTaux valeur={v.taux ?? null} onValider={(t) => setV({ ...v, taux: t })} />
+          <CurseurTaux
+            valeur={v.taux ?? null}
+            onValider={(t) => {
+              // Régler le taux à la main fige le lien avec la durée : il ne se recalcule plus.
+              setTauxManuel(true);
+              setV({ ...v, taux: t });
+            }}
+          />
         </label>
       </div>
     </Modale>
