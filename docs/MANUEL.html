@@ -1,0 +1,2754 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSI 360 — Manuel de la plateforme</title>
+<style>
+/* =====================================================================
+   MANUEL — moteur de mise en page (écran + impression A4)
+   ---------------------------------------------------------------------
+   Le manuel porte les TOKENS DE LA PLATEFORME (frontend/src/design-system).
+   Un document qui ne ressemble pas au produit qu'il décrit sonne faux ; on
+   reprend donc l'accent, les neutres, les couleurs de statut et l'échelle
+   typographique de l'application elle-même.
+
+   Deux rendus dans un seul fichier :
+     • ÉCRAN  — sommaire fixe à gauche, colonne de lecture bornée en largeur.
+     • PAPIER — le sommaire disparaît, le texte s'écoule sur des A4 avec
+                titres courants et numéros de page.
+
+   ⚠ Le piège d'impression : une feuille A4 fait 210 mm, soit moins qu'un
+   seuil responsive typique. Toute règle destinée à l'écran DOIT s'écrire
+   « @media screen and (…) » — un « @media (max-width:…) » nu s'appliquerait
+   aussi au papier et écraserait la mise en page imprimée.
+   ===================================================================== */
+
+:root{
+  /* — Identité, injectée par le générateur — */
+  --accent:#16181d;
+  --accent-soft:#f0f1f3;
+  --secondaire:#7fc81f;
+
+  /* — Neutres — */
+  --papier:#ffffff;
+  --fond:#f6f7f9;
+  --fond-doux:#f1f3f5;
+  --bord:#e6e8ec;
+  --bord-fort:#d5d9df;
+  --texte:#14161a;
+  --texte-doux:#4b5563;
+  --texte-faible:#6b7280;
+
+  /* — Statuts (mêmes valeurs que l'application) — */
+  --ok:#1f9d55;      --ok-fond:#e7f6ee;
+  --alerte:#c77700;  --alerte-fond:#fdf2e0;
+  --danger:#d64545;  --danger-fond:#fdecec;
+
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Consolas,monospace;
+
+  --sommaire-l:290px;
+  --colonne:186mm;   /* 210 − 2 × 12 mm de marge intérieure confortable */
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+
+html{ scroll-behavior:smooth; scroll-padding-top:24px; }
+body{
+  font-family:var(--sans);
+  font-size:10.5pt;
+  line-height:1.62;
+  color:var(--texte);
+  background:var(--fond);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* =====================================================================
+   1 · SOMMAIRE LATÉRAL (écran)
+   ===================================================================== */
+.sommaire{
+  position:fixed; top:0; left:0; bottom:0; width:var(--sommaire-l);
+  background:var(--papier); border-right:1px solid var(--bord);
+  display:flex; flex-direction:column; z-index:20;
+}
+.sommaire-tete{
+  padding:22px 22px 16px; border-bottom:1px solid var(--bord);
+}
+.sommaire-produit{
+  font-size:15px; font-weight:700; letter-spacing:-.02em; color:var(--texte);
+}
+.sommaire-sous{
+  font-size:11px; color:var(--texte-faible); margin-top:3px;
+}
+.sommaire-nav{ flex:1; overflow-y:auto; padding:12px 10px 28px; }
+
+/* Barre de recherche du sommaire — filtre les entrées à la frappe. */
+.sommaire-recherche{
+  margin:0 12px 10px; position:relative;
+}
+.sommaire-recherche input{
+  width:100%; height:34px; padding:0 10px 0 30px;
+  border:1px solid var(--bord); border-radius:999px;
+  background:var(--fond-doux); color:var(--texte);
+  font:inherit; font-size:12.5px; outline:none;
+}
+.sommaire-recherche input:focus{ border-color:var(--accent); background:var(--papier); }
+.sommaire-recherche svg{
+  position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  width:13px; height:13px; stroke:var(--texte-faible); fill:none; stroke-width:2;
+}
+
+.som-lien{
+  display:flex; gap:9px; align-items:baseline;
+  padding:6px 12px; border-radius:8px;
+  color:var(--texte-doux); text-decoration:none;
+  font-size:12.5px; line-height:1.35;
+}
+.som-lien:hover{ background:var(--fond-doux); color:var(--texte); }
+.som-lien .num{
+  font-variant-numeric:tabular-nums; font-size:11px;
+  color:var(--texte-faible); min-width:24px; flex:none;
+}
+.som-lien.n1{ font-weight:650; color:var(--texte); margin-top:12px; }
+.som-lien.n1:first-child{ margin-top:0; }
+.som-lien.n2{ padding-left:16px; }
+/* La section lue est marquée par un filet, jamais par un point clignotant. */
+.som-lien.actif{
+  background:var(--accent-soft); color:var(--accent);
+  font-weight:650; box-shadow:inset 2px 0 0 var(--accent);
+}
+.som-lien[hidden]{ display:none; }
+
+/* =====================================================================
+   2 · CORPS DU DOCUMENT
+   ===================================================================== */
+.doc{
+  margin-left:var(--sommaire-l);
+  padding:0 40px 120px;
+  display:flex; flex-direction:column; align-items:center;
+}
+.feuille{
+  width:100%; max-width:var(--colonne);
+}
+
+/* — Couverture — */
+.couverture{
+  min-height:min(88vh,760px);
+  display:flex; flex-direction:column; justify-content:center;
+  padding:60px 0 40px;
+  border-bottom:1px solid var(--bord);
+  margin-bottom:48px;
+}
+.couv-marque{
+  font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.2em; color:var(--accent);
+}
+.couv-titre{
+  font-size:44px; font-weight:700; letter-spacing:-.035em; line-height:1.04;
+  margin-top:22px; color:var(--texte);
+}
+.couv-sous{
+  font-size:16px; color:var(--texte-doux); margin-top:18px; max-width:520px;
+  line-height:1.55;
+}
+.couv-meta{
+  margin-top:auto; padding-top:48px;
+  display:flex; flex-wrap:wrap; gap:32px;
+}
+.couv-meta div{ font-size:12px; }
+.couv-meta b{
+  display:block; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--texte-faible); margin-bottom:4px;
+}
+
+/* — Titres — */
+h1,h2,h3,h4{ color:var(--texte); letter-spacing:-.02em; }
+h1{
+  font-size:27px; font-weight:700; line-height:1.15;
+  margin:0 0 6px; padding-top:8px;
+}
+.chapitre{ margin-top:64px; }
+.chapitre:first-of-type{ margin-top:0; }
+.chapitre-num{
+  font-size:11px; font-weight:700; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:10px;
+}
+.chapitre-intro{
+  font-size:13.5px; color:var(--texte-doux); line-height:1.6;
+  margin:10px 0 4px; padding-bottom:18px; border-bottom:1px solid var(--bord);
+}
+h2{
+  font-size:18px; font-weight:650; margin:38px 0 10px;
+  scroll-margin-top:16px;
+}
+h3{ font-size:14.5px; font-weight:650; margin:24px 0 6px; }
+h4{ font-size:12.5px; font-weight:650; margin:18px 0 4px; color:var(--texte-doux); }
+
+p{ margin:9px 0; }
+p + p{ margin-top:11px; }
+a{ color:var(--accent); text-underline-offset:2px; }
+
+strong{ font-weight:650; }
+code{
+  font-family:var(--mono); font-size:.88em;
+  background:var(--fond-doux); border:1px solid var(--bord);
+  border-radius:4px; padding:.08em .32em;
+}
+
+/* — Listes — */
+ul,ol{ margin:10px 0 10px 20px; }
+li{ margin:5px 0; padding-left:2px; }
+li::marker{ color:var(--texte-faible); }
+
+/* Liste de définitions — un terme, sa définition. */
+.defs{ margin:14px 0; border-top:1px solid var(--bord); }
+.defs > div{
+  display:grid; grid-template-columns:minmax(120px,30%) 1fr; gap:0 22px;
+  padding:11px 0; border-bottom:1px solid var(--bord);
+  break-inside:avoid;
+}
+.defs dt{ font-weight:650; font-size:12.5px; }
+.defs dd{ font-size:12.5px; color:var(--texte-doux); }
+
+/* — Étapes numérotées — */
+.etapes{ counter-reset:etape; margin:16px 0; list-style:none; }
+.etapes > li{
+  counter-increment:etape; position:relative;
+  padding:0 0 14px 34px; margin:0;
+  border-left:1px solid var(--bord); break-inside:avoid;
+}
+.etapes > li:last-child{ border-left-color:transparent; padding-bottom:0; }
+.etapes > li::before{
+  content:counter(etape);
+  position:absolute; left:-11px; top:0;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.etapes > li b{ display:block; margin-bottom:2px; }
+
+/* — Tableaux — */
+table{
+  width:100%; border-collapse:collapse; margin:16px 0;
+  font-size:11.5px; break-inside:avoid;
+}
+caption{
+  caption-side:top; text-align:left;
+  font-size:11px; font-weight:650; color:var(--texte-faible);
+  padding-bottom:6px;
+}
+th,td{
+  text-align:left; vertical-align:top;
+  padding:8px 12px 8px 0; border-bottom:1px solid var(--bord);
+}
+th{
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--texte-faible);
+  border-bottom:1px solid var(--bord-fort);
+}
+tbody tr:last-child td{ border-bottom:1px solid var(--bord-fort); }
+td code{ white-space:nowrap; }
+.num{ font-variant-numeric:tabular-nums; }
+
+/* — Encadrés — */
+.note{
+  margin:16px 0; padding:12px 16px;
+  border-left:2px solid var(--accent);
+  background:var(--fond-doux); border-radius:0 8px 8px 0;
+  font-size:12.5px; break-inside:avoid;
+}
+.note b{
+  display:block; font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.14em;
+  color:var(--accent); margin-bottom:5px;
+}
+.note.attention{ border-left-color:var(--alerte); background:var(--alerte-fond); }
+.note.attention b{ color:var(--alerte); }
+.note.danger{ border-left-color:var(--danger); background:var(--danger-fond); }
+.note.danger b{ color:var(--danger); }
+.note.ok{ border-left-color:var(--ok); background:var(--ok-fond); }
+.note.ok b{ color:var(--ok); }
+.note p{ margin:6px 0 0; }
+.note ul{ margin:6px 0 0 18px; }
+
+/* — Blocs techniques — */
+pre{
+  margin:14px 0; padding:13px 16px;
+  background:var(--texte); color:#e8eaed;
+  border-radius:8px; overflow-x:auto;
+  font-family:var(--mono); font-size:10.5px; line-height:1.6;
+  break-inside:avoid;
+}
+pre code{ background:none; border:none; padding:0; color:inherit; font-size:inherit; }
+
+/* — Pastilles de statut (mêmes codes que l'application) — */
+.pastille{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:1px 8px; border-radius:999px;
+  font-size:10.5px; font-weight:650; white-space:nowrap;
+}
+.pastille::before{
+  /* inline-block obligatoire : un pseudo-élément en ligne ignore width et
+     height, et le point se réduisait à un artefact à l'impression. */
+  content:''; display:inline-block; flex:none;
+  width:5px; height:5px; border-radius:50%; background:currentColor;
+}
+.pastille.ok{ background:var(--ok-fond); color:var(--ok); }
+.pastille.alerte{ background:var(--alerte-fond); color:var(--alerte); }
+.pastille.danger{ background:var(--danger-fond); color:var(--danger); }
+.pastille.neutre{ background:var(--fond-doux); color:var(--texte-faible); }
+
+/* — Suite d'états (cycle de vie) — */
+.cycle{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  margin:14px 0; font-size:11.5px; break-inside:avoid;
+}
+.cycle span{
+  padding:3px 10px; border:1px solid var(--bord-fort); border-radius:6px;
+  background:var(--papier);
+}
+.cycle i{ font-style:normal; color:var(--texte-faible); }
+.cycle span.fin{ border-color:var(--accent); font-weight:650; }
+
+/* — Grille de cartes (aperçu des modules) — */
+.cartes{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0; }
+.carte{
+  border:1px solid var(--bord); border-radius:10px; padding:14px 16px;
+  background:var(--papier); break-inside:avoid;
+}
+.carte b{ display:block; font-size:12.5px; margin-bottom:4px; }
+.carte span{ font-size:11.5px; color:var(--texte-doux); line-height:1.5; }
+
+/* — Barre d'action écran — */
+.barre{
+  position:fixed; right:22px; bottom:22px; z-index:40; display:flex; gap:8px;
+}
+.barre button{
+  border:none; border-radius:999px; padding:11px 20px; cursor:pointer;
+  font:inherit; font-size:13px; font-weight:650;
+  background:var(--accent); color:#fff;
+  box-shadow:0 8px 26px rgba(0,0,0,.22);
+}
+.barre button.clair{
+  background:var(--papier); color:var(--texte); border:1px solid var(--bord);
+}
+
+/* =====================================================================
+   3 · ÉCRAN ÉTROIT — « screen and », jamais nu (cf. avertissement en tête)
+   ===================================================================== */
+@media screen and (max-width:1080px){
+  .sommaire{
+    position:static; width:auto; height:auto; border-right:none;
+    border-bottom:1px solid var(--bord);
+  }
+  .sommaire-nav{ max-height:300px; }
+  .doc{ margin-left:0; padding:0 20px 100px; }
+}
+
+/* =====================================================================
+   4 · PAPIER — A4
+   Le manuel s'écoule (il n'est pas paginé à la main) : on donne au moteur
+   d'impression de quoi couper proprement, et on lui interdit de séparer un
+   titre de son texte, une note ou une ligne de tableau.
+   ===================================================================== */
+@page{
+  size:A4;
+  margin:20mm 16mm 18mm;
+}
+@media print{
+  html,body{ background:#fff; font-size:10pt; }
+  .sommaire, .barre, .sommaire-recherche{ display:none !important; }
+  .doc{ margin:0; padding:0; display:block; }
+  .feuille{ max-width:none; }
+
+  /* Chaque chapitre commence sur une feuille neuve : un manuel se feuillette
+     par chapitre, pas au fil du texte. */
+  .chapitre{ break-before:page; margin-top:0; }
+  .chapitre:first-of-type{ break-before:avoid; }
+  .couverture{ break-after:page; min-height:auto; border-bottom:none; }
+  #sommaire-imprime{ break-after:page; }
+
+  h1,h2,h3,h4{ break-after:avoid; }
+  p,li{ orphans:3; widows:3; }
+  table,.note,.carte,.cycle,pre,.defs > div,.etapes > li{ break-inside:avoid; }
+  thead{ display:table-header-group; }   /* l'en-tête se répète sur chaque page */
+
+  a{ color:inherit; text-decoration:none; }
+  /* L'adresse d'un lien externe doit survivre à l'impression ; celle d'une
+     ancre interne n'a aucun sens sur papier. */
+  a[href^="http"]::after{
+    content:" (" attr(href) ")";
+    font-size:8pt; color:var(--texte-faible); word-break:break-all;
+  }
+  .doc, .feuille{ width:auto; }
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+
+/* Le sommaire imprimé n'existe QUE sur papier : à l'écran, le sommaire
+   latéral fait le travail et suit la lecture. */
+#sommaire-imprime{ display:none; }
+@media print{
+  #sommaire-imprime{ display:block; }
+  #sommaire-imprime h1{ margin-bottom:18px; }
+  #sommaire-imprime .ligne{
+    display:flex; align-items:baseline; gap:8px;
+    padding:5px 0; font-size:11pt; border-bottom:1px solid var(--bord);
+  }
+  #sommaire-imprime .ligne.n2{ padding-left:18px; font-size:10pt; color:var(--texte-doux); }
+  #sommaire-imprime .ligne .num{ min-width:26px; color:var(--texte-faible); }
+}
+
+</style>
+</head>
+<body>
+
+<aside class="sommaire" aria-label="Sommaire">
+  <div class="sommaire-tete">
+    <div class="sommaire-produit">DSI 360</div>
+    <div class="sommaire-sous">Manuel de la plateforme · version 1.0</div>
+  </div>
+  <div class="sommaire-recherche">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="recherche-sommaire" type="search" placeholder="Chercher dans le manuel…"
+           autocomplete="off" aria-label="Filtrer le sommaire">
+  </div>
+  <nav class="sommaire-nav">
+<a class="som-lien n1" href="#s-1"><span class="num">1</span><span>Présentation</span></a>
+<a class="som-lien n2" href="#s-1-1"><span class="num">1.1</span><span>Le problème</span></a>
+<a class="som-lien n2" href="#s-1-2"><span class="num">1.2</span><span>Ce que fait la plateforme</span></a>
+<a class="som-lien n2" href="#s-1-3"><span class="num">1.3</span><span>Ce qu'elle ne fait pas</span></a>
+<a class="som-lien n2" href="#s-1-4"><span class="num">1.4</span><span>À qui s'adresse ce manuel</span></a>
+<a class="som-lien n2" href="#s-1-5"><span class="num">1.5</span><span>Principes directeurs</span></a>
+<a class="som-lien n1" href="#s-2"><span class="num">2</span><span>Concepts</span></a>
+<a class="som-lien n2" href="#s-2-1"><span class="num">2.1</span><span>L'activité, entité pivot</span></a>
+<a class="som-lien n2" href="#s-2-2"><span class="num">2.2</span><span>Les quatre responsabilités</span></a>
+<a class="som-lien n2" href="#s-2-3"><span class="num">2.3</span><span>Impact, urgence, priorité</span></a>
+<a class="som-lien n2" href="#s-2-4"><span class="num">2.4</span><span>Les engagements de service</span></a>
+<a class="som-lien n2" href="#s-2-5"><span class="num">2.5</span><span>Cycles de vie</span></a>
+<a class="som-lien n2" href="#s-2-6"><span class="num">2.6</span><span>Périmètres et cloisonnement</span></a>
+<a class="som-lien n2" href="#s-2-7"><span class="num">2.7</span><span>Les référentiels paramétrables</span></a>
+<a class="som-lien n2" href="#s-2-8"><span class="num">2.8</span><span>La traçabilité</span></a>
+<a class="som-lien n1" href="#s-3"><span class="num">3</span><span>Prise en main</span></a>
+<a class="som-lien n2" href="#s-3-1"><span class="num">3.1</span><span>Activer son compte</span></a>
+<a class="som-lien n2" href="#s-3-2"><span class="num">3.2</span><span>Se connecter</span></a>
+<a class="som-lien n2" href="#s-3-3"><span class="num">3.3</span><span>Se repérer dans l'interface</span></a>
+<a class="som-lien n2" href="#s-3-4"><span class="num">3.4</span><span>Lire une liste d'activités</span></a>
+<a class="som-lien n2" href="#s-3-5"><span class="num">3.5</span><span>Lire une fiche</span></a>
+<a class="som-lien n2" href="#s-3-6"><span class="num">3.6</span><span>Faire avancer un dossier</span></a>
+<a class="som-lien n1" href="#s-4"><span class="num">4</span><span>Les modules</span></a>
+<a class="som-lien n2" href="#s-4-1"><span class="num">4.1</span><span>Tableau de bord</span></a>
+<a class="som-lien n2" href="#s-4-2"><span class="num">4.2</span><span>Incidents</span></a>
+<a class="som-lien n2" href="#s-4-3"><span class="num">4.3</span><span>Demandes</span></a>
+<a class="som-lien n2" href="#s-4-4"><span class="num">4.4</span><span>Projets</span></a>
+<a class="som-lien n2" href="#s-4-5"><span class="num">4.5</span><span>Changements</span></a>
+<a class="som-lien n2" href="#s-4-6"><span class="num">4.6</span><span>Audit et recommandations</span></a>
+<a class="som-lien n2" href="#s-4-7"><span class="num">4.7</span><span>Risques</span></a>
+<a class="som-lien n2" href="#s-4-8"><span class="num">4.8</span><span>Cybersécurité</span></a>
+<a class="som-lien n2" href="#s-4-9"><span class="num">4.9</span><span>Gouvernance</span></a>
+<a class="som-lien n2" href="#s-4-10"><span class="num">4.10</span><span>Inventaire du patrimoine</span></a>
+<a class="som-lien n2" href="#s-4-11"><span class="num">4.11</span><span>Analyses</span></a>
+<a class="som-lien n1" href="#s-5"><span class="num">5</span><span>Administration</span></a>
+<a class="som-lien n2" href="#s-5-1"><span class="num">5.1</span><span>Les comptes</span></a>
+<a class="som-lien n2" href="#s-5-2"><span class="num">5.2</span><span>Profils et droits</span></a>
+<a class="som-lien n2" href="#s-5-3"><span class="num">5.3</span><span>Catégories et référentiels</span></a>
+<a class="som-lien n2" href="#s-5-4"><span class="num">5.4</span><span>Les engagements de service</span></a>
+<a class="som-lien n2" href="#s-5-5"><span class="num">5.5</span><span>L'import quotidien</span></a>
+<a class="som-lien n2" href="#s-5-6"><span class="num">5.6</span><span>Notifications</span></a>
+<a class="som-lien n2" href="#s-5-7"><span class="num">5.7</span><span>Le journal</span></a>
+<a class="som-lien n1" href="#s-6"><span class="num">6</span><span>Restituer et exporter</span></a>
+<a class="som-lien n2" href="#s-6-1"><span class="num">6.1</span><span>Ce que la plateforme mesure</span></a>
+<a class="som-lien n2" href="#s-6-2"><span class="num">6.2</span><span>Les formats d'export</span></a>
+<a class="som-lien n2" href="#s-6-3"><span class="num">6.3</span><span>Lire les indicateurs sans se tromper</span></a>
+<a class="som-lien n2" href="#s-6-4"><span class="num">6.4</span><span>Préparer une revue de direction</span></a>
+<a class="som-lien n1" href="#s-7"><span class="num">7</span><span>Sécurité</span></a>
+<a class="som-lien n2" href="#s-7-1"><span class="num">7.1</span><span>Authentification</span></a>
+<a class="som-lien n2" href="#s-7-2"><span class="num">7.2</span><span>Autorisation</span></a>
+<a class="som-lien n2" href="#s-7-3"><span class="num">7.3</span><span>Le journal inviolable</span></a>
+<a class="som-lien n2" href="#s-7-4"><span class="num">7.4</span><span>Durcissement</span></a>
+<a class="som-lien n2" href="#s-7-5"><span class="num">7.5</span><span>Résilience</span></a>
+<a class="som-lien n2" href="#s-7-6"><span class="num">7.6</span><span>Vérification continue</span></a>
+<a class="som-lien n1" href="#s-8"><span class="num">8</span><span>Exploitation</span></a>
+<a class="som-lien n2" href="#s-8-1"><span class="num">8.1</span><span>Architecture de déploiement</span></a>
+<a class="som-lien n2" href="#s-8-2"><span class="num">8.2</span><span>Installation</span></a>
+<a class="som-lien n2" href="#s-8-3"><span class="num">8.3</span><span>Configuration</span></a>
+<a class="som-lien n2" href="#s-8-4"><span class="num">8.4</span><span>Sauvegarde et restauration</span></a>
+<a class="som-lien n2" href="#s-8-5"><span class="num">8.5</span><span>Supervision</span></a>
+<a class="som-lien n2" href="#s-8-6"><span class="num">8.6</span><span>Mise à jour</span></a>
+<a class="som-lien n2" href="#s-8-7"><span class="num">8.7</span><span>Incidents courants</span></a>
+<a class="som-lien n1" href="#s-9"><span class="num">9</span><span>Adapter la plateforme</span></a>
+<a class="som-lien n2" href="#s-9-1"><span class="num">9.1</span><span>Ce qui se règle sans développement</span></a>
+<a class="som-lien n2" href="#s-9-2"><span class="num">9.2</span><span>Une méthode de paramétrage</span></a>
+<a class="som-lien n2" href="#s-9-3"><span class="num">9.3</span><span>Décliner à d'autres métiers</span></a>
+<a class="som-lien n2" href="#s-9-4"><span class="num">9.4</span><span>Ce qui demande un développement</span></a>
+<a class="som-lien n2" href="#s-9-5"><span class="num">9.5</span><span>Erreurs de paramétrage fréquentes</span></a>
+<a class="som-lien n1" href="#s-A"><span class="num">A</span><span>Glossaire</span></a>
+<a class="som-lien n2" href="#s-A-1"><span class="num">A.1</span><span>Termes du domaine</span></a>
+<a class="som-lien n2" href="#s-A-2"><span class="num">A.2</span><span>Termes d'administration et de sécurité</span></a>
+<a class="som-lien n1" href="#s-B"><span class="num">B</span><span>Intégration</span></a>
+<a class="som-lien n2" href="#s-B-1"><span class="num">B.1</span><span>Conventions</span></a>
+<a class="som-lien n2" href="#s-B-2"><span class="num">B.2</span><span>Erreurs</span></a>
+<a class="som-lien n2" href="#s-B-3"><span class="num">B.3</span><span>Points d'entrée notables</span></a>
+<a class="som-lien n1" href="#s-C"><span class="num">C</span><span>Limites connues</span></a>
+<a class="som-lien n2" href="#s-C-1"><span class="num">C.1</span><span>Fonctionnalités annoncées ailleurs, non disponibles</span></a>
+<a class="som-lien n2" href="#s-C-2"><span class="num">C.2</span><span>Limites structurelles assumées</span></a>
+<a class="som-lien n2" href="#s-C-3"><span class="num">C.3</span><span>Avant de vous engager auprès d'un tiers</span></a>
+  </nav>
+</aside>
+
+<main class="doc">
+  <div class="feuille">
+
+    <header class="couverture">
+      <div class="couv-marque">DSI 360</div>
+      <h1 class="couv-titre">Piloter et gouverner<br>les activités<br>d'une organisation.</h1>
+      <p class="couv-sous">Manuel complet de la plateforme : concepts, prise en main, modules, administration, sécurité et exploitation. Destiné aux utilisateurs, aux administrateurs fonctionnels et aux équipes techniques.</p>
+      <div class="couv-meta">
+        <div><b>Document</b>Manuel de la plateforme</div>
+        <div><b>Version</b>1.0</div>
+        <div><b>Édition</b>Première édition</div>
+        <div><b>Diffusion</b>Interne</div>
+      </div>
+    </header>
+
+    <section id="sommaire-imprime">
+      <h1>Sommaire</h1>
+<div class="ligne"><span class="num">1</span><span>Présentation</span></div>
+<div class="ligne n2"><span class="num">1.1</span><span>Le problème</span></div>
+<div class="ligne n2"><span class="num">1.2</span><span>Ce que fait la plateforme</span></div>
+<div class="ligne n2"><span class="num">1.3</span><span>Ce qu'elle ne fait pas</span></div>
+<div class="ligne n2"><span class="num">1.4</span><span>À qui s'adresse ce manuel</span></div>
+<div class="ligne n2"><span class="num">1.5</span><span>Principes directeurs</span></div>
+<div class="ligne"><span class="num">2</span><span>Concepts</span></div>
+<div class="ligne n2"><span class="num">2.1</span><span>L'activité, entité pivot</span></div>
+<div class="ligne n2"><span class="num">2.2</span><span>Les quatre responsabilités</span></div>
+<div class="ligne n2"><span class="num">2.3</span><span>Impact, urgence, priorité</span></div>
+<div class="ligne n2"><span class="num">2.4</span><span>Les engagements de service</span></div>
+<div class="ligne n2"><span class="num">2.5</span><span>Cycles de vie</span></div>
+<div class="ligne n2"><span class="num">2.6</span><span>Périmètres et cloisonnement</span></div>
+<div class="ligne n2"><span class="num">2.7</span><span>Les référentiels paramétrables</span></div>
+<div class="ligne n2"><span class="num">2.8</span><span>La traçabilité</span></div>
+<div class="ligne"><span class="num">3</span><span>Prise en main</span></div>
+<div class="ligne n2"><span class="num">3.1</span><span>Activer son compte</span></div>
+<div class="ligne n2"><span class="num">3.2</span><span>Se connecter</span></div>
+<div class="ligne n2"><span class="num">3.3</span><span>Se repérer dans l'interface</span></div>
+<div class="ligne n2"><span class="num">3.4</span><span>Lire une liste d'activités</span></div>
+<div class="ligne n2"><span class="num">3.5</span><span>Lire une fiche</span></div>
+<div class="ligne n2"><span class="num">3.6</span><span>Faire avancer un dossier</span></div>
+<div class="ligne"><span class="num">4</span><span>Les modules</span></div>
+<div class="ligne n2"><span class="num">4.1</span><span>Tableau de bord</span></div>
+<div class="ligne n2"><span class="num">4.2</span><span>Incidents</span></div>
+<div class="ligne n2"><span class="num">4.3</span><span>Demandes</span></div>
+<div class="ligne n2"><span class="num">4.4</span><span>Projets</span></div>
+<div class="ligne n2"><span class="num">4.5</span><span>Changements</span></div>
+<div class="ligne n2"><span class="num">4.6</span><span>Audit et recommandations</span></div>
+<div class="ligne n2"><span class="num">4.7</span><span>Risques</span></div>
+<div class="ligne n2"><span class="num">4.8</span><span>Cybersécurité</span></div>
+<div class="ligne n2"><span class="num">4.9</span><span>Gouvernance</span></div>
+<div class="ligne n2"><span class="num">4.10</span><span>Inventaire du patrimoine</span></div>
+<div class="ligne n2"><span class="num">4.11</span><span>Analyses</span></div>
+<div class="ligne"><span class="num">5</span><span>Administration</span></div>
+<div class="ligne n2"><span class="num">5.1</span><span>Les comptes</span></div>
+<div class="ligne n2"><span class="num">5.2</span><span>Profils et droits</span></div>
+<div class="ligne n2"><span class="num">5.3</span><span>Catégories et référentiels</span></div>
+<div class="ligne n2"><span class="num">5.4</span><span>Les engagements de service</span></div>
+<div class="ligne n2"><span class="num">5.5</span><span>L'import quotidien</span></div>
+<div class="ligne n2"><span class="num">5.6</span><span>Notifications</span></div>
+<div class="ligne n2"><span class="num">5.7</span><span>Le journal</span></div>
+<div class="ligne"><span class="num">6</span><span>Restituer et exporter</span></div>
+<div class="ligne n2"><span class="num">6.1</span><span>Ce que la plateforme mesure</span></div>
+<div class="ligne n2"><span class="num">6.2</span><span>Les formats d'export</span></div>
+<div class="ligne n2"><span class="num">6.3</span><span>Lire les indicateurs sans se tromper</span></div>
+<div class="ligne n2"><span class="num">6.4</span><span>Préparer une revue de direction</span></div>
+<div class="ligne"><span class="num">7</span><span>Sécurité</span></div>
+<div class="ligne n2"><span class="num">7.1</span><span>Authentification</span></div>
+<div class="ligne n2"><span class="num">7.2</span><span>Autorisation</span></div>
+<div class="ligne n2"><span class="num">7.3</span><span>Le journal inviolable</span></div>
+<div class="ligne n2"><span class="num">7.4</span><span>Durcissement</span></div>
+<div class="ligne n2"><span class="num">7.5</span><span>Résilience</span></div>
+<div class="ligne n2"><span class="num">7.6</span><span>Vérification continue</span></div>
+<div class="ligne"><span class="num">8</span><span>Exploitation</span></div>
+<div class="ligne n2"><span class="num">8.1</span><span>Architecture de déploiement</span></div>
+<div class="ligne n2"><span class="num">8.2</span><span>Installation</span></div>
+<div class="ligne n2"><span class="num">8.3</span><span>Configuration</span></div>
+<div class="ligne n2"><span class="num">8.4</span><span>Sauvegarde et restauration</span></div>
+<div class="ligne n2"><span class="num">8.5</span><span>Supervision</span></div>
+<div class="ligne n2"><span class="num">8.6</span><span>Mise à jour</span></div>
+<div class="ligne n2"><span class="num">8.7</span><span>Incidents courants</span></div>
+<div class="ligne"><span class="num">9</span><span>Adapter la plateforme</span></div>
+<div class="ligne n2"><span class="num">9.1</span><span>Ce qui se règle sans développement</span></div>
+<div class="ligne n2"><span class="num">9.2</span><span>Une méthode de paramétrage</span></div>
+<div class="ligne n2"><span class="num">9.3</span><span>Décliner à d'autres métiers</span></div>
+<div class="ligne n2"><span class="num">9.4</span><span>Ce qui demande un développement</span></div>
+<div class="ligne n2"><span class="num">9.5</span><span>Erreurs de paramétrage fréquentes</span></div>
+<div class="ligne"><span class="num">A</span><span>Glossaire</span></div>
+<div class="ligne n2"><span class="num">A.1</span><span>Termes du domaine</span></div>
+<div class="ligne n2"><span class="num">A.2</span><span>Termes d'administration et de sécurité</span></div>
+<div class="ligne"><span class="num">B</span><span>Intégration</span></div>
+<div class="ligne n2"><span class="num">B.1</span><span>Conventions</span></div>
+<div class="ligne n2"><span class="num">B.2</span><span>Erreurs</span></div>
+<div class="ligne n2"><span class="num">B.3</span><span>Points d'entrée notables</span></div>
+<div class="ligne"><span class="num">C</span><span>Limites connues</span></div>
+<div class="ligne n2"><span class="num">C.1</span><span>Fonctionnalités annoncées ailleurs, non disponibles</span></div>
+<div class="ligne n2"><span class="num">C.2</span><span>Limites structurelles assumées</span></div>
+<div class="ligne n2"><span class="num">C.3</span><span>Avant de vous engager auprès d'un tiers</span></div>
+    </section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 1</div>
+  <h1 id="s-1">Présentation</h1>
+  <p class="chapitre-intro">Ce chapitre situe la plateforme : le problème qu'elle résout, ce qu'elle ne prétend pas faire, les personnes auxquelles elle s'adresse et les principes auxquels elle se tient. Le lire prend dix minutes et évite les malentendus coûteux plus tard.</p>
+
+  <h2 id="s-1-1">1.1 &nbsp;Le problème</h2>
+<p>Dans la plupart des organisations, le travail d'une direction se suit dans des
+classeurs. Un onglet par sujet, une couleur par état, un fichier par personne. Cela
+fonctionne, jusqu'à un certain volume — puis cela cesse, toujours de la même façon :</p>
+
+<ul>
+  <li>personne ne sait dire, à un instant donné, <strong>combien de dossiers sont en retard</strong>
+      ni depuis combien de temps ;</li>
+  <li>un engagement pris envers un demandeur n'est <strong>rattaché à rien</strong> : il vit dans un
+      courriel, on s'aperçoit qu'il est dépassé quand le demandeur relance ;</li>
+  <li>une modification de fichier <strong>n'a pas d'auteur</strong> — on découvre qu'une date a
+      changé, sans savoir par qui ni quand ;</li>
+  <li>consolider un état pour la direction générale <strong>coûte deux jours</strong> de
+      copier-coller, et le résultat est déjà périmé le jour de sa présentation ;</li>
+  <li>l'arrivée d'un collaborateur suppose de lui expliquer une organisation de fichiers
+      que <strong>personne n'a écrite</strong>.</li>
+</ul>
+
+<p>Le point commun de ces symptômes n'est pas le manque d'outils : c'est l'absence d'un
+<strong>endroit unique</strong> où une chose à faire existe, avec son responsable, son échéance
+et son historique.</p>
+
+
+  <h2 id="s-1-2">1.2 &nbsp;Ce que fait la plateforme</h2>
+<p>La plateforme centralise les <strong>activités</strong> d'une organisation — tout ce qui est
+suivi de bout en bout par une équipe —, leur applique des <strong>engagements de délai</strong>,
+<strong>trace chaque action</strong> et restitue à la direction des <strong>indicateurs fiables</strong>.</p>
+
+<div class="cartes">
+  <div class="carte"><b>Un référentiel unique</b><span>Chaque dossier a une référence lisible, un
+    responsable désigné, une échéance et un état. Il n'existe qu'à un seul endroit.</span></div>
+  <div class="carte"><b>Des délais tenus</b><span>Les engagements de prise en charge et de
+    résolution sont calculés à l'ouverture. L'approche et le dépassement se signalent seuls.</span></div>
+  <div class="carte"><b>Une mémoire vérifiable</b><span>Toute modification est journalisée avec son
+    auteur, l'ancienne et la nouvelle valeur. Rien ne s'efface.</span></div>
+  <div class="carte"><b>Un pilotage immédiat</b><span>Les indicateurs se recalculent en continu et
+    s'exportent. Le rapport n'est plus un travail, c'est une lecture.</span></div>
+</div>
+
+<p>Le vocabulaire du manuel reste volontairement neutre. Une <em>activité</em> peut être un
+incident technique, une demande d'un collaborateur, un projet, un changement à valider, une
+recommandation d'audit, un risque à traiter — ou tout autre objet que votre organisation suit.
+Les types, les catégories, les états et les délais sont des <strong>paramètres</strong>, non du code.</p>
+
+
+  <h2 id="s-1-3">1.3 &nbsp;Ce qu'elle ne fait pas</h2>
+<p>Une frontière claire vaut mieux qu'une promesse large. La plateforme n'est pas :</p>
+
+<div class="defs">
+  <div><dt>Un outil de supervision technique</dt>
+       <dd>Elle ne surveille ni serveurs, ni réseau, ni applications en temps réel. Elle
+       enregistre et pilote le <em>traitement</em> de ce qui a été constaté, pas la constatation.</dd></div>
+  <div><dt>Un logiciel de comptabilité</dt>
+       <dd>Elle suit des budgets de projet et des engagements, pas des écritures comptables.</dd></div>
+  <div><dt>Une messagerie ni un espace documentaire</dt>
+       <dd>Les échanges et les pièces jointes qu'elle porte sont ceux d'un dossier. Elle ne
+       remplace ni la messagerie de l'organisation, ni sa gestion électronique de documents.</dd></div>
+  <div><dt>Un progiciel générique du marché</dt>
+       <dd>Elle est conçue pour être <em>réglée</em> sur le fonctionnement réel d'une organisation,
+       pas pour lui imposer le sien. C'est un choix, avec sa contrepartie : le paramétrage initial
+       demande des décisions (cf. chapitre sur l'administration).</dd></div>
+</div>
+
+
+  <h2 id="s-1-4">1.4 &nbsp;À qui s'adresse ce manuel</h2>
+<p>Trois lectures cohabitent dans ce document. Chacune a son point d'entrée.</p>
+
+<table>
+  <thead><tr><th>Vous êtes…</th><th>Vous cherchez…</th><th>Commencez par</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Utilisateur</strong><br>vous traitez des dossiers au quotidien</td>
+        <td>vous connecter, comprendre une fiche, faire avancer un dossier</td>
+        <td>chapitres <em>Concepts</em> et <em>Prise en main</em>, puis le module qui vous concerne</td></tr>
+    <tr><td><strong>Administrateur fonctionnel</strong><br>vous réglez la plateforme</td>
+        <td>créer des comptes, ouvrir des droits, définir catégories et délais</td>
+        <td>chapitre <em>Administration</em></td></tr>
+    <tr><td><strong>Responsable technique</strong><br>vous installez et exploitez</td>
+        <td>installer, sauvegarder, superviser, mettre à jour</td>
+        <td>chapitres <em>Sécurité</em> et <em>Exploitation</em></td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>Convention de lecture</b>
+  <p>Les termes qui ont un sens précis dans la plateforme — <em>activité</em>, <em>profil</em>,
+  <em>périmètre</em>, <em>engagement de service</em> — sont définis au chapitre suivant et repris
+  dans le glossaire en annexe. Un mot du manuel désigne toujours la même chose.</p>
+</div>
+
+
+  <h2 id="s-1-5">1.5 &nbsp;Principes directeurs</h2>
+<p>Ces principes ne décrivent pas une intention : ils se vérifient dans le produit. Ils
+expliquent la plupart des choix que vous rencontrerez en l'utilisant.</p>
+
+<ol class="etapes">
+  <li><b>Ce qui varie est paramétré, jamais codé</b>
+      Catégories, états, délais, profils, sources : ajouter une valeur relève du paramétrage,
+      sans nouvelle version du logiciel ni interruption de service.</li>
+  <li><b>Tout accès est vérifié côté serveur</b>
+      Un bouton absent de l'écran ne protège rien. Chaque appel est contrôlé par le serveur,
+      indépendamment de ce que l'interface a bien voulu afficher.</li>
+  <li><b>Rien ne disparaît</b>
+      Le journal est en ajout seul. Une correction laisse une trace de l'ancienne valeur. Un
+      dossier ne se supprime pas : il change d'état.</li>
+  <li><b>Évoluer sans refondre</b>
+      Un nouveau type d'activité est une déclinaison d'un socle commun, pas une réécriture. Les
+      responsabilités, les délais, l'historique et les indicateurs sont mutualisés.</li>
+  <li><b>La couleur porte du sens</b>
+      Elle signale un état ou une action, jamais un décor. Aucun clignotement, aucune animation
+      gratuite : un écran de travail se consulte des heures durant.</li>
+</ol>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 2</div>
+  <h1 id="s-2">Concepts</h1>
+  <p class="chapitre-intro">Huit notions suffisent à comprendre toute la plateforme. Elles sont communes à tous les modules : ce qui est vrai d'un incident l'est d'un projet ou d'une recommandation. Assimiler ce chapitre dispense de réapprendre à chaque écran.</p>
+
+  <h2 id="s-2-1">2.1 &nbsp;L'activité, entité pivot</h2>
+<p>Une <strong>activité</strong> est toute chose suivie de bout en bout par une équipe. Un incident,
+une demande, un projet, un changement, une recommandation d'audit, un risque : ce sont des
+<em>types</em> d'activité, pas des objets sans rapport.</p>
+
+<p>Ce choix n'est pas cosmétique. Parce que tout dérive d'un socle commun, les responsabilités,
+les délais, l'historique, la recherche, les notifications et les indicateurs sont écrits
+<strong>une fois</strong> et valent partout. Ajouter un type d'activité ne demande pas de tout
+reconstruire — c'est la raison pour laquelle la plateforme s'étend sans se refondre.</p>
+
+<table>
+  <caption>Le socle commun à toute activité</caption>
+  <thead><tr><th>Attribut</th><th>Rôle</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Référence</strong></td><td>Identifiant lisible et unique, préfixé par le type et
+      daté — par exemple <code>INC-2026-00042</code>. C'est ce qu'on cite dans un courriel ou au
+      téléphone.</td></tr>
+    <tr><td><strong>Type</strong></td><td>Le module dont relève l'activité. Il détermine son cycle de
+      vie et ses catégories.</td></tr>
+    <tr><td><strong>Titre, description</strong></td><td>De quoi il s'agit, en clair.</td></tr>
+    <tr><td><strong>Demandeur</strong></td><td>Qui est à l'origine.</td></tr>
+    <tr><td><strong>Responsable principal</strong></td><td>Une seule personne, comptable du résultat.</td></tr>
+    <tr><td><strong>Contributeurs</strong></td><td>Ceux qui font le travail.</td></tr>
+    <tr><td><strong>Valideurs</strong></td><td>Ceux dont l'accord est requis, quand le type le prévoit.</td></tr>
+    <tr><td><strong>Entité</strong></td><td>Le périmètre concerné — service, direction, site.</td></tr>
+    <tr><td><strong>Catégorie</strong></td><td>Paramétrable, propre à chaque type.</td></tr>
+    <tr><td><strong>Impact, urgence</strong></td><td>Les deux entrées d'où découle la priorité.</td></tr>
+    <tr><td><strong>Priorité</strong></td><td>De P1 à P5, <em>dérivée</em> de l'impact et de l'urgence.</td></tr>
+    <tr><td><strong>État</strong></td><td>Position dans le cycle de vie du type.</td></tr>
+    <tr><td><strong>Engagements</strong></td><td>Cibles de prise en charge et de résolution.</td></tr>
+    <tr><td><strong>Dates</strong></td><td>Création, prise en charge, échéance, résolution, clôture.</td></tr>
+    <tr><td><strong>Échanges, pièces jointes</strong></td><td>La discussion et les preuves attachées au dossier.</td></tr>
+    <tr><td><strong>Historique</strong></td><td>Chaque changement, avec auteur, horodatage et valeurs.</td></tr>
+  </tbody>
+</table>
+
+
+  <h2 id="s-2-2">2.2 &nbsp;Les quatre responsabilités</h2>
+<p>Un dossier sans responsable désigné n'avance pas ; un dossier avec trois responsables non plus.
+La plateforme distingue donc quatre rôles, sur chaque activité.</p>
+
+<div class="defs">
+  <div><dt>Demandeur</dt>
+       <dd>À l'origine de l'activité. Il est informé de l'avancement et, selon le type, de la
+       clôture. Il n'a pas de pouvoir de décision sur le traitement.</dd></div>
+  <div><dt>Responsable principal</dt>
+       <dd><strong>Une seule personne</strong>, jamais un groupe. C'est elle qu'on interroge sur
+       l'avancement, elle qui répond du délai. Les indicateurs par responsable s'appuient sur ce
+       champ.</dd></div>
+  <div><dt>Contributeurs</dt>
+       <dd>Ceux qui exécutent. Ils peuvent être plusieurs, appartenir à des équipes différentes,
+       entrer et sortir en cours de route.</dd></div>
+  <div><dt>Valideurs</dt>
+       <dd>Ceux dont l'accord conditionne une transition — approbation d'un changement, validation
+       de la clôture d'une recommandation. Le cycle de vie du type indique où leur accord est
+       requis.</dd></div>
+</div>
+
+<div class="note">
+  <b>Pourquoi un seul responsable</b>
+  <p>Une responsabilité partagée entre deux personnes est une responsabilité que personne
+  n'assume. Le champ n'accepte donc qu'un nom. Le travail, lui, peut être partagé : c'est le rôle
+  des contributeurs.</p>
+</div>
+
+
+  <h2 id="s-2-3">2.3 &nbsp;Impact, urgence, priorité</h2>
+<p>La priorité ne se saisit pas : elle se <strong>déduit</strong>. On renseigne deux choses
+observables, et une matrice paramétrable en tire une priorité de <strong>P1</strong> (critique) à
+<strong>P5</strong> (très faible).</p>
+
+<div class="defs">
+  <div><dt>Impact</dt><dd><em>Combien de monde, ou quelle part de l'activité, est touché ?</em>
+    Gradué — de la personne isolée à la totalité des utilisateurs.</dd></div>
+  <div><dt>Urgence</dt><dd><em>À quelle vitesse la situation se dégrade-t-elle ?</em> Indépendante
+    de l'impact : une gêne pour une personne peut être très urgente, une panne large peut
+    attendre la nuit.</dd></div>
+</div>
+
+<table>
+  <caption>Exemple de matrice — les valeurs se paramètrent, la mécanique ne change pas</caption>
+  <thead><tr><th>Impact ↓ / Urgence →</th><th>Haute</th><th>Moyenne</th><th>Basse</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Étendu</strong> (majorité des utilisateurs)</td><td>P1</td><td>P2</td><td>P3</td></tr>
+    <tr><td><strong>Significatif</strong> (une équipe, un site)</td><td>P2</td><td>P3</td><td>P4</td></tr>
+    <tr><td><strong>Limité</strong> (une personne)</td><td>P3</td><td>P4</td><td>P5</td></tr>
+  </tbody>
+</table>
+
+<div class="note attention">
+  <b>Ce que cela évite</b>
+  <p>Quand chacun choisit librement la priorité, tout devient prioritaire — et la notion perd son
+  sens. En dérivant la priorité de deux faits observables, la plateforme rend la discussion
+  possible : on ne débat plus d'un ressenti, on débat de l'impact ou de l'urgence, chacun
+  argumentable.</p>
+</div>
+
+
+  <h2 id="s-2-4">2.4 &nbsp;Les engagements de service</h2>
+<p>Un <strong>engagement de service</strong> est une promesse de délai, exprimée en deux temps :</p>
+
+<ul>
+  <li>la <strong>prise en charge</strong> — le délai au bout duquel quelqu'un s'est saisi du dossier ;</li>
+  <li>la <strong>résolution</strong> — le délai au bout duquel le sujet est traité.</li>
+</ul>
+
+<p>Les deux cibles sont paramétrées par croisement du <em>type</em>, de la <em>priorité</em>, de la
+<em>criticité</em> et de la <em>catégorie</em>. À l'ouverture d'une activité, les échéances sont
+calculées et inscrites sur le dossier ; elles ne bougent plus.</p>
+
+<table>
+  <caption>Exemple de grille — à ajuster à ce que votre organisation peut réellement tenir</caption>
+  <thead><tr><th>Priorité</th><th>Prise en charge</th><th>Résolution</th></tr></thead>
+  <tbody>
+    <tr><td><span class="pastille danger">P1 — Critique</span></td><td class="num">15 minutes</td><td class="num">4 heures</td></tr>
+    <tr><td><span class="pastille alerte">P2 — Haute</span></td><td class="num">30 minutes</td><td class="num">8 heures</td></tr>
+    <tr><td><span class="pastille neutre">P3 — Moyenne</span></td><td class="num">2 heures</td><td class="num">2 jours</td></tr>
+    <tr><td><span class="pastille neutre">P4 — Faible</span></td><td class="num">1 jour</td><td class="num">5 jours</td></tr>
+  </tbody>
+</table>
+
+<p>Chaque activité porte en permanence un <strong>état d'engagement</strong>, lisible d'un coup d'œil
+dans les listes :</p>
+
+<p>
+  <span class="pastille ok">À l'heure</span>&nbsp;
+  <span class="pastille alerte">Échéance proche</span>&nbsp;
+  <span class="pastille danger">Dépassé</span>
+</p>
+
+<div class="note">
+  <b>Un engagement réaliste vaut mieux qu'un engagement flatteur</b>
+  <p>Une grille trop ambitieuse produit un taux de respect médiocre, que plus personne ne regarde
+  au bout de deux mois. Commencez par mesurer vos délais réels pendant quelques semaines, puis
+  fixez des cibles légèrement exigeantes. La grille se modifie à tout moment : elle s'applique
+  aux activités <em>ouvertes ensuite</em>, jamais rétroactivement.</p>
+</div>
+
+
+  <h2 id="s-2-5">2.5 &nbsp;Cycles de vie</h2>
+<p>Chaque type d'activité suit une <strong>suite d'états</strong> et n'autorise que certaines
+transitions. On ne passe pas de « nouveau » à « clôturé » sans être passé par la résolution ; on
+ne clôture pas un dossier dont la validation est requise et absente.</p>
+
+<h3>Cycle d'un incident</h3>
+<div class="cycle">
+  <span>Nouveau</span><i>→</i><span>Ouvert</span><i>→</i><span>Résolu</span><i>→</i>
+  <span class="fin">Clôturé</span>
+</div>
+<p>Transitions transverses : <strong>Réouvert</strong> (le demandeur constate que le problème
+persiste) et <strong>Annulé</strong> (le traitement s'avère sans objet).</p>
+
+<h3>Cycle d'une demande</h3>
+<div class="cycle">
+  <span>Nouvelle</span><i>→</i><span>Qualifiée</span><i>→</i><span>En cours</span><i>→</i>
+  <span>En validation</span><i>→</i><span>Résolue</span><i>→</i><span class="fin">Clôturée</span>
+</div>
+<p>Transitions transverses : <strong>Rejetée</strong>, <strong>Réouverte</strong>.</p>
+
+<h3>Cycle d'un changement</h3>
+<div class="cycle">
+  <span>Brouillon</span><i>→</i><span>Soumis</span><i>→</i><span>Évaluation</span><i>→</i>
+  <span>Comité</span><i>→</i><span>Planifié</span><i>→</i><span>En cours</span><i>→</i>
+  <span>Implémenté</span><i>→</i><span>Revue</span><i>→</i><span class="fin">Clôturé</span>
+</div>
+<p>Transition transverse : <strong>Retour arrière</strong>, quand la mise en œuvre échoue et qu'on
+revient à l'état antérieur.</p>
+
+<div class="note">
+  <b>Les états sont paramétrables, la discipline ne l'est pas</b>
+  <p>Vous pouvez renommer un état, en ajouter, en retirer. Ce que vous ne pouvez pas faire, c'est
+  contourner une transition : le serveur refuse un passage non prévu et l'explique. C'est ce qui
+  garantit qu'un indicateur de « taux de résolution » veut dire quelque chose.</p>
+</div>
+
+
+  <h2 id="s-2-6">2.6 &nbsp;Périmètres et cloisonnement</h2>
+<p>Une activité appartient à une <strong>entité</strong> — service, direction, site, filiale, selon
+le découpage de votre organisation. Un profil dit <em>transverse</em> voit tout ; un profil qui ne
+l'est pas ne voit que les activités de son entité.</p>
+
+<p>Ce cloisonnement est appliqué <strong>au niveau des requêtes</strong>, pas à l'affichage : un
+utilisateur qui devinerait la référence d'un dossier hors de son périmètre obtient une réponse
+« introuvable », pas le dossier.</p>
+
+<div class="note">
+  <b>Un mécanisme qui dort sans nuire</b>
+  <p>Si votre déploiement ne comporte qu'une seule entité, le cloisonnement est neutre : tout le
+  monde voit tout. Il reste en place et testé. Le jour où une deuxième entité apparaît, il n'y a
+  rien à développer — seulement à déclarer l'entité et à retirer le caractère transverse des
+  profils concernés.</p>
+</div>
+
+
+  <h2 id="s-2-7">2.7 &nbsp;Les référentiels paramétrables</h2>
+<p>Tout ce qui, dans une organisation, est susceptible de changer sans prévenir a été sorti du
+code. Ces valeurs s'éditent depuis l'administration, et prennent effet immédiatement.</p>
+
+<div class="defs">
+  <div><dt>Types d'activité</dt><dd>Les modules ouverts et leurs préfixes de référence.</dd></div>
+  <div><dt>Catégories</dt><dd>Par type. Elles servent au classement, aux statistiques et, souvent,
+    au calcul des engagements.</dd></div>
+  <div><dt>Matrice de priorité</dt><dd>Impact × urgence → P1 à P5.</dd></div>
+  <div><dt>Matrice des engagements</dt><dd>Type, priorité, criticité, catégorie → prise en charge
+    et résolution.</dd></div>
+  <div><dt>États et transitions</dt><dd>Le cycle de vie de chaque type.</dd></div>
+  <div><dt>Profils et droits</dt><dd>Qui accède à quel module, pour quelles actions.</dd></div>
+  <div><dt>Entités</dt><dd>Le découpage organisationnel qui porte le cloisonnement.</dd></div>
+  <div><dt>Sources et natures</dt><dd>Origines d'une recommandation, types de changement, et autres
+    nomenclatures propres à un module.</dd></div>
+</div>
+
+<p>La règle est simple : <strong>ajouter une valeur n'est jamais un projet informatique</strong>.
+Si vous vous trouvez à demander une évolution logicielle pour créer une catégorie, quelque chose
+a été mal paramétré.</p>
+
+
+  <h2 id="s-2-8">2.8 &nbsp;La traçabilité</h2>
+<p>Chaque création, modification, affectation, validation et clôture est journalisée avec :
+l'<strong>auteur</strong>, la <strong>date et l'heure</strong>, le <strong>module</strong>,
+l'<strong>action</strong>, l'<strong>ancienne et la nouvelle valeur</strong>, et l'<strong>adresse
+réseau</strong> d'où l'action a été faite.</p>
+
+<p>Le journal est en <strong>ajout seul</strong> : rien ne s'y modifie, rien ne s'en efface. Les
+entrées sont de plus <strong>chaînées par empreinte</strong> — chacune porte la marque de la
+précédente, de sorte qu'une altération, même par quelqu'un ayant accès à la base, devient
+détectable.</p>
+
+<div class="note ok">
+  <b>Ce que la traçabilité permet réellement</b>
+  <ul>
+    <li>Répondre à un auditeur sans reconstituer quoi que ce soit.</li>
+    <li>Comprendre <em>pourquoi</em> une échéance a bougé, et sur décision de qui.</li>
+    <li>Distinguer une erreur de saisie d'un contournement délibéré.</li>
+    <li>Conserver l'histoire d'un dossier même après le départ de la personne qui l'a traité :
+        l'auteur est figé à l'écriture et survit à la suppression de son compte.</li>
+  </ul>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 3</div>
+  <h1 id="s-3">Prise en main</h1>
+  <p class="chapitre-intro">De la réception du courriel d'activation à la lecture d'une fiche. Ce chapitre suffit à un nouvel arrivant : au bout, il sait se connecter, se repérer, trouver ce qui le concerne et comprendre ce qu'un écran lui dit.</p>
+
+  <h2 id="s-3-1">3.1 &nbsp;Activer son compte</h2>
+<p>Un compte est créé par un administrateur, <strong>sans mot de passe</strong>. Vous recevez un
+courriel contenant un lien d'activation. Tant que vous ne l'avez pas utilisé, le compte existe
+mais ne s'ouvre pas.</p>
+
+<ol class="etapes">
+  <li><b>Ouvrez le courriel d'activation</b>
+      L'objet commence par le nom de la plateforme. Le lien est valable une heure.</li>
+  <li><b>Choisissez votre mot de passe</b>
+      Vous seul le connaissez. Aucun administrateur ne peut le lire ; il n'est pas non plus
+      transmis par un tiers.</li>
+  <li><b>Connectez-vous</b>
+      Le lien d'activation est à <strong>usage unique</strong> : une fois consommé, il ne sert plus.</li>
+</ol>
+
+<div class="note attention">
+  <b>Le lien a expiré ?</b>
+  <p>Utilisez « Mot de passe oublié » sur l'écran de connexion, ou demandez à un administrateur de
+  relancer l'envoi. Un lien expiré n'est jamais réactivé : un nouveau est émis.</p>
+</div>
+
+
+  <h2 id="s-3-2">3.2 &nbsp;Se connecter</h2>
+<p>L'accès se fait avec votre <strong>adresse professionnelle</strong> et votre mot de passe. La
+session reste ouverte tant que vous êtes actif ; elle se renouvelle seule en arrière-plan.</p>
+
+<h3>Mot de passe oublié</h3>
+<p>Saisissez votre adresse : un lien de réinitialisation vous parvient. La plateforme affiche
+<strong>le même message que le compte existe ou non</strong> — c'est délibéré : autrement, cet écran
+permettrait de découvrir qui possède un compte.</p>
+
+<h3>Compte temporairement verrouillé</h3>
+<p>Après plusieurs échecs consécutifs, le compte se verrouille <strong>quelques minutes</strong>.
+Le verrou prime sur le mot de passe : même juste, il est refusé pendant le délai. Là encore c'est
+voulu — sinon une réponse différente indiquerait à un attaquant qu'il a trouvé le bon mot de passe.</p>
+
+<div class="note">
+  <b>Le verrou est temporaire, jamais définitif</b>
+  <p>Un verrou permanent permettrait d'exclure n'importe qui du système en se trompant exprès à sa
+  place. Il suffit donc d'attendre. Chaque tentative — réussie, échouée ou bloquée — est
+  journalisée.</p>
+</div>
+
+<h3>Premier mot de passe imposé</h3>
+<p>Si un administrateur a marqué votre compte « à renouveler », la plateforme n'ouvre rien d'autre
+que l'écran de changement de mot de passe, tant qu'il n'est pas changé. Ce contrôle est appliqué
+<strong>par le serveur</strong>, pas seulement par l'écran.</p>
+
+
+  <h2 id="s-3-3">3.3 &nbsp;Se repérer dans l'interface</h2>
+<p>L'écran se lit en trois zones, constantes d'un module à l'autre.</p>
+
+<div class="defs">
+  <div><dt>Le rail de navigation</dt>
+       <dd>À gauche, repliable. Les modules y sont groupés par intention : votre espace, le
+       pilotage, les activités, la maîtrise et la conformité, le patrimoine, la gouvernance, le
+       système. <strong>Vous ne voyez que les modules auxquels votre profil donne accès</strong> —
+       un module absent du rail n'est pas caché, il vous est fermé.</dd></div>
+  <div><dt>La barre supérieure</dt>
+       <dd>Fil d'Ariane, <strong>recherche globale</strong>, cloche de notifications, votre compte.</dd></div>
+  <div><dt>La zone de travail</dt>
+       <dd>Liste, fiche ou tableau de bord selon l'écran.</dd></div>
+</div>
+
+<h3>La recherche globale</h3>
+<p>Elle cherche dans tous les modules auxquels vous avez accès, et <strong>respecte votre
+périmètre</strong> : un dossier hors de votre entité n'apparaît pas, même en tapant sa référence
+exacte. Une référence (<code>INC-2026-00042</code>) mène directement à la fiche.</p>
+
+<h3>Les notifications</h3>
+<p>La cloche rassemble ce qui vous concerne : dossiers qui vous sont confiés, échéances qui
+approchent, engagements dépassés, décisions attendues de vous. Vous réglez vous-même, dans vos
+préférences, ce qui vous parvient <strong>dans la plateforme</strong> et ce qui vous parvient
+<strong>par courriel</strong> — le réglage suit votre compte, pas le navigateur utilisé.</p>
+
+<div class="note">
+  <b>Mon espace</b>
+  <p>L'entrée « Mes tickets » regroupe, sur un seul écran, ce dont vous êtes responsable, les
+  tâches qui vous sont assignées et vos propres indicateurs. C'est le point de départ naturel d'une
+  journée — les listes par module servent plutôt à chercher.</p>
+</div>
+
+
+  <h2 id="s-3-4">3.4 &nbsp;Lire une liste d'activités</h2>
+<p>Chaque module présente ses activités dans un tableau homogène. Les colonnes changent, la
+grammaire non.</p>
+
+<table>
+  <thead><tr><th>Colonne</th><th>Ce qu'elle dit</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Référence</strong></td><td>Identifiant du dossier. C'est ce qu'on cite.</td></tr>
+    <tr><td><strong>Titre</strong></td><td>L'objet, en clair.</td></tr>
+    <tr><td><strong>Catégorie</strong></td><td>Classement paramétrable du module.</td></tr>
+    <tr><td><strong>Responsable</strong></td><td>La personne comptable du dossier. Vide = non assigné.</td></tr>
+    <tr><td><strong>État</strong></td><td>Position dans le cycle de vie, avec un ton : en cours, en attente, terminé.</td></tr>
+    <tr><td><strong>Échéance</strong></td><td>Le sablier d'engagement : temps restant, ou retard.</td></tr>
+  </tbody>
+</table>
+
+<h3>Les filtres</h3>
+<p>Au-dessus de chaque liste : l'état, le responsable, les dossiers <strong>non assignés</strong>,
+ceux <strong>en retard</strong>, et une recherche libre. Les compteurs par état s'affichent en
+bandeau : ils donnent la forme du stock avant même de filtrer.</p>
+
+<h3>Le sablier d'engagement</h3>
+<p>Il condense l'essentiel d'un dossier en un symbole :</p>
+<p>
+  <span class="pastille ok">À l'heure</span>&nbsp;
+  <span class="pastille alerte">Échéance proche</span>&nbsp;
+  <span class="pastille danger">Dépassé</span>&nbsp;
+  <span class="pastille neutre">Sans engagement</span>
+</p>
+<p>Un dossier arrivé en phase terminale <strong>cesse de courir après son délai</strong> : un dossier
+clos n'est jamais « en retard ».</p>
+
+
+  <h2 id="s-3-5">3.5 &nbsp;Lire une fiche</h2>
+<p>La fiche est l'écran où l'on travaille. Sa structure est la même partout.</p>
+
+<ol class="etapes">
+  <li><b>L'en-tête</b>
+      Référence, titre, état, priorité, engagement. Les actions possibles y figurent — et
+      <strong>seulement celles que vous pouvez réellement faire</strong> : la plateforme calcule vos
+      capacités sur ce dossier précis et n'affiche pas de bouton qui échouerait.</li>
+  <li><b>Les responsabilités</b>
+      Demandeur, responsable, contributeurs, valideurs. Chaque désignation est journalisée.</li>
+  <li><b>Le corps du dossier</b>
+      Description, tâches, jalons, documents, liens utiles — selon le module.</li>
+  <li><b>La discussion interne</b>
+      Fil d'échanges de l'équipe, avec mentions, images et accusés de lecture. Elle reste
+      <strong>interne</strong> : le demandeur n'y a pas accès.</li>
+  <li><b>L'historique</b>
+      Le parcours des états, puis le journal détaillé : qui a changé quoi, quand, depuis quelle
+      valeur.</li>
+</ol>
+
+<div class="note">
+  <b>Un bouton absent n'est pas un bouton caché</b>
+  <p>Si une action ne s'affiche pas, c'est que votre rôle sur ce dossier ne l'autorise pas — ou que
+  l'état courant ne la permet pas. Le serveur applique la même règle : contourner l'écran ne donne
+  rien.</p>
+</div>
+
+
+  <h2 id="s-3-6">3.6 &nbsp;Faire avancer un dossier</h2>
+<p>Les gestes du quotidien, et qui peut les faire.</p>
+
+<table>
+  <thead><tr><th>Geste</th><th>Qui</th><th>Effet</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Assigner un responsable</strong></td><td>Administrateur du module</td>
+        <td>Confie le dossier. Seul un compte actif ayant accès au module est désignable.</td></tr>
+    <tr><td><strong>Évaluer</strong> (impact, urgence)</td><td>Administrateur du module</td>
+        <td>Recalcule la priorité et, avec elle, les échéances d'engagement.</td></tr>
+    <tr><td><strong>Ajouter des contributeurs</strong></td><td>Administrateur du module</td>
+        <td>Ouvre le dossier à d'autres intervenants.</td></tr>
+    <tr><td><strong>Désigner des valideurs</strong></td><td>Administrateur du module</td>
+        <td>Conditionne certaines transitions à leur accord. <strong>La liste se fige dès la première
+        décision rendue</strong> — sinon on pourrait changer le jury en cours de vote.</td></tr>
+    <tr><td><strong>Changer d'état</strong></td><td>Responsable, contributeurs</td>
+        <td>Seules les transitions prévues sont proposées. Une transition interdite est refusée et
+        expliquée.</td></tr>
+    <tr><td><strong>Décider</strong> (approuver / rejeter)</td><td>Valideurs désignés</td>
+        <td>Débloque ou arrête la transition soumise à validation.</td></tr>
+    <tr><td><strong>Tâches, documents, liens, notes</strong></td><td>Responsable, contributeurs</td>
+        <td>Constituent le dossier. L'assigné d'une tâche n'en change que le statut.</td></tr>
+  </tbody>
+</table>
+
+<div class="note attention">
+  <b>Séparation des tâches</b>
+  <p>Organiser un dossier et l'exécuter sont deux choses distinctes. Un administrateur de module
+  distribue le travail et arbitre ; un acteur exécute. Cette frontière n'est pas paramétrable : elle
+  est tenue par le serveur, précisément parce qu'elle protège la valeur des indicateurs et des
+  validations.</p>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 4</div>
+  <h1 id="s-4">Les modules</h1>
+  <p class="chapitre-intro">Un module par domaine suivi. Tous reposent sur le socle du chapitre 2 — mêmes responsabilités, mêmes engagements, même historique. Ce chapitre ne répète donc que ce qui leur est propre : ce qu'ils ajoutent, et ce qu'ils interdisent.</p>
+
+  <h2 id="s-4-1">4.1 &nbsp;Tableau de bord</h2>
+<p>La vue d'ouverture. Elle répond à trois questions, dans cet ordre : <em>où en est-on</em>,
+<em>qu'est-ce qui dérape</em>, <em>par quoi commencer</em>.</p>
+
+<div class="cartes">
+  <div class="carte"><b>Indicateurs</b><span>Volumes par module, respect des engagements, retards,
+    répartitions. Chaque valeur porte sa tendance sur la période.</span></div>
+  <div class="carte"><b>Signaux</b><span>Ce qui demande une décision : engagements dépassés,
+    dossiers non assignés, échéances imminentes.</span></div>
+  <div class="carte"><b>À traiter en premier</b><span>Une liste courte, ordonnée par urgence réelle
+    plutôt que par date de création.</span></div>
+  <div class="carte"><b>Période ajustable</b><span>Tout l'écran se recalcule sur la fenêtre choisie
+    — les derniers jours, ou deux dates précises.</span></div>
+</div>
+
+<p>L'écran s'exporte en <strong>PDF</strong> et chaque visuel en <strong>image</strong>, pour être
+repris tel quel dans un support de comité.</p>
+
+
+  <h2 id="s-4-2">4.2 &nbsp;Incidents</h2>
+<p>Ce qui interrompt ou dégrade un service. Le module en suit le traitement : classement,
+priorité, responsable, niveau de support, délais, historique.</p>
+
+<div class="cycle">
+  <span>Nouveau</span><i>→</i><span>Ouvert</span><i>→</i><span>Résolu</span><i>→</i>
+  <span class="fin">Clôturé</span>
+</div>
+
+<div class="note attention">
+  <b>Module en lecture seule</b>
+  <p>Les incidents ne se créent pas ici et leur état ne s'y modifie pas : ils sont traités dans
+  l'outil de service desk de l'organisation et arrivent par <strong>import quotidien</strong>
+  (cf. chapitre Administration). La plateforme en reflète l'état pour en suivre l'évolution, en
+  tirer les statistiques et mesurer la charge. On y observe, on n'y agit pas.</p>
+  <p>Restent possibles, parce qu'elles n'appartiennent qu'à vous : la <strong>discussion
+  interne</strong>, les <strong>pièces jointes</strong> et une <strong>annotation</strong> propre à
+  l'équipe. L'import ne les touche jamais.</p>
+</div>
+
+<h3>Le niveau de support</h3>
+<p>Il ne se choisit pas : il se <strong>déduit</strong> du gestionnaire. Le niveau porté par son
+compte s'applique ; si le gestionnaire indiqué par l'import ne correspond à aucun compte, le
+dossier est réputé traité par un niveau externe. C'est ce qui permet de mesurer la répartition
+réelle de la charge sans saisie supplémentaire.</p>
+
+<div class="note">
+  <b>L'import ne crée jamais de compte</b>
+  <p>Il rapproche un nom d'un compte existant. Sans correspondance, le dossier reste sans
+  responsable interne. Créer les comptes reste un acte d'administration, délibéré.</p>
+</div>
+
+
+  <h2 id="s-4-3">4.3 &nbsp;Demandes</h2>
+<p>Ce que les collaborateurs sollicitent : création de compte, habilitation, logiciel, matériel,
+accès distant, assistance. Les catégories sont paramétrables.</p>
+
+<div class="cycle">
+  <span>Nouvelle</span><i>→</i><span>Qualifiée</span><i>→</i><span>En cours</span><i>→</i>
+  <span>En validation</span><i>→</i><span>Résolue</span><i>→</i><span class="fin">Clôturée</span>
+</div>
+
+<p>Comme les incidents, le module est <strong>en lecture seule</strong> et alimenté par l'import
+quotidien. Les demandes se distinguent des incidents sur un point : elles passent le plus souvent
+par une <strong>validation</strong>, et c'est là que se logent les délais réels — une demande n'attend
+pas la technique, elle attend une décision.</p>
+
+
+  <h2 id="s-4-4">4.4 &nbsp;Projets</h2>
+<p>Le module le plus riche, et le seul dont l'échéance n'est pas un engagement de service mais une
+<strong>date de fin</strong>.</p>
+
+<div class="cycle">
+  <span>Cadrage</span><i>→</i><span>En cours</span><i>→</i><span class="fin">Clôturé</span>
+  <i>·</i><span>Suspendu</span>
+</div>
+
+<div class="defs">
+  <div><dt>Types de projet</dt><dd>Paramétrables. Chaque type peut porter des <strong>jalons
+    types</strong>, créés automatiquement à l'ouverture d'un projet — deux projets de même nature
+    démarrent donc avec le même squelette.</dd></div>
+  <div><dt>Jalons</dt><dd>Étapes datées, marquées atteintes ou non, avec rappels avant échéance.</dd></div>
+  <div><dt>Tâches</dt><dd>Le travail réel : titre, assigné, échéance, statut, ordre. Réordonnables.</dd></div>
+  <div><dt>Avancement</dt><dd>Se lit des jalons atteints et des tâches terminées.</dd></div>
+  <div><dt>Budget</dt><dd>Champ de suivi du projet. La plateforme n'est pas un outil comptable :
+    elle enregistre un montant et son suivi, elle ne tient pas d'écritures.</dd></div>
+  <div><dt>Notes, documents, liens</dt><dd>La mémoire du projet : décisions, comptes rendus,
+    livrables, ressources externes.</dd></div>
+</div>
+
+
+  <h2 id="s-4-5">4.5 &nbsp;Changements</h2>
+<p>Toute modification volontaire d'un service en production. C'est le module où la validation
+compte le plus, parce que c'est là qu'on casse ce qui marche.</p>
+
+<div class="cycle">
+  <span>Brouillon</span><i>→</i><span>Soumis</span><i>→</i><span>Évaluation</span><i>→</i>
+  <span>Comité</span><i>→</i><span>Validé</span><i>→</i><span>Planifié</span><i>→</i>
+  <span>En implémentation</span><i>→</i><span>Implémenté</span><i>→</i><span>Revue</span><i>→</i>
+  <span class="fin">Clôturé</span>
+</div>
+<p>Transitions transverses : <strong>Rejeté</strong> et <strong>Retour arrière</strong>.</p>
+
+<table>
+  <caption>Trois natures de changement, trois régimes d'approbation</caption>
+  <thead><tr><th>Nature</th><th>Approbation</th><th>Usage</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Standard</strong></td><td>Pré-approuvée</td>
+        <td>Opération répétitive, au risque connu et à la procédure écrite.</td></tr>
+    <tr><td><strong>Normal</strong></td><td>Comité de validation</td>
+        <td>Le cas courant : évaluation d'impact et de risque, puis décision collégiale.</td></tr>
+    <tr><td><strong>Urgent</strong></td><td>Comité restreint</td>
+        <td>Rétablir un service ou parer un risque immédiat. Circuit court, revue <em>a posteriori</em>
+        obligatoire.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>La revue post-implémentation n'est pas une formalité</b>
+  <p>C'est l'étape qui distingue un processus de changement d'un simple registre. Elle consigne ce
+  qui s'est réellement passé — y compris quand tout s'est bien passé. Sans elle, l'indicateur
+  « part de changements hors comité » ne mesure plus rien.</p>
+</div>
+
+
+  <h2 id="s-4-6">4.6 &nbsp;Audit et recommandations</h2>
+<p>Le suivi des recommandations formulées par les instances de contrôle. La <strong>source</strong>
+est portée par la catégorie et se paramètre : audit interne, audit du groupe, régulateur, contrôle
+permanent, gestion des risques, commissaires aux comptes — ou toute autre instance propre à votre
+organisation.</p>
+
+<div class="cycle">
+  <span>Ouverte</span><i>→</i><span>Plan d'action</span><i>→</i><span>En cours</span><i>→</i>
+  <span>Validation de clôture</span><i>→</i><span class="fin">Clôturée</span>
+</div>
+
+<p>Une recommandation ne se clôt pas seule : la <strong>validation de clôture</strong> est confiée à
+des valideurs désignés, et le dossier doit porter ses <strong>justificatifs</strong>. C'est
+exactement ce qu'un contrôleur demandera — autant que ce soit déjà rangé.</p>
+
+<div class="note ok">
+  <b>Ce que ce module fait gagner</b>
+  <p>La question d'un auditeur n'est jamais « avez-vous corrigé ? » mais « <em>prouvez</em> que vous
+  avez corrigé, et montrez quand ». Un plan d'action daté, tracé, avec ses pièces et sa validation,
+  répond en une impression.</p>
+</div>
+
+
+  <h2 id="s-4-7">4.7 &nbsp;Risques</h2>
+<p>L'identification et le traitement des risques. Ce module ne fonctionne pas au délai mais à la
+<strong>criticité</strong> et à la <strong>revue périodique</strong>.</p>
+
+<div class="cycle">
+  <span>Identifié</span><i>→</i><span>Évalué</span><i>→</i><span>Traitement</span><i>→</i>
+  <span class="fin">Maîtrisé</span><i>ou</i><span class="fin">Accepté</span><i>→</i>
+  <span>Revue périodique</span>
+</div>
+
+<p>La criticité se calcule : <strong>probabilité × impact</strong>. Le résultat positionne le risque
+dans une matrice, restituée telle quelle dans les analyses.</p>
+
+<div class="note">
+  <b>Pas d'engagement de délai sur un risque</b>
+  <p>Un risque ne se « résout » pas en quatre heures : il se traite, puis il se surveille. Lui
+  imposer un chronomètre produirait un indicateur faux. Ce qui compte ici, c'est que la
+  <strong>revue</strong> ait lieu — et c'est elle qui déclenche des rappels.</p>
+</div>
+
+<div class="note danger">
+  <b>Limite actuelle</b>
+  <p>L'export tabulaire de la liste des risques n'est pas encore disponible côté serveur : les
+  boutons d'export de cet écran échouent. Les analyses restituent en revanche la matrice des risques
+  et s'exportent normalement.</p>
+</div>
+
+
+  <h2 id="s-4-8">4.8 &nbsp;Cybersécurité</h2>
+<p>Le suivi des sujets de sécurité : habilitations sensibles, comptes à privilèges, revues d'accès,
+vulnérabilités, correctifs, dispositifs d'authentification. Chaque sujet est une activité, avec ses
+responsables, ses engagements, ses pièces et sa revue.</p>
+
+<p>Le module s'appuie sur l'<strong>écran générique d'activités par catégorie</strong> : liste
+filtrable, fiche complète, tâches, documents, liens, revue périodique. Les catégories décrivent
+la nature du sujet et se paramètrent librement.</p>
+
+<div class="note">
+  <b>Un module de suivi, pas un outil de sécurité</b>
+  <p>La plateforme ne scanne rien et n'applique aucun correctif. Elle garantit qu'un sujet de
+  sécurité identifié a un responsable, une échéance, une trace — et qu'il ne se perd pas. Le
+  dispositif d'authentification de la plateforme elle-même est traité au chapitre Sécurité, et n'a
+  rien à voir avec ce module.</p>
+</div>
+
+
+  <h2 id="s-4-9">4.9 &nbsp;Gouvernance</h2>
+<p>Le suivi des instances et de leurs suites : comités, décisions de direction, plans d'action,
+engagements pris. Une décision de comité devient une activité, avec un responsable et une échéance
+— ce qui la rend suivable au lieu de la laisser dans un compte rendu.</p>
+
+<p>Comme la cybersécurité, ce module utilise l'écran générique d'activités par catégorie, avec
+revue périodique.</p>
+
+<div class="note ok">
+  <b>La vertu de ce module</b>
+  <p>Un comité produit des décisions ; ce qui manque presque toujours, c'est le lien entre la
+  décision et son exécution. En faisant de chaque engagement une activité ordinaire, on le retrouve
+  dans les mêmes listes, les mêmes rappels et les mêmes indicateurs que le reste.</p>
+</div>
+
+
+  <h2 id="s-4-10">4.10 &nbsp;Inventaire du patrimoine</h2>
+<p>Le registre du parc : matériel, équipements, immobilisations. Chaque bien porte son code
+d'immobilisation, sa référence interne, son numéro de série, son modèle, sa désignation, son
+emplacement, son détenteur, sa date et sa valeur d'acquisition, sa durée et son taux
+d'amortissement.</p>
+
+<div class="defs">
+  <div><dt>Valeur nette</dt><dd>Calculée à partir de la valeur d'acquisition, de la durée et du
+    taux. Le parc se lit donc aussi comme un actif, pas seulement comme une liste.</dd></div>
+  <div><dt>État constaté</dt><dd>Porté par la fiche de l'équipement, avec sa date, son auteur et
+    son motif. Un bien peut être en bon état, au rebut, cassé ou non retrouvé.</dd></div>
+  <div><dt>Référentiels</dt><dd>Emplacements, départements et types d'équipement sont
+    paramétrables.</dd></div>
+  <div><dt>Discussion</dt><dd>Chaque équipement porte son fil d'échanges, comme une activité.</dd></div>
+</div>
+
+<p>Le parc s'alimente par <strong>import de classeur</strong> et s'exporte. Un
+<strong>classeur modèle</strong> est téléchargeable depuis l'écran : c'est le moyen le plus sûr
+d'obtenir un fichier que l'import acceptera du premier coup.</p>
+
+<div class="note">
+  <b>L'import ne piétine pas la saisie</b>
+  <p>Le rapprochement se fait sur le code d'immobilisation. Ce que vos équipes ont renseigné à
+  l'écran — état constaté, détenteur, motif — n'est jamais écrasé par un import ultérieur.</p>
+</div>
+
+
+  <h2 id="s-4-11">4.11 &nbsp;Analyses</h2>
+<p>L'écran d'étude, distinct du tableau de bord : celui-ci montre l'état du moment, celui-là
+cherche à comprendre.</p>
+
+<table>
+  <thead><tr><th>Famille</th><th>Ce qu'on y lit</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Répartitions</strong></td><td>Par module, entité, responsable, priorité, catégorie.</td></tr>
+    <tr><td><strong>Engagements</strong></td><td>Respect global, par module et par priorité ; distribution
+        des délais ; prise en charge par priorité.</td></tr>
+    <tr><td><strong>Flux</strong></td><td>Tendance sur la période, durée passée dans chaque état,
+        vieillissement du stock, taux de réouverture.</td></tr>
+    <tr><td><strong>Charge par gestionnaire</strong></td><td>Volume, délais et respect des engagements,
+        avec une fiche par personne.</td></tr>
+    <tr><td><strong>Matrice mensuelle</strong></td><td>Le mois par mois, pour comparer des périodes
+        plutôt que des instants.</td></tr>
+    <tr><td><strong>Concentration</strong></td><td>Les catégories qui produisent le plus de volume —
+        celles sur lesquelles une action de fond paie.</td></tr>
+    <tr><td><strong>Matrice des risques</strong></td><td>Probabilité × impact, telle qu'elle se
+        présente à un comité.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>À quoi servent ces écrans</b>
+  <p>Le vieillissement et la concentration par catégorie sont les deux vues qui font agir : la
+  première dit ce qui pourrit dans le stock, la seconde ce qu'il faut traiter à la racine pour que
+  le volume baisse. Les moyennes, elles, rassurent sans jamais rien indiquer.</p>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 5</div>
+  <h1 id="s-5">Administration</h1>
+  <p class="chapitre-intro">Ce chapitre s'adresse aux administrateurs fonctionnels. Il couvre les comptes, les droits, les référentiels, les engagements de service, l'import quotidien, les notifications et le journal. C'est ici que la plateforme se règle sur votre organisation — sans développement.</p>
+
+  <h2 id="s-5-1">5.1 &nbsp;Les comptes</h2>
+<p>Un compte porte une adresse professionnelle, un profil, une entité de rattachement, un niveau
+de support et, éventuellement, une date d'expiration.</p>
+
+<ol class="etapes">
+  <li><b>Créer le compte</b>
+      Sans mot de passe : un lien d'activation part par courriel. Le domaine de l'adresse est
+      contrôlé — les adresses hors des domaines autorisés sont refusées.</li>
+  <li><b>Choisir le profil</b>
+      Il détermine les modules accessibles. Un profil nouvellement créé n'ouvre <strong>aucun</strong>
+      module tant qu'on ne lui en donne pas.</li>
+  <li><b>Rattacher à une entité</b>
+      C'est ce rattachement qui porte le cloisonnement, pour les profils non transverses.</li>
+  <li><b>Fixer le niveau de support</b>
+      Obligatoire, sauf pour un administrateur qui ne traite pas de dossiers. Le niveau d'un
+      dossier se déduit de son gestionnaire — sans niveau sur le compte, la répartition de charge
+      devient fausse.</li>
+</ol>
+
+<h3>Fermer un accès</h3>
+<p>Deux leviers, à effet <strong>immédiat</strong> : rendre le compte inactif, ou lui donner une date
+d'expiration. L'un comme l'autre sont vérifiés <strong>à chaque requête</strong> : une session en
+cours ne survit pas au blocage.</p>
+
+<div class="note attention">
+  <b>Ne supprimez pas un compte pour fermer un accès</b>
+  <p>Désactivez-le. L'historique doit rester lisible : les actions passées portent l'adresse de leur
+  auteur, figée à l'écriture, et un dossier doit pouvoir citer qui l'a traité même des années plus
+  tard.</p>
+</div>
+
+<div class="note danger">
+  <b>Le dernier administrateur</b>
+  <p>La plateforme refuse de retirer le dernier accès d'administration — sinon plus personne ne
+  pourrait la paramétrer, y compris pour se redonner le droit. Ce garde-fou n'est pas
+  contournable depuis l'interface.</p>
+</div>
+
+
+  <h2 id="s-5-2">5.2 &nbsp;Profils et droits</h2>
+<p>Un <strong>profil</strong> décrit un métier, pas une position hiérarchique. Il se crée, se
+renomme et se supprime.</p>
+
+<table>
+  <thead><tr><th>Règle</th><th>Pourquoi</th></tr></thead>
+  <tbody>
+    <tr><td>Un profil porté par des comptes ne se supprime pas</td>
+        <td>Sinon ces comptes se retrouveraient sans droits, du jour au lendemain, sans que
+        personne l'ait décidé pour eux.</td></tr>
+    <tr><td>Le profil d'administration ne se supprime pas et reste transverse</td>
+        <td>C'est la clé de la maison : elle ne se jette pas depuis l'intérieur.</td></tr>
+    <tr><td>Un profil créé n'ouvre rien</td>
+        <td>Sécurité par défaut. On ouvre ce dont on a besoin, on n'ôte pas ce dont on n'a pas
+        besoin.</td></tr>
+  </tbody>
+</table>
+
+<h3>La matrice des accès</h3>
+<p>Un tableau croisé <strong>profil × module</strong> : cocher une case ouvre le module au profil.
+La modification prend effet immédiatement, sans redémarrage.</p>
+
+<div class="note attention">
+  <b>Deux niveaux de droits, à ne pas confondre</b>
+  <p><strong>1. L'accès au module</strong> — paramétrable, c'est la matrice ci-dessus. Elle décide de
+  ce qu'un profil voit dans le rail de navigation.</p>
+  <p><strong>2. Le rôle sur un dossier</strong> — non paramétrable. Sur une activité donnée, on est
+  administrateur du module, acteur (responsable ou contributeur) ou valideur, et ce rôle décide de
+  ce qu'on peut y faire. Les actions sensibles — valider, clôturer, paramétrer, gérer les comptes —
+  restent gardées en dur, par séparation des tâches.</p>
+  <p>Autrement dit : ouvrir un module à un profil ne donne pas le droit de tout y faire.</p>
+</div>
+
+<h3>Capacités calculées</h3>
+<p>Sur chaque dossier, le serveur calcule vos capacités et les renvoie avec la fiche. L'interface
+s'y conforme, ce qui explique qu'un même écran n'offre pas les mêmes boutons à deux personnes.</p>
+
+<div class="defs">
+  <div><dt>Assigner</dt><dd>Confier le dossier à un gestionnaire.</dd></div>
+  <div><dt>Évaluer</dt><dd>Fixer impact et urgence, donc la priorité et les échéances.</dd></div>
+  <div><dt>Gérer les acteurs</dt><dd>Désigner contributeurs et valideurs.</dd></div>
+  <div><dt>Travailler</dt><dd>Faire avancer l'état, gérer tâches, documents et liens.</dd></div>
+  <div><dt>Décider</dt><dd>Approuver ou rejeter, en tant que valideur désigné.</dd></div>
+  <div><dt>Compléter le dossier</dt><dd>Enrichir sans changer d'état.</dd></div>
+  <div><dt>Annoter</dt><dd>Ajouter une note interne sur un dossier importé.</dd></div>
+</div>
+
+<p>Trois régimes se superposent à ces capacités : le régime <strong>normal</strong>, le régime
+<strong>lecture seule</strong> (modules alimentés par import) et le régime <strong>clos</strong>
+(dossier terminé, plus rien ne bouge).</p>
+
+
+  <h2 id="s-5-3">5.3 &nbsp;Catégories et référentiels</h2>
+<p>Les catégories classent les activités d'un module. Elles servent aux statistiques, aux filtres
+et, souvent, au calcul des engagements. On les ajoute et on les retire librement.</p>
+
+<div class="note">
+  <b>Combien de catégories ?</b>
+  <p>Assez pour distinguer ce qui appelle des traitements différents, pas plus. Une nomenclature à
+  quarante entrées n'est jamais renseignée correctement : au bout de trois mois, tout est classé
+  dans « autres » et les statistiques ne valent rien. Commencez court ; une catégorie s'ajoute en
+  dix secondes le jour où le besoin est démontré.</p>
+</div>
+
+<p>Sont également paramétrables depuis l'administration ou les écrans concernés : les
+<strong>entités</strong>, les <strong>types de projet</strong> et leurs jalons types, les
+<strong>emplacements</strong>, <strong>départements</strong> et <strong>types d'équipement</strong> de
+l'inventaire, et les <strong>demandeurs</strong>.</p>
+
+
+  <h2 id="s-5-4">5.4 &nbsp;Les engagements de service</h2>
+<p>L'onglet dédié présente, pour chaque module concerné, une grille <strong>priorité →
+(prise en charge, résolution)</strong>, exprimée en minutes et éditable.</p>
+
+<table>
+  <thead><tr><th>Module</th><th>Engagements de délai</th><th>Ce qui pilote les rappels</th></tr></thead>
+  <tbody>
+    <tr><td>Incidents, demandes, changements, cybersécurité, gouvernance, audit</td>
+        <td><span class="pastille ok">Oui</span></td><td>Les échéances d'engagement</td></tr>
+    <tr><td>Projets</td><td><span class="pastille neutre">Non</span></td>
+        <td>La date de fin et les jalons</td></tr>
+    <tr><td>Risques</td><td><span class="pastille neutre">Non</span></td>
+        <td>La revue périodique</td></tr>
+  </tbody>
+</table>
+
+<h3>Quand les échéances sont posées</h3>
+<p>À la création du dossier, à la ré-évaluation de l'impact ou de l'urgence, et à l'import. Sans
+priorité ni date de départ, <strong>aucune échéance n'est inventée</strong> : mieux vaut un dossier
+sans engagement qu'un engagement faux.</p>
+
+<h3>Les rappels</h3>
+<p>Un ordonnanceur interne balaie régulièrement les dossiers et déclenche des rappels à
+<strong>trois paliers du délai consommé — 50 %, 80 % et 100 %</strong>.</p>
+
+<div class="note">
+  <b>Pourquoi des paliers proportionnels et non des durées fixes</b>
+  <p>Les engagements vont de quinze minutes à plusieurs jours. Un rappel « deux heures avant
+  l'échéance » arriverait après coup sur un incident critique et beaucoup trop tôt sur une
+  recommandation. Un pourcentage du délai vaut pour les deux.</p>
+</div>
+
+<p>Les échéances de <strong>tâches</strong>, de <strong>jalons</strong>, de <strong>projets</strong>
+et de <strong>revues</strong> ont leurs propres paliers, en jours. Chaque palier n'est notifié
+qu'une fois par destinataire. Un rappel manqué de plus d'une semaine — parce que la plateforme
+était arrêtée — est consommé <strong>sans envoi</strong> : personne n'a besoin de recevoir d'un coup
+les alertes de la semaine passée.</p>
+
+<h3>L'escalade</h3>
+<p>Un dossier de priorité maximale non pris en charge dans les temps déclenche une
+<strong>escalade</strong> : notification et courriel au gestionnaire — ou à un administrateur s'il
+n'y en a pas — et inscription au journal. Une seule fois par dossier : une escalade répétée
+devient un bruit qu'on filtre.</p>
+
+<div class="note attention">
+  <b>Rappels et ordonnanceur</b>
+  <p>Les rappels sont produits par l'application elle-même. Si le service est arrêté, aucun rappel
+  ne part pendant l'arrêt. C'est le prix d'une architecture sans dépendance externe — la
+  contrepartie est qu'il n'y a rien d'autre à exploiter et à superviser.</p>
+</div>
+
+
+  <h2 id="s-5-5">5.5 &nbsp;L'import quotidien</h2>
+<p>Les incidents et les demandes proviennent de l'outil de service desk. Un classeur est déposé
+sur l'écran d'import ; la plateforme le lit, le rapproche de l'existant et met l'état à jour.</p>
+
+<h3>Le fichier attendu</h3>
+<div class="defs">
+  <div><dt>Format</dt><dd>Classeur <code>.xlsx</code>, jusqu'à 20 Mo.</dd></div>
+  <div><dt>En-têtes</dt><dd>La ligne d'en-têtes est <strong>détectée</strong> — un préambule de
+    filtres au-dessus du tableau ne gêne pas. Les colonnes sont reconnues <strong>par leur
+    intitulé</strong>, jamais par leur position : une colonne déplacée ou insérée ne casse rien.</dd></div>
+  <div><dt>Colonnes indispensables</dt><dd>Type d'enregistrement, statut, numéro, titre, priorité et
+    date de la demande. À défaut, l'import est refusé et <strong>énumère ce qui manque</strong>.</dd></div>
+  <div><dt>Colonnes exploitées en plus</dt><dd>Catégorie, sous-catégorie, demandeur, gestionnaire,
+    date de fermeture, délais de prise en charge et de réparation.</dd></div>
+</div>
+
+<h3>Les règles</h3>
+<ul>
+  <li><strong>Idempotent</strong> : déposer deux fois le même fichier ne crée pas de doublon. Le
+      rapprochement se fait sur le numéro d'origine ; une ligne inchangée est comptée comme telle.</li>
+  <li><strong>Le fichier fait autorité</strong> sur le titre, la catégorie, le demandeur, le
+      gestionnaire, la priorité, le statut et les dates.</li>
+  <li><strong>Le fichier ne touche jamais</strong> la discussion interne, les contributeurs, les
+      documents ni l'annotation de l'équipe. Ce que vous produisez vous appartient.</li>
+  <li><strong>Aucun compte n'est créé.</strong> Le gestionnaire est rapproché d'un compte existant
+      par son nom. Sans correspondance, le dossier n'a pas de responsable interne.</li>
+  <li>Les <strong>demandeurs</strong> et les <strong>catégories</strong> inconnus sont créés à la
+      volée, sans doublon d'orthographe.</li>
+  <li>Un <strong>statut non reconnu</strong> n'interrompt pas l'import : le dossier est rangé en
+      « ouvert » et le libellé est <strong>remonté dans le compte rendu</strong>, pour que vous
+      complétiez la table de correspondance.</li>
+</ul>
+
+<div class="note ok">
+  <b>Après chaque dépôt, lisez le compte rendu</b>
+  <p>Il indique le nombre de dossiers créés, mis à jour et inchangés, ainsi que les anomalies :
+  statuts inconnus, gestionnaires sans compte, lignes ignorées. C'est le meilleur indicateur de
+  santé de la chaîne — un import qui « passe » en signalant trente gestionnaires inconnus ne
+  produit pas des statistiques exploitables.</p>
+</div>
+
+<p>L'écran conserve la trace du <strong>dernier dépôt de chaque nature</strong>. Un dépôt unique
+accepte indifféremment un classeur de tickets ou d'équipements : la nature est reconnue à ses
+en-têtes, et en cas d'échec la plateforme affiche les intitulés qu'elle a lus — de quoi corriger
+le fichier sans deviner.</p>
+
+
+  <h2 id="s-5-6">5.6 &nbsp;Notifications</h2>
+<p>Deux canaux fonctionnent : <strong>dans la plateforme</strong> et <strong>par courriel</strong>.
+Chaque agent règle ses préférences depuis son compte ; le réglage le suit d'un poste à l'autre.</p>
+
+<table>
+  <thead><tr><th>Occasion</th><th>Destinataires</th></tr></thead>
+  <tbody>
+    <tr><td>Dossier assigné</td><td>Le nouveau responsable</td></tr>
+    <tr><td>Désignation comme contributeur ou valideur</td><td>La personne désignée</td></tr>
+    <tr><td>Décision attendue</td><td>Les valideurs</td></tr>
+    <tr><td>Échéance approchée, puis dépassée</td><td>Responsable et contributeurs</td></tr>
+    <tr><td>Escalade</td><td>Gestionnaire, ou administrateur à défaut</td></tr>
+    <tr><td>Activité sur un dossier</td><td>Les acteurs, sauf l'auteur de l'action</td></tr>
+  </tbody>
+</table>
+
+<p>Les courriels portent l'identité de la plateforme et un <strong>lien direct vers le dossier</strong>
+concerné. L'envoi est asynchrone, réessayé, et protégé par un <strong>disjoncteur</strong> : une
+panne du serveur de messagerie n'interrompt jamais une action ni ne ralentit l'application.</p>
+
+<div class="note attention">
+  <b>Deux interrupteurs avant que les courriels partent</b>
+  <p>Hors production, <strong>rien n'est envoyé</strong> : les courriels sont seulement journalisés,
+  pour éviter d'inonder de vraies boîtes depuis un environnement de test. Et même en production,
+  les notifications métier sont <strong>désactivées par défaut</strong> : il faut les activer
+  explicitement une fois le serveur de messagerie configuré. C'est délibéré — une plateforme qui
+  se met à écrire à toute l'organisation le jour de sa mise en service laisse un mauvais
+  souvenir.</p>
+</div>
+
+<div class="note">
+  <b>Messagerie d'équipe et messagerie instantanée</b>
+  <p>Les préférences prévoient ces canaux, mais <strong>aucun envoi n'est implémenté</strong> à ce
+  jour. Ne les annoncez pas comme disponibles.</p>
+</div>
+
+
+  <h2 id="s-5-7">5.7 &nbsp;Le journal</h2>
+<p>L'onglet Journal donne accès à la totalité des écritures : auteur, horodatage, module, action,
+cible, ancienne et nouvelle valeur, adresse réseau. Il se filtre et s'exporte.</p>
+
+<div class="note ok">
+  <b>Un journal qu'on ne peut pas réécrire</b>
+  <p>La base elle-même refuse toute modification et toute suppression d'une écriture — ce n'est pas
+  une règle applicative que l'on pourrait contourner. Chaque entrée porte de plus l'empreinte de la
+  précédente : la moindre altération rompt la chaîne et devient détectable, y compris par quelqu'un
+  qui aurait un accès direct à la base.</p>
+</div>
+
+<p>À quoi cela sert, concrètement :</p>
+<ul>
+  <li>répondre à une demande de preuve sans rien reconstituer ;</li>
+  <li>retrouver qui a modifié une échéance, quand, et depuis quelle valeur ;</li>
+  <li>vérifier qu'un import s'est déroulé et ce qu'il a produit ;</li>
+  <li>distinguer une erreur de saisie d'un contournement volontaire.</li>
+</ul>
+
+<div class="note attention">
+  <b>Rétention</b>
+  <p>Le journal ne s'élague pas tout seul. Décidez d'une durée de conservation et d'une politique
+  d'archivage avec votre responsable de la sécurité, et adossez-la aux sauvegardes de la base
+  (cf. chapitre Exploitation).</p>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 6</div>
+  <h1 id="s-6">Restituer et exporter</h1>
+  <p class="chapitre-intro">Une plateforme de pilotage ne vaut que par ce qu'elle permet de dire. Ce chapitre recense ce qui se mesure, ce qui s'exporte, et surtout comment lire ces chiffres sans se tromper — car un indicateur mal compris coûte plus cher que pas d'indicateur du tout.</p>
+
+  <h2 id="s-6-1">6.1 &nbsp;Ce que la plateforme mesure</h2>
+<p>Tous les indicateurs se calculent en direct à partir des activités : il n'y a pas de saisie
+d'indicateur, donc pas d'écart entre le terrain et le rapport.</p>
+
+<table>
+  <thead><tr><th>Famille</th><th>Indicateurs</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Volumes</strong></td><td>Activités ouvertes, par module, par état, par catégorie,
+      par entité, par responsable. Créations et clôtures sur la période.</td></tr>
+    <tr><td><strong>Délais</strong></td><td>Respect des engagements — global, par module, par priorité.
+      Répartition des dossiers à l'heure, en approche, dépassés. Distribution des délais réels.
+      Délai de prise en charge par priorité.</td></tr>
+    <tr><td><strong>Flux</strong></td><td>Tendance sur la période, temps passé dans chaque état,
+      vieillissement du stock, taux de réouverture.</td></tr>
+    <tr><td><strong>Charge</strong></td><td>Volume et délais par gestionnaire, avec une fiche
+      individuelle. Répartition entre les niveaux de support.</td></tr>
+    <tr><td><strong>Concentration</strong></td><td>Les catégories qui produisent le plus de volume.</td></tr>
+    <tr><td><strong>Risques</strong></td><td>Matrice probabilité × impact, telle qu'on la présente en
+      comité.</td></tr>
+    <tr><td><strong>Patrimoine</strong></td><td>Composition du parc, état constaté, valeur nette après
+      amortissement.</td></tr>
+    <tr><td><strong>Comparaison</strong></td><td>Matrice mensuelle, pour comparer des périodes plutôt
+      que des instants.</td></tr>
+  </tbody>
+</table>
+
+
+  <h2 id="s-6-2">6.2 &nbsp;Les formats d'export</h2>
+<table>
+  <thead><tr><th>Format</th><th>Produit par</th><th>Disponible sur</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tableur</strong> (classeur)</td><td>Le serveur</td>
+        <td>Listes d'activités de chaque module, inventaire, journal, discussion d'un dossier.
+        En-têtes mis en forme, largeurs de colonnes ajustées.</td></tr>
+    <tr><td><strong>CSV</strong></td><td>Le serveur</td>
+        <td>Mêmes périmètres. Séparateur point-virgule et marque d'encodage, pour s'ouvrir
+        correctement dans un tableur sans manipulation.</td></tr>
+    <tr><td><strong>PDF</strong></td><td>Le navigateur</td>
+        <td>Tableau de bord et espace personnel : la page telle qu'elle est affichée, avec
+        l'identité de la plateforme et un pied de page.</td></tr>
+    <tr><td><strong>Image</strong></td><td>Le navigateur</td>
+        <td>Un visuel isolé — une carte d'indicateur, un graphique — à coller dans un support.</td></tr>
+  </tbody>
+</table>
+
+<div class="note attention">
+  <b>Le PDF vient du navigateur, pas du serveur</b>
+  <p>Il reproduit ce qui est affiché : il dépend donc de la page ouverte et de la période
+  sélectionnée. Deux conséquences pratiques — il n'existe pas d'export PDF pour les listes
+  d'activités (utilisez le tableur), et un PDF ne peut pas être produit par une tâche
+  planifiée.</p>
+</div>
+
+<div class="note danger">
+  <b>Un export est une extraction de données</b>
+  <p>Un classeur exporté sort du périmètre de la plateforme : il perd le cloisonnement, la
+  traçabilité et le contrôle d'accès. Traitez-le comme un document sensible, et rappelez-le aux
+  utilisateurs qui exportent — c'est par là que fuient la plupart des données, jamais par
+  l'application.</p>
+</div>
+
+
+  <h2 id="s-6-3">6.3 &nbsp;Lire les indicateurs sans se tromper</h2>
+<p>Quelques pièges qui reviennent systématiquement, et la lecture correcte.</p>
+
+<div class="defs">
+  <div><dt>La moyenne cache l'essentiel</dt>
+       <dd>Un délai moyen de résolution acceptable peut recouvrir une majorité de dossiers traités
+       en une heure et une minorité qui traîne des semaines. Lisez la <strong>distribution</strong>
+       et le <strong>vieillissement</strong>, pas la moyenne.</dd></div>
+  <div><dt>Un bon taux de respect peut venir d'un mauvais paramétrage</dt>
+       <dd>Des engagements trop larges produisent un taux flatteur. Croisez-le toujours avec les
+       délais réels : si tout est « à l'heure » et que les demandeurs se plaignent, ce sont les
+       cibles qu'il faut revoir, pas les équipes.</dd></div>
+  <div><dt>Le volume par gestionnaire n'est pas une évaluation</dt>
+       <dd>Il dépend de la nature des dossiers, de leur difficulté et de leur affectation. Utilisé
+       comme mesure de performance individuelle, il produit exactement ce qu'on mesure : des
+       dossiers découpés pour faire du nombre.</dd></div>
+  <div><dt>Le taux de réouverture est le meilleur indicateur de qualité</dt>
+       <dd>Il est difficile à truquer et dit ce qu'aucun délai ne dit : le problème avait-il
+       vraiment été réglé ? Une baisse des délais accompagnée d'une hausse des réouvertures est
+       une dégradation, pas un progrès.</dd></div>
+  <div><dt>Les dossiers sans responsable faussent tout</dt>
+       <dd>Ils n'apparaissent dans aucune charge individuelle et pèsent pourtant sur les délais
+       globaux. Surveillez leur nombre en priorité — souvent, il vient d'un import dont les
+       gestionnaires n'ont pas de compte.</dd></div>
+</div>
+
+<div class="note ok">
+  <b>Trois chiffres suffisent à une revue mensuelle</b>
+  <ul>
+    <li>Le <strong>stock</strong> : combien de dossiers ouverts, et depuis quand pour les plus vieux.</li>
+    <li>Le <strong>respect des engagements</strong>, avec le nombre de dépassements — pas seulement
+        le pourcentage.</li>
+    <li>La <strong>concentration</strong> : les trois catégories qui font le plus de volume.</li>
+  </ul>
+  <p>Le reste sert à comprendre <em>pourquoi</em>, une fois qu'on sait <em>quoi</em> regarder.</p>
+</div>
+
+
+  <h2 id="s-6-4">6.4 &nbsp;Préparer une revue de direction</h2>
+<ol class="etapes">
+  <li><b>Fixer la période</b>
+      Le mois écoulé, comparé au précédent. Une période trop courte fait du bruit, une période trop
+      longue masque les inflexions.</li>
+  <li><b>Partir du tableau de bord</b>
+      Il donne l'état du moment et les signaux. Exportez-le en PDF : c'est le support lui-même.</li>
+  <li><b>Aller chercher les causes dans les analyses</b>
+      Vieillissement, concentration par catégorie, durées par état. Une variation sans explication
+      ne se présente pas.</li>
+  <li><b>Extraire les cas à décision</b>
+      Dépassements, dossiers sans responsable, recommandations en retard, risques critiques. Une
+      liste courte, exportée en tableur, chacun avec un nom.</li>
+  <li><b>Transformer les décisions en activités</b>
+      Une décision de comité qui ne devient pas une activité avec un responsable et une échéance ne
+      sera pas exécutée. C'est l'objet du module de gouvernance.</li>
+</ol>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 7</div>
+  <h1 id="s-7">Sécurité</h1>
+  <p class="chapitre-intro">Ce que la plateforme protège, comment, et ce qu'elle ne protège pas. Chaque mécanisme est décrit avec sa raison d'être : une mesure de sécurité qu'on ne comprend pas finit toujours par être désactivée « le temps d'un test ».</p>
+
+  <h2 id="s-7-1">7.1 &nbsp;Authentification</h2>
+<p>La plateforme gère ses propres identifiants. L'annuaire de l'organisation n'est pas la source
+d'identité : c'est une décision assumée, pas un manque.</p>
+
+<div class="defs">
+  <div><dt>Mot de passe</dt><dd>Défini par l'agent lui-même via un lien d'activation à usage
+    unique. Stocké sous forme d'empreinte <strong>argon2</strong> — irréversible. Aucun
+    administrateur ne peut le lire, et il n'est jamais transmis par un tiers.</dd></div>
+  <div><dt>Session</dt><dd>Jeton d'accès de courte durée, renouvelé automatiquement. Se déconnecter
+    revient à oublier les jetons côté poste.</dd></div>
+  <div><dt>Révocation immédiate</dt><dd>L'état actif et la date d'expiration du compte sont
+    vérifiés <strong>à chaque requête</strong> : un jeton encore valide ne survit pas au blocage du
+    compte.</dd></div>
+  <div><dt>Anti-énumération</dt><dd>« Mot de passe oublié » répond la même chose que le compte
+    existe ou non, et une adresse inconnue n'écrit rien en base.</dd></div>
+  <div><dt>Frein anti-force brute</dt><dd>Après plusieurs échecs, verrou temporaire. Le verrou prime
+    sur le mot de passe, y compris s'il est correct — sinon la différence de réponse trahirait la
+    réussite.</dd></div>
+</div>
+
+<div class="note attention">
+  <b>Limites assumées, à connaître avant de vous engager</b>
+  <ul>
+    <li><strong>Pas de second facteur</strong> aujourd'hui. C'est le principal écart ; il est
+        identifié et le renforcement prévu vise en priorité les comptes d'administration, qui
+        créent les comptes et lisent le journal.</li>
+    <li><strong>Pas de révocation centralisée</strong> au départ d'un collaborateur : c'est un mot
+        de passe de plus, hors du référentiel de l'organisation. Le blocage et l'expiration de
+        compte sont les leviers, et ils sont <em>manuels</em>. Inscrivez-les à votre procédure de
+        sortie.</li>
+  </ul>
+</div>
+
+
+  <h2 id="s-7-2">7.2 &nbsp;Autorisation</h2>
+<p>Trois barrières indépendantes, toutes vérifiées <strong>côté serveur</strong>.</p>
+
+<ol class="etapes">
+  <li><b>L'accès au module</b>
+      Matrice profil × module, paramétrable. Sans accès, l'appel est refusé — que l'écran ait ou
+      non affiché quelque chose.</li>
+  <li><b>Le rôle sur le dossier</b>
+      Administrateur du module, acteur ou valideur. Non paramétrable : c'est ce qui garantit la
+      séparation entre organiser et exécuter.</li>
+  <li><b>Le périmètre</b>
+      Un profil non transverse ne voit que son entité. Un dossier hors périmètre répond
+      <strong>« introuvable »</strong>, jamais « interdit ».</li>
+</ol>
+
+<div class="note">
+  <b>Pourquoi « introuvable » plutôt qu'« interdit »</b>
+  <p>Répondre « accès refusé » confirmerait l'existence du dossier — donc son numéro, donc son
+  ordre de grandeur, donc le volume traité par une autre entité. Une réponse « introuvable » ne
+  révèle rien.</p>
+</div>
+
+<h3>Règles complémentaires</h3>
+<ul>
+  <li>On ne désigne qu'un compte <strong>actif</strong> dont le profil a accès au module — impossible
+      de confier un dossier à quelqu'un qui ne pourra pas l'ouvrir.</li>
+  <li>La liste des valideurs se <strong>fige à la première décision</strong>.</li>
+  <li>L'assigné d'une tâche n'en modifie que le <strong>statut</strong>, pas l'intitulé ni
+      l'échéance.</li>
+  <li>Un dossier <strong>clos</strong> n'accepte plus d'écriture.</li>
+</ul>
+
+
+  <h2 id="s-7-3">7.3 &nbsp;Le journal inviolable</h2>
+<p>Le journal est protégé à deux niveaux, dont l'un échappe à l'application elle-même.</p>
+
+<table>
+  <thead><tr><th>Protection</th><th>Effet</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Ajout seul, imposé par la base</strong></td>
+        <td>La base refuse toute modification et toute suppression d'écriture. Ce n'est pas une
+        règle applicative : même un accès direct à la base ne permet pas de réécrire une ligne par
+        les voies normales.</td></tr>
+    <tr><td><strong>Chaînage par empreinte</strong></td>
+        <td>Chaque écriture porte l'empreinte de la précédente. Supprimer ou altérer une entrée
+        rompt la chaîne, et la rupture se voit.</td></tr>
+    <tr><td><strong>Auteur figé</strong></td>
+        <td>L'adresse de l'auteur est écrite dans l'entrée, et non référencée. L'histoire reste
+        lisible après la suppression du compte.</td></tr>
+    <tr><td><strong>Adresse réseau captée automatiquement</strong></td>
+        <td>Aucun appel n'a à la fournir — donc aucun ne peut la falsifier.</td></tr>
+  </tbody>
+</table>
+
+
+  <h2 id="s-7-4">7.4 &nbsp;Durcissement</h2>
+<ul>
+  <li><strong>En-têtes de sécurité</strong> posés sur chaque réponse, et politique stricte sur les
+      ressources que la page a le droit de charger.</li>
+  <li><strong>Validation stricte des entrées</strong> : tout ce qui arrive est décrit par un schéma
+      et refusé s'il n'y correspond pas.</li>
+  <li><strong>Requêtes paramétrées</strong> : aucune donnée d'utilisateur n'est concaténée dans une
+      requête.</li>
+  <li><strong>Pièces jointes bornées</strong> en taille et contrôlées en type.</li>
+  <li><strong>Secrets hors du dépôt</strong>, dans un fichier de configuration non versionné.
+      <strong>L'application refuse de démarrer hors développement avec un secret d'usine</strong> —
+      la négligence la plus courante est ainsi rendue impossible plutôt que déconseillée.</li>
+  <li><strong>Chiffrement du transport</strong> assuré par le serveur frontal (cf. Exploitation).</li>
+</ul>
+
+
+  <h2 id="s-7-5">7.5 &nbsp;Résilience</h2>
+<p>Une plateforme de pilotage doit rester consultable quand l'infrastructure vacille — c'est
+souvent à ce moment qu'on en a besoin.</p>
+
+<div class="defs">
+  <div><dt>Base redémarrée</dt><dd>Les connexions mortes sont détectées et renouvelées ; l'application
+    se rétablit seule dès que la base revient.</dd></div>
+  <div><dt>Requête qui pend</dt><dd>Des délais bornent la connexion et l'exécution. Sans eux, les
+    connexions s'accumulent jusqu'à faire tomber l'application <em>avec</em> la base.</dd></div>
+  <div><dt>Base injoignable</dt><dd>Réponse propre « service indisponible », jamais une erreur
+    interne qui divulgue des détails techniques.</dd></div>
+  <div><dt>Migration en échec</dt><dd>Journalisée, elle ne bloque pas le démarrage.</dd></div>
+  <div><dt>Balayage d'échéances en échec</dt><dd>Isolé : un incident ne tue jamais la boucle.</dd></div>
+  <div><dt>Messagerie en panne</dt><dd>Disjoncteur : les envois cessent le temps de la panne, sans
+    jamais interrompre l'action de l'utilisateur.</dd></div>
+  <div><dt>Serveur injoignable</dt><dd>Le poste client affiche un message compréhensible, pas une
+    erreur technique brute.</dd></div>
+</div>
+
+
+  <h2 id="s-7-6">7.6 &nbsp;Vérification continue</h2>
+<p>La sécurité se vérifie, elle ne se déclare pas.</p>
+
+<div class="cartes">
+  <div class="carte"><b>Tests automatisés</b><span>Plusieurs centaines de tests couvrent
+    l'authentification, le frein anti-force brute, les droits, le cloisonnement, la lecture seule
+    des modules importés, les gardes d'action et le caractère inviolable du journal.</span></div>
+  <div class="carte"><b>Test d'intrusion rejouable</b><span>Un scénario automatisé où un compte à
+    faible privilège tente de franchir une vingtaine de gardes : élévation de privilège,
+    usurpation d'identité, écriture sur un dossier en lecture seule, auto-désignation, injection,
+    fuite d'information. Chaque tentative doit échouer ; le script s'arrête à la première
+    faille.</span></div>
+</div>
+
+<div class="note ok">
+  <b>À dérouler avant chaque mise en production</b>
+  <p>Le test d'intrusion se lance contre un environnement de recette, en une commande. C'est le
+  moyen le plus économique de vérifier qu'une évolution n'a pas ouvert une porte — et la preuve la
+  plus convaincante à présenter à un responsable de la sécurité.</p>
+</div>
+
+<div class="note attention">
+  <b>Ce qui n'est pas couvert</b>
+  <p>Les tests automatisés portent sur le serveur. <strong>Il n'y a pas de tests automatisés de
+  l'interface</strong> à ce jour : les parcours d'écran se vérifient à la main. Tenez-en compte dans
+  votre plan de recette.</p>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 8</div>
+  <h1 id="s-8">Exploitation</h1>
+  <p class="chapitre-intro">Installer, configurer, sauvegarder, superviser, mettre à jour. Ce chapitre s'adresse à l'équipe technique. Il décrit une exécution native — aucune couche de virtualisation, aucun intergiciel de file d'attente : ce qui tourne se compte sur les doigts d'une main.</p>
+
+  <h2 id="s-8-1">8.1 &nbsp;Architecture de déploiement</h2>
+<pre><code>Navigateur
+    │  HTTPS
+Serveur frontal (chiffrement du transport)
+    │
+Service applicatif  ─────►  Base de données
+    │  ordonnanceur interne
+    ├──►  échéances, rappels, escalades
+    └──►  serveur de messagerie (courriels)</code></pre>
+
+<div class="defs">
+  <div><dt>Base de données</dt><dd>Un serveur relationnel, installé nativement. Deux schémas : le
+    métier et le journal.</dd></div>
+  <div><dt>Service applicatif</dt><dd>Un processus serveur qui expose l'interface de programmation
+    et, en production, sert directement l'application web. Il embarque l'ordonnanceur des
+    échéances.</dd></div>
+  <div><dt>Serveur frontal</dt><dd>Assure le chiffrement du transport et publie le service. C'est le
+    seul composant exposé au réseau de l'organisation.</dd></div>
+  <div><dt>Messagerie</dt><dd>Un serveur d'envoi, pour les liens d'activation et les
+    notifications.</dd></div>
+</div>
+
+<div class="note">
+  <b>Pas de file de tâches distribuée</b>
+  <p>Les traitements différés — rappels, escalades — tournent dans le processus applicatif. Un
+  composant de moins à installer, sécuriser et superviser. La contrepartie est nette : si le
+  service est arrêté, aucun rappel ne part pendant l'arrêt.</p>
+</div>
+
+
+  <h2 id="s-8-2">8.2 &nbsp;Installation</h2>
+<p>Trois prérequis sur la machine : le serveur de base de données, l'environnement d'exécution du
+serveur applicatif, et celui nécessaire à la construction de l'interface web.</p>
+
+<ol class="etapes">
+  <li><b>Provisionner la base</b>
+      Un script crée le rôle applicatif — <strong>aux privilèges limités</strong>, jamais le
+      superutilisateur — et la base.</li>
+  <li><b>Configurer</b>
+      Copier le modèle de configuration et renseigner les valeurs propres au site : accès à la
+      base, secret de signature des jetons, paramètres de messagerie, adresse publique.</li>
+  <li><b>Installer les dépendances applicatives</b>
+      Dans un environnement isolé, pour ne pas dépendre de ce qui est installé par ailleurs sur la
+      machine.</li>
+  <li><b>Appliquer les migrations</b>
+      Elles créent le schéma et amorcent les référentiels : profils par défaut, engagements de
+      service par défaut, premier compte d'administration.</li>
+  <li><b>Construire l'interface et démarrer</b>
+      En production, le service applicatif sert lui-même l'interface : un seul processus à
+      surveiller.</li>
+</ol>
+
+<div class="note danger">
+  <b>Le premier compte d'administration</b>
+  <p>Son mot de passe initial vient de la configuration. <strong>Changez-le à la première
+  connexion</strong> et retirez la valeur du fichier de configuration. Un secret d'usine laissé en
+  place est la faille la plus banale — et la plus reprochée en audit.</p>
+</div>
+
+
+  <h2 id="s-8-3">8.3 &nbsp;Configuration</h2>
+<p>Tous les réglages passent par des variables d'environnement, lues au démarrage. Les principales,
+regroupées par intention :</p>
+
+<table>
+  <thead><tr><th>Intention</th><th>Réglages</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Environnement</strong></td>
+        <td>Développement, recette ou production. Ce réglage commande plusieurs comportements —
+        notamment l'envoi réel des courriels et le refus de démarrer avec un secret d'usine.</td></tr>
+    <tr><td><strong>Base de données</strong></td><td>Adresse de connexion complète.</td></tr>
+    <tr><td><strong>Sessions</strong></td><td>Secret de signature, durée du jeton d'accès.</td></tr>
+    <tr><td><strong>Connexion</strong></td><td>Nombre d'échecs tolérés, durée du verrou temporaire.</td></tr>
+    <tr><td><strong>Comptes</strong></td><td>Domaines d'adresses autorisés, durée de validité des liens
+        d'activation et de réinitialisation.</td></tr>
+    <tr><td><strong>Messagerie</strong></td><td>Serveur d'envoi, activation des notifications,
+        autorisation d'envoi réel hors production.</td></tr>
+    <tr><td><strong>Ordonnanceur</strong></td><td>Intervalle entre deux balayages d'échéances.</td></tr>
+    <tr><td><strong>Fichiers</strong></td><td>Taille maximale des pièces jointes et des imports.</td></tr>
+    <tr><td><strong>Démarrage</strong></td><td>Application automatique des migrations, service de
+        l'interface web par le serveur applicatif.</td></tr>
+    <tr><td><strong>Adresse publique</strong></td><td>Utilisée pour construire les liens contenus dans
+        les courriels. <strong>Une valeur erronée rend les liens d'activation inutilisables.</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="note attention">
+  <b>Le fichier de configuration n'est pas versionné</b>
+  <p>Il contient des secrets. Un modèle sans valeurs sensibles est fourni ; le fichier réel reste
+  sur le serveur, avec des droits de lecture restreints. Prévoyez sa sauvegarde <em>séparément</em>
+  de celle du dépôt de code.</p>
+</div>
+
+
+  <h2 id="s-8-4">8.4 &nbsp;Sauvegarde et restauration</h2>
+<p>La sauvegarde de la base est le <strong>seul filet</strong> : elle contient les activités, les
+pièces jointes, les discussions et le journal.</p>
+
+<ol class="etapes">
+  <li><b>Sauvegarder</b>
+      Un script produit une archive compressée et restaurable, horodatée, avec purge automatique
+      au-delà d'une rétention paramétrable.</li>
+  <li><b>Planifier</b>
+      Une tâche planifiée s'installe en une commande. Une sauvegarde qu'il faut penser à lancer
+      n'existe pas.</li>
+  <li><b>Externaliser</b>
+      La destination doit être <strong>hors du dépôt de code</strong> et, idéalement, sur un volume
+      lui-même sauvegardé et chiffré. Une sauvegarde sur le disque du serveur ne protège pas de la
+      perte du serveur.</li>
+  <li><b>Restaurer</b>
+      Un script symétrique remonte une archive.</li>
+</ol>
+
+<div class="note danger">
+  <b>Une sauvegarde jamais restaurée n'est pas une sauvegarde</b>
+  <p>Programmez une restauration d'essai sur un environnement de recette, au moins deux fois par
+  an, et notez le temps que cela prend. C'est ce temps — pas la fréquence des sauvegardes — que
+  vous devrez annoncer le jour d'un incident.</p>
+</div>
+
+
+  <h2 id="s-8-5">8.5 &nbsp;Supervision</h2>
+<p>Deux points de contrôle sont exposés sans authentification, pour être interrogés par un
+superviseur :</p>
+
+<div class="defs">
+  <div><dt>Vivacité</dt><dd>Le processus répond-il ? À brancher sur la surveillance du service.</dd></div>
+  <div><dt>Disponibilité</dt><dd>Le service est-il en état de rendre le service, base comprise ?
+    C'est le point à surveiller réellement — un processus vivant devant une base absente n'est
+    d'aucune utilité.</dd></div>
+</div>
+
+<p>À surveiller également : l'espace disque du serveur de base de données (les pièces jointes et le
+journal ne cessent de croître), la réussite de la sauvegarde planifiée, et l'aboutissement de
+l'import quotidien.</p>
+
+<div class="note">
+  <b>Trois questions à se poser chaque matin</b>
+  <ul>
+    <li>La sauvegarde de cette nuit s'est-elle terminée ?</li>
+    <li>L'import du jour est-il passé, et que dit son compte rendu ?</li>
+    <li>Le point de disponibilité répond-il ?</li>
+  </ul>
+  <p>Ces trois réponses couvrent la quasi-totalité des incidents d'exploitation observés sur ce
+  type de plateforme.</p>
+</div>
+
+
+  <h2 id="s-8-6">8.6 &nbsp;Mise à jour</h2>
+<ol class="etapes">
+  <li><b>Sauvegarder d'abord</b>
+      Toujours, y compris pour une correction mineure.</li>
+  <li><b>Récupérer la nouvelle version</b>
+      Puis reconstruire l'interface web.</li>
+  <li><b>Appliquer les migrations</b>
+      Elles sont versionnées et <strong>ne sont jamais modifiées rétroactivement</strong> : une
+      migration déjà appliquée le reste, une nouvelle s'ajoute. Le suivi est tenu par la base
+      elle-même.</li>
+  <li><b>Redémarrer et vérifier</b>
+      Point de disponibilité, connexion, un écran de chaque module.</li>
+</ol>
+
+<p>Un script d'exploitation enchaîne ces étapes.</p>
+
+<div class="note ok">
+  <b>Ce que garantit ce mode de mise à jour</b>
+  <p>Les données en cours ne sont jamais reprises ni réinitialisées. Un dossier ouvert avant la
+  mise à jour se retrouve intact après, dans le même état, avec son historique complet. Une mise à
+  jour ne doit jamais coûter du travail à ceux qui l'utilisent.</p>
+</div>
+
+
+  <h2 id="s-8-7">8.7 &nbsp;Incidents courants</h2>
+<table>
+  <thead><tr><th>Symptôme</th><th>Cause la plus fréquente</th><th>Vérification</th></tr></thead>
+  <tbody>
+    <tr><td>Le service ne démarre pas</td><td>Secret d'usine encore en place hors développement</td>
+        <td>Le refus est délibéré et le journal de démarrage l'indique explicitement.</td></tr>
+    <tr><td>« Service indisponible » sur tous les écrans</td><td>Base injoignable</td>
+        <td>État du service de base de données ; l'application repart seule au retour.</td></tr>
+    <tr><td>Aucun courriel ne part</td><td>Notifications désactivées, ou environnement hors production</td>
+        <td>Les deux interrupteurs décrits au chapitre Administration.</td></tr>
+    <tr><td>Les liens d'activation ne fonctionnent pas</td><td>Adresse publique mal renseignée</td>
+        <td>Le lien pointe vers une adresse inaccessible depuis le poste du destinataire.</td></tr>
+    <tr><td>L'import refuse le fichier</td><td>Colonne obligatoire absente ou renommée</td>
+        <td>Le message énumère ce qui manque et les intitulés lus.</td></tr>
+    <tr><td>Des dossiers sans responsable après import</td><td>Gestionnaire sans compte correspondant</td>
+        <td>Le compte rendu d'import les liste. Créer les comptes manquants.</td></tr>
+    <tr><td>Aucun rappel d'échéance</td><td>Service arrêté pendant la fenêtre</td>
+        <td>Les rappels naissent dans le processus applicatif ; un arrêt les suspend.</td></tr>
+  </tbody>
+</table>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Chapitre 9</div>
+  <h1 id="s-9">Adapter la plateforme</h1>
+  <p class="chapitre-intro">La plateforme n'a pas été conçue pour un métier : elle a été conçue pour un mode de travail — des choses à faire, des responsables, des délais, des validations, des preuves. Ce chapitre montre jusqu'où elle se règle sans développement, où passe la limite, et comment mener un paramétrage qui tienne.</p>
+
+  <h2 id="s-9-1">9.1 &nbsp;Ce qui se règle sans développement</h2>
+<p>Le principe de conception le plus structurant est aussi le plus utile en déploiement :
+<strong>ce qui varie d'une organisation à l'autre n'est pas dans le code</strong>.</p>
+
+<table>
+  <thead><tr><th>Élément</th><th>Se règle</th><th>Effet</th></tr></thead>
+  <tbody>
+    <tr><td>Modules ouverts</td><td>Matrice des accès</td><td>Ce que chaque métier voit dans le rail</td></tr>
+    <tr><td>Profils métier</td><td>Administration</td><td>Créer, renommer, supprimer — sans liste figée</td></tr>
+    <tr><td>Entités</td><td>Administration</td><td>Le découpage qui porte le cloisonnement</td></tr>
+    <tr><td>Catégories</td><td>Par module</td><td>Le vocabulaire de classement de votre organisation</td></tr>
+    <tr><td>Matrice de priorité</td><td>Paramétrage</td><td>Ce que « critique » veut dire chez vous</td></tr>
+    <tr><td>Engagements de délai</td><td>Par module et priorité</td><td>Les promesses que vous pouvez tenir</td></tr>
+    <tr><td>États et transitions</td><td>Cycles de vie</td><td>Votre processus, pas celui d'un éditeur</td></tr>
+    <tr><td>Types de projet et jalons types</td><td>Module projets</td><td>Un squelette par nature d'affaire</td></tr>
+    <tr><td>Référentiels d'inventaire</td><td>Module inventaire</td><td>Emplacements, types, départements</td></tr>
+    <tr><td>Canaux de notification</td><td>Par agent</td><td>Ce que chacun reçoit, et comment</td></tr>
+  </tbody>
+</table>
+
+<p>Le test est simple : <strong>si vous vous surprenez à demander une évolution logicielle pour
+ajouter une catégorie, une entité, un profil ou un délai, c'est un paramétrage qui a été manqué.</strong></p>
+
+
+  <h2 id="s-9-2">9.2 &nbsp;Une méthode de paramétrage</h2>
+<p>Un paramétrage réussi ne se décide pas en réunion : il se dérive de ce qui se fait déjà.</p>
+
+<ol class="etapes">
+  <li><b>Inventorier ce que vous suivez réellement</b>
+      Listez les objets que votre équipe suit de bout en bout. Chacun devient un <em>type
+      d'activité</em>. Résistez à la tentation d'en créer un par nuance : deux objets qui suivent le
+      même chemin et se mesurent pareil n'en font qu'un.</li>
+  <li><b>Écrire le chemin de chacun</b>
+      Les états par lesquels il passe, dans l'ordre, et ceux d'où l'on ne revient pas. Là où
+      quelqu'un doit donner son accord, vous avez une <em>porte de validation</em>.</li>
+  <li><b>Nommer les catégories</b>
+      Reprenez le vocabulaire réellement employé. Une catégorie que personne n'emploie à l'oral ne
+      sera pas renseignée à l'écran. Commencez court.</li>
+  <li><b>Mesurer avant de promettre</b>
+      Faites tourner quelques semaines <strong>sans engagement de délai</strong>, puis regardez vos
+      délais réels. Les cibles se fixent à partir de là — légèrement exigeantes, jamais
+      fantaisistes.</li>
+  <li><b>Ouvrir les droits au plus juste</b>
+      Un profil par métier, pas par personne. On ouvre ce dont le métier a besoin ; on n'ouvre pas
+      « pour voir ».</li>
+  <li><b>Faire une revue à trois mois</b>
+      Les catégories inutilisées se suppriment, les délais jamais tenus se rediscutent, les
+      profils qui se ressemblent se fusionnent. Un paramétrage qu'on ne revoit jamais devient
+      faux.</li>
+</ol>
+
+
+  <h2 id="s-9-3">9.3 &nbsp;Décliner à d'autres métiers</h2>
+<p>Le socle — une chose à faire, un responsable, un délai, une validation, une preuve — ne
+appartient à aucun métier. Voici comment il se lit ailleurs.</p>
+
+<div class="cartes">
+  <div class="carte"><b>Qualité et conformité</b><span>Non-conformités, actions correctives et
+    préventives, audits internes, revues de direction. Les recommandations et leur validation de
+    clôture s'y transposent mot pour mot.</span></div>
+  <div class="carte"><b>Services généraux et maintenance</b><span>Demandes d'intervention,
+    maintenance préventive, parc de bâtiments et d'équipements, contrôles réglementaires
+    périodiques. La revue périodique et l'inventaire y servent tels quels.</span></div>
+  <div class="carte"><b>Ressources humaines</b><span>Demandes des collaborateurs, dossiers
+    d'intégration et de départ, campagnes d'entretiens, plans de formation. Le cloisonnement par
+    entité y prend tout son sens.</span></div>
+  <div class="carte"><b>Juridique et contrats</b><span>Saisines, échéances contractuelles, suivi
+    des engagements, dossiers à valider. Les délais et les preuves sont le cœur du métier.</span></div>
+  <div class="carte"><b>Achats et fournisseurs</b><span>Demandes d'achat, validations en cascade,
+    suivi des livraisons, réclamations. Le circuit de validation en est le squelette.</span></div>
+  <div class="carte"><b>Gestion des risques</b><span>Cartographie, évaluation, plans de traitement,
+    revues. Le module de risques est indépendant de la nature des risques suivis.</span></div>
+</div>
+
+<div class="note">
+  <b>Un exemple de transposition</b>
+  <p>Un service qualité qui suit des non-conformités crée un type d'activité « non-conformité »,
+  ses catégories (produit, processus, fournisseur, réglementaire), un cycle
+  <em>ouverte → analyse → action corrective → vérification d'efficacité → clôturée</em>, une porte
+  de validation avant la clôture, et des délais par gravité. Il obtient sans une ligne de code :
+  les responsabilités, les rappels d'échéance, les preuves attachées, l'historique inviolable et
+  les indicateurs — c'est-à-dire l'essentiel de ce qu'un auditeur lui demandera.</p>
+</div>
+
+
+  <h2 id="s-9-4">9.4 &nbsp;Ce qui demande un développement</h2>
+<p>Une frontière honnête vaut mieux qu'une promesse élastique. Relèvent d'un développement :</p>
+
+<div class="defs">
+  <div><dt>Un écran métier spécifique</dt>
+       <dd>Les modules disposent d'un écran générique complet (liste, fiche, tâches, documents,
+       liens, revue). Une présentation particulière — un plan, un calendrier de charge, une saisie
+       de terrain — se développe.</dd></div>
+  <div><dt>Un calcul propre à votre métier</dt>
+       <dd>La priorité et la criticité sont paramétrables ; une formule d'une autre nature ne
+       l'est pas.</dd></div>
+  <div><dt>Une intégration avec un autre système</dt>
+       <dd>L'import de classeur couvre le cas le plus courant. Un échange en temps réel avec un
+       progiciel se développe.</dd></div>
+  <div><dt>Un nouveau canal de notification</dt>
+       <dd>Aujourd'hui : dans la plateforme et par courriel. Tout autre canal se développe.</dd></div>
+  <div><dt>Une identité fédérée</dt>
+       <dd>L'authentification est locale. Un raccordement à l'annuaire de l'organisation se
+       développe — la structure de données le prévoit, le code reste à écrire.</dd></div>
+  <div><dt>Des droits par action, paramétrables</dt>
+       <dd>Les accès se paramètrent par module ; les actions sensibles sont gardées en dur, par
+       séparation des tâches. Rendre ce niveau paramétrable se développe — et demande d'abord de
+       vérifier que c'est souhaitable.</dd></div>
+</div>
+
+
+  <h2 id="s-9-5">9.5 &nbsp;Erreurs de paramétrage fréquentes</h2>
+<table>
+  <thead><tr><th>Erreur</th><th>Conséquence observée</th><th>À faire</th></tr></thead>
+  <tbody>
+    <tr><td>Trop de catégories dès le départ</td>
+        <td>Tout finit dans « autres » ; les statistiques ne servent à rien</td>
+        <td>Commencer avec cinq à dix, ajouter sur besoin démontré</td></tr>
+    <tr><td>Des délais copiés d'un modèle</td>
+        <td>Taux de respect médiocre, indicateur abandonné en deux mois</td>
+        <td>Mesurer d'abord, promettre ensuite</td></tr>
+    <tr><td>Un profil par personne</td>
+        <td>Matrice illisible, droits qui divergent, départs mal gérés</td>
+        <td>Un profil par métier</td></tr>
+    <tr><td>Tous les profils transverses</td>
+        <td>Le cloisonnement ne protège plus rien</td>
+        <td>Transverse pour l'administration et le pilotage, pas pour l'opérationnel</td></tr>
+    <tr><td>Un cycle de vie à quinze états</td>
+        <td>Personne ne fait avancer les dossiers correctement</td>
+        <td>Un état n'existe que si quelqu'un agit différemment selon qu'on y est ou non</td></tr>
+    <tr><td>Ouvrir tous les modules « pour voir »</td>
+        <td>Écrans vides, adoption diluée, confiance entamée</td>
+        <td>Ouvrir un module quand son paramétrage est prêt</td></tr>
+    <tr><td>Activer les courriels avant d'avoir réglé les préférences</td>
+        <td>Boîtes saturées le premier jour, notifications filtrées pour toujours</td>
+        <td>Démarrer en notifications internes, ouvrir les courriels ensuite</td></tr>
+  </tbody>
+</table>
+
+<div class="note ok">
+  <b>La règle qui résume les autres</b>
+  <p>Chaque élément de paramétrage doit répondre à une question : <em>quelqu'un agit-il
+  différemment selon sa valeur ?</em> Si la réponse est non, il ne mérite pas d'exister — il ne
+  sera pas renseigné, et il faussera ce qu'on en tire.</p>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Annexe A</div>
+  <h1 id="s-A">Glossaire</h1>
+  <p class="chapitre-intro">Les termes qui ont un sens précis dans la plateforme. Un mot du manuel désigne toujours la même chose ; en cas de doute, c'est ici que la définition fait foi.</p>
+
+  <h2 id="s-A-1">A.1 &nbsp;Termes du domaine</h2>
+<div class="defs">
+  <div><dt>Activité</dt><dd>Toute chose suivie de bout en bout : incident, demande, projet,
+    changement, recommandation, risque, sujet de sécurité ou de gouvernance. C'est l'entité pivot
+    de la plateforme.</dd></div>
+  <div><dt>Référence</dt><dd>Identifiant lisible et unique d'une activité, préfixé par son type et
+    daté. C'est ce qu'on cite à l'oral et dans un courriel.</dd></div>
+  <div><dt>Type / module</dt><dd>La famille dont relève une activité. Il détermine son cycle de vie,
+    ses catégories et ses écrans.</dd></div>
+  <div><dt>Demandeur</dt><dd>La personne à l'origine de l'activité. Informée, sans pouvoir de
+    décision sur le traitement.</dd></div>
+  <div><dt>Responsable principal</dt><dd>La personne — une seule — comptable du résultat et du
+    délai.</dd></div>
+  <div><dt>Contributeur</dt><dd>Une personne qui exécute une partie du travail.</dd></div>
+  <div><dt>Valideur</dt><dd>Une personne dont l'accord conditionne une transition. La liste se fige
+    dès la première décision rendue.</dd></div>
+  <div><dt>Entité</dt><dd>Le découpage organisationnel — service, direction, site — qui porte le
+    cloisonnement.</dd></div>
+  <div><dt>Catégorie</dt><dd>Classement paramétrable d'une activité, propre à son type.</dd></div>
+  <div><dt>Impact</dt><dd>L'étendue de ce qui est touché.</dd></div>
+  <div><dt>Urgence</dt><dd>La vitesse à laquelle la situation se dégrade.</dd></div>
+  <div><dt>Priorité</dt><dd>De P1 à P5. Elle n'est pas saisie : elle est <em>dérivée</em> de l'impact
+    et de l'urgence par une matrice paramétrable.</dd></div>
+  <div><dt>Criticité</dt><dd>Pour un risque : probabilité × impact.</dd></div>
+  <div><dt>Engagement de service</dt><dd>La promesse de délai, en deux temps : prise en charge et
+    résolution.</dd></div>
+  <div><dt>Échéance</dt><dd>La date-limite calculée à partir de l'engagement et de l'heure de
+    départ.</dd></div>
+  <div><dt>Cycle de vie</dt><dd>La suite d'états d'un type d'activité et les transitions
+    autorisées entre eux.</dd></div>
+  <div><dt>Transition</dt><dd>Le passage d'un état au suivant. Seules celles prévues sont
+    possibles.</dd></div>
+  <div><dt>Phase</dt><dd>Le regroupement d'états qui indique si une activité est en cours, en
+    attente ou terminée. Une activité en phase terminale ne court plus après son délai.</dd></div>
+  <div><dt>Revue périodique</dt><dd>Le rendez-vous de réexamen d'une activité qui ne se « résout »
+    pas — un risque, un sujet de gouvernance. Elle déclenche ses propres rappels.</dd></div>
+  <div><dt>Niveau de support</dt><dd>Le degré d'expertise qui traite un dossier. Il ne se choisit
+    pas : il se déduit du gestionnaire.</dd></div>
+</div>
+
+
+  <h2 id="s-A-2">A.2 &nbsp;Termes d'administration et de sécurité</h2>
+<div class="defs">
+  <div><dt>Profil</dt><dd>Un métier, pas une position hiérarchique. Il porte les accès aux modules
+    et se crée, se renomme et se supprime.</dd></div>
+  <div><dt>Transverse</dt><dd>Se dit d'un profil qui voit toutes les entités. Le profil
+    d'administration l'est nécessairement.</dd></div>
+  <div><dt>Matrice des accès</dt><dd>Le tableau profil × module qui décide de ce que chaque profil
+    voit.</dd></div>
+  <div><dt>Capacité</dt><dd>Une action autorisée sur un dossier précis, calculée par le serveur à
+    partir du rôle, de l'état et du régime du dossier.</dd></div>
+  <div><dt>Régime</dt><dd>Normal, lecture seule (module alimenté par import) ou clos (dossier
+    terminé).</dd></div>
+  <div><dt>Cloisonnement</dt><dd>La règle qui limite un profil non transverse aux activités de son
+    entité. Appliquée au niveau des requêtes, pas de l'affichage.</dd></div>
+  <div><dt>Séparation des tâches</dt><dd>Le principe selon lequel organiser un dossier et l'exécuter
+    relèvent de personnes distinctes. Il explique pourquoi certaines actions ne sont pas
+    paramétrables.</dd></div>
+  <div><dt>Journal</dt><dd>Le registre de toutes les actions, en ajout seul et chaîné par empreinte.</dd></div>
+  <div><dt>Ajout seul</dt><dd>Propriété d'un registre où l'on n'écrit qu'à la fin : rien ne se
+    modifie, rien ne s'efface.</dd></div>
+  <div><dt>Chaînage par empreinte</dt><dd>Chaque écriture porte la marque de la précédente, de sorte
+    qu'une altération rompe la chaîne et devienne détectable.</dd></div>
+  <div><dt>Lien d'activation</dt><dd>Le lien à usage unique, expirable, par lequel un agent définit
+    lui-même son mot de passe.</dd></div>
+  <div><dt>Escalade</dt><dd>L'alerte déclenchée quand un dossier de priorité maximale n'est pas pris
+    en charge dans les temps. Une seule par dossier.</dd></div>
+  <div><dt>Palier de rappel</dt><dd>Une fraction du délai consommé — 50 %, 80 %, 100 % — à laquelle
+    un rappel est émis, une seule fois par destinataire.</dd></div>
+  <div><dt>Ordonnanceur</dt><dd>La boucle interne qui balaie les échéances et déclenche rappels et
+    escalades. Elle vit dans le processus applicatif.</dd></div>
+  <div><dt>Import</dt><dd>Le dépôt d'un classeur qui alimente un module en lecture seule ou
+    l'inventaire. Idempotent : deux dépôts identiques ne créent pas de doublon.</dd></div>
+  <div><dt>Idempotent</dt><dd>Se dit d'une opération qu'on peut répéter sans changer le résultat.</dd></div>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Annexe B</div>
+  <h1 id="s-B">Intégration</h1>
+  <p class="chapitre-intro">Pour les équipes qui interrogent la plateforme depuis un autre système. Les conventions de l'interface de programmation, le format des erreurs, et ce sur quoi il est prudent de s'appuyer.</p>
+
+  <h2 id="s-B-1">B.1 &nbsp;Conventions</h2>
+<div class="defs">
+  <div><dt>Base et version</dt><dd>Toutes les routes vivent sous un préfixe versionné. La version
+    ne change pas sans rupture assumée : un client existant continue de fonctionner.</dd></div>
+  <div><dt>Format</dt><dd>JSON en UTF-8, noms de champs en minuscules avec tirets bas, dates au
+    format international en temps universel.</dd></div>
+  <div><dt>Authentification</dt><dd>Un jeton porteur sur chaque appel, sauf les points de santé et
+    la connexion.</dd></div>
+  <div><dt>Documentation vivante</dt><dd>Le service publie sa propre description exhaustive et
+    interrogeable. <strong>C'est elle qui fait foi</strong> : elle est générée depuis le code, donc
+    toujours à jour, là où un document rédigé finit par mentir.</dd></div>
+</div>
+
+<h3>Listes</h3>
+<p>Les lectures de liste sont paginées et renvoient une enveloppe qui porte, avec les éléments, le
+total, la page et la taille demandées. Filtres et recherche libre passent en paramètres.</p>
+
+<pre><code>{
+  "elements": [ … ],
+  "total": 128,
+  "page": 1,
+  "taille": 15
+}</code></pre>
+
+
+  <h2 id="s-B-2">B.2 &nbsp;Erreurs</h2>
+<p>Toutes les erreurs partagent un corps unique, porteur d'un <strong>identifiant de
+corrélation</strong>. Cet identifiant se retrouve dans les journaux du serveur : c'est ce qu'un
+utilisateur doit communiquer au support, plutôt que de décrire l'écran.</p>
+
+<pre><code>{
+  "erreur": {
+    "code": "REGLE_METIER",
+    "message": "La clôture requiert la validation des valideurs désignés.",
+    "details": [ … ],
+    "correlation_id": "c1a2b3d4"
+  }
+}</code></pre>
+
+<table>
+  <thead><tr><th>Statut</th><th>Code</th><th>Signification</th></tr></thead>
+  <tbody>
+    <tr><td class="num">400</td><td><code>VALIDATION</code></td><td>Entrée invalide au regard du schéma attendu.</td></tr>
+    <tr><td class="num">401</td><td><code>NON_AUTHENTIFIE</code></td><td>Jeton absent, expiré ou invalide.</td></tr>
+    <tr><td class="num">403</td><td><code>NON_AUTORISE</code></td><td>Profil ou rôle insuffisant pour cette action.</td></tr>
+    <tr><td class="num">404</td><td><code>INTROUVABLE</code></td><td>Ressource inexistante <strong>ou hors de votre périmètre</strong>.</td></tr>
+    <tr><td class="num">409</td><td><code>CONFLIT</code></td><td>Transition d'état interdite, ou doublon.</td></tr>
+    <tr><td class="num">422</td><td><code>REGLE_METIER</code></td><td>Règle du domaine violée — par exemple une clôture sans validation.</td></tr>
+    <tr><td class="num">429</td><td>—</td><td>Trop de tentatives de connexion : le compte est temporairement verrouillé.</td></tr>
+    <tr><td class="num">500</td><td><code>ERREUR_INTERNE</code></td><td>Inattendu. Journalisé avec son identifiant de corrélation.</td></tr>
+    <tr><td class="num">503</td><td>—</td><td>Base de données injoignable. Le service se rétablit seul à son retour.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>404 plutôt que 403 hors périmètre</b>
+  <p>Un client qui interroge un dossier hors de son périmètre reçoit « introuvable ». Ne traitez
+  donc pas un 404 comme la preuve qu'une ressource n'existe pas : c'est peut-être qu'elle ne vous
+  regarde pas.</p>
+</div>
+
+
+  <h2 id="s-B-3">B.3 &nbsp;Points d'entrée notables</h2>
+<table>
+  <thead><tr><th>Famille</th><th>Ce qu'on y trouve</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Santé</strong></td><td>Vivacité du processus et disponibilité réelle du service,
+      hors authentification. À brancher sur la supervision.</td></tr>
+    <tr><td><strong>Session</strong></td><td>Connexion, renouvellement, déconnexion, changement et
+      réinitialisation de mot de passe.</td></tr>
+    <tr><td><strong>Profil courant</strong></td><td>Identité, accès effectifs et périmètre de
+      l'appelant. C'est le point d'entrée d'un client qui veut savoir ce qu'il a le droit
+      d'afficher.</td></tr>
+    <tr><td><strong>Référentiels</strong></td><td>Catégories, états et cycles de vie, agents
+      désignables, engagements effectifs d'un module. À interroger plutôt qu'à recopier.</td></tr>
+    <tr><td><strong>Modules d'activités</strong></td><td>Liste filtrable, compteurs, détail, transitions,
+      assignation, évaluation, acteurs, décisions, tâches, documents, liens, notes, export.</td></tr>
+    <tr><td><strong>Tableau de bord et analyses</strong></td><td>Indicateurs agrégés sur une période.</td></tr>
+    <tr><td><strong>Recherche</strong></td><td>Recherche globale, cloisonnée par accès et périmètre.</td></tr>
+    <tr><td><strong>Notifications</strong></td><td>Consultation, marquage comme lu, préférences.</td></tr>
+    <tr><td><strong>Import</strong></td><td>Dépôt d'un classeur et état du dernier dépôt de chaque
+      nature.</td></tr>
+    <tr><td><strong>Administration</strong></td><td>Comptes, profils, matrice des accès, catégories,
+      engagements de service, journal et son export.</td></tr>
+  </tbody>
+</table>
+
+<div class="note attention">
+  <b>Deux règles pour un client durable</b>
+  <ul>
+    <li><strong>Lisez les référentiels, ne les recopiez pas.</strong> Catégories, états et
+        engagements changent par paramétrage : un client qui les code en dur casse au premier
+        réglage.</li>
+    <li><strong>Fiez-vous aux capacités renvoyées avec un dossier</strong> plutôt que de
+        réimplémenter les règles de droits. Elles sont calculées par le serveur, qui reste seul
+        juge.</li>
+  </ul>
+</div>
+
+</section>
+
+<section class="chapitre">
+  <div class="chapitre-num">Annexe C</div>
+  <h1 id="s-C">Limites connues</h1>
+  <p class="chapitre-intro">Ce que la plateforme ne fait pas encore, écrit noir sur blanc. Un manuel qui tait ses limites se retourne contre celui qui l'a écrit — à la première démonstration, puis à chaque fois. Ce qui suit est l'état exact du produit à la date de ce document.</p>
+
+  <h2 id="s-C-1">C.1 &nbsp;Fonctionnalités annoncées ailleurs, non disponibles</h2>
+<table>
+  <thead><tr><th>Sujet</th><th>État réel</th><th>Contournement</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Second facteur d'authentification</strong></td>
+        <td>Aucun. La décision est prise, la construction reste à faire.</td>
+        <td>Frein anti-force brute, jetons courts, révocation immédiate des comptes.</td></tr>
+    <tr><td><strong>Identité fédérée</strong> (annuaire, identité unique)</td>
+        <td>Non implémentée. La structure de données prévoit la porte, le code n'existe pas.</td>
+        <td>Authentification locale ; blocage manuel au départ d'un collaborateur.</td></tr>
+    <tr><td><strong>Notifications vers une messagerie d'équipe ou instantanée</strong></td>
+        <td>Les préférences existent, aucun envoi n'est codé.</td>
+        <td>Notifications internes et courriel.</td></tr>
+    <tr><td><strong>Génération de PDF côté serveur</strong></td>
+        <td>Absente. Le PDF est produit par le navigateur, à partir de ce qui est affiché.</td>
+        <td>Export PDF depuis le tableau de bord et l'espace personnel ; exports tabulaires
+        côté serveur pour le reste.</td></tr>
+    <tr><td><strong>Export tabulaire des risques</strong></td>
+        <td>Le bouton existe à l'écran, la route serveur non : l'export échoue.</td>
+        <td>Passer par les analyses, qui restituent et exportent la matrice des risques.</td></tr>
+    <tr><td><strong>Écrans spécialisés cybersécurité et gouvernance</strong></td>
+        <td>Servis par l'écran générique d'activités par catégorie.</td>
+        <td>L'écran générique couvre liste, fiche, tâches, documents, liens et revue.</td></tr>
+    <tr><td><strong>Module « problèmes »</strong> (analyse de causes récurrentes)</td>
+        <td>Non implémenté. Des engagements de service subsistent en base sans module
+        correspondant.</td>
+        <td>Suivre l'analyse de fond comme un projet ou une activité de gouvernance.</td></tr>
+    <tr><td><strong>Plan de continuité, budget consolidé, application mobile</strong></td>
+        <td>Non implémentés. Le budget n'existe qu'en champ de suivi d'un projet.</td>
+        <td>—</td></tr>
+    <tr><td><strong>Droits paramétrables par action</strong></td>
+        <td>Seul l'accès <em>par module</em> est paramétrable ; les actions sensibles sont gardées
+        en dur.</td>
+        <td>C'est un choix de séparation des tâches avant d'être une limite. À rediscuter avant de
+        le lever.</td></tr>
+    <tr><td><strong>Tests automatisés de l'interface</strong></td>
+        <td>Inexistants. Le serveur est en revanche couvert par plusieurs centaines de tests.</td>
+        <td>Prévoir une recette manuelle des parcours d'écran à chaque livraison.</td></tr>
+  </tbody>
+</table>
+
+
+  <h2 id="s-C-2">C.2 &nbsp;Limites structurelles assumées</h2>
+<p>Celles-ci ne sont pas des manques à combler : ce sont des contreparties de choix explicites.</p>
+
+<div class="defs">
+  <div><dt>Les rappels dépendent du service</dt>
+       <dd>L'ordonnanceur vit dans le processus applicatif — un composant de moins à exploiter.
+       Contrepartie : service arrêté, aucun rappel ne part. Un rappel manqué de plus d'une semaine
+       est consommé sans envoi, pour ne pas déverser d'un coup les alertes du passé.</dd></div>
+  <div><dt>Un mot de passe de plus</dt>
+       <dd>L'authentification locale évite une dépendance à un annuaire et fonctionne partout.
+       Contrepartie : pas de révocation centralisée. Le blocage manuel doit figurer dans votre
+       procédure de départ.</dd></div>
+  <div><dt>Les modules importés ne s'éditent pas</dt>
+       <dd>Incidents et demandes reflètent un système amont qui fait autorité. Contrepartie : on
+       ne corrige pas ici une donnée fausse là-bas. Discussion, pièces jointes et annotation
+       interne restent possibles.</dd></div>
+  <div><dt>La qualité des statistiques dépend de l'import</dt>
+       <dd>Un gestionnaire sans compte correspondant, un statut non reconnu, une catégorie
+       fantaisiste : le compte rendu d'import les signale, mais il faut le lire. Une chaîne
+       d'import qu'on ne surveille pas produit des indicateurs faux <em>sans jamais tomber en
+       panne</em> — c'est la défaillance la plus coûteuse, parce qu'elle est silencieuse.</dd></div>
+</div>
+
+
+  <h2 id="s-C-3">C.3 &nbsp;Avant de vous engager auprès d'un tiers</h2>
+<p>Une liste de vérification, à dérouler avant toute présentation ou tout engagement contractuel.</p>
+
+<ol class="etapes">
+  <li><b>Vérifier l'état réel des fonctionnalités citées</b>
+      Le tableau ci-dessus décrit l'état à la date de ce manuel. Il vieillit ; le code, non.</li>
+  <li><b>Nommer les prérequis d'exploitation</b>
+      Serveur de messagerie, chiffrement du transport, sauvegardes planifiées, supervision. Sans
+      eux, une partie des promesses ne tient pas.</li>
+  <li><b>Cadrer le paramétrage initial</b>
+      Catégories, cycles de vie, engagements de délai et profils sont des décisions
+      d'organisation. Elles prennent du temps et n'appartiennent pas à l'éditeur.</li>
+  <li><b>Poser la question de l'identité et du second facteur</b>
+      Si l'interlocuteur a une exigence forte sur ce point, elle relève aujourd'hui d'un
+      développement. Mieux vaut l'annoncer que de la découvrir en recette.</li>
+  <li><b>Prévoir la recette de sécurité</b>
+      Le test d'intrusion rejouable se déroule en une commande contre un environnement de
+      recette. C'est la preuve la plus convaincante à produire — et elle ne coûte presque rien.</li>
+</ol>
+
+<div class="note ok">
+  <b>Le principe qui vaut pour tout ce manuel</b>
+  <p>Rien n'y est décrit qui n'existe pas dans le produit. C'est ce qui rend utilisable le reste du
+  document : quand un manuel promet ce qui n'existe pas, on ne sait plus lesquelles de ses pages
+  croire.</p>
+</div>
+
+</section>
+
+  </div>
+</main>
+
+<div class="barre">
+  <button type="button" class="clair" id="btn-imprimer">Enregistrer en PDF</button>
+</div>
+
+<script>
+/* =====================================================================
+   MANUEL — comportements d'écran
+   Trois choses, et rien de plus : suivre la lecture dans le sommaire,
+   filtrer le sommaire à la frappe, ouvrir l'impression avec les bons
+   réglages. Aucune dépendance.
+   ===================================================================== */
+
+/* --- 1. Le sommaire suit la lecture --------------------------------
+   IntersectionObserver plutôt qu'un écouteur de défilement : le navigateur
+   fait le calcul lui-même, sans repeindre à chaque pixel parcouru.
+   La marge basse (-70%) fait basculer l'entrée active quand le titre
+   atteint le tiers haut de l'écran — là où l'œil lit — et non quand il
+   effleure le bas. */
+(function suivreLecture(){
+  const liens = new Map();
+  document.querySelectorAll('.som-lien').forEach((a) => {
+    liens.set(a.getAttribute('href').slice(1), a);
+  });
+  const cibles = [...document.querySelectorAll('h1[id], h2[id]')];
+  if (!cibles.length) return;
+
+  let courant = null;
+  const obs = new IntersectionObserver((entrees) => {
+    for (const e of entrees) {
+      if (!e.isIntersecting) continue;
+      const a = liens.get(e.target.id);
+      if (!a || a === courant) continue;
+      courant?.classList.remove('actif');
+      a.classList.add('actif');
+      courant = a;
+      // Garder l'entrée active visible dans un sommaire plus long que l'écran.
+      a.scrollIntoView({ block: 'nearest' });
+    }
+  }, { rootMargin: '0px 0px -70% 0px', threshold: 0 });
+
+  cibles.forEach((c) => obs.observe(c));
+})();
+
+/* --- 2. Filtrer le sommaire ----------------------------------------
+   Un manuel de cette taille se consulte plus qu'il ne se lit : on cherche
+   « SLA » ou « sauvegarde », pas le chapitre 5. Le filtre est accent- et
+   casse-insensible — « échéance » se trouve en tapant « echeance ». */
+(function filtrerSommaire(){
+  const champ = document.getElementById('recherche-sommaire');
+  if (!champ) return;
+  const aplatir = (s) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  const entrees = [...document.querySelectorAll('.som-lien')].map((a) => ({
+    el: a,
+    texte: aplatir(a.textContent),
+    n1: a.classList.contains('n1'),
+  }));
+
+  champ.addEventListener('input', () => {
+    const q = aplatir(champ.value.trim());
+    if (!q) { entrees.forEach((e) => { e.el.hidden = false; }); return; }
+    // Un chapitre reste affiché si l'une de ses sections correspond :
+    // sinon on verrait des sections orphelines, sans titre au-dessus.
+    let chapitre = null;
+    let chapitreVu = false;
+    for (const e of entrees) {
+      if (e.n1) {
+        if (chapitre) chapitre.el.hidden = !chapitreVu;
+        chapitre = e;
+        chapitreVu = e.texte.includes(q);
+        e.el.hidden = true;
+        continue;
+      }
+      const ok = e.texte.includes(q) || (chapitre?.texte.includes(q) ?? false);
+      e.el.hidden = !ok;
+      if (ok) chapitreVu = true;
+    }
+    if (chapitre) chapitre.el.hidden = !chapitreVu;
+  });
+
+  // Échap vide le filtre sans quitter le champ.
+  champ.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { champ.value = ''; champ.dispatchEvent(new Event('input')); }
+  });
+})();
+
+/* --- 3. Impression / PDF -------------------------------------------
+   Le manuel s'écoule sur des pages A4 ; c'est le moteur d'impression du
+   navigateur qui pagine, avec la feuille @page du document. On rappelle
+   donc les deux réglages qui, mal posés, abîment le rendu : des marges
+   imposées par la boîte de dialogue écraseraient celles du document, et
+   sans les graphiques d'arrière-plan les encadrés et pastilles
+   ressortiraient blancs. */
+document.getElementById('btn-imprimer')?.addEventListener('click', () => {
+  alert(
+    "Dans la fenêtre d'impression :\n\n" +
+    "  • Destination → Enregistrer au format PDF\n" +
+    "  • Marges → Par défaut (celles du document)\n" +
+    "  • Graphiques d'arrière-plan → coché\n" +
+    "  • Échelle → 100 %\n\n" +
+    "Le sommaire cliquable de gauche est remplacé, sur papier, par un " +
+    "sommaire imprimé placé après la couverture."
+  );
+  window.print();
+});
+
+/* --- 4. Ancres : copier le lien d'une section -----------------------
+   Sur un manuel partagé, « va voir le 5.4 » est moins utile qu'un lien.
+   Un clic sur un titre de section copie son adresse. */
+document.querySelectorAll('h2[id]').forEach((h) => {
+  h.style.cursor = 'pointer';
+  h.title = 'Cliquer pour copier le lien de cette section';
+  h.addEventListener('click', () => {
+    const url = location.href.split('#')[0] + '#' + h.id;
+    void navigator.clipboard?.writeText(url);
+    const avant = h.style.color;
+    h.style.color = 'var(--accent)';
+    setTimeout(() => { h.style.color = avant; }, 450);
+  });
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+/* =====================================================================
+   MANUEL — moteur de mise en page (écran + impression A4)
+   ---------------------------------------------------------------------
+   Le manuel porte les TOKENS DE LA PLATEFORME (frontend/src/design-system).
+   Un document qui ne ressemble pas au produit qu'il décrit sonne faux ; on
+   reprend donc l'accent, les neutres, les couleurs de statut et l'échelle
+   typographique de l'application elle-même.
+
+   Deux rendus dans un seul fichier :
+     • ÉCRAN  — sommaire fixe à gauche, colonne de lecture bornée en largeur.
+     • PAPIER — le sommaire disparaît, le texte s'écoule sur des A4 avec
+                titres courants et numéros de page.
+
+   ⚠ Le piège d'impression : une feuille A4 fait 210 mm, soit moins qu'un
+   seuil responsive typique. Toute règle destinée à l'écran DOIT s'écrire
+   « @media screen and (…) » — un « @media (max-width:…) » nu s'appliquerait
+   aussi au papier et écraserait la mise en page imprimée.
+   ===================================================================== */
+
+:root{
+  /* — Identité, injectée par le générateur — */
+  --accent:__ACCENT__;
+  --accent-soft:__ACCENT_SOFT__;
+  --secondaire:__SECONDAIRE__;
+
+  /* — Neutres — */
+  --papier:#ffffff;
+  --fond:#f6f7f9;
+  --fond-doux:#f1f3f5;
+  --bord:#e6e8ec;
+  --bord-fort:#d5d9df;
+  --texte:#14161a;
+  --texte-doux:#4b5563;
+  --texte-faible:#6b7280;
+
+  /* — Statuts (mêmes valeurs que l'application) — */
+  --ok:#1f9d55;      --ok-fond:#e7f6ee;
+  --alerte:#c77700;  --alerte-fond:#fdf2e0;
+  --danger:#d64545;  --danger-fond:#fdecec;
+
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Consolas,monospace;
+
+  --sommaire-l:290px;
+  --colonne:186mm;   /* 210 − 2 × 12 mm de marge intérieure confortable */
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+
+html{ scroll-behavior:smooth; scroll-padding-top:24px; }
+body{
+  font-family:var(--sans);
+  font-size:10.5pt;
+  line-height:1.62;
+  color:var(--texte);
+  background:var(--fond);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* =====================================================================
+   1 · SOMMAIRE LATÉRAL (écran)
+   ===================================================================== */
+.sommaire{
+  position:fixed; top:0; left:0; bottom:0; width:var(--sommaire-l);
+  background:var(--papier); border-right:1px solid var(--bord);
+  display:flex; flex-direction:column; z-index:20;
+}
+.sommaire-tete{
+  padding:22px 22px 16px; border-bottom:1px solid var(--bord);
+}
+.sommaire-produit{
+  font-size:15px; font-weight:700; letter-spacing:-.02em; color:var(--texte);
+}
+.sommaire-sous{
+  font-size:11px; color:var(--texte-faible); margin-top:3px;
+}
+.sommaire-nav{ flex:1; overflow-y:auto; padding:12px 10px 28px; }
+
+/* Barre de recherche du sommaire — filtre les entrées à la frappe. */
+.sommaire-recherche{
+  margin:0 12px 10px; position:relative;
+}
+.sommaire-recherche input{
+  width:100%; height:34px; padding:0 10px 0 30px;
+  border:1px solid var(--bord); border-radius:999px;
+  background:var(--fond-doux); color:var(--texte);
+  font:inherit; font-size:12.5px; outline:none;
+}
+.sommaire-recherche input:focus{ border-color:var(--accent); background:var(--papier); }
+.sommaire-recherche svg{
+  position:absolute; left:10px; top:50%; transform:translateY(-50%);
+  width:13px; height:13px; stroke:var(--texte-faible); fill:none; stroke-width:2;
+}
+
+.som-lien{
+  display:flex; gap:9px; align-items:baseline;
+  padding:6px 12px; border-radius:8px;
+  color:var(--texte-doux); text-decoration:none;
+  font-size:12.5px; line-height:1.35;
+}
+.som-lien:hover{ background:var(--fond-doux); color:var(--texte); }
+.som-lien .num{
+  font-variant-numeric:tabular-nums; font-size:11px;
+  color:var(--texte-faible); min-width:24px; flex:none;
+}
+.som-lien.n1{ font-weight:650; color:var(--texte); margin-top:12px; }
+.som-lien.n1:first-child{ margin-top:0; }
+.som-lien.n2{ padding-left:16px; }
+/* La section lue est marquée par un filet, jamais par un point clignotant. */
+.som-lien.actif{
+  background:var(--accent-soft); color:var(--accent);
+  font-weight:650; box-shadow:inset 2px 0 0 var(--accent);
+}
+.som-lien[hidden]{ display:none; }
+
+/* =====================================================================
+   2 · CORPS DU DOCUMENT
+   ===================================================================== */
+.doc{
+  margin-left:var(--sommaire-l);
+  padding:0 40px 120px;
+  display:flex; flex-direction:column; align-items:center;
+}
+.feuille{
+  width:100%; max-width:var(--colonne);
+}
+
+/* — Couverture — */
+.couverture{
+  min-height:min(88vh,760px);
+  display:flex; flex-direction:column; justify-content:center;
+  padding:60px 0 40px;
+  border-bottom:1px solid var(--bord);
+  margin-bottom:48px;
+}
+.couv-marque{
+  font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.2em; color:var(--accent);
+}
+.couv-titre{
+  font-size:44px; font-weight:700; letter-spacing:-.035em; line-height:1.04;
+  margin-top:22px; color:var(--texte);
+}
+.couv-sous{
+  font-size:16px; color:var(--texte-doux); margin-top:18px; max-width:520px;
+  line-height:1.55;
+}
+.couv-meta{
+  margin-top:auto; padding-top:48px;
+  display:flex; flex-wrap:wrap; gap:32px;
+}
+.couv-meta div{ font-size:12px; }
+.couv-meta b{
+  display:block; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--texte-faible); margin-bottom:4px;
+}
+
+/* — Titres — */
+h1,h2,h3,h4{ color:var(--texte); letter-spacing:-.02em; }
+h1{
+  font-size:27px; font-weight:700; line-height:1.15;
+  margin:0 0 6px; padding-top:8px;
+}
+.chapitre{ margin-top:64px; }
+.chapitre:first-of-type{ margin-top:0; }
+.chapitre-num{
+  font-size:11px; font-weight:700; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:10px;
+}
+.chapitre-intro{
+  font-size:13.5px; color:var(--texte-doux); line-height:1.6;
+  margin:10px 0 4px; padding-bottom:18px; border-bottom:1px solid var(--bord);
+}
+h2{
+  font-size:18px; font-weight:650; margin:38px 0 10px;
+  scroll-margin-top:16px;
+}
+h3{ font-size:14.5px; font-weight:650; margin:24px 0 6px; }
+h4{ font-size:12.5px; font-weight:650; margin:18px 0 4px; color:var(--texte-doux); }
+
+p{ margin:9px 0; }
+p + p{ margin-top:11px; }
+a{ color:var(--accent); text-underline-offset:2px; }
+
+strong{ font-weight:650; }
+code{
+  font-family:var(--mono); font-size:.88em;
+  background:var(--fond-doux); border:1px solid var(--bord);
+  border-radius:4px; padding:.08em .32em;
+}
+
+/* — Listes — */
+ul,ol{ margin:10px 0 10px 20px; }
+li{ margin:5px 0; padding-left:2px; }
+li::marker{ color:var(--texte-faible); }
+
+/* Liste de définitions — un terme, sa définition. */
+.defs{ margin:14px 0; border-top:1px solid var(--bord); }
+.defs > div{
+  display:grid; grid-template-columns:minmax(120px,30%) 1fr; gap:0 22px;
+  padding:11px 0; border-bottom:1px solid var(--bord);
+  break-inside:avoid;
+}
+.defs dt{ font-weight:650; font-size:12.5px; }
+.defs dd{ font-size:12.5px; color:var(--texte-doux); }
+
+/* — Étapes numérotées — */
+.etapes{ counter-reset:etape; margin:16px 0; list-style:none; }
+.etapes > li{
+  counter-increment:etape; position:relative;
+  padding:0 0 14px 34px; margin:0;
+  border-left:1px solid var(--bord); break-inside:avoid;
+}
+.etapes > li:last-child{ border-left-color:transparent; padding-bottom:0; }
+.etapes > li::before{
+  content:counter(etape);
+  position:absolute; left:-11px; top:0;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.etapes > li b{ display:block; margin-bottom:2px; }
+
+/* — Tableaux — */
+table{
+  width:100%; border-collapse:collapse; margin:16px 0;
+  font-size:11.5px; break-inside:avoid;
+}
+caption{
+  caption-side:top; text-align:left;
+  font-size:11px; font-weight:650; color:var(--texte-faible);
+  padding-bottom:6px;
+}
+th,td{
+  text-align:left; vertical-align:top;
+  padding:8px 12px 8px 0; border-bottom:1px solid var(--bord);
+}
+th{
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.1em; color:var(--texte-faible);
+  border-bottom:1px solid var(--bord-fort);
+}
+tbody tr:last-child td{ border-bottom:1px solid var(--bord-fort); }
+td code{ white-space:nowrap; }
+.num{ font-variant-numeric:tabular-nums; }
+
+/* — Encadrés — */
+.note{
+  margin:16px 0; padding:12px 16px;
+  border-left:2px solid var(--accent);
+  background:var(--fond-doux); border-radius:0 8px 8px 0;
+  font-size:12.5px; break-inside:avoid;
+}
+.note b{
+  display:block; font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.14em;
+  color:var(--accent); margin-bottom:5px;
+}
+.note.attention{ border-left-color:var(--alerte); background:var(--alerte-fond); }
+.note.attention b{ color:var(--alerte); }
+.note.danger{ border-left-color:var(--danger); background:var(--danger-fond); }
+.note.danger b{ color:var(--danger); }
+.note.ok{ border-left-color:var(--ok); background:var(--ok-fond); }
+.note.ok b{ color:var(--ok); }
+.note p{ margin:6px 0 0; }
+.note ul{ margin:6px 0 0 18px; }
+
+/* — Blocs techniques — */
+pre{
+  margin:14px 0; padding:13px 16px;
+  background:var(--texte); color:#e8eaed;
+  border-radius:8px; overflow-x:auto;
+  font-family:var(--mono); font-size:10.5px; line-height:1.6;
+  break-inside:avoid;
+}
+pre code{ background:none; border:none; padding:0; color:inherit; font-size:inherit; }
+
+/* — Pastilles de statut (mêmes codes que l'application) — */
+.pastille{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:1px 8px; border-radius:999px;
+  font-size:10.5px; font-weight:650; white-space:nowrap;
+}
+.pastille::before{
+  /* inline-block obligatoire : un pseudo-élément en ligne ignore width et
+     height, et le point se réduisait à un artefact à l'impression. */
+  content:''; display:inline-block; flex:none;
+  width:5px; height:5px; border-radius:50%; background:currentColor;
+}
+.pastille.ok{ background:var(--ok-fond); color:var(--ok); }
+.pastille.alerte{ background:var(--alerte-fond); color:var(--alerte); }
+.pastille.danger{ background:var(--danger-fond); color:var(--danger); }
+.pastille.neutre{ background:var(--fond-doux); color:var(--texte-faible); }
+
+/* — Suite d'états (cycle de vie) — */
+.cycle{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  margin:14px 0; font-size:11.5px; break-inside:avoid;
+}
+.cycle span{
+  padding:3px 10px; border:1px solid var(--bord-fort); border-radius:6px;
+  background:var(--papier);
+}
+.cycle i{ font-style:normal; color:var(--texte-faible); }
+.cycle span.fin{ border-color:var(--accent); font-weight:650; }
+
+/* — Grille de cartes (aperçu des modules) — */
+.cartes{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0; }
+.carte{
+  border:1px solid var(--bord); border-radius:10px; padding:14px 16px;
+  background:var(--papier); break-inside:avoid;
+}
+.carte b{ display:block; font-size:12.5px; margin-bottom:4px; }
+.carte span{ font-size:11.5px; color:var(--texte-doux); line-height:1.5; }
+
+/* — Barre d'action écran — */
+.barre{
+  position:fixed; right:22px; bottom:22px; z-index:40; display:flex; gap:8px;
+}
+.barre button{
+  border:none; border-radius:999px; padding:11px 20px; cursor:pointer;
+  font:inherit; font-size:13px; font-weight:650;
+  background:var(--accent); color:#fff;
+  box-shadow:0 8px 26px rgba(0,0,0,.22);
+}
+.barre button.clair{
+  background:var(--papier); color:var(--texte); border:1px solid var(--bord);
+}
+
+/* =====================================================================
+   3 · ÉCRAN ÉTROIT — « screen and », jamais nu (cf. avertissement en tête)
+   ===================================================================== */
+@media screen and (max-width:1080px){
+  .sommaire{
+    position:static; width:auto; height:auto; border-right:none;
+    border-bottom:1px solid var(--bord);
+  }
+  .sommaire-nav{ max-height:300px; }
+  .doc{ margin-left:0; padding:0 20px 100px; }
+}
+
+/* =====================================================================
+   4 · PAPIER — A4
+   Le manuel s'écoule (il n'est pas paginé à la main) : on donne au moteur
+   d'impression de quoi couper proprement, et on lui interdit de séparer un
+   titre de son texte, une note ou une ligne de tableau.
+   ===================================================================== */
+@page{
+  size:A4;
+  margin:20mm 16mm 18mm;
+}
+@media print{
+  html,body{ background:#fff; font-size:10pt; }
+  .sommaire, .barre, .sommaire-recherche{ display:none !important; }
+  .doc{ margin:0; padding:0; display:block; }
+  .feuille{ max-width:none; }
+
+  /* Chaque chapitre commence sur une feuille neuve : un manuel se feuillette
+     par chapitre, pas au fil du texte. */
+  .chapitre{ break-before:page; margin-top:0; }
+  .chapitre:first-of-type{ break-before:avoid; }
+  .couverture{ break-after:page; min-height:auto; border-bottom:none; }
+  #sommaire-imprime{ break-after:page; }
+
+  h1,h2,h3,h4{ break-after:avoid; }
+  p,li{ orphans:3; widows:3; }
+  table,.note,.carte,.cycle,pre,.defs > div,.etapes > li{ break-inside:avoid; }
+  thead{ display:table-header-group; }   /* l'en-tête se répète sur chaque page */
+
+  a{ color:inherit; text-decoration:none; }
+  /* L'adresse d'un lien externe doit survivre à l'impression ; celle d'une
+     ancre interne n'a aucun sens sur papier. */
+  a[href^="http"]::after{
+    content:" (" attr(href) ")";
+    font-size:8pt; color:var(--texte-faible); word-break:break-all;
+  }
+  .doc, .feuille{ width:auto; }
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+
+/* Le sommaire imprimé n'existe QUE sur papier : à l'écran, le sommaire
+   latéral fait le travail et suit la lecture. */
+#sommaire-imprime{ display:none; }
+@media print{
+  #sommaire-imprime{ display:block; }
+  #sommaire-imprime h1{ margin-bottom:18px; }
+  #sommaire-imprime .ligne{
+    display:flex; align-items:baseline; gap:8px;
+    padding:5px 0; font-size:11pt; border-bottom:1px solid var(--bord);
+  }
+  #sommaire-imprime .ligne.n2{ padding-left:18px; font-size:10pt; color:var(--texte-doux); }
+  #sommaire-imprime .ligne .num{ min-width:26px; color:var(--texte-faible); }
+}
