@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "DSI 360 — AFG Bank",
+  "name": "DSI 360",
   "short_name": "DSI 360",
-  "description": "Pilotage et gouvernance des activités de la DSI — AFG Bank Mali.",
+  "description": "Plateforme de pilotage et de gouvernance des activités.",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "/",
