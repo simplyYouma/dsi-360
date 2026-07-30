@@ -78,6 +78,7 @@ def _resume(r: RowMapping) -> dict[str, Any]:
     a = _amortissement(r)
     return {
         "id": r["id"],
+        "reference": r["reference"],
         "code_immo": r["code_immo"],
         "numero_serie": r["numero_serie"],
         "modele": r["modele"],
@@ -414,6 +415,7 @@ async def analyses_parc(courant: Courant, session: Session) -> dict[str, Any]:
 
 
 _ENTETES_EXPORT = [
+    "Réf",
     "Code immo",
     "Désignation",
     "Type",
@@ -455,6 +457,7 @@ async def exporter(
         v = _resume(r)
         donnees.append(
             [
+                v["reference"],
                 v["code_immo"] or "",
                 v["designation"],
                 v["type"] or "",

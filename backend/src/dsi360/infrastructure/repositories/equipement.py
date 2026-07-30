@@ -6,7 +6,7 @@ from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _CHAMPS = """
-    e.id::text AS id, e.code_immo, e.numero_serie, e.modele, e.designation,
+    e.id::text AS id, e.reference, e.code_immo, e.numero_serie, e.modele, e.designation,
     e.type_id::text AS type_id, typ.libelle AS type,
     e.emplacement_id::text AS emplacement_id, emp.libelle AS emplacement,
     e.departement_id::text AS departement_id, dep.libelle AS departement,
@@ -107,7 +107,8 @@ def _filtres(
         # Le matériel se cherche par ce qui est écrit dessus : code immo, n° de série, modèle,
         # désignation — mais aussi par son détenteur, qu'on connaît souvent mieux que le code.
         conditions += (
-            " AND (e.code_immo ILIKE :q OR e.numero_serie ILIKE :q OR e.modele ILIKE :q"
+            " AND (e.reference ILIKE :q OR e.code_immo ILIKE :q OR e.numero_serie ILIKE :q"
+            " OR e.modele ILIKE :q"
             " OR e.designation ILIKE :q OR e.matricule_brut ILIKE :q"
             " OR e.detenteur_externe ILIKE :q"
             " OR (u.prenom || ' ' || u.nom) ILIKE :q OR u.matricule ILIKE :q"

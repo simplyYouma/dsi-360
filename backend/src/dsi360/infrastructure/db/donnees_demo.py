@@ -716,6 +716,10 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
         pris.add(matricule)
         numero += 1
 
+    # Le parc de démo est recréé de zéro à chaque reseed : on remet la séquence des références à
+    # zéro pour qu'elles repartent de INV-00001, plutôt que de grimper d'un reseed à l'autre.
+    await conn.execute("SELECT setval('core.equipement_reference_seq', 1, false)")
+
     aujourdhui = date.today()
     cree = 0
     for i in range(1, 121):
@@ -739,7 +743,9 @@ async def _inventaire(conn: asyncpg.Connection, utilisateurs: list[str]) -> int:
             " duree_annees, valeur_acquisition, source, actif) "
             "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'IMPORT_IMMO',$13) "
             "ON CONFLICT DO NOTHING",
-            f"INV{i:05d}",
+            # Code comptable d'immobilisation (venu de la compta). Distinct de la référence
+            # système « INV-… », que la base attribue d'elle-même (DEFAULT) à chaque insertion.
+            f"IMB{i:05d}",
             designation,
             modele,
             f"SN-{random.randint(100000, 999999)}",

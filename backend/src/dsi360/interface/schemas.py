@@ -245,6 +245,8 @@ class PageActivites(BaseModel):
 
 class EquipementResume(BaseModel):
     id: str
+    #: Référence système (« INV-00001 »), générée par la plateforme — jamais saisie.
+    reference: str
     code_immo: str | None
     numero_serie: str | None
     modele: str | None

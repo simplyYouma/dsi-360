@@ -178,6 +178,14 @@ export function InventairePage(): JSX.Element {
 
   const colonnes: Colonne<Equipement>[] = [
     {
+      cle: 'reference',
+      entete: 'Réf',
+      largeur: '110px',
+      valeur: (e) => e.reference,
+      // Référence système, générée par la plateforme : le repère stable du matériel.
+      rendu: (e) => <span className={local.technique}>{e.reference}</span>,
+    },
+    {
       cle: 'code_immo',
       entete: 'Code immo',
       largeur: '130px',

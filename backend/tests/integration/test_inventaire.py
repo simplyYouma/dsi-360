@@ -50,6 +50,24 @@ async def test_creer_puis_relire_un_equipement(
     assert d["numero_serie"] == "SN-4412"
     assert d["source"] == "SAISIE"
     assert d["actif"] is True
+    # Référence système attribuée d'office, jamais saisie : format INV-xxxxx.
+    assert d["reference"].startswith("INV-")
+    assert len(d["reference"]) >= 8
+
+
+async def test_chaque_equipement_recoit_une_reference_unique(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """La plateforme génère la référence à la création — sans qu'on la saisisse — et sans doublon.
+
+    Même sans code d'immobilisation (saisie manuelle qui le laisse vide), la référence existe."""
+    admin = await _admin(session, "admin.invref@afgbank.ml")
+
+    a = await _creer(client, admin, designation="Écran A")  # pas de code_immo
+    b = await _creer(client, admin, designation="Écran B")
+
+    assert a["reference"].startswith("INV-") and b["reference"].startswith("INV-")
+    assert a["reference"] != b["reference"], "deux équipements ne partagent pas leur référence"
 
 
 async def test_le_code_immo_ne_peut_pas_servir_deux_fois(

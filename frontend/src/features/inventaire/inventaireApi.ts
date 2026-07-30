@@ -2,6 +2,8 @@ import { api } from '@/lib/api';
 
 export interface Equipement {
   id: string;
+  /** Référence système (« INV-00001 »), générée par la plateforme — jamais saisie. */
+  reference: string;
   code_immo: string | null;
   numero_serie: string | null;
   modele: string | null;

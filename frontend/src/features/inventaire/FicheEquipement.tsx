@@ -358,6 +358,13 @@ export function FicheEquipement({
               </dd>
             </div>
             <div className={fiche.metaItem}>
+              <dt>Référence</dt>
+              <dd>
+                {/* Référence système, attribuée par la plateforme : jamais saisie, jamais modifiée. */}
+                <span className={local.technique}>{detail.reference}</span>
+              </dd>
+            </div>
+            <div className={fiche.metaItem}>
               <dt>Code d'immobilisation</dt>
               <dd>
                 <ChampInline
