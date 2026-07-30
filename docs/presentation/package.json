@@ -1,0 +1,12 @@
+{
+  "name": "dsi360-presentation",
+  "private": true,
+  "type": "module",
+  "description": "Dossier de presentation de la plateforme (HTML autonome -> PDF A4)",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
+  }
+}

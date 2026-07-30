@@ -1,0 +1,332 @@
+/* =====================================================================
+   MOTEUR des dossiers de présentation (magazine de marque, HTML → PDF A4)
+   Un seul fichier, aucune ressource distante. Polices système uniquement.
+   ---------------------------------------------------------------------
+   Les variables de palette sont posées sur .page (et pas sur :root) : au
+   moment de l'export PDF, chaque page est clonée dans un <svg><foreignObject>
+   isolé où :root ne désigne plus le document — les var() ne résoudraient
+   pas. Portées par .page, elles suivent le clone. (cf. bloc F-5 en bas.)
+   ===================================================================== */
+
+:root{ --ui-ink:__INK__; }
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+
+html,body{ background:#3a3a42; }
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+
+/* --- Géométrie de page (F-4) ---------------------------------------
+   Hauteur FERMÉE (height, pas min-height) même à l'écran : un débordement
+   doit se voir tout de suite, pas seulement dans le PDF. overflow:hidden
+   coupe net ce qui dépasse plutôt que d'ouvrir une feuille fantôme. */
+.page{
+  /* Palette du POS — injectée par le générateur depuis les tokens réels de
+     l'application (src/styles/tokens.css). Un dossier porte les couleurs de
+     son produit, jamais celles d'un autre. */
+  --ink:__INK__; --ink-rgb:__INK_RGB__; --paper:__PAPER__; --soft:__SOFT__; --white:#fff;
+  --body:__BODY__; --taupe:__TAUPE__; --hair:__HAIR__;
+  /* Deux pas de la MÊME couleur de marque : la teinte de l'app est calibrée
+     pour des aplats, pas pour du petit texte. --accent est le pas lisible sur
+     papier, --accent-dark le pas lisible sur page sombre. */
+  --accent:__ACCENT__; --accent-dark:__ACCENT_DARK__; --accent-soft:__ACCENT_SOFT__;
+  --accent-rgb:__ACCENT_RGB__;
+  /* Trois niveaux de texte sur page sombre, teintés par l'encre du POS. */
+  --on-dark:__ON_DARK__; --on-dark-soft:__ON_DARK_SOFT__; --on-dark-mute:__ON_DARK_MUTE__;
+  /* Le VRAI logo du produit, embarqué en data-URI, en deux versions : celle
+     qui se lit sur fond clair et celle qui se lit sur fond sombre (les logos
+     monochromes sont repeints, les logos en couleur gardent leurs couleurs).
+     --logo-ratio porte le rapport largeur/hauteur mesuré sur le fichier
+     détouré : c'est lui qui dimensionne le bloc, aucune valeur à la main. */
+  --logo-clair:url("__LOGO_CLAIR__");
+  --logo-sombre:url("__LOGO_SOMBRE__");
+  --logo-ratio:__LOGO_RATIO__;
+
+  position:relative;
+  width:210mm; height:297mm;
+  background:var(--paper); color:var(--body);
+  overflow:hidden;
+  margin:0 auto;
+  padding:26mm 24mm 20mm;
+  display:flex; flex-direction:column;
+}
+.page + .page{ margin-top:9mm; }        /* respiration à l'écran seulement */
+
+/* Rythme sombre : couverture, respirations, clôture. */
+.page.dark{ background:var(--ink); color:var(--on-dark); }
+.page.dark .kicker{ color:var(--accent-dark); }
+.page.dark .accent{ color:var(--accent-dark); }
+
+/* --- Typographie : hiérarchie brutale ------------------------------ */
+.kicker{
+  font-size:8.5pt; font-weight:700; text-transform:uppercase;
+  letter-spacing:.16em; color:var(--accent);
+}
+h1{
+  font-size:56pt; font-weight:800; line-height:.95;
+  letter-spacing:-.045em; color:var(--ink);
+}
+.page.dark h1{ color:#fff; }
+h2{
+  font-size:27pt; font-weight:800; line-height:1.1;
+  letter-spacing:-.03em; color:var(--ink);
+}
+.page.dark h2{ color:#fff; }
+.accent{ color:var(--accent); }
+p{ font-size:10.5pt; line-height:1.55; color:var(--body); max-width:132mm; }
+.page.dark p{ color:var(--on-dark-soft); }
+.lead{ font-size:12.5pt; line-height:1.5; color:var(--ink); font-weight:500; }
+.page.dark .lead{ color:var(--on-dark); }
+
+.spacer{ flex:1 1 auto; }              /* pousse le contenu, garde le blanc */
+
+/* --- Pied de page (jamais sur les couvertures) --------------------- */
+.foot{
+  position:absolute; left:24mm; right:24mm; bottom:12mm;
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-size:7.5pt; letter-spacing:.06em; color:var(--taupe);
+}
+.foot .num{ font-variant-numeric:tabular-nums; }
+
+/* --- Logo réel ------------------------------------------------------
+   Affiché tel quel, en image : c'est la marque du client, pas un mot
+   retapé. La hauteur est fixée, la largeur découle du ratio du fichier —
+   un logotype large (BOUTIKII, 5:1) et un emblème carré (The Tailor, 1:1)
+   occupent ainsi la même présence optique sans réglage manuel.
+   --logo-h-* sont calculés par le générateur : hauteur plafonnée pour que
+   même un logo très large tienne dans la colonne de texte. */
+.brandmark{
+  display:block; flex:none;
+  height:var(--logo-h-petit,11mm);
+  width:calc(var(--logo-h-petit,11mm) * var(--logo-ratio));
+  background:var(--logo-clair) left center/contain no-repeat;
+}
+.page.dark .brandmark{ background-image:var(--logo-sombre); }
+
+/* Logo en grand (couvertures). Aligné à gauche sur la marge de la page. */
+.cover-logo{
+  display:block;
+  height:var(--logo-h-grand,34mm);
+  width:calc(var(--logo-h-grand,34mm) * var(--logo-ratio));
+  max-width:100%;
+  background:var(--logo-clair) left center/contain no-repeat;
+}
+.page.dark .cover-logo{ background-image:var(--logo-sombre); }
+
+/* --- Couverture ---------------------------------------------------- */
+.cover-top{ display:flex; justify-content:space-between; align-items:center; gap:10mm; }
+.cover h1{ margin-top:auto; }
+.hook{ font-size:12.5pt; line-height:1.5; color:var(--on-dark-soft); max-width:120mm; margin-top:10mm; }
+
+/* --- Couvertures illustrées ----------------------------------------
+   Le visuel d'accueil de l'application sert de page de garde : le client
+   reconnaît son produit avant d'avoir lu une ligne.
+
+   Trois traitements, un par NATURE d'image — pas par goût :
+     .photo    décor plein cadre (boutique, atelier, salon) ;
+     .portrait sujet détouré, posé en bas à droite, le texte à gauche ;
+     .aura     aucune photo disponible : deux halos de la couleur de marque.
+
+   Le voile n'est pas un effet décoratif : sans lui, un titre blanc posé sur
+   une photo devient illisible dès que la zone claire se déplace. Il est
+   teinté à l'encre du POS, jamais au noir générique.
+   Les couches sont des éléments réels (et non ::before / ::after) : à
+   l'export PDF, chaque page est clonée dans un foreignObject, et un nœud
+   réel voyage à coup sûr. */
+.cover .fond, .cover .voile{ position:absolute; inset:0; }
+.cover .fond{ z-index:0; }
+.cover .voile{ z-index:1; }
+.cover > *:not(.fond):not(.voile):not(.store){ position:relative; z-index:2; }
+
+.fond.photo{ background:var(--cover) center/cover no-repeat; }
+.voile.photo{
+  background:
+    linear-gradient(180deg,
+      rgba(var(--ink-rgb),.90) 0%,
+      rgba(var(--ink-rgb),.62) 34%,
+      rgba(var(--ink-rgb),.88) 68%,
+      rgba(var(--ink-rgb),.97) 100%);
+}
+
+/* Sujet détouré : il occupe une bande basse sur toute la largeur, entier et
+   net. Aucun voile par-dessus — on ne pose pas de brume sur un personnage
+   dont c'est le rôle d'accrocher l'œil ; il est simplement posé sur l'encre,
+   avec un halo de la couleur de marque qui l'ancre au fond. Le texte, lui,
+   remonte en haut de page : plus rien ne se superpose. */
+.fond.portrait{
+  top:auto; height:var(--cover-h);
+  background:
+    var(--cover) center bottom/100% auto no-repeat,
+    radial-gradient(62% 78% at 50% 106%, rgba(var(--accent-rgb),.26) 0%, transparent 70%);
+}
+
+/* Le STORE.
+   Le fichier source du personnage est déjà coupé net en haut du crâne : posé
+   tel quel, on lit un accident. On remonte donc depuis la coupure une série
+   de lamelles horizontales qui s'espacent et s'effacent vers le haut — la
+   coupure devient un store qu'on déplie, c'est-à-dire une intention.
+   Le dégradé est écrit stop par stop par le générateur plutôt que masqué :
+   un mask-image ne survit pas toujours au clonage dans le foreignObject de
+   l'export PDF, une suite d'arrêts de couleur, si. */
+.store{ position:absolute; left:0; right:0; z-index:1; }
+.cover.portrait{ justify-content:flex-start; }
+.cover.portrait h1{ margin-top:0; }
+.cover.portrait h1, .cover.portrait .hook{ max-width:132mm; }
+/* Sur ces couvertures, le logo tient lieu d'en-tête : pas de second logo
+   en grand plus bas, il ne resterait plus de place pour le sujet. */
+.cover.portrait .cover-logo{
+  height:calc(var(--logo-h-grand,34mm) * .62);
+  width:calc(var(--logo-h-grand,34mm) * .62 * var(--logo-ratio));
+}
+
+/* Halos : la marque éclaire sa propre couverture. */
+.fond.aura{
+  background:
+    radial-gradient(58% 42% at 82% 16%, var(--accent-dark) 0%, transparent 62%),
+    radial-gradient(52% 38% at 8% 92%, var(--accent) 0%, transparent 60%);
+  opacity:.42;
+}
+
+/* --- Cartes constat ------------------------------------------------ */
+.cards{ display:grid; grid-template-columns:1fr 1fr; gap:6mm; margin-top:9mm; }
+.card{
+  border:1px solid rgba(255,255,255,.12); border-radius:13px;
+  padding:7mm 7mm; break-inside:avoid;
+}
+.page:not(.dark) .card{ border-color:var(--hair); background:var(--white); }
+.card b{ display:block; font-size:12pt; color:#fff; font-weight:700; margin-bottom:2mm; letter-spacing:-.01em; }
+.page:not(.dark) .card b{ color:var(--ink); }
+.card span{ font-size:9.5pt; line-height:1.5; color:var(--on-dark-mute); }
+.page:not(.dark) .card span{ color:var(--taupe); }
+
+/* --- Étapes numérotées --------------------------------------------- */
+.steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:5mm; margin-top:8mm; }
+.step .no{ font-size:9pt; font-weight:800; color:var(--accent); letter-spacing:.02em; }
+.step .tx{ font-size:9.5pt; line-height:1.45; color:var(--body); margin-top:2mm; }
+.step{ border-top:2px solid var(--accent); padding-top:3mm; break-inside:avoid; }
+
+/* --- Avant / après ------------------------------------------------- */
+.split{ display:grid; grid-template-columns:1fr 1fr; gap:8mm; margin-top:9mm; }
+.col h3{ font-size:8.5pt; text-transform:uppercase; letter-spacing:.14em; color:var(--taupe); margin-bottom:4mm; }
+.col.after h3{ color:var(--accent); }
+.col ul{ list-style:none; }
+.col li{ font-size:10.5pt; line-height:1.5; padding:3.2mm 0; border-top:1px solid var(--hair); color:var(--body); }
+.col.after li{ color:var(--ink); font-weight:500; }
+
+/* --- Chiffres nus -------------------------------------------------- */
+.figs{ display:grid; grid-template-columns:repeat(2,1fr); gap:12mm 10mm; margin-top:10mm; }
+.fig .n{ font-size:60pt; font-weight:800; line-height:.9; letter-spacing:-.04em; color:var(--ink); }
+.page.dark .fig .n{ color:#fff; }
+.fig .n .u{ font-size:24pt; color:var(--accent); }
+.page.dark .fig .n .u{ color:var(--accent-dark); }
+.fig .k{ font-size:9.5pt; line-height:1.45; color:var(--taupe); margin-top:3mm; max-width:70mm; }
+.page.dark .fig .k{ color:var(--on-dark-mute); }
+
+/* --- Liste bénéfices simple ---------------------------------------- */
+.benefits{ margin-top:8mm; display:grid; gap:0; }
+.benefit{ padding:5mm 0; border-top:1px solid var(--hair); break-inside:avoid; }
+.benefit b{ font-size:12.5pt; color:var(--ink); font-weight:700; letter-spacing:-.01em; }
+.benefit p{ margin-top:1.5mm; }
+
+/* --- Manifeste ----------------------------------------------------- */
+.manifesto{ display:flex; align-items:center; height:100%; }
+.manifesto .big{
+  font-size:42pt; font-weight:800; line-height:1.06; letter-spacing:-.035em; color:#fff; max-width:150mm;
+}
+
+/* =====================================================================
+   Emplacements de capture (F-3) — cadre cliquable, upload local.
+   Rien ne quitte le poste : FileReader → data-URL.
+   ===================================================================== */
+.shot{ margin-top:8mm; break-inside:avoid; }
+.photo{
+  display:flex; align-items:center; justify-content:center;
+  border:1.5px dashed var(--hair); border-radius:14px;
+  background:var(--soft); color:var(--taupe);
+  min-height:52mm; cursor:pointer; overflow:hidden; position:relative;
+  transition:border-color .15s, background .15s;
+}
+.photo:hover{ border-color:var(--accent); background:#fff; }
+.photo .hint{ font-size:9.5pt; font-weight:600; display:flex; align-items:center; gap:2.5mm; }
+.photo .hint b{ font-size:16pt; font-weight:700; color:var(--accent); }
+.photo img{ display:none; }
+
+/* Une fois remplie : le cadre épouse le ratio RÉEL de l'image, avec un
+   plafond de hauteur (budget vertical A4 fini). contain, jamais cover :
+   on ne rogne ni n'aplatit une capture. Fond blanc = passe-partout. */
+.photo.est-remplie{
+  aspect-ratio:var(--ratio,16/9); max-height:var(--h-photo,82mm);
+  min-height:0; border:1px solid var(--hair); border-radius:14px;
+  background:#fff; cursor:default;
+}
+.photo--large.est-remplie{ --h-photo:104mm; }
+.photo.est-remplie .hint{ display:none; }
+.photo.est-remplie img{ display:block; width:100%; height:100%; object-fit:contain; }
+.shot-cap{ font-size:8.5pt; color:var(--taupe); margin-top:2.5mm; letter-spacing:.01em; }
+.shot-cap:empty{ display:none; }
+
+/* Barre d'outils écran — retirée à l'impression et à l'export. */
+.toolbar{
+  position:fixed; z-index:50; right:16px; bottom:16px;
+  display:flex; gap:8px; align-items:center;
+}
+.toolbar button{
+  border:none; border-radius:999px; padding:11px 18px; cursor:pointer;
+  font-size:13px; font-weight:700; font-family:inherit;
+  background:var(--ui-ink,#0A0A0F); color:#fff; box-shadow:0 6px 24px rgba(0,0,0,.25);
+}
+.toolbar button.ghost{ background:#fff; color:var(--ui-ink,#0A0A0F); border:1px solid #E7E5E4; }
+.toolbar .prog{
+  background:#fff; border:1px solid #E7E5E4; border-radius:999px;
+  padding:9px 14px; font-size:12px; color:var(--ui-ink,#0A0A0F); display:none;
+}
+
+/* =====================================================================
+   ⚠ F-2 — LE PIÈGE : « @media screen and (…) », jamais « @media (…) ».
+   Une feuille A4 fait 210 mm, sous un seuil responsive typique de 230 mm.
+   Une règle @media (max-width:230mm) s'appliquerait AUSSI à l'impression,
+   écraserait la hauteur des pages et laisserait du blanc en bas de chaque
+   feuille. Tout ce qui vise l'écran doit dire « screen and ».
+   ===================================================================== */
+@media screen and (max-width:230mm){
+  .page{ transform:scale(calc(100vw / 232mm)); transform-origin:top center; }
+  .page + .page{ margin-top:2mm; }
+}
+
+/* --- Impression / PDF (F-4) ---------------------------------------- */
+@page{ size:A4; margin:0; }
+@media print{
+  html,body{ background:#fff; }
+  .toolbar{ display:none !important; }
+  .page{
+    height:296mm;                 /* 296 et non 297 : au mm près, l'arrondi
+                                     déborde et ouvre une feuille vide. */
+    margin:0; break-after:page;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  .page:last-child{ break-after:auto; }
+  .page + .page{ margin-top:0; }
+  .card,.step,.benefit,.fig,.shot,.col li{ break-inside:avoid; }
+}
+
+/* Mode export forcé (bouton PDF) : on fige le format A4 quelle que soit
+   la largeur de fenêtre, pour un rendu identique au papier. */
+body.mode-export .page{ transform:none !important; margin:0 auto 9mm; }
+body.mode-export .toolbar{ display:none; }
+/* --- Encadré de RÉSULTAT (D-5) : la phrase qui dit ce que la capacité
+   change concrètement. Filet d'accent à gauche, jamais un aplat coloré —
+   la couleur reste rare. break-inside pour ne pas se couper au PDF. */
+.result{
+  margin-top:6mm; padding:4mm 5mm;
+  /* Coin droit arrondi, coin gauche carré : un rayon des deux côtés fait
+     s'enrouler le filet d'accent sur lui-même et donne une parenthèse. */
+  border-radius:0 12px 12px 0;
+  background:var(--soft); border-left:2px solid var(--accent);
+  break-inside:avoid;
+}
+.result b{ display:block; font-size:8.5pt; text-transform:uppercase;
+  letter-spacing:.16em; color:var(--accent); font-weight:700; }
+.result span{ display:block; margin-top:2mm; font-size:10.5pt;
+  line-height:1.5; color:var(--body); }
