@@ -125,6 +125,18 @@ function formaterDate(iso: string | null): string {
 /** Pourquoi une commande est grisée. Le serveur refuserait de toute façon. */
 const TITRE_LECTURE = 'Réservé au gestionnaire, aux contributeurs et à l’administrateur.';
 
+/** Cadences de revue, de la plus rapprochée à la plus espacée. Journalière et hebdomadaire
+ *  servent aux surveillances serrées (vulnérabilités, accès sensibles), que le mois arrondissait
+ *  trop grossièrement. Doit rester aligné sur `domain.revue.PERIODICITES` côté serveur. */
+const PERIODICITES = [
+  'Journalière',
+  'Hebdomadaire',
+  'Mensuelle',
+  'Trimestrielle',
+  'Semestrielle',
+  'Annuelle',
+] as const;
+
 /** Nom d'écran des actions du journal complet. Une action inconnue s'affiche telle quelle. */
 const LIBELLE_ACTION_JOURNAL: Record<string, string> = {
   CREATION: 'Création',
@@ -849,12 +861,7 @@ export function FicheTransition({
                 </dt>
                 <dd className={styles.revue}>
                   <SelecteurListe
-                    options={['Mensuelle', 'Trimestrielle', 'Semestrielle', 'Annuelle'].map(
-                      (p) => ({
-                        valeur: p,
-                        libelle: p,
-                      }),
-                    )}
+                    options={PERIODICITES.map((p) => ({ valeur: p, libelle: p }))}
                     valeur={detail.periodicite ?? null}
                     onChange={(v) => void planifierRevue('periodicite', v)}
                     permettreVide

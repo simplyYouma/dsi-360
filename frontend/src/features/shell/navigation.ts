@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   Boxes,
   ChartColumnBig,
   ClipboardCheck,
@@ -72,7 +73,10 @@ export const SECTIONS: SectionNav[] = [
   },
   {
     titre: 'Patrimoine',
-    entrees: [{ chemin: '/inventaire', libelle: 'Inventaire', icone: Boxes, phase: 'P2' }],
+    entrees: [
+      { chemin: '/inventaire', libelle: 'Inventaire', icone: Boxes, phase: 'P2' },
+      { chemin: '/applications', libelle: 'Applications', icone: AppWindow, phase: 'P2' },
+    ],
   },
   {
     titre: 'Gouvernance',

@@ -1,6 +1,7 @@
 """Module Projets : liste, création, détail, transition, avancement. RBAC + cloisonnement."""
 
 import json
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -26,6 +27,11 @@ from dsi360.infrastructure.repositories import activite as repo
 from dsi360.infrastructure.repositories import jalon as jalon_repo
 from dsi360.infrastructure.repositories import modele_jalon
 from dsi360.infrastructure.repositories import tache as tache_repo
+from dsi360.interface.routeurs.activites_communs import (
+    colonnes_export,
+    horodate_export,
+    valeurs_export,
+)
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.routeurs.liens_communs import enregistrer_liens
 from dsi360.interface.schemas import (
@@ -463,7 +469,16 @@ async def modifier(
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
-_ENTETES = ["Référence", "Projet", "Statut", "Chef de projet", "Avancement", "Échéance", "Créé le"]
+#: Ce qu'un projet porte en propre, au-delà du socle commun aux activités : son cadrage.
+#: La catégorie du module « projet » **est** son type (cf. migration type_projet) : on le dit
+#: dans l'en-tête, pour que le lecteur du fichier n'ait pas à le deviner.
+_COLONNES_PROJET: tuple[tuple[str, str], ...] = (
+    ("Type de projet", "categorie"),
+    ("Sponsor", "sponsor"),
+    ("Budget", "budget"),
+    ("Date de début", "date_debut"),
+    ("Date de fin visée", "date_fin"),
+)
 
 
 @routeur.get("/export")
@@ -472,29 +487,37 @@ async def exporter(
     session: Session,
     format: Annotated[str, Query(alias="format")] = "csv",
 ) -> Response:
+    """Le projet complet : son cadrage, son avancement, ses délais et son retard.
+
+    Le module a son propre routeur, mais l'export s'appuie sur le socle commun aux activités :
+    une colonne ajoutée là (jours de dépassement, situation SLA…) profite aussi aux projets.
+    """
     direction = None if courant["transverse"] else courant["direction"]
     lignes = await repo.lister_tout(session, MODULE, direction=direction)
+    maintenant = datetime.now(UTC)
+    fins = await audit.dernieres_transitions(session, MODULE)
+    colonnes = [
+        *colonnes_export(MODULE, import_uniquement=False, avec_taches=True, avec_revue=False),
+        *_COLONNES_PROJET,
+    ]
+    entetes = [entete for entete, _ in colonnes]
     donnees: list[list[Any]] = []
     for r in lignes:
         d = _donnees(r)
-        chef = f"{r['resp_prenom']} {r['resp_nom']}" if r["resp_email"] is not None else ""
-        donnees.append(
-            [
-                r["reference"],
-                r["titre"],
-                r["statut"],
-                chef,
-                f"{int(d.get('avancement', 0))}%",
-                d.get("date_fin") or "",
-                r["cree_le"].strftime("%Y-%m-%d %H:%M"),
-            ]
-        )
+        valeurs = valeurs_export(r, maintenant, False, fins.get(r["reference"]))
+        valeurs |= {
+            "sponsor": d.get("sponsor") or "",
+            "budget": d.get("budget") if d.get("budget") is not None else "",
+            "date_debut": horodate_export(d.get("date_debut")),
+            "date_fin": horodate_export(d.get("date_fin")),
+        }
+        donnees.append([valeurs.get(cle, "") for _, cle in colonnes])
     if format == "xlsx":
-        contenu = vers_xlsx(_ENTETES, donnees, "projets")
+        contenu = vers_xlsx(entetes, donnees, "projets")
         media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ext = "xlsx"
     else:
-        contenu = vers_csv(_ENTETES, donnees)
+        contenu = vers_csv(entetes, donnees)
         media = "text/csv"
         ext = "csv"
     return Response(

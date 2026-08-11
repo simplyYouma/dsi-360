@@ -163,9 +163,16 @@ class TestRevuePeriodique:
     def test_franchit_l_annee(self) -> None:
         assert prochaine_revue("Trimestrielle", date(2026, 11, 30)) == date(2027, 2, 28)
 
+    def test_cadences_rapprochees_se_comptent_en_jours(self) -> None:
+        """Une surveillance serrée (vulnérabilité, accès sensibles) ne s'arrondit pas au mois."""
+        assert prochaine_revue("Journalière", date(2026, 1, 1)) == date(2026, 1, 2)
+        assert prochaine_revue("Hebdomadaire", date(2026, 1, 1)) == date(2026, 1, 8)
+        # Le calendrier réel : une semaine après le 26 février bissextile tombe le 4 mars.
+        assert prochaine_revue("Hebdomadaire", date(2024, 2, 26)) == date(2024, 3, 4)
+
     def test_periodicite_inconnue(self) -> None:
         with pytest.raises(ValueError):
-            prochaine_revue("Hebdomadaire", date(2026, 1, 1))
+            prochaine_revue("Bihebdomadaire", date(2026, 1, 1))
 
 
 class TestPlanificationRevue:

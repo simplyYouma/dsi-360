@@ -3,16 +3,31 @@ suivante. Pur, sans dépendance infrastructure. Cf. docs/02-DOMAIN-MODEL.
 """
 
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
-# Cadence (en mois) de chaque périodicité paramétrable.
+# Cadence (en jours) des revues rapprochées. Une revue quotidienne ou hebdomadaire ne s'exprime
+# pas en mois : elle suit le calendrier réel (une surveillance de vulnérabilité, une revue
+# d'accès sensibles se tiennent au jour ou à la semaine, pas au mois arrondi).
+JOURS_PAR_PERIODICITE: dict[str, int] = {
+    "Journalière": 1,
+    "Hebdomadaire": 7,
+}
+
+# Cadence (en mois) des revues espacées. Le décalage en mois borne le jour au dernier du mois
+# cible (31 → 30/28) : c'est ce qu'on attend d'une échéance mensuelle.
 MOIS_PAR_PERIODICITE: dict[str, int] = {
     "Mensuelle": 1,
     "Trimestrielle": 3,
     "Semestrielle": 6,
     "Annuelle": 12,
 }
+
+#: Toutes les périodicités, de la plus rapprochée à la plus espacée — l'ordre d'affichage.
+PERIODICITES: tuple[str, ...] = (
+    *JOURS_PAR_PERIODICITE,
+    *MOIS_PAR_PERIODICITE,
+)
 
 # Les trois clés du cycle de revue, portées par `donnees`. Retirer la périodicité les efface toutes.
 CLES_REVUE = ("periodicite", "prochaine_revue", "derniere_revue")
@@ -28,10 +43,15 @@ def _ajouter_mois(depart: date, mois: int) -> date:
 
 
 def prochaine_revue(periodicite: str, depuis: date) -> date:
-    """Date de la revue suivante, `periodicite` mois après `depuis`.
+    """Date de la revue suivante, une cadence après `depuis`.
 
-    Lève ``ValueError`` si la périodicité est inconnue : sans cadence, aucune échéance n'a de sens.
+    Les cadences rapprochées (journalière, hebdomadaire) se comptent en jours ; les autres en
+    mois. Lève ``ValueError`` si la périodicité est inconnue : sans cadence, aucune échéance n'a
+    de sens.
     """
+    jours = JOURS_PAR_PERIODICITE.get(periodicite)
+    if jours is not None:
+        return depuis + timedelta(days=jours)
     mois = MOIS_PAR_PERIODICITE.get(periodicite)
     if mois is None:
         raise ValueError(f"Périodicité inconnue : {periodicite}")

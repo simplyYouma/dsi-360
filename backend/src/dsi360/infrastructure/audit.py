@@ -38,6 +38,28 @@ _HISTORIQUE = text(
 )
 
 
+#: Horodatage de la DERNIÈRE transition de chaque dossier d'un module, en une seule requête.
+#: L'export a besoin de la date de fin de milliers de dossiers : la lire fiche par fiche
+#: (`historique_statuts`) aurait fait autant d'allers-retours que de lignes.
+_DERNIERES_TRANSITIONS = text(
+    "SELECT cible_id, max(horodatage) AS fin FROM audit.journal "
+    "WHERE module = :module AND action IN ('CREATION', 'TRANSITION') "
+    "  AND nouvelle_valeur->>'statut' IS NOT NULL "
+    "GROUP BY cible_id"
+)
+
+
+async def dernieres_transitions(session: AsyncSession, module: str) -> dict[str, datetime]:
+    """Référence -> horodatage de sa dernière transition de statut, pour tout un module.
+
+    Sert à dater la fin des dossiers que leur statut ne date pas : « Résolu » et « Clôturé »
+    posent un `resolu_le` / `cloture_le`, mais « Réalisé », « Maîtrisé » ou « Rejeté » n'en posent
+    aucun — sans le journal, leur retard à l'arrivée serait incalculable.
+    """
+    resultat = await session.execute(_DERNIERES_TRANSITIONS, {"module": module})
+    return {r["cible_id"]: r["fin"] for r in resultat.mappings().all()}
+
+
 async def historique_statuts(
     session: AsyncSession, module: str, reference: str
 ) -> list[dict[str, Any]]:

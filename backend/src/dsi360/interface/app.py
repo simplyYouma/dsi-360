@@ -26,6 +26,7 @@ from dsi360.interface.routeurs import (
     administration,
     analyses,
     apercu,
+    applications,
     audit_reco,
     auth,
     changements,
@@ -225,6 +226,7 @@ def creer_app() -> FastAPI:
     v1.include_router(gouvernance.routeur)
     v1.include_router(projets.routeur)
     v1.include_router(inventaire.routeur)
+    v1.include_router(applications.routeur)
     app.include_router(v1)
     if settings.servir_frontend:
         _monter_frontend(app, settings)

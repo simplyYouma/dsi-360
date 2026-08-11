@@ -287,7 +287,11 @@ async def lister_tout(
     limite: int = 5000,
     moi: str | None = None,
 ) -> list[RowMapping]:
-    """Toutes les activités du périmètre (sans pagination) — pour les exports."""
+    """Toutes les activités du périmètre (sans pagination) — pour les exports.
+
+    La description est jointe ici et non dans les listes paginées : l'export doit dire de quoi
+    parle le dossier, l'écran de liste n'en a pas la place.
+    """
     params: dict[str, Any] = {"module": module, "limite": limite, "moi": moi}
     cond = ""
     if direction is not None:
@@ -295,7 +299,10 @@ async def lister_tout(
         cond = " AND (d.code = :direction OR a.direction_id IS NULL)"
         params["direction"] = direction
     lignes = await session.execute(
-        text(f"SELECT {_LISTE_CHAMPS} {_BASE}{cond} ORDER BY a.cree_le DESC LIMIT :limite"),
+        text(
+            f"SELECT {_LISTE_CHAMPS}, a.description {_BASE}{cond} "
+            "ORDER BY a.cree_le DESC LIMIT :limite"
+        ),
         params,
     )
     return list(lignes.mappings().all())

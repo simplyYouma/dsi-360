@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,8 +16,13 @@ from dsi360.domain.etats import est_porte_validation, ordre_etats, transitions_p
 from dsi360.domain.revue import calculer_planification, prochaine_revue
 from dsi360.infrastructure import audit
 from dsi360.infrastructure.db import session_scope
+from dsi360.infrastructure.export import vers_csv, vers_xlsx
 from dsi360.infrastructure.repositories import activite as repo
-from dsi360.interface.routeurs.activites_communs import rendre_journal
+from dsi360.interface.routeurs.activites_communs import (
+    colonnes_export,
+    rendre_journal,
+    valeurs_export,
+)
 from dsi360.interface.routeurs.liens_communs import enregistrer_liens
 from dsi360.interface.schemas import (
     AssignationDemande,
@@ -184,6 +189,65 @@ async def _detail_complet(
     # Le serveur calcule les capacités de l'appelant ; l'écran obéit.
     base["permissions"] = capacites(await charger_roles(session, r, courant))
     return base
+
+
+#: Ce qu'un risque porte en propre : sa cotation. La criticité n'est jamais stockée — elle est le
+#: produit probabilité × impact, et se recalcule ici comme à l'écran.
+_COLONNES_RISQUE: tuple[tuple[str, str], ...] = (
+    ("Probabilité", "probabilite"),
+    ("Impact (cotation)", "impact_cotation"),
+    ("Criticité", "criticite"),
+)
+
+
+@routeur.get("/export")
+async def exporter(
+    courant: Courant,
+    session: Session,
+    format: Annotated[str, Query(alias="format")] = "csv",
+) -> Response:
+    """Le registre des risques, complet : cotation, plan de traitement, cycle de revue.
+
+    Le module a son propre routeur, mais l'export s'appuie sur le socle commun aux activités —
+    une colonne ajoutée là profite aussi aux risques.
+    """
+    direction = None if courant["transverse"] else courant["direction"]
+    lignes = await repo.lister_tout(session, MODULE, direction=direction)
+    maintenant = datetime.now(UTC)
+    fins = await audit.dernieres_transitions(session, MODULE)
+    colonnes = [
+        *colonnes_export(MODULE, import_uniquement=False, avec_taches=False, avec_revue=True),
+        *_COLONNES_RISQUE,
+    ]
+    entetes = [entete for entete, _ in colonnes]
+    donnees: list[list[Any]] = []
+    for r in lignes:
+        d = _donnees(r)
+        probabilite, impact = d.get("probabilite"), d.get("impact")
+        valeurs = valeurs_export(r, maintenant, False, fins.get(r["reference"]))
+        valeurs |= {
+            "probabilite": probabilite if probabilite is not None else "",
+            "impact_cotation": impact if impact is not None else "",
+            "criticite": (
+                int(probabilite) * int(impact)
+                if probabilite is not None and impact is not None
+                else ""
+            ),
+        }
+        donnees.append([valeurs.get(cle, "") for _, cle in colonnes])
+    if format == "xlsx":
+        contenu = vers_xlsx(entetes, donnees, "risques")
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ext = "xlsx"
+    else:
+        contenu = vers_csv(entetes, donnees)
+        media = "text/csv"
+        ext = "csv"
+    return Response(
+        content=contenu,
+        media_type=media,
+        headers={"Content-Disposition": f"attachment; filename=risques-export.{ext}"},
+    )
 
 
 @routeur.get("/{ident}", response_model=RisqueDetail)

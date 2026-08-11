@@ -434,33 +434,183 @@ def _visible(r: RowMapping, courant: dict[str, Any]) -> bool:
     return r["direction"] is None or r["direction"] == courant["direction"]
 
 
-ENTETES_EXPORT = [
-    "Référence",
-    "Titre",
-    "Statut",
-    "Priorité",
-    "Catégorie",
-    "Direction",
-    "Échéance SLA",
-    "Créé le",
-    "Responsable",
-]
+# --- Export : tout ce que le dossier porte, pas seulement ce que la liste montre ---------------
+#
+# Un export sert à travailler hors de l'écran : à recouper, à justifier, à rendre compte. Amputé
+# de ses échéances de prise en charge, de ses jours de dépassement ou de son gestionnaire, il
+# oblige à revenir à l'application — donc à ressaisir. On sort donc **toute** colonne dont
+# l'information existe, y compris celles que seuls certains modules portent (avancement d'un
+# projet, dossier RFC d'un changement, revue périodique d'un risque).
+
+#: Format des dates de l'export : lisible par un lecteur ET trié correctement par le tableur.
+_FORMAT_DATE = "%d/%m/%Y %H:%M"
+
+_LIBELLE_STATUT_SLA = {
+    "a_lheure": "À l'heure",
+    "approche": "Échéance proche",
+    "depasse": "Dépassé",
+    "termine": "Terminé",
+}
+
+#: Colonnes communes à tous les modules : (en-tête, extracteur).
+_COLONNES_BASE: tuple[tuple[str, str], ...] = (
+    ("Référence", "reference"),
+    ("Titre", "titre"),
+    ("Statut", "statut"),
+    ("Priorité", "priorite"),
+    ("Impact", "impact"),
+    ("Urgence", "urgence"),
+    ("Catégorie", "categorie"),
+    ("Direction", "direction"),
+    ("Demandeur", "demandeur"),
+    ("Responsable", "responsable"),
+    ("Contributeur", "contributeur"),
+    ("Description", "description"),
+    ("Créé le", "cree_le"),
+    ("Échéance de prise en charge", "sla_prise_en_charge_le"),
+    ("Échéance de résolution", "sla_resolution_le"),
+    ("Situation SLA", "statut_sla"),
+    ("Jours de dépassement", "retard_jours"),
+    ("Résolu le", "resolu_le"),
+    ("Clôturé le", "cloture_le"),
+    ("Délai de traitement (jours)", "duree_jours"),
+    ("Commentaires", "nb_commentaires"),
+)
+
+#: Colonnes des modules alimentés par l'import quotidien (incidents, demandes) : le gestionnaire
+#: tel que le fichier le nomme, et le niveau qui s'en déduit (ADR-0005).
+_COLONNES_IMPORT: tuple[tuple[str, str], ...] = (
+    ("Gestionnaire", "gestionnaire"),
+    ("Niveau de support", "niveau_support"),
+    ("Transféré DBS", "transfere_dbs"),
+)
+
+#: Modules qui portent un avancement chiffré (projets, changements et tout ce qui a des tâches).
+_COLONNES_AVANCEMENT: tuple[tuple[str, str], ...] = (("Avancement (%)", "avancement"),)
+
+#: Dossier de changement (ITIL SI-12.04) : ce qui a été analysé, prévu, et constaté après coup.
+_COLONNES_RFC: tuple[tuple[str, str], ...] = (
+    ("Analyse d'impact", "analyse_impact"),
+    ("Analyse de risque", "analyse_risque"),
+    ("Plan de déploiement", "plan_deploiement"),
+    ("Plan de retour arrière", "plan_retour_arriere"),
+    ("Bilan post-implémentation", "bilan_post_implementation"),
+)
+
+#: Revue périodique (risques, cybersécurité) : la surveillance dans le temps.
+_COLONNES_REVUE: tuple[tuple[str, str], ...] = (
+    ("Périodicité de revue", "periodicite"),
+    ("Dernière revue", "derniere_revue"),
+    ("Prochaine revue", "prochaine_revue"),
+)
 
 
-def _ligne_export(r: RowMapping) -> list[Any]:
+def horodate_export(valeur: Any) -> str:  # noqa: D401 — helper partagé avec les modules dédiés
+    """Un horodatage lisible, ou une case vide — jamais « None » écrit en toutes lettres."""
+    if valeur is None:
+        return ""
+    if isinstance(valeur, datetime):
+        return valeur.strftime(_FORMAT_DATE)
+    # Les dates du JSON `donnees` (revues) sont du texte ISO : « 2026-08-11 » -> « 11/08/2026 ».
+    texte = str(valeur)
+    if len(texte) >= 10 and texte[4] == "-" and texte[7] == "-":
+        return f"{texte[8:10]}/{texte[5:7]}/{texte[0:4]}"
+    return texte
+
+
+def _retard_jours(r: RowMapping, fin: datetime | None, maintenant: datetime) -> str:
+    """Jours de dépassement de l'échéance de résolution — le chiffre qu'on vient chercher.
+
+    Pour un dossier terminé, on compte jusqu'à sa date de fin réelle : son compteur ne court plus,
+    mais le retard **à l'arrivée** reste une information de pilotage. Pour un dossier ouvert, on
+    compte jusqu'à maintenant. Zéro veut dire « dans les délais » et se distingue d'une case vide,
+    qui veut dire « pas d'échéance ».
+    """
+    echeance = r["sla_resolution_le"]
+    if echeance is None:
+        return ""
+    if etats.est_termine(r["module"], r["statut"]):
+        arrivee = r["resolu_le"] or r["cloture_le"] or fin
+        if arrivee is None:
+            return ""
+        return str(max(0, math.ceil((arrivee - echeance).total_seconds() / 86_400)))
+    return str(max(0, math.ceil((maintenant - echeance).total_seconds() / 86_400)))
+
+
+def _duree_jours(r: RowMapping, fin: datetime | None) -> str:
+    """Temps réellement passé entre la création et la fin — vide tant que le dossier vit."""
+    if not etats.est_termine(r["module"], r["statut"]):
+        return ""
+    arrivee = r["resolu_le"] or r["cloture_le"] or fin
+    if arrivee is None:
+        return ""
+    return str(max(0, round((arrivee - r["cree_le"]).total_seconds() / 86_400, 1)))
+
+
+def valeurs_export(
+    r: RowMapping,
+    maintenant: datetime,
+    importe: bool,
+    fin: datetime | None,
+) -> dict[str, Any]:
+    """Toutes les valeurs exportables d'un dossier, indexées par clé de colonne."""
+    donnees = _donnees(r)
     resp = f"{r['resp_prenom']} {r['resp_nom']}" if r["resp_email"] is not None else ""
-    echeance = r["sla_resolution_le"].strftime("%Y-%m-%d %H:%M") if r["sla_resolution_le"] else ""
-    return [
-        r["reference"],
-        r["titre"],
-        r["statut"],
-        f"P{r['priorite']}" if r["priorite"] is not None else "",
-        r["categorie"] or "",
-        r["direction"] or "",
-        echeance,
-        r["cree_le"].strftime("%Y-%m-%d %H:%M"),
-        resp,
-    ]
+    niveau = _niveau_support(r, importe)
+    valeurs: dict[str, Any] = {
+        "reference": r["reference"],
+        "titre": r["titre"],
+        "statut": r["statut"],
+        "priorite": f"P{r['priorite']}" if r["priorite"] is not None else "",
+        "impact": r["impact"] if r["impact"] is not None else "",
+        "urgence": r["urgence"] if r["urgence"] is not None else "",
+        "categorie": r["categorie"] or "",
+        "direction": r["direction"] or "",
+        "demandeur": r["demandeur_nom"] or "",
+        "responsable": resp,
+        "contributeur": (r["contributeur"] if "contributeur" in r else None) or "",
+        # La description porte le fond du dossier : sans elle, l'export ne dit pas de quoi il parle.
+        "description": r["description"] if "description" in r else "",
+        "cree_le": horodate_export(r["cree_le"]),
+        "sla_prise_en_charge_le": horodate_export(r["sla_prise_en_charge_le"]),
+        "sla_resolution_le": horodate_export(r["sla_resolution_le"]),
+        "statut_sla": _LIBELLE_STATUT_SLA.get(_statut_sla(r, maintenant), ""),
+        "retard_jours": _retard_jours(r, fin, maintenant),
+        "resolu_le": horodate_export(r["resolu_le"]),
+        "cloture_le": horodate_export(r["cloture_le"]),
+        "duree_jours": _duree_jours(r, fin),
+        "nb_commentaires": r["nb_commentaires"],
+        "gestionnaire": _gestionnaire(r) or "",
+        "niveau_support": f"N{niveau}" if niveau is not None else "",
+        "transfere_dbs": "Oui" if _transfere_dbs(r, importe) else "Non",
+        "avancement": int(donnees.get("avancement", 0)),
+        "periodicite": donnees.get("periodicite") or "",
+        "derniere_revue": horodate_export(donnees.get("derniere_revue")),
+        "prochaine_revue": horodate_export(donnees.get("prochaine_revue")),
+    }
+    for champ in _CHAMPS_RFC:
+        valeurs[champ] = donnees.get(champ) or ""
+    return valeurs
+
+
+def colonnes_export(
+    module: str, *, import_uniquement: bool, avec_taches: bool, avec_revue: bool
+) -> tuple[tuple[str, str], ...]:
+    """Colonnes de l'export d'un module : le socle, plus ce que ce module porte réellement.
+
+    On n'ajoute jamais une colonne qu'un module ne peut pas remplir : une colonne toujours vide
+    n'est pas de l'exhaustivité, c'est du bruit.
+    """
+    colonnes = list(_COLONNES_BASE)
+    if import_uniquement:
+        colonnes += list(_COLONNES_IMPORT)
+    if avec_taches:
+        colonnes += list(_COLONNES_AVANCEMENT)
+    if module == "changement":
+        colonnes += list(_COLONNES_RFC)
+    if avec_revue:
+        colonnes += list(_COLONNES_REVUE)
+    return tuple(colonnes)
 
 
 Session = Annotated[AsyncSession, Depends(session_scope)]
@@ -634,13 +784,34 @@ def creer_routeur(
     ) -> Response:
         direction = None if courant["transverse"] else courant["direction"]
         lignes = await repo.lister_tout(session, module, direction=direction)
-        donnees = [_ligne_export(r) for r in lignes]
+        maintenant = datetime.now(UTC)
+        # Les dossiers dont le statut ne pose ni `resolu_le` ni `cloture_le` (« Réalisé »,
+        # « Maîtrisé »…) sont datés par leur dernière transition. Une requête pour tout le
+        # module, pas une par ligne.
+        fins = await audit.dernieres_transitions(session, module)
+        colonnes = colonnes_export(
+            module,
+            import_uniquement=import_uniquement,
+            avec_taches=avec_taches,
+            avec_revue=avec_revue,
+        )
+        entetes = [entete for entete, _ in colonnes]
+        donnees = [
+            [
+                valeurs.get(cle, "")
+                for _, cle in colonnes
+            ]
+            for valeurs in (
+                valeurs_export(r, maintenant, import_uniquement, fins.get(r["reference"]))
+                for r in lignes
+            )
+        ]
         if format == "xlsx":
-            contenu = vers_xlsx(ENTETES_EXPORT, donnees, tag)
+            contenu = vers_xlsx(entetes, donnees, tag)
             media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ext = "xlsx"
         else:
-            contenu = vers_csv(ENTETES_EXPORT, donnees)
+            contenu = vers_csv(entetes, donnees)
             media = "text/csv"
             ext = "csv"
         nom = f"{prefixe.strip('/')}-export.{ext}"

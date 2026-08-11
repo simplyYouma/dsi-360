@@ -46,6 +46,15 @@ Neuf modules, livrés par phases (cf. §7) :
 8. **Cybersécurité** — habilitations sensibles, comptes admin, revue des accès, vulnérabilités, correctifs, MFA, contrôles IAM.
 9. **Gouvernance DSI** — COPIL, comités, décisions DG, plan d'actions, suivi des engagements.
 
+> **Hors cahier, ajouts assumés** — deux modules de patrimoine, tracés ici comme tels :
+> **Inventaire** (parc matériel, immobilisations IT) et **Applications** (inventaire applicatif :
+> quelle application tourne, de quel éditeur l'on dépend, où sont hébergées ses données, et **qui
+> en répond**). Ni l'un ni l'autre n'est une activité : pas de workflow, pas de SLA, pas de
+> valideur — ils vivent dans leurs propres tables. Le parc applicatif est chargé une première fois
+> depuis la liste des logiciels métiers de la DSI (migration idempotente), puis tenu à jour à
+> l'écran. Ses indicateurs de tête ne sont pas des effectifs mais des **trous de suivi** :
+> applications sans administrateur, et sans administrateur de secours.
+
 **Transversal à toute activité** : Demandeur · Responsable principal · Contributeur(s) · Valideur(s)
 · Date d'échéance · Priorité · **SLA**.
 

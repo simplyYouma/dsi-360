@@ -84,7 +84,12 @@ class DecisionDemande(BaseModel):
     decision: Literal["APPROUVE", "REJETE"]
 
 
-Periodicite = Literal["Mensuelle", "Trimestrielle", "Semestrielle", "Annuelle"]
+#: Cadences de revue, de la plus rapprochée à la plus espacée. Journalière et hebdomadaire
+#: servent aux surveillances serrées (vulnérabilités, accès sensibles), que le mois arrondissait
+#: jusqu'ici trop grossièrement. Doit rester aligné sur `domain.revue.PERIODICITES`.
+Periodicite = Literal[
+    "Journalière", "Hebdomadaire", "Mensuelle", "Trimestrielle", "Semestrielle", "Annuelle"
+]
 
 
 class RevueDemande(BaseModel):
@@ -378,6 +383,134 @@ class ConstatEquipement(BaseModel):
     #: Ce qui a été observé, en une phrase (« écran fêlé », « retrouvé en réserve »). Exigé :
     #: un constat sans motif n'est qu'une opinion, et se relit un an plus tard sans rien dire.
     justification: str = Field(min_length=3, max_length=200)
+
+
+# --- Inventaire applicatif : le patrimoine logiciel ------------------------------------------
+
+#: Où tournent les données de l'application. Le fichier source dit « Banque » / « Hors Banque » ;
+#: on le nomme ici par ce que c'est vraiment : un lieu d'hébergement.
+Hebergement = Literal["INTERNE", "EXTERNE"]
+#: Cycle de vie d'une application. Volontairement court : ce n'est pas un workflow.
+StatutApplication = Literal["EN_SERVICE", "EN_PROJET", "ARRETE"]
+#: L'application échange-t-elle avec d'autres ? Premier signal d'un effet de bord au changement.
+Interfacage = Literal["OUI", "NON"]
+
+
+class ApplicationResume(BaseModel):
+    id: str
+    #: Référence système (« APP-00001 »), générée par la plateforme — jamais saisie.
+    reference: str
+    nom: str
+    #: Le métier que l'application sert (« Banque mobile »).
+    processus_metier: str | None = None
+    version: str | None = None
+    editeur: str | None = None
+    hebergement: str | None = None
+    interfacage: str | None = None
+    statut: str
+    #: Qui l'administre, et qui prend le relais. Texte libre : le fichier y inscrit parfois deux
+    #: personnes, parfois une adresse de support prestataire — on garde ce qui est écrit.
+    administrateur: str | None = None
+    administrateur_secours: str | None = None
+    nb_comptes_actifs: int | None = None
+    actif: bool
+
+
+class EvenementApplication(EvenementJournal):
+    """Une action journalisée sur l'application : la mémoire administrative du logiciel."""
+
+
+class ApplicationDetail(ApplicationResume):
+    #: Dernières actions (création, modifications, chargement initial), plus récentes d'abord.
+    historique: list[EvenementApplication] = []
+    fonctionnalites: str | None = None
+    editeur_id: str | None = None
+    proprietaire: str | None = None
+    pays_donnees: str | None = None
+    date_debut: date | None = None
+    date_fin: date | None = None
+    lien: str | None = None
+    serveur_application: str | None = None
+    serveur_base: str | None = None
+    port: str | None = None
+    source: str
+    cree_le: datetime
+    maj_le: datetime
+
+
+class PageApplications(BaseModel):
+    elements: list[ApplicationResume]
+    total: int
+    page: int
+    taille: int
+
+
+class StatsApplications(BaseModel):
+    total: int
+    actives: int
+    retirees: int
+    internes: int
+    externes: int
+    interfacees: int
+    #: Plus personne ne répond de cette application : le premier trou à combler d'un inventaire.
+    sans_administrateur: int
+    #: Un seul administrateur, sans relais : le risque de continuité qu'on ne voit jamais venir.
+    sans_secours: int
+
+
+class _ApplicationChamps(BaseModel):
+    """Champs communs à la création et à la modification (tous facultatifs ici)."""
+
+    processus_metier: str | None = Field(default=None, max_length=300)
+    fonctionnalites: str | None = Field(default=None, max_length=2000)
+    version: str | None = Field(default=None, max_length=60)
+    editeur_id: str | None = None
+    hebergement: Hebergement | None = None
+    pays_donnees: str | None = Field(default=None, max_length=80)
+    interfacage: Interfacage | None = None
+    proprietaire: str | None = Field(default=None, max_length=160)
+    date_debut: date | None = None
+    date_fin: date | None = None
+    nb_comptes_actifs: int | None = Field(default=None, ge=0)
+    lien: str | None = Field(default=None, max_length=500)
+    serveur_application: str | None = Field(default=None, max_length=160)
+    serveur_base: str | None = Field(default=None, max_length=160)
+    port: str | None = Field(default=None, max_length=40)
+    administrateur: str | None = Field(default=None, max_length=160)
+    administrateur_secours: str | None = Field(default=None, max_length=160)
+
+
+class ApplicationCreation(_ApplicationChamps):
+    #: Seul champ exigé : une application sans nom serait introuvable dans la liste.
+    nom: str = Field(min_length=2, max_length=200)
+    statut: StatutApplication = "EN_SERVICE"
+
+
+class ApplicationMaj(_ApplicationChamps):
+    #: Omis = inchangé (le routeur n'envoie que les champs réellement fournis).
+    nom: str | None = Field(default=None, min_length=2, max_length=200)
+    statut: StatutApplication | None = None
+    #: Retirée du parc applicatif (décommissionnée) : conservée pour l'historique.
+    actif: bool | None = None
+
+
+class TrancheApplications(BaseModel):
+    """Un groupe d'applications (par éditeur, hébergement, statut) et son effectif."""
+
+    libelle: str
+    nombre: int
+
+
+class AnalysesApplications(BaseModel):
+    """Le patrimoine logiciel en chiffres : dépendances, hébergement, continuité."""
+
+    total: int
+    par_editeur: list[TrancheApplications]
+    par_hebergement: list[TrancheApplications]
+    par_statut: list[TrancheApplications]
+    par_administrateur: list[TrancheApplications]
+    #: Ce qui n'a pas de relais désigné : la continuité de service qui tient à une personne.
+    sans_secours: list[TrancheApplications]
 
 
 class ReferentielItem(BaseModel):
