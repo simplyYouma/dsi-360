@@ -1,4 +1,12 @@
+import { Building2, Cloud, Link2, Unlink, type LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
+
+/** Une personne qui répond d'une application : un compte de l'annuaire, ou un nom écrit à la main
+ *  (prestataire, support éditeur, personne sans compte). */
+export interface ResponsableApplication {
+  utilisateur_id: string | null;
+  nom: string;
+}
 
 export interface Application {
   id: string;
@@ -12,10 +20,10 @@ export interface Application {
   hebergement: string | null;
   interfacage: string | null;
   statut: string;
-  /** Qui l'administre, et qui prend le relais. Texte libre : le fichier y inscrit parfois deux
-   *  personnes, parfois une adresse de support prestataire. */
-  administrateur: string | null;
-  administrateur_secours: string | null;
+  /** Qui l'administre, et qui prend le relais. Plusieurs par rôle : une application se tient
+   *  rarement à une seule personne. */
+  administrateurs: ResponsableApplication[];
+  administrateurs_secours: ResponsableApplication[];
   nb_comptes_actifs: number | null;
   actif: boolean;
 }
@@ -77,6 +85,12 @@ export interface FiltresApplications {
   actif?: boolean | null;
 }
 
+/** Ce que l'écran envoie pour désigner une personne : un compte, ou un nom libre. */
+export interface ResponsableSaisie {
+  utilisateur_id?: string | null;
+  nom?: string | null;
+}
+
 export interface NouvelleApplication {
   nom: string;
   processus_metier?: string | null;
@@ -95,16 +109,17 @@ export interface NouvelleApplication {
   serveur_application?: string | null;
   serveur_base?: string | null;
   port?: string | null;
-  administrateur?: string | null;
-  administrateur_secours?: string | null;
+  /** Listes complètes : ce qui n'y figure plus est retiré. */
+  administrateurs?: ResponsableSaisie[];
+  administrateurs_secours?: ResponsableSaisie[];
 }
 
 export type MajApplication = Partial<NouvelleApplication> & { actif?: boolean };
 
 /** Où tournent les données : chez nous, ou chez un tiers. */
 export const HEBERGEMENTS = [
-  { valeur: 'INTERNE', libelle: 'Interne (nos serveurs)' },
-  { valeur: 'EXTERNE', libelle: 'Externe (tiers)' },
+  { valeur: 'INTERNE', libelle: 'Interne' },
+  { valeur: 'EXTERNE', libelle: 'Externe' },
 ] as const;
 
 /** Cycle de vie d'une application. Volontairement court : ce n'est pas un workflow. */
@@ -120,8 +135,26 @@ export const INTERFACAGES = [
 ] as const;
 
 export const LIBELLE_HEBERGEMENT: Record<string, string> = {
-  INTERNE: 'Interne (nos serveurs)',
-  EXTERNE: 'Externe (tiers)',
+  INTERNE: 'Interne',
+  EXTERNE: 'Externe',
+};
+
+/** Une forme se lit plus vite qu'un point coloré, et reste lisible pour qui distingue mal les
+ *  couleurs : un bâtiment pour ce qui tourne chez nous, un nuage pour ce qui est chez un tiers. */
+export const ICONE_HEBERGEMENT: Record<string, LucideIcon> = {
+  INTERNE: Building2,
+  EXTERNE: Cloud,
+};
+
+/** Interfacée ou non : deux maillons liés, ou rompus. */
+export const ICONE_INTERFACAGE: Record<string, LucideIcon> = {
+  OUI: Link2,
+  NON: Unlink,
+};
+
+export const LIBELLE_INTERFACAGE: Record<string, string> = {
+  OUI: 'Interfacée',
+  NON: 'Non interfacée',
 };
 
 export const LIBELLE_STATUT: Record<string, string> = {

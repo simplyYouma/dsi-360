@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, type LucideIcon } from 'lucide-react';
 import { Button, Table, useToast, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -9,6 +9,7 @@ import { api, ErreurApi } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import filtres from '@/common/FiltreTickets.module.css';
 import local from '@/features/inventaire/Inventaire.module.css';
+import propre from './Applications.module.css';
 import { FicheApplication } from './FicheApplication';
 import { ModaleApplication } from './ModaleApplication';
 import {
@@ -16,14 +17,18 @@ import {
   COULEUR_HEBERGEMENT,
   COULEUR_STATUT,
   HEBERGEMENTS,
+  ICONE_HEBERGEMENT,
+  ICONE_INTERFACAGE,
   INTERFACAGES,
   LIBELLE_HEBERGEMENT,
+  LIBELLE_INTERFACAGE,
   LIBELLE_STATUT,
   SANS_ADMINISTRATEUR,
   STATUTS,
   type Application,
   type FiltresApplications,
   type ReferentielItem,
+  type ResponsableApplication,
   type StatsApplications,
 } from './applicationsApi';
 
@@ -38,6 +43,45 @@ export function couleurEditeur(libelle: string): string {
   let h = 0;
   for (let i = 0; i < libelle.length; i++) h = (h * 31 + libelle.charCodeAt(i)) >>> 0;
   return _PALETTE_EDITEUR[h % _PALETTE_EDITEUR.length] ?? 'var(--cat-1)';
+}
+
+/** Les personnes qui répondent, en une cellule : la première nommée, puis le compte des autres.
+ *  Aligner trois noms bout à bout étirait la colonne sans rien apprendre — le détail est en fiche. */
+function Personnes({ liste }: { liste: ResponsableApplication[] }): JSX.Element {
+  if (liste.length === 0) {
+    // Personne de désigné : ce n'est pas une case vide, c'est un trou de suivi.
+    return <span className={propre.personne0}>Personne</span>;
+  }
+  const [premiere, ...reste] = liste;
+  return (
+    <span className={propre.personnes} title={liste.map((p) => p.nom).join(' · ')}>
+      <span className={propre.personnePremiere}>{premiere?.nom}</span>
+      {reste.length > 0 && <span className={propre.personneReste}>+{reste.length}</span>}
+    </span>
+  );
+}
+
+/** Une valeur codée : l'icône porte le sens, le mot le confirme. Une forme se lit plus vite
+ *  qu'un point coloré, et reste lisible pour qui distingue mal les couleurs. */
+function Marqueur({
+  valeur,
+  libelles,
+  icones,
+  couleurs,
+}: {
+  valeur: string | null;
+  libelles: Record<string, string>;
+  icones: Record<string, LucideIcon>;
+  couleurs?: Record<string, string>;
+}): JSX.Element {
+  if (valeur === null) return <span className={local.vide}>—</span>;
+  const Icone = icones[valeur];
+  return (
+    <span className={propre.marqueur} style={{ color: couleurs?.[valeur] ?? 'var(--text)' }}>
+      {Icone !== undefined && <Icone size={14} />}
+      {libelles[valeur] ?? valeur}
+    </span>
+  );
 }
 
 const VUES: { cle: string; libelle: string; actif: boolean | null }[] = [
@@ -99,27 +143,29 @@ export function ApplicationsPage(): JSX.Element {
       rendu: (a) => <span className={local.technique}>{a.reference}</span>,
     },
     {
+      // Le nom porte le métier servi juste en dessous : deux informations qui se lisent ensemble,
+      // et une colonne de moins à faire tenir dans la largeur.
       cle: 'nom',
       entete: 'Application',
       tronque: true,
       valeur: (a) => a.nom,
-      rendu: (a) => <strong title={a.nom}>{a.nom}</strong>,
-    },
-    {
-      cle: 'processus_metier',
-      entete: 'Processus métier',
-      tronque: true,
-      valeur: (a) => a.processus_metier ?? '',
-      rendu: (a) =>
-        a.processus_metier !== null ? (
-          <span title={a.processus_metier}>{a.processus_metier}</span>
-        ) : (
-          <span className={local.vide}>—</span>
-        ),
+      rendu: (a) => (
+        <span className={propre.nomCellule}>
+          <span className={propre.nomPrincipal} title={a.nom}>
+            {a.nom}
+          </span>
+          {a.processus_metier !== null && (
+            <span className={propre.nomMetier} title={a.processus_metier}>
+              {a.processus_metier}
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       cle: 'editeur',
       entete: 'Éditeur',
+      largeur: '160px',
       valeur: (a) => a.editeur ?? '',
       rendu: (a) =>
         a.editeur !== null ? (
@@ -128,7 +174,7 @@ export function ApplicationsPage(): JSX.Element {
             style={{ background: couleurEditeur(a.editeur), color: 'var(--on-accent)' }}
             title={a.editeur}
           >
-            {a.editeur}
+            <span className={propre.tronque}>{a.editeur}</span>
           </span>
         ) : (
           <span className={local.vide}>—</span>
@@ -137,34 +183,48 @@ export function ApplicationsPage(): JSX.Element {
     {
       cle: 'hebergement',
       entete: 'Hébergement',
-      largeur: '150px',
+      largeur: '130px',
       valeur: (a) => a.hebergement ?? '',
-      // La couleur porte le sens : ce qui est externe sort de nos murs.
-      rendu: (a) =>
-        a.hebergement !== null ? (
-          <span style={{ color: COULEUR_HEBERGEMENT[a.hebergement] ?? 'var(--text)' }}>
-            {LIBELLE_HEBERGEMENT[a.hebergement] ?? a.hebergement}
-          </span>
-        ) : (
-          <span className={local.vide}>—</span>
-        ),
+      rendu: (a) => (
+        <Marqueur
+          valeur={a.hebergement}
+          libelles={LIBELLE_HEBERGEMENT}
+          icones={ICONE_HEBERGEMENT}
+          couleurs={COULEUR_HEBERGEMENT}
+        />
+      ),
     },
     {
-      cle: 'administrateur',
-      entete: 'Administrateur',
-      valeur: (a) => a.administrateur ?? '',
-      // Sans administrateur, plus personne ne répond de l'application : on ne le tait pas.
-      rendu: (a) =>
-        a.administrateur !== null ? (
-          <span title={a.administrateur_secours ?? undefined}>{a.administrateur}</span>
-        ) : (
-          <span className={local.brut}>Personne</span>
-        ),
+      cle: 'interfacage',
+      entete: 'Interfaçage',
+      largeur: '140px',
+      valeur: (a) => a.interfacage ?? '',
+      rendu: (a) => (
+        <Marqueur
+          valeur={a.interfacage}
+          libelles={LIBELLE_INTERFACAGE}
+          icones={ICONE_INTERFACAGE}
+        />
+      ),
+    },
+    {
+      cle: 'administrateurs',
+      entete: 'Administrateurs',
+      largeur: '170px',
+      valeur: (a) => a.administrateurs[0]?.nom ?? '',
+      rendu: (a) => <Personnes liste={a.administrateurs} />,
+    },
+    {
+      cle: 'administrateurs_secours',
+      entete: 'Relais',
+      largeur: '170px',
+      valeur: (a) => a.administrateurs_secours[0]?.nom ?? '',
+      rendu: (a) => <Personnes liste={a.administrateurs_secours} />,
     },
     {
       cle: 'statut',
       entete: 'Statut',
-      largeur: '120px',
+      largeur: '110px',
       valeur: (a) => a.statut,
       rendu: (a) => (
         <span style={{ color: COULEUR_STATUT[a.statut] ?? 'var(--text)' }}>
@@ -325,6 +385,7 @@ export function ApplicationsPage(): JSX.Element {
             permettreVide
             libelleVide="Tous hébergements"
             couleurs={COULEUR_HEBERGEMENT}
+            icones={ICONE_HEBERGEMENT}
           />
         </div>
         <div className={filtres.filtre}>
@@ -352,6 +413,7 @@ export function ApplicationsPage(): JSX.Element {
             placeholder="Interfaçage"
             permettreVide
             libelleVide="Tout interfaçage"
+            icones={ICONE_INTERFACAGE}
           />
         </div>
         {filtreActif && (

@@ -1,19 +1,53 @@
-"""Repository de l'inventaire applicatif : les applications et leur référentiel d'éditeurs."""
+"""Repository de l'inventaire applicatif : applications, éditeurs et responsables."""
 
+import json
 from typing import Any
 
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-_CHAMPS = """
+#: Rôles de responsabilité sur une application. ADMIN : celui qui en répond. SECOURS : le relais.
+ROLE_ADMIN = "ADMIN"
+ROLE_SECOURS = "SECOURS"
+ROLES = (ROLE_ADMIN, ROLE_SECOURS)
+
+
+def _responsables_sql(role: str, alias: str) -> str:
+    """Sous-requête donnant les responsables d'un rôle, en JSON, dans leur ordre d'affichage.
+
+    Le nom affiché vient du compte quand il y en a un — ainsi la fiche suit le nom de l'agent s'il
+    change — et du texte saisi sinon (prestataire, support éditeur, personne sans compte).
+    """
+    return f"""(
+    SELECT coalesce(
+      json_agg(json_build_object(
+        'utilisateur_id', r.utilisateur_id::text,
+        'nom', coalesce(u.prenom || ' ' || u.nom, r.nom_libre)
+      ) ORDER BY r.ordre, r.cree_le),
+      '[]'::json)
+    FROM core.application_responsable r
+    LEFT JOIN core.utilisateur u ON u.id = r.utilisateur_id
+    WHERE r.application_id = a.id AND r.role = '{role}'
+  ) AS {alias}"""
+
+
+_CHAMPS = f"""
     a.id::text AS id, a.reference, a.nom, a.processus_metier, a.fonctionnalites, a.version,
     a.editeur_id::text AS editeur_id, ed.libelle AS editeur,
     a.hebergement, a.pays_donnees, a.interfacage, a.statut, a.proprietaire,
     a.date_debut, a.date_fin, a.nb_comptes_actifs, a.lien,
     a.serveur_application, a.serveur_base, a.port,
-    a.administrateur, a.administrateur_secours,
-    a.actif, a.source, a.cree_le, a.maj_le
+    a.actif, a.source, a.cree_le, a.maj_le,
+    {_responsables_sql(ROLE_ADMIN, "administrateurs")},
+    {_responsables_sql(ROLE_SECOURS, "administrateurs_secours")}
 """
+
+
+def responsables(valeur: Any) -> list[dict[str, Any]]:
+    """Les responsables d'une ligne, toujours en liste (le pilote peut les rendre en texte)."""
+    if isinstance(valeur, str):
+        valeur = json.loads(valeur)
+    return list(valeur) if isinstance(valeur, list) else []
 
 _BASE = """
     FROM core.application a
@@ -41,8 +75,6 @@ CHAMPS_MODIFIABLES = frozenset(
         "serveur_application",
         "serveur_base",
         "port",
-        "administrateur",
-        "administrateur_secours",
         "actif",
     }
 )
@@ -51,6 +83,23 @@ _UUID = frozenset({"editeur_id"})
 #: Valeur de filtre pour « aucun administrateur désigné ». Un mot-clé plutôt qu'un identifiant :
 #: l'absence d'administrateur n'est pas un administrateur particulier.
 SANS_ADMINISTRATEUR = "AUCUN"
+
+#: Une application a-t-elle un responsable dont le nom correspond à la recherche ? On cherche
+#: indifféremment dans les comptes rattachés et dans les noms saisis à la main : celui qui cherche
+#: « Diarra » ne sait pas si Diarra a un compte.
+_RESPONSABLE_NOMME = """
+    SELECT 1 FROM core.application_responsable rr
+    LEFT JOIN core.utilisateur ru ON ru.id = rr.utilisateur_id
+    WHERE rr.application_id = a.id
+      AND (rr.nom_libre ILIKE :q OR (ru.prenom || ' ' || ru.nom) ILIKE :q)
+"""
+
+#: L'application a-t-elle au moins un responsable de ce rôle ?
+def _a_un_responsable(role: str) -> str:
+    return (
+        "EXISTS (SELECT 1 FROM core.application_responsable rr "
+        f"WHERE rr.application_id = a.id AND rr.role = '{role}')"
+    )
 
 
 async def par_id(session: AsyncSession, identifiant: str) -> RowMapping | None:
@@ -88,9 +137,9 @@ def _filtres(
         conditions += (
             " AND (a.reference ILIKE :q OR a.nom ILIKE :q OR a.processus_metier ILIKE :q"
             " OR a.fonctionnalites ILIKE :q OR a.version ILIKE :q"
-            " OR a.administrateur ILIKE :q OR a.administrateur_secours ILIKE :q"
             " OR a.proprietaire ILIKE :q OR a.serveur_application ILIKE :q"
-            " OR a.serveur_base ILIKE :q OR ed.libelle ILIKE :q)"
+            " OR a.serveur_base ILIKE :q OR ed.libelle ILIKE :q"
+            f" OR EXISTS ({_RESPONSABLE_NOMME}))"
         )
         params["q"] = f"%{q.strip()}%"
         return conditions
@@ -108,12 +157,18 @@ def _filtres(
         params["interf"] = interfacage
     if administrateur == SANS_ADMINISTRATEUR:
         # Personne de désigné : ce sont les applications dont plus personne ne répond.
-        conditions += " AND (a.administrateur IS NULL OR btrim(a.administrateur) = '')"
+        conditions += f" AND NOT {_a_un_responsable(ROLE_ADMIN)}"
     elif administrateur is not None:
+        # Par compte quand l'appelant a choisi un agent, par nom sinon — le front envoie l'un ou
+        # l'autre, et l'on ne sait pas d'avance si la personne cherchée a un compte.
         conditions += (
-            " AND (a.administrateur ILIKE :adm OR a.administrateur_secours ILIKE :adm)"
+            " AND EXISTS (SELECT 1 FROM core.application_responsable rr "
+            " LEFT JOIN core.utilisateur ru ON ru.id = rr.utilisateur_id "
+            " WHERE rr.application_id = a.id AND (rr.utilisateur_id::text = :adm_id "
+            "   OR rr.nom_libre ILIKE :adm OR (ru.prenom || ' ' || ru.nom) ILIKE :adm))"
         )
         params["adm"] = f"%{administrateur.strip()}%"
+        params["adm_id"] = administrateur.strip()
     if actif is not None:
         conditions += " AND a.actif = :actif"
         params["actif"] = actif
@@ -168,10 +223,10 @@ async def compter(session: AsyncSession) -> dict[str, int]:
                 "count(*) FILTER (WHERE a.actif AND a.hebergement = 'INTERNE') AS internes, "
                 "count(*) FILTER (WHERE a.actif AND a.hebergement = 'EXTERNE') AS externes, "
                 "count(*) FILTER (WHERE a.actif AND a.interfacage = 'OUI') AS interfacees, "
-                "count(*) FILTER (WHERE a.actif AND (a.administrateur IS NULL "
-                "  OR btrim(a.administrateur) = '')) AS sans_administrateur, "
-                "count(*) FILTER (WHERE a.actif AND (a.administrateur_secours IS NULL "
-                "  OR btrim(a.administrateur_secours) = '')) AS sans_secours "
+                f"count(*) FILTER (WHERE a.actif AND NOT {_a_un_responsable(ROLE_ADMIN)}) "
+                "  AS sans_administrateur, "
+                f"count(*) FILTER (WHERE a.actif AND NOT {_a_un_responsable(ROLE_SECOURS)}) "
+                "  AS sans_secours "
                 "FROM core.application a"
             )
         )
@@ -212,6 +267,74 @@ async def supprimer(session: AsyncSession, identifiant: str) -> None:
     await session.execute(
         text("DELETE FROM core.application WHERE id = cast(:id as uuid)"), {"id": identifiant}
     )
+
+
+async def remplacer_responsables(
+    session: AsyncSession, application_id: str, role: str, personnes: list[dict[str, Any]]
+) -> None:
+    """Pose la liste complète des responsables d'un rôle : ce qui n'y figure plus est retiré.
+
+    Remplacement plutôt qu'ajout/retrait à l'unité : l'écran manipule une liste, et une liste se
+    dit en entier. On évite ainsi les états intermédiaires (retiré ici, pas là) sur un aller-retour.
+    L'ordre de saisie est conservé — le premier nommé est celui qu'on appelle en premier.
+    """
+    await session.execute(
+        text(
+            "DELETE FROM core.application_responsable "
+            "WHERE application_id = cast(:id as uuid) AND role = :role"
+        ),
+        {"id": application_id, "role": role},
+    )
+    for ordre, personne in enumerate(personnes):
+        compte = personne.get("utilisateur_id")
+        nom = personne.get("nom")
+        if compte is None and not (nom or "").strip():
+            continue  # une ligne qui ne désigne personne n'a rien à faire là
+        await session.execute(
+            text(
+                "INSERT INTO core.application_responsable "
+                "(application_id, utilisateur_id, nom_libre, role, ordre) "
+                "VALUES (cast(:id as uuid), cast(:compte as uuid), :nom, :role, :ordre) "
+                "ON CONFLICT DO NOTHING"
+            ),
+            {
+                "id": application_id,
+                "compte": compte,
+                # Le nom libre ne sert que sans compte : sinon il ferait doublon avec l'annuaire,
+                # et divergerait le jour où l'agent change de nom.
+                "nom": None if compte is not None else (nom or "").strip(),
+                "role": role,
+                "ordre": ordre,
+            },
+        )
+
+
+async def noms_responsables(
+    session: AsyncSession, application_id: str, role: str
+) -> list[dict[str, Any]]:
+    """Les responsables d'un rôle, nommés, dans l'ordre — pour le journal d'audit."""
+    lignes = await session.execute(
+        text(
+            "SELECT coalesce(u.prenom || ' ' || u.nom, r.nom_libre) AS nom "
+            "FROM core.application_responsable r "
+            "LEFT JOIN core.utilisateur u ON u.id = r.utilisateur_id "
+            "WHERE r.application_id = cast(:id as uuid) AND r.role = :role "
+            "ORDER BY r.ordre, r.cree_le"
+        ),
+        {"id": application_id, "role": role},
+    )
+    return [{"nom": ligne[0]} for ligne in lignes.all()]
+
+
+async def comptes_existants(session: AsyncSession, identifiants: list[str]) -> set[str]:
+    """Ceux de ces identifiants qui désignent vraiment un compte — le serveur fait foi."""
+    if not identifiants:
+        return set()
+    lignes = await session.execute(
+        text("SELECT id::text FROM core.utilisateur WHERE id::text = ANY(:ids)"),
+        {"ids": identifiants},
+    )
+    return {ligne[0] for ligne in lignes.all()}
 
 
 # --- Référentiel des éditeurs ----------------------------------------------------------------

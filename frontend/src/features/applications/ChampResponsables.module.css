@@ -1,0 +1,136 @@
+/* Saisie d'une liste de personnes : un compte de l'annuaire, ou un nom écrit à la main.
+   Les personnes désignées se lisent comme des jetons, l'ajout se fait juste en dessous. */
+
+.bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.jetons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jeton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2, transparent);
+  font-size: var(--text-sm);
+  color: var(--text);
+  max-width: 100%;
+}
+
+/* Le nom, tronqué s'il est long : un jeton ne doit jamais casser la mise en page. */
+.nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 210px;
+}
+
+/* Distingue un compte de l'annuaire d'un nom saisi à la main : l'un suivra les changements
+   d'état civil, l'autre non. La nuance compte le jour où l'on cherche « qui est cette personne ». */
+.marque {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.marqueCompte {
+  display: inline-flex;
+  color: var(--secondary);
+}
+
+.retirer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.retirer:hover {
+  background: color-mix(in srgb, var(--status-danger) 14%, transparent);
+  color: var(--status-danger);
+}
+
+.vide {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Zone d'ajout : le choix dans l'annuaire à gauche, la saisie libre à droite. */
+.ajout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.selecteur {
+  min-width: 210px;
+  flex: 1 1 210px;
+}
+
+.libre {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 210px;
+}
+
+.libre input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2, 8px);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.libre input:focus {
+  outline: none;
+  border-color: var(--secondary);
+}
+
+.ajouter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2, 8px);
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ajouter:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.ajouter:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

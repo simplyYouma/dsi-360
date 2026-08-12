@@ -53,7 +53,10 @@ Neuf modules, livrés par phases (cf. §7) :
 > valideur — ils vivent dans leurs propres tables. Le parc applicatif est chargé une première fois
 > depuis la liste des logiciels métiers de la DSI (migration idempotente), puis tenu à jour à
 > l'écran. Ses indicateurs de tête ne sont pas des effectifs mais des **trous de suivi** :
-> applications sans administrateur, et sans administrateur de secours.
+> applications sans administrateur, et sans administrateur de secours. Une application a
+> **plusieurs responsables** par rôle (administrateur, secours), chacun désigné par un **compte**
+> de l'annuaire ou par un **nom libre** — l'interlocuteur est souvent un prestataire, qui n'aura
+> jamais de compte (`core.application_responsable`, même principe que `core.activite_acteur`).
 
 **Transversal à toute activité** : Demandeur · Responsable principal · Contributeur(s) · Valideur(s)
 · Date d'échéance · Priorité · **SLA**.

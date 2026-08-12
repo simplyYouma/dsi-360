@@ -396,6 +396,24 @@ StatutApplication = Literal["EN_SERVICE", "EN_PROJET", "ARRETE"]
 Interfacage = Literal["OUI", "NON"]
 
 
+class ResponsableApplication(BaseModel):
+    """Une personne qui répond d'une application : un compte, ou un nom écrit à la main.
+
+    Le nom affiché vient du compte quand il y en a un — la fiche suit alors l'annuaire — et du
+    texte saisi sinon (prestataire, support éditeur, personne sans compte).
+    """
+
+    utilisateur_id: str | None = None
+    nom: str
+
+
+class ResponsableSaisie(BaseModel):
+    """Ce que l'écran envoie : un compte désigné, ou un nom libre. Jamais les deux."""
+
+    utilisateur_id: str | None = None
+    nom: str | None = Field(default=None, max_length=160)
+
+
 class ApplicationResume(BaseModel):
     id: str
     #: Référence système (« APP-00001 »), générée par la plateforme — jamais saisie.
@@ -408,10 +426,10 @@ class ApplicationResume(BaseModel):
     hebergement: str | None = None
     interfacage: str | None = None
     statut: str
-    #: Qui l'administre, et qui prend le relais. Texte libre : le fichier y inscrit parfois deux
-    #: personnes, parfois une adresse de support prestataire — on garde ce qui est écrit.
-    administrateur: str | None = None
-    administrateur_secours: str | None = None
+    #: Qui l'administre, et qui prend le relais. Plusieurs par rôle : le fichier source y inscrit
+    #: souvent deux personnes, et une application se tient rarement à une seule.
+    administrateurs: list[ResponsableApplication] = []
+    administrateurs_secours: list[ResponsableApplication] = []
     nb_comptes_actifs: int | None = None
     actif: bool
 
@@ -476,8 +494,9 @@ class _ApplicationChamps(BaseModel):
     serveur_application: str | None = Field(default=None, max_length=160)
     serveur_base: str | None = Field(default=None, max_length=160)
     port: str | None = Field(default=None, max_length=40)
-    administrateur: str | None = Field(default=None, max_length=160)
-    administrateur_secours: str | None = Field(default=None, max_length=160)
+    #: Listes complètes : ce qui n'y figure plus est retiré. Omises = responsables inchangés.
+    administrateurs: list[ResponsableSaisie] | None = Field(default=None, max_length=20)
+    administrateurs_secours: list[ResponsableSaisie] | None = Field(default=None, max_length=20)
 
 
 class ApplicationCreation(_ApplicationChamps):

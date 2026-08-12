@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { History, TriangleAlert } from 'lucide-react';
+import { chargerAgents, type Agent } from '@/common/agentsApi';
+import { OPTIONS_PAYS } from '@/common/pays';
 import { Button, Skeleton, StatusBadge, Modale, useToast } from '@/design-system/primitives';
 import { ChampInline } from '@/common/ChampInline';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
@@ -11,11 +13,15 @@ import { ErreurApi } from '@/lib/api';
 import fiche from '@/common/FicheTransition.module.css';
 import { COULEUR_ACTION_JOURNAL } from '@/common/FicheTransition';
 import local from '@/features/inventaire/Inventaire.module.css';
+import propre from './Applications.module.css';
+import { ChampResponsables } from './ChampResponsables';
 import {
   applicationsApi,
   COULEUR_HEBERGEMENT,
   COULEUR_STATUT,
   HEBERGEMENTS,
+  ICONE_HEBERGEMENT,
+  ICONE_INTERFACAGE,
   INTERFACAGES,
   LIBELLE_HEBERGEMENT,
   LIBELLE_STATUT,
@@ -23,6 +29,7 @@ import {
   type ApplicationDetail,
   type MajApplication,
   type ReferentielItem,
+  type ResponsableApplication,
 } from './applicationsApi';
 
 interface Props {
@@ -64,6 +71,7 @@ export function FicheApplication({
   onEditeurs,
 }: Props): JSX.Element {
   const [detail, setDetail] = useState<ApplicationDetail | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const { moi } = useAuth();
   const { notifier } = useToast();
   const estAdmin = moi?.profil === 'ADMIN';
@@ -80,6 +88,18 @@ export function FicheApplication({
     setDetail(null);
     void charger();
   }, [charger]);
+  useEffect(() => {
+    void chargerAgents().then(setAgents);
+  }, []);
+
+  /** Le serveur attend un compte OU un nom, jamais les deux : un compte désigné tire son nom de
+   *  l'annuaire, et le renvoyer figerait l'orthographe du jour. */
+  const versSaisie = (
+    personnes: ResponsableApplication[],
+  ): { utilisateur_id?: string; nom?: string }[] =>
+    personnes.map((p) =>
+      p.utilisateur_id !== null ? { utilisateur_id: p.utilisateur_id } : { nom: p.nom },
+    );
 
   const patch = async (corps: MajApplication): Promise<void> => {
     if (id === null) return;
@@ -163,7 +183,7 @@ export function FicheApplication({
 
           {/* Une application administrée par une seule personne s'arrête avec elle. Ce n'est pas
               une faute de saisie, c'est un risque de continuité — on le dit. */}
-          {detail.administrateur_secours === null && (
+          {detail.administrateurs_secours.length === 0 && (
             <p className={local.avertissement}>
               <TriangleAlert size={15} />
               Aucun administrateur de secours : la continuité de cette application tient à une
@@ -173,31 +193,33 @@ export function FicheApplication({
 
           <section className={local.bloc}>
             <span className={local.blocTitre}>Qui en répond</span>
+            {/* Autant de personnes qu'il en faut, prises dans l'annuaire ou écrites à la main :
+                l'interlocuteur est souvent un prestataire, qui n'aura jamais de compte ici. */}
+            <div className={propre.responsables}>
+              <div>
+                <span className={propre.responsableTitre}>Administrateurs</span>
+                <ChampResponsables
+                  valeur={detail.administrateurs}
+                  agents={agents}
+                  onChange={(p) => void patch({ administrateurs: versSaisie(p) })}
+                  desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
+                  indication="ou saisir un nom…"
+                />
+              </div>
+              <div>
+                <span className={propre.responsableTitre}>Administrateurs de secours</span>
+                <ChampResponsables
+                  valeur={detail.administrateurs_secours}
+                  agents={agents}
+                  onChange={(p) => void patch({ administrateurs_secours: versSaisie(p) })}
+                  desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
+                  indication="le relais…"
+                />
+              </div>
+            </div>
             <div className={local.valeurs}>
-              <div className={local.valeur}>
-                <span>Administrateur</span>
-                <ChampInline
-                  valeur={detail.administrateur ?? ''}
-                  onValider={(v) => void patch({ administrateur: v })}
-                  placeholder="—"
-                  lectureSeule={!modifiable}
-                  titreLectureSeule={raisonVerrou}
-                  classeTexte={local.valeurEdit}
-                  aria-label="Administrateur"
-                />
-              </div>
-              <div className={local.valeur}>
-                <span>Administrateur de secours</span>
-                <ChampInline
-                  valeur={detail.administrateur_secours ?? ''}
-                  onValider={(v) => void patch({ administrateur_secours: v })}
-                  placeholder="—"
-                  lectureSeule={!modifiable}
-                  titreLectureSeule={raisonVerrou}
-                  classeTexte={local.valeurEdit}
-                  aria-label="Administrateur de secours"
-                />
-              </div>
               <div className={local.valeur}>
                 <span>Propriétaire métier</span>
                 <ChampInline
@@ -329,6 +351,7 @@ export function FicheApplication({
                   permettreVide
                   libelleVide="Non renseigné"
                   couleurs={COULEUR_HEBERGEMENT}
+                  icones={ICONE_HEBERGEMENT}
                   desactive={!modifiable}
                   titreDesactive={raisonVerrou}
                 />
@@ -344,6 +367,7 @@ export function FicheApplication({
                   placeholder="Non renseigné"
                   permettreVide
                   libelleVide="Non renseigné"
+                  icones={ICONE_INTERFACAGE}
                   desactive={!modifiable}
                   titreDesactive={raisonVerrou}
                 />
@@ -352,12 +376,16 @@ export function FicheApplication({
             <div className={fiche.metaItem}>
               <dt>Pays des données</dt>
               <dd>
-                <ChampInline
-                  valeur={detail.pays_donnees ?? ''}
-                  onValider={(v) => void patch({ pays_donnees: v })}
-                  placeholder="—"
-                  lectureSeule={!modifiable}
-                  titreLectureSeule={raisonVerrou}
+                {/* Liste fermée : trois orthographes du même pays ne se regroupaient jamais. */}
+                <SelecteurListe
+                  options={OPTIONS_PAYS}
+                  valeur={detail.pays_donnees}
+                  onChange={(v) => void patch({ pays_donnees: v })}
+                  placeholder="Non renseigné"
+                  permettreVide
+                  libelleVide="Non renseigné"
+                  desactive={!modifiable}
+                  titreDesactive={raisonVerrou}
                 />
               </dd>
             </div>

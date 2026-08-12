@@ -51,6 +51,11 @@ LIBELLE_HEBERGEMENT = {"INTERNE": "Interne (nos serveurs)", "EXTERNE": "Externe 
 LIBELLE_STATUT = {"EN_SERVICE": "En service", "EN_PROJET": "En projet", "ARRETE": "Arrêtée"}
 
 
+def _liste_noms(brut: Any) -> str:
+    """« Awa Touré · Mady Wague » — plusieurs personnes tiennent dans une cellule de tableur."""
+    return " · ".join(str(p.get("nom") or "") for p in repo.responsables(brut) if p.get("nom"))
+
+
 def _resume(r: RowMapping) -> dict[str, Any]:
     return {
         "id": r["id"],
@@ -62,8 +67,8 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "hebergement": r["hebergement"],
         "interfacage": r["interfacage"],
         "statut": r["statut"],
-        "administrateur": r["administrateur"],
-        "administrateur_secours": r["administrateur_secours"],
+        "administrateurs": repo.responsables(r["administrateurs"]),
+        "administrateurs_secours": repo.responsables(r["administrateurs_secours"]),
         "nb_comptes_actifs": r["nb_comptes_actifs"],
         "actif": r["actif"],
     }
@@ -173,6 +178,28 @@ async def _charger(session: AsyncSession, ident: str) -> RowMapping:
     if r is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Application introuvable.")
     return r
+
+
+async def _valider_responsables(session: AsyncSession, champs: dict[str, Any]) -> None:
+    """Les comptes désignés doivent exister — le serveur fait foi, jamais la liste de l'écran."""
+    demandes: list[str] = []
+    for cle in ("administrateurs", "administrateurs_secours"):
+        for personne in champs.get(cle) or []:
+            ident = personne.get("utilisateur_id")
+            if ident is None:
+                continue
+            if not _UUID_BRUT.fullmatch(str(ident).lower()):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY, "Une personne désignée est invalide."
+                )
+            demandes.append(str(ident))
+    if not demandes:
+        return
+    connus = await repo.comptes_existants(session, demandes)
+    if set(demandes) - connus:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Une personne désignée n'a pas de compte."
+        )
 
 
 async def _valider_editeur(session: AsyncSession, champs: dict[str, Any]) -> None:
@@ -291,18 +318,22 @@ async def analyses_applications(courant: Courant, session: Session) -> dict[str,
             [LIBELLE_STATUT.get(r["statut"], r["statut"]) for r in actives]
         ),
         # Qui porte quoi : la charge d'administration, et sa concentration sur quelques personnes.
+        # Une application à deux administrateurs compte pour chacun d'eux : c'est bien une charge
+        # portée par les deux.
         "par_administrateur": _agreger(
-            [r["administrateur"] or "Sans administrateur" for r in actives]
-        ),
-        # Une application administrée par une seule personne s'arrête avec elle. Ce n'est pas
-        # une faute de saisie, c'est un risque de continuité — on le nomme.
-        "sans_secours": _agreger(
             [
-                r["nom"]
+                p["nom"]
                 for r in actives
-                if r["administrateur_secours"] is None
-                or str(r["administrateur_secours"]).strip() == ""
-            ],
+                for p in (
+                    repo.responsables(r["administrateurs"]) or [{"nom": "Sans administrateur"}]
+                )
+                if p.get("nom")
+            ]
+        ),
+        # Une application sans relais s'arrête avec la personne qui la tient. Ce n'est pas une
+        # faute de saisie, c'est un risque de continuité — on le nomme.
+        "sans_secours": _agreger(
+            [r["nom"] for r in actives if not repo.responsables(r["administrateurs_secours"])],
             plafond=20,
         ),
     }
@@ -364,8 +395,8 @@ async def exporter(
             r["serveur_application"] or "",
             r["serveur_base"] or "",
             r["port"] or "",
-            r["administrateur"] or "",
-            r["administrateur_secours"] or "",
+            _liste_noms(r["administrateurs"]),
+            _liste_noms(r["administrateurs_secours"]),
             "Oui" if r["actif"] else "Non",
             r["source"],
             r["cree_le"].strftime("%d/%m/%Y %H:%M"),
@@ -402,8 +433,10 @@ async def creer(corps: ApplicationCreation, courant: Courant, session: Session) 
     """
     exiger_admin(courant)
     await _refuser_nom_deja_pris(session, corps.nom, None)
-    await _valider_editeur(session, corps.model_dump(exclude_none=True))
-    ident = await creer_application(session, corps.model_dump(exclude_none=True), courant)
+    champs = corps.model_dump(exclude_none=True)
+    await _valider_editeur(session, champs)
+    await _valider_responsables(session, champs)
+    ident = await creer_application(session, champs, courant)
     await session.commit()
     return await _detail(session, await _charger(session, ident))
 
@@ -418,7 +451,13 @@ async def modifier(
     if "nom" in champs:
         await _refuser_nom_deja_pris(session, champs["nom"], ident)
     await _valider_editeur(session, champs)
-    await maj_application(session, dict(avant), champs, courant)
+    await _valider_responsables(session, champs)
+    # `avant` porte les responsables au format d'affichage : le journal s'en sert pour dire
+    # « qui c'était » avant de dire « qui c'est ».
+    precedent: dict[str, Any] = dict(avant)
+    precedent["administrateurs"] = repo.responsables(avant["administrateurs"])
+    precedent["administrateurs_secours"] = repo.responsables(avant["administrateurs_secours"])
+    await maj_application(session, precedent, champs, courant)
     await session.commit()
     return await _detail(session, await _charger(session, ident))
 

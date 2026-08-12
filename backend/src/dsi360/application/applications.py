@@ -33,6 +33,31 @@ def nom_normalise(nom: str | None) -> str | None:
     return " ".join(nom.split())
 
 
+#: Les deux listes de responsables, avec leur rôle en base et leur nom d'écran (pour le journal).
+_LISTES_RESPONSABLES = (
+    ("administrateurs", repo.ROLE_ADMIN, "administrateurs"),
+    ("administrateurs_secours", repo.ROLE_SECOURS, "administrateurs de secours"),
+)
+
+
+async def _ecrire_responsables(
+    session: AsyncSession, application_id: str, champs: dict[str, Any]
+) -> None:
+    """Applique les listes de responsables fournies. Une liste absente = rôle inchangé."""
+    for cle, role, _ in _LISTES_RESPONSABLES:
+        if cle in champs and champs[cle] is not None:
+            await repo.remplacer_responsables(session, application_id, role, champs[cle])
+
+
+def _noms(personnes: Any) -> str:
+    """« Awa Touré · Mady Wague » — le journal nomme les gens, jamais leurs identifiants."""
+    if not isinstance(personnes, list) or not personnes:
+        return "—"
+    return " · ".join(
+        str(p.get("nom") or "").strip() for p in personnes if isinstance(p, dict)
+    ).strip(" ·") or "—"
+
+
 async def creer_application(
     session: AsyncSession,
     champs: dict[str, Any],
@@ -43,6 +68,7 @@ async def creer_application(
     donnees = _nettoyer(champs)
     donnees["source"] = source
     identifiant = await repo.creer(session, donnees)
+    await _ecrire_responsables(session, identifiant, champs)
     await audit.consigner(
         session,
         action="CREATION",
@@ -89,8 +115,20 @@ async def _en_libelles(
 async def maj_application(
     session: AsyncSession, avant: dict[str, Any], champs: dict[str, Any], acteur: dict[str, Any]
 ) -> None:
-    donnees = _nettoyer(champs)
+    donnees = _nettoyer({c: v for c, v in champs.items() if c in repo.CHAMPS_MODIFIABLES})
     anciennes, nouvelles = await _en_libelles(session, avant, donnees)
+
+    # Les responsables ne sont pas des colonnes : on les journalise par leurs NOMS, avant/après.
+    # « administrateurs : Awa Touré → Awa Touré · Mady Wague » se relit ; une liste d'uuid, non.
+    for cle, role, libelle in _LISTES_RESPONSABLES:
+        if cle not in champs or champs[cle] is None:
+            continue
+        anciennes[libelle] = _noms(avant.get(cle))
+        await repo.remplacer_responsables(session, avant["id"], role, champs[cle])
+        # On relit les noms plutôt que de reprendre ce qui a été envoyé : un compte désigné tire
+        # son nom de l'annuaire, que l'écran ne connaît pas forcément à jour.
+        nouvelles[libelle] = _noms(await repo.noms_responsables(session, avant["id"], role))
+
     await repo.maj(session, avant["id"], donnees)
     await audit.consigner(
         session,
@@ -126,8 +164,6 @@ async def supprimer_application(
 _TEXTES_LIBRES = (
     "version",
     "proprietaire",
-    "administrateur",
-    "administrateur_secours",
     "serveur_application",
     "serveur_base",
     "port",

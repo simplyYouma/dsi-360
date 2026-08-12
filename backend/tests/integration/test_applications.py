@@ -40,8 +40,8 @@ async def test_creer_puis_relire_une_application(
         fonctionnalites="Permet aux clients d'accéder aux services bancaires à distance",
         hebergement="INTERNE",
         interfacage="OUI",
-        administrateur="Youssouf DIARRA",
-        administrateur_secours="Mariam DIALLO",
+        administrateurs=[{"nom": "Youssouf DIARRA"}, {"nom": "Soungalo SIDIBE"}],
+        administrateurs_secours=[{"nom": "Mariam DIALLO"}],
     )
 
     r = await client.get(f"/applications/{cree['id']}", headers=entetes(admin))
@@ -52,7 +52,9 @@ async def test_creer_puis_relire_une_application(
     assert d["processus_metier"] == "Banque mobile"
     assert d["hebergement"] == "INTERNE"
     assert d["interfacage"] == "OUI"
-    assert d["administrateur"] == "Youssouf DIARRA"
+    # Plusieurs personnes par rôle : le fichier source en inscrit souvent deux.
+    assert [p["nom"] for p in d["administrateurs"]] == ["Youssouf DIARRA", "Soungalo SIDIBE"]
+    assert [p["nom"] for p in d["administrateurs_secours"]] == ["Mariam DIALLO"]
     assert d["statut"] == "EN_SERVICE"
     assert d["actif"] is True
     assert d["source"] == "SAISIE"
@@ -86,12 +88,8 @@ async def test_absences_ecrites_a_la_main_ne_sont_pas_des_valeurs(
         client,
         admin,
         nom="Application sans responsable",
-        administrateur="N/A",
-        administrateur_secours="None",
         version="  ",
     )
-    assert cree["administrateur"] is None
-    assert cree["administrateur_secours"] is None
     assert cree["version"] is None
 
 
@@ -126,20 +124,110 @@ async def test_changement_d_administrateur_se_relit_dans_l_historique(
     """Qui administrait quoi, et depuis quand : c'est la question qu'on pose en audit."""
     admin = await _admin(session, "admin.app5@afgbank.ml")
     cree = await _creer(
-        client, admin, nom="Application transmise", administrateur="Awa Touré"
+        client, admin, nom="Application transmise", administrateurs=[{"nom": "Awa Touré"}]
     )
 
     r = await client.patch(
         f"/applications/{cree['id']}",
-        json={"administrateur": "Mady Wague"},
+        json={"administrateurs": [{"nom": "Mady Wague"}]},
         headers=entetes(admin),
     )
     assert r.status_code == 200, r.text
-    assert r.json()["administrateur"] == "Mady Wague"
+    assert [p["nom"] for p in r.json()["administrateurs"]] == ["Mady Wague"]
 
     detail = (await client.get(f"/applications/{cree['id']}", headers=entetes(admin))).json()
     lignes = [e["detail"] for e in detail["historique"] if e["detail"]]
-    assert any("administrateur : Awa Touré → Mady Wague" in ligne for ligne in lignes), lignes
+    # Le journal nomme les gens, jamais leurs identifiants.
+    assert any("administrateurs : Awa Touré → Mady Wague" in ligne for ligne in lignes), lignes
+
+
+async def test_un_responsable_peut_etre_un_compte_de_l_annuaire(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Désigner un agent par son compte : la fiche suit alors son nom, sans le figer."""
+    admin = await _admin(session, "admin.app11@afgbank.ml")
+    agent = await creer_utilisateur(session, email="agent.app11@afgbank.ml")
+
+    cree = await _creer(
+        client,
+        admin,
+        nom="Application tenue par un agent",
+        administrateurs=[{"utilisateur_id": agent}],
+    )
+    assert cree["administrateurs"] == [{"utilisateur_id": agent, "nom": "Prenom Nom"}]
+
+    # Le nom vient de l'annuaire : il suit le compte, il n'en est pas une copie.
+    await session.execute(
+        text("UPDATE core.utilisateur SET nom = 'Renommee' WHERE id = cast(:id as uuid)"),
+        {"id": agent},
+    )
+    await session.commit()
+    relu = (await client.get(f"/applications/{cree['id']}", headers=entetes(admin))).json()
+    assert relu["administrateurs"][0]["nom"] == "Prenom Renommee"
+
+
+async def test_un_compte_forge_est_refuse(client: AsyncClient, session: AsyncSession) -> None:
+    """Le serveur fait foi : une personne désignée doit exister."""
+    admin = await _admin(session, "admin.app12@afgbank.ml")
+
+    r = await client.post(
+        "/applications",
+        json={
+            "nom": "Application au responsable fantôme",
+            "administrateurs": [{"utilisateur_id": "00000000-0000-0000-0000-000000000000"}],
+        },
+        headers=entetes(admin),
+    )
+    assert r.status_code == 422, r.text
+
+
+async def test_la_liste_des_responsables_se_remplace_en_entier(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Une liste se dit en entier : ce qui n'y figure plus est retiré, sans geste séparé."""
+    admin = await _admin(session, "admin.app13@afgbank.ml")
+    cree = await _creer(
+        client,
+        admin,
+        nom="Application à plusieurs mains",
+        administrateurs=[{"nom": "Awa Touré"}, {"nom": "Mady Wague"}, {"nom": "Ibrahim D."}],
+    )
+    assert len(cree["administrateurs"]) == 3
+    # L'ordre de saisie est conservé : le premier nommé est celui qu'on appelle en premier.
+    assert [p["nom"] for p in cree["administrateurs"]] == [
+        "Awa Touré",
+        "Mady Wague",
+        "Ibrahim D.",
+    ]
+
+    r = await client.patch(
+        f"/applications/{cree['id']}",
+        json={"administrateurs": [{"nom": "Awa Touré"}]},
+        headers=entetes(admin),
+    )
+    assert r.status_code == 200, r.text
+    assert [p["nom"] for p in r.json()["administrateurs"]] == ["Awa Touré"]
+
+
+async def test_le_journal_nomme_les_gens_jamais_leurs_identifiants(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Un uuid dans l'historique ne raconte rien : c'est le nom qu'on relit un an plus tard."""
+    admin = await _admin(session, "admin.app14@afgbank.ml")
+    agent = await creer_utilisateur(session, email="agent.app14@afgbank.ml")
+    cree = await _creer(client, admin, nom="Application confiée")
+
+    await client.patch(
+        f"/applications/{cree['id']}",
+        json={"administrateurs": [{"utilisateur_id": agent}]},
+        headers=entetes(admin),
+    )
+
+    detail = (await client.get(f"/applications/{cree['id']}", headers=entetes(admin))).json()
+    lignes = [e["detail"] for e in detail["historique"] if e["detail"]]
+    assert any("administrateurs : — → Prenom Nom" in ligne for ligne in lignes), lignes
+    # Aucun identifiant technique ne doit transparaître.
+    assert not any(agent in (ligne or "") for ligne in lignes), lignes
 
 
 async def test_editeur_se_cree_et_ne_se_supprime_pas_sous_les_applications(
@@ -201,7 +289,10 @@ async def test_stats_comptent_les_trous_de_suivi(
 
     await _creer(client, admin, nom="Application orpheline")  # ni admin, ni secours
     await _creer(
-        client, admin, nom="Application sans relais", administrateur="Seule Personne"
+        client,
+        admin,
+        nom="Application sans relais",
+        administrateurs=[{"nom": "Seule Personne"}],
     )
 
     apres = (await client.get("/applications/stats", headers=entetes(admin))).json()
@@ -232,7 +323,9 @@ async def test_chargement_initial_present_et_idempotent(session: AsyncSession) -
     ligne = (
         await session.execute(
             text(
-                "SELECT a.nom, e.libelle AS editeur, a.hebergement, a.administrateur "
+                "SELECT a.nom, e.libelle AS editeur, a.hebergement, "
+                "  (SELECT count(*) FROM core.application_responsable r "
+                "   WHERE r.application_id = a.id AND r.role = 'ADMIN') AS nb_admins "
                 "FROM core.application a "
                 "LEFT JOIN core.editeur_application e ON e.id = a.editeur_id "
                 "WHERE upper(btrim(a.nom)) = 'ACCES CONNEXION VPN'"
@@ -243,7 +336,7 @@ async def test_chargement_initial_present_et_idempotent(session: AsyncSession) -
     assert ligne["editeur"] == "CISCO/FORTINET"
     # « Banque » dans le fichier = hébergé chez nous.
     assert ligne["hebergement"] == "INTERNE"
-    assert ligne["administrateur"] is not None
+    assert ligne["nb_admins"] >= 1
 
 
 async def test_export_porte_toutes_les_colonnes_tenues(
@@ -257,8 +350,8 @@ async def test_export_porte_toutes_les_colonnes_tenues(
         nom="Application exportée",
         processus_metier="Compensation",
         version="12.4",
-        administrateur="Awa Touré",
-        administrateur_secours="Mady Wague",
+        administrateurs=[{"nom": "Awa Touré"}],
+        administrateurs_secours=[{"nom": "Mady Wague"}],
         port="8443",
         serveur_application="SRV-APP-01",
     )
@@ -289,7 +382,9 @@ async def test_analyses_nomment_ce_qui_tient_a_une_personne(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     admin = await _admin(session, "admin.app10@afgbank.ml")
-    await _creer(client, admin, nom="Application fragile", administrateur="Seule Personne")
+    await _creer(
+        client, admin, nom="Application fragile", administrateurs=[{"nom": "Seule Personne"}]
+    )
 
     r = await client.get("/applications/analyses", headers=entetes(admin))
     assert r.status_code == 200, r.text

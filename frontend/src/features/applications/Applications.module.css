@@ -1,0 +1,145 @@
+/* Mise en page propre au module Applications : sections de formulaire, jetons du tableau. */
+
+/* ---- Sections d'un formulaire long ----
+   Une application porte vingt champs. Les aligner d'affilée donne un mur : on les regroupe par
+   question posée (« qu'est-ce que c'est », « qui en répond », « où ça tourne »), chaque groupe
+   annoncé par un intitulé discret. On remplit alors le formulaire par sujet, pas par champ. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+}
+
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+
+.sectionTitre {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold, 600);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sectionTitre svg {
+  color: var(--secondary);
+}
+
+/* Deux et trois colonnes, qui repassent en une seule sur écran étroit. */
+.duo,
+.trio {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.duo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.trio {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .duo,
+  .trio {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Tableau ---- */
+
+/* Nom de l'application : le repère principal de la ligne, sur deux lignes au plus. */
+.nomCellule {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.nomPrincipal {
+  font-weight: var(--weight-semibold, 600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le métier servi, en second rang sous le nom : il éclaire sans occuper sa propre colonne. */
+.nomMetier {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Valeur textuelle d'une cellule : jamais de retour à la ligne, jamais de colonne qui s'étire. */
+.tronque {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Une valeur codée (hébergement, interfaçage) : l'icône porte le sens, le mot le confirme. */
+.marqueur {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* Les personnes qui répondent : la première nommée, et le nombre de suivantes. Afficher trois
+   noms bout à bout étirait la colonne sans rien apprendre — le détail est dans la fiche. */
+.personnes {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.personnePremiere {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personneReste {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Personne de désigné : ce n'est pas une case vide, c'est un trou de suivi. */
+.personne0 {
+  color: var(--status-danger);
+  font-size: var(--text-sm);
+}
+
+/* ---- Fiche ---- */
+
+/* Deux colonnes de responsables, côte à côte : on lit « qui » et « son relais » d'un seul coup. */
+.responsables {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .responsables {
+    grid-template-columns: 1fr;
+  }
+}
+
+.responsableTitre {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
