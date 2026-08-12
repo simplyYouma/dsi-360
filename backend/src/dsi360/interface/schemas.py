@@ -431,7 +431,6 @@ class ApplicationResume(BaseModel):
     administrateurs: list[ResponsableApplication] = []
     administrateurs_secours: list[ResponsableApplication] = []
     nb_comptes_actifs: int | None = None
-    actif: bool
 
 
 class EvenementApplication(EvenementJournal):
@@ -465,7 +464,9 @@ class PageApplications(BaseModel):
 
 class StatsApplications(BaseModel):
     total: int
+    #: Tout ce qui n'est pas arrêté : en service ou en projet.
     actives: int
+    #: Arrêtées (décommissionnées). Leur fiche et leur journal restent consultables.
     retirees: int
     internes: int
     externes: int
@@ -508,9 +509,9 @@ class ApplicationCreation(_ApplicationChamps):
 class ApplicationMaj(_ApplicationChamps):
     #: Omis = inchangé (le routeur n'envoie que les champs réellement fournis).
     nom: str | None = Field(default=None, min_length=2, max_length=200)
+    #: Décommissionner, c'est passer le statut à « Arrêtée » : l'application sort des vues
+    #: courantes, sa fiche et son journal restent. Il n'y a pas d'autre drapeau.
     statut: StatutApplication | None = None
-    #: Retirée du parc applicatif (décommissionnée) : conservée pour l'historique.
-    actif: bool | None = None
 
 
 class TrancheApplications(BaseModel):

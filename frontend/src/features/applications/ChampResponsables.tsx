@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, UserRound, X } from 'lucide-react';
+import { Check, UserPlus, UserRound, X } from 'lucide-react';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import type { Agent } from '@/common/agentsApi';
 import styles from './ChampResponsables.module.css';
@@ -12,7 +12,7 @@ interface Props {
   /** Grisé : la liste reste lisible, l'ajout et le retrait sont fermés. */
   desactive?: boolean;
   titreDesactive?: string | undefined;
-  /** Ce qu'on attend ici, en une ligne (ex. « Le relais, s'il existe »). */
+  /** Ce qu'on attend ici (ex. « le relais »), repris dans l'invite de saisie. */
   indication?: string;
 }
 
@@ -21,8 +21,11 @@ interface Props {
  *
  *  Les deux voies coexistent parce que la réalité les impose : un agent de la maison se désigne
  *  par son compte — la fiche suit alors son nom s'il change — mais l'interlocuteur est souvent un
- *  prestataire ou une adresse de support, qui n'aura jamais de compte ici. Interdire l'un ou
- *  l'autre reviendrait à laisser la case vide, c'est-à-dire à ne plus savoir qui appeler.
+ *  prestataire ou une adresse de support, qui n'aura jamais de compte ici.
+ *
+ *  La saisie libre vit **dans la liste**, en pied de son menu, et non dans un champ voisin : le
+ *  geste appartient là où l'on cherche quelqu'un. Un second champ à côté obligeait à le repérer,
+ *  et laissait croire à deux réglages distincts.
  */
 export function ChampResponsables({
   valeur,
@@ -32,11 +35,10 @@ export function ChampResponsables({
   titreDesactive,
   indication,
 }: Props): JSX.Element {
-  const [libre, setLibre] = useState('');
+  const [saisie, setSaisie] = useState(false);
+  const [nom, setNom] = useState('');
 
-  const dejaPris = new Set(
-    valeur.map((p) => (p.utilisateur_id ?? p.nom.trim().toLowerCase())),
-  );
+  const dejaPris = new Set(valeur.map((p) => p.utilisateur_id ?? p.nom.trim().toLowerCase()));
 
   const ajouterCompte = (id: string | null): void => {
     if (id === null) return;
@@ -45,18 +47,17 @@ export function ChampResponsables({
     onChange([...valeur, { utilisateur_id: id, nom: agent.nom }]);
   };
 
-  const ajouterLibre = (): void => {
-    const nom = libre.trim();
-    if (nom === '' || dejaPris.has(nom.toLowerCase())) {
-      setLibre('');
-      return;
-    }
-    onChange([...valeur, { utilisateur_id: null, nom }]);
-    setLibre('');
+  const validerSaisie = (): void => {
+    const propre = nom.trim();
+    setSaisie(false);
+    setNom('');
+    if (propre === '' || dejaPris.has(propre.toLowerCase())) return;
+    onChange([...valeur, { utilisateur_id: null, nom: propre }]);
   };
 
-  const retirer = (index: number): void => {
-    onChange(valeur.filter((_, i) => i !== index));
+  const annulerSaisie = (): void => {
+    setSaisie(false);
+    setNom('');
   };
 
   return (
@@ -80,7 +81,7 @@ export function ChampResponsables({
                 <button
                   type="button"
                   className={styles.retirer}
-                  onClick={() => retirer(i)}
+                  onClick={() => onChange(valeur.filter((_, j) => j !== i))}
                   aria-label={`Retirer ${p.nom}`}
                 >
                   <X size={12} />
@@ -93,43 +94,52 @@ export function ChampResponsables({
         <span className={styles.vide}>Personne de désigné</span>
       )}
 
-      {!desactive && (
-        <div className={styles.ajout}>
-          <div className={styles.selecteur}>
-            <SelecteurListe
-              options={agents
-                .filter((a) => !dejaPris.has(a.id))
-                .map((a) => ({ valeur: a.id, libelle: a.nom }))}
-              valeur={null}
-              onChange={ajouterCompte}
-              placeholder="Choisir dans l’annuaire…"
-            />
-          </div>
-          <div className={styles.libre}>
+      {!desactive &&
+        (saisie ? (
+          <span className={styles.saisie}>
             <input
-              value={libre}
-              onChange={(e) => setLibre(e.target.value)}
+              autoFocus
+              value={nom}
+              placeholder={indication ?? 'Nom (prestataire, support…)'}
+              onChange={(e) => setNom(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  ajouterLibre();
-                }
+                if (e.key === 'Enter') validerSaisie();
+                if (e.key === 'Escape') annulerSaisie();
               }}
-              placeholder={indication ?? 'ou saisir un nom…'}
               maxLength={160}
             />
             <button
               type="button"
-              className={styles.ajouter}
-              onClick={ajouterLibre}
-              disabled={libre.trim() === ''}
+              className={styles.ok}
+              onClick={validerSaisie}
+              aria-label="Valider le nom"
             >
-              <Plus size={14} />
-              Ajouter
+              <Check size={14} />
             </button>
-          </div>
-        </div>
-      )}
+            <button
+              type="button"
+              className={styles.annuler}
+              onClick={annulerSaisie}
+              aria-label="Annuler"
+            >
+              <X size={14} />
+            </button>
+          </span>
+        ) : (
+          <SelecteurListe
+            options={agents
+              .filter((a) => !dejaPris.has(a.id))
+              .map((a) => ({ valeur: a.id, libelle: a.nom }))}
+            valeur={null}
+            onChange={ajouterCompte}
+            placeholder="Ajouter une personne…"
+            action={{
+              libelle: 'Saisir un nom (prestataire, support…)',
+              icone: UserPlus,
+              onClick: () => setSaisie(true),
+            }}
+          />
+        ))}
     </div>
   );
 }

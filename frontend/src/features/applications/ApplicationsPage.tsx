@@ -19,12 +19,12 @@ import {
   HEBERGEMENTS,
   ICONE_HEBERGEMENT,
   ICONE_INTERFACAGE,
+  ICONE_STATUT,
   INTERFACAGES,
   LIBELLE_HEBERGEMENT,
   LIBELLE_INTERFACAGE,
   LIBELLE_STATUT,
   SANS_ADMINISTRATEUR,
-  STATUTS,
   type Application,
   type FiltresApplications,
   type ReferentielItem,
@@ -84,10 +84,12 @@ function Marqueur({
   );
 }
 
-const VUES: { cle: string; libelle: string; actif: boolean | null }[] = [
-  { cle: 'service', libelle: 'En service', actif: true },
-  { cle: 'retirees', libelle: 'Retirées', actif: false },
-  { cle: 'tous', libelle: 'Toutes', actif: null },
+/** Les vues suivent le statut — seule source de vérité sur l'état d'une application. */
+const VUES: { cle: string; libelle: string; statut: string | null }[] = [
+  { cle: 'service', libelle: 'En service', statut: 'EN_SERVICE' },
+  { cle: 'projet', libelle: 'En projet', statut: 'EN_PROJET' },
+  { cle: 'arretees', libelle: 'Arrêtées', statut: 'ARRETE' },
+  { cle: 'tous', libelle: 'Toutes', statut: null },
 ];
 
 export function ApplicationsPage(): JSX.Element {
@@ -97,7 +99,7 @@ export function ApplicationsPage(): JSX.Element {
   const [chargement, setChargement] = useState(true);
   const [stats, setStats] = useState<StatsApplications | null>(null);
   const [editeurs, setEditeurs] = useState<ReferentielItem[]>([]);
-  const [f, setF] = useState<FiltresApplications>({ actif: true });
+  const [f, setF] = useState<FiltresApplications>({ statut: 'EN_SERVICE' });
   const [modale, setModale] = useState(false);
   const [ficheId, setFicheId] = useState<string | null>(null);
   useFicheUrl(setFicheId);
@@ -147,6 +149,7 @@ export function ApplicationsPage(): JSX.Element {
       // et une colonne de moins à faire tenir dans la largeur.
       cle: 'nom',
       entete: 'Application',
+      largeur: '230px',
       tronque: true,
       valeur: (a) => a.nom,
       rendu: (a) => (
@@ -210,33 +213,36 @@ export function ApplicationsPage(): JSX.Element {
     {
       cle: 'administrateurs',
       entete: 'Administrateurs',
-      largeur: '170px',
+      largeur: '135px',
       valeur: (a) => a.administrateurs[0]?.nom ?? '',
       rendu: (a) => <Personnes liste={a.administrateurs} />,
     },
     {
       cle: 'administrateurs_secours',
       entete: 'Relais',
-      largeur: '170px',
+      largeur: '135px',
       valeur: (a) => a.administrateurs_secours[0]?.nom ?? '',
       rendu: (a) => <Personnes liste={a.administrateurs_secours} />,
     },
     {
       cle: 'statut',
       entete: 'Statut',
-      largeur: '110px',
+      largeur: '125px',
       valeur: (a) => a.statut,
       rendu: (a) => (
-        <span style={{ color: COULEUR_STATUT[a.statut] ?? 'var(--text)' }}>
-          {LIBELLE_STATUT[a.statut] ?? a.statut}
-        </span>
+        <Marqueur
+          valeur={a.statut}
+          libelles={LIBELLE_STATUT}
+          icones={ICONE_STATUT}
+          couleurs={COULEUR_STATUT}
+        />
       ),
     },
   ];
 
-  const vue = VUES.find((v) => v.actif === (f.actif ?? null))?.cle ?? 'tous';
+  const vue = VUES.find((v) => v.statut === (f.statut ?? null))?.cle ?? 'tous';
   const filtreActif = Boolean(
-    f.q || f.editeur_id || f.hebergement || f.statut || f.interfacage || f.administrateur,
+    f.q || f.editeur_id || f.hebergement || f.interfacage || f.administrateur,
   );
 
   return (
@@ -271,7 +277,7 @@ export function ApplicationsPage(): JSX.Element {
           </span>
           <span className={local.compteur}>
             <b>{stats.retirees}</b>
-            <span>Retirées</span>
+            <span>Arrêtées</span>
           </span>
           <span className={local.compteur}>
             <b>{stats.internes}</b>
@@ -301,7 +307,6 @@ export function ApplicationsPage(): JSX.Element {
               setPage(1);
               setF({
                 ...f,
-                actif: true,
                 administrateur:
                   f.administrateur === SANS_ADMINISTRATEUR ? null : SANS_ADMINISTRATEUR,
               });
@@ -352,7 +357,7 @@ export function ApplicationsPage(): JSX.Element {
               className={vue === v.cle ? filtres.segmentOn : filtres.segment}
               onClick={() => {
                 setPage(1);
-                setF({ ...f, actif: v.actif });
+                setF({ ...f, statut: v.statut });
               }}
             >
               {v.libelle}
@@ -390,20 +395,6 @@ export function ApplicationsPage(): JSX.Element {
         </div>
         <div className={filtres.filtre}>
           <SelecteurListe
-            options={STATUTS.map((s) => ({ valeur: s.valeur, libelle: s.libelle }))}
-            valeur={f.statut ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, statut: v });
-            }}
-            placeholder="Tous les statuts"
-            permettreVide
-            libelleVide="Tous les statuts"
-            couleurs={COULEUR_STATUT}
-          />
-        </div>
-        <div className={filtres.filtre}>
-          <SelecteurListe
             options={INTERFACAGES.map((i) => ({ valeur: i.valeur, libelle: i.libelle }))}
             valeur={f.interfacage ?? null}
             onChange={(v) => {
@@ -422,7 +413,7 @@ export function ApplicationsPage(): JSX.Element {
             className={filtres.reset}
             onClick={() => {
               setPage(1);
-              setF({ actif: f.actif ?? null });
+              setF({ statut: f.statut ?? null });
             }}
           >
             <X size={14} />

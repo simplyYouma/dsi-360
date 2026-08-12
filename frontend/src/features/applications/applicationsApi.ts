@@ -1,4 +1,13 @@
-import { Building2, Cloud, Link2, Unlink, type LucideIcon } from 'lucide-react';
+import {
+  Building2,
+  CircleCheck,
+  CircleSlash,
+  Cloud,
+  Hammer,
+  Link2,
+  Unlink,
+  type LucideIcon,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 
 /** Une personne qui répond d'une application : un compte de l'annuaire, ou un nom écrit à la main
@@ -25,7 +34,6 @@ export interface Application {
   administrateurs: ResponsableApplication[];
   administrateurs_secours: ResponsableApplication[];
   nb_comptes_actifs: number | null;
-  actif: boolean;
 }
 
 export interface EvenementApplication {
@@ -81,8 +89,6 @@ export interface FiltresApplications {
   interfacage?: string | null;
   /** Un nom d'administrateur, ou `AUCUN` pour « personne ne s'en occupe ». */
   administrateur?: string | null;
-  /** `false` pour voir les applications retirées, `null` pour tout. */
-  actif?: boolean | null;
 }
 
 /** Ce que l'écran envoie pour désigner une personne : un compte, ou un nom libre. */
@@ -114,7 +120,7 @@ export interface NouvelleApplication {
   administrateurs_secours?: ResponsableSaisie[];
 }
 
-export type MajApplication = Partial<NouvelleApplication> & { actif?: boolean };
+export type MajApplication = Partial<NouvelleApplication>;
 
 /** Où tournent les données : chez nous, ou chez un tiers. */
 export const HEBERGEMENTS = [
@@ -155,6 +161,13 @@ export const ICONE_INTERFACAGE: Record<string, LucideIcon> = {
 export const LIBELLE_INTERFACAGE: Record<string, string> = {
   OUI: 'Interfacée',
   NON: 'Non interfacée',
+};
+
+/** Cycle de vie : ce qui tourne, ce qui se construit, ce qui s'est arrêté. */
+export const ICONE_STATUT: Record<string, LucideIcon> = {
+  EN_SERVICE: CircleCheck,
+  EN_PROJET: Hammer,
+  ARRETE: CircleSlash,
 };
 
 export const LIBELLE_STATUT: Record<string, string> = {
@@ -201,8 +214,6 @@ function chaineFiltres(page: number, f?: FiltresApplications): string {
   if (f?.statut) p.set('statut', f.statut);
   if (f?.interfacage) p.set('interfacage', f.interfacage);
   if (f?.administrateur) p.set('administrateur', f.administrateur);
-  // `actif` non transmis = tout le parc ; sinon on précise l'état voulu.
-  if (f?.actif !== null && f?.actif !== undefined) p.set('actif', String(f.actif));
   return p.toString();
 }
 

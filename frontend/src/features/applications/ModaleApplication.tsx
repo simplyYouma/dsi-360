@@ -16,6 +16,7 @@ import {
   HEBERGEMENTS,
   ICONE_HEBERGEMENT,
   ICONE_INTERFACAGE,
+  ICONE_STATUT,
   INTERFACAGES,
   STATUTS,
   type ApplicationDetail,
@@ -172,6 +173,7 @@ export function ModaleApplication({
               valeur={v.statut ?? 'EN_SERVICE'}
               onChange={(x) => x !== null && setV({ ...v, statut: x })}
               couleurs={COULEUR_STATUT}
+              icones={ICONE_STATUT}
             />
           </div>
         </div>

@@ -37,7 +37,7 @@ _CHAMPS = f"""
     a.hebergement, a.pays_donnees, a.interfacage, a.statut, a.proprietaire,
     a.date_debut, a.date_fin, a.nb_comptes_actifs, a.lien,
     a.serveur_application, a.serveur_base, a.port,
-    a.actif, a.source, a.cree_le, a.maj_le,
+    a.source, a.cree_le, a.maj_le,
     {_responsables_sql(ROLE_ADMIN, "administrateurs")},
     {_responsables_sql(ROLE_SECOURS, "administrateurs_secours")}
 """
@@ -75,7 +75,6 @@ CHAMPS_MODIFIABLES = frozenset(
         "serveur_application",
         "serveur_base",
         "port",
-        "actif",
     }
 )
 _UUID = frozenset({"editeur_id"})
@@ -93,6 +92,11 @@ _RESPONSABLE_NOMME = """
     WHERE rr.application_id = a.id
       AND (rr.nom_libre ILIKE :q OR (ru.prenom || ' ' || ru.nom) ILIKE :q)
 """
+
+#: « En service » : ce qui tourne réellement. Le statut est la seule source de vérité sur
+#: l'état d'une application — le drapeau `actif` disait la même chose une seconde fois.
+_EN_SERVICE = "a.statut <> 'ARRETE'"
+
 
 #: L'application a-t-elle au moins un responsable de ce rôle ?
 def _a_un_responsable(role: str) -> str:
@@ -125,7 +129,6 @@ def _filtres(
     statut: str | None,
     interfacage: str | None,
     administrateur: str | None,
-    actif: bool | None,
     params: dict[str, Any],
 ) -> str:
     """Conditions de liste. La recherche passe outre les autres filtres — comme pour le parc
@@ -169,9 +172,6 @@ def _filtres(
         )
         params["adm"] = f"%{administrateur.strip()}%"
         params["adm_id"] = administrateur.strip()
-    if actif is not None:
-        conditions += " AND a.actif = :actif"
-        params["actif"] = actif
     return conditions
 
 
@@ -186,11 +186,10 @@ async def lister(
     statut: str | None = None,
     interfacage: str | None = None,
     administrateur: str | None = None,
-    actif: bool | None = True,
 ) -> tuple[list[RowMapping], int]:
     params: dict[str, Any] = {}
     conditions = _filtres(
-        q, editeur_id, hebergement, statut, interfacage, administrateur, actif, params
+        q, editeur_id, hebergement, statut, interfacage, administrateur, params
     )
     total = await session.scalar(text(f"SELECT count(*) {_BASE}{conditions}"), params) or 0
     lignes = await session.execute(
@@ -218,15 +217,18 @@ async def compter(session: AsyncSession) -> dict[str, int]:
         await session.execute(
             text(
                 "SELECT count(*) AS total, "
-                "count(*) FILTER (WHERE a.actif) AS actives, "
-                "count(*) FILTER (WHERE NOT a.actif) AS retirees, "
-                "count(*) FILTER (WHERE a.actif AND a.hebergement = 'INTERNE') AS internes, "
-                "count(*) FILTER (WHERE a.actif AND a.hebergement = 'EXTERNE') AS externes, "
-                "count(*) FILTER (WHERE a.actif AND a.interfacage = 'OUI') AS interfacees, "
-                f"count(*) FILTER (WHERE a.actif AND NOT {_a_un_responsable(ROLE_ADMIN)}) "
-                "  AS sans_administrateur, "
-                f"count(*) FILTER (WHERE a.actif AND NOT {_a_un_responsable(ROLE_SECOURS)}) "
-                "  AS sans_secours "
+                f"count(*) FILTER (WHERE {_EN_SERVICE}) AS actives, "
+                "count(*) FILTER (WHERE a.statut = 'ARRETE') AS retirees, "
+                f"count(*) FILTER (WHERE {_EN_SERVICE} AND a.hebergement = 'INTERNE') "
+                "  AS internes, "
+                f"count(*) FILTER (WHERE {_EN_SERVICE} AND a.hebergement = 'EXTERNE') "
+                "  AS externes, "
+                f"count(*) FILTER (WHERE {_EN_SERVICE} AND a.interfacage = 'OUI') "
+                "  AS interfacees, "
+                f"count(*) FILTER (WHERE {_EN_SERVICE} "
+                f"  AND NOT {_a_un_responsable(ROLE_ADMIN)}) AS sans_administrateur, "
+                f"count(*) FILTER (WHERE {_EN_SERVICE} "
+                f"  AND NOT {_a_un_responsable(ROLE_SECOURS)}) AS sans_secours "
                 "FROM core.application a"
             )
         )

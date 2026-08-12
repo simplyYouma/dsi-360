@@ -56,7 +56,9 @@ async def test_creer_puis_relire_une_application(
     assert [p["nom"] for p in d["administrateurs"]] == ["Youssouf DIARRA", "Soungalo SIDIBE"]
     assert [p["nom"] for p in d["administrateurs_secours"]] == ["Mariam DIALLO"]
     assert d["statut"] == "EN_SERVICE"
-    assert d["actif"] is True
+    # Le statut porte seul le cycle de vie : il n'y a pas de second drapeau qui pourrait le
+    # contredire (« Arrêtée » et « active » se lisaient autrefois côte à côte).
+    assert "actif" not in d
     assert d["source"] == "SAISIE"
     # Référence système attribuée d'office, jamais saisie : format APP-xxxxx.
     assert d["reference"].startswith("APP-")

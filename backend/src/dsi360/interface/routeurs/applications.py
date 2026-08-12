@@ -70,7 +70,6 @@ def _resume(r: RowMapping) -> dict[str, Any]:
         "administrateurs": repo.responsables(r["administrateurs"]),
         "administrateurs_secours": repo.responsables(r["administrateurs_secours"]),
         "nb_comptes_actifs": r["nb_comptes_actifs"],
-        "actif": r["actif"],
     }
 
 
@@ -250,7 +249,6 @@ async def lister(
     interfacage: Annotated[str | None, Query()] = None,
     #: Un nom d'administrateur, ou `AUCUN` pour « personne ne s'en occupe ».
     administrateur: Annotated[str | None, Query(max_length=160)] = None,
-    actif: Annotated[bool | None, Query()] = True,
 ) -> dict[str, Any]:
     lignes, total = await repo.lister(
         session,
@@ -262,7 +260,6 @@ async def lister(
         statut=statut,
         interfacage=interfacage,
         administrateur=administrateur,
-        actif=actif,
     )
     return {
         "elements": [_resume(r) for r in lignes],
@@ -302,7 +299,7 @@ async def analyses_applications(courant: Courant, session: Session) -> dict[str,
     Tout se calcule sur les applications **en service** : ce qu'on a décommissionné ne dit plus
     rien de nos dépendances d'aujourd'hui.
     """
-    actives = [r for r in await repo.lister_tout(session) if r["actif"]]
+    actives = [r for r in await repo.lister_tout(session) if r["statut"] != "ARRETE"]
     return {
         "total": len(actives),
         "par_editeur": _agreger([r["editeur"] or "Éditeur non renseigné" for r in actives]),
@@ -360,7 +357,6 @@ _ENTETES_EXPORT = [
     "Port",
     "Administrateur",
     "Administrateur de secours",
-    "En service",
     "Origine",
     "Créée le",
     "Mise à jour le",
@@ -397,7 +393,6 @@ async def exporter(
             r["port"] or "",
             _liste_noms(r["administrateurs"]),
             _liste_noms(r["administrateurs_secours"]),
-            "Oui" if r["actif"] else "Non",
             r["source"],
             r["cree_le"].strftime("%d/%m/%Y %H:%M"),
             r["maj_le"].strftime("%d/%m/%Y %H:%M"),
@@ -466,8 +461,8 @@ async def modifier(
 async def supprimer(ident: str, courant: Courant, session: Session) -> None:
     """Suppression définitive, réservée à l'administrateur.
 
-    Pour retirer une application du parc sans perdre son historique, on la passe plutôt à
-    « hors service » (`actif = false`) : c'est ce que veut dire décommissionner.
+    Pour décommissionner une application sans perdre son historique, on la passe plutôt au
+    statut « Arrêtée » : elle sort des vues courantes, sa fiche et son journal restent.
     """
     exiger_admin(courant)
     avant = await _charger(session, ident)

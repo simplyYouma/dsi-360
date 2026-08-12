@@ -74,31 +74,20 @@
   color: var(--text-muted);
 }
 
-/* Zone d'ajout : le choix dans l'annuaire à gauche, la saisie libre à droite. */
-.ajout {
+/* Saisie d'un nom libre : elle remplace le sélecteur le temps d'écrire, plutôt que de vivre à
+   côté de lui. Un second champ permanent laissait croire à deux réglages distincts. */
+.saisie {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
 }
 
-.selecteur {
-  min-width: 210px;
-  flex: 1 1 210px;
-}
-
-.libre {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 1 1 210px;
-}
-
-.libre input {
+.saisie input {
   flex: 1;
   min-width: 0;
   padding: 7px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--secondary);
   border-radius: var(--radius-2, 8px);
   background: transparent;
   font: inherit;
@@ -106,31 +95,31 @@
   color: var(--text);
 }
 
-.libre input:focus {
+.saisie input:focus {
   outline: none;
-  border-color: var(--secondary);
 }
 
-.ajouter {
+.ok,
+.annuler {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 1px solid var(--border);
   border-radius: var(--radius-2, 8px);
   background: none;
-  font: inherit;
-  font-size: var(--text-sm);
   color: var(--text-muted);
   cursor: pointer;
+  flex: none;
 }
 
-.ajouter:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--text-muted);
+.ok:hover {
+  color: var(--status-ok);
+  border-color: var(--status-ok);
 }
 
-.ajouter:disabled {
-  opacity: 0.5;
-  cursor: default;
+.annuler:hover {
+  color: var(--status-danger);
+  border-color: var(--status-danger);
 }

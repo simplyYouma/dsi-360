@@ -22,6 +22,7 @@ import {
   HEBERGEMENTS,
   ICONE_HEBERGEMENT,
   ICONE_INTERFACAGE,
+  ICONE_STATUT,
   INTERFACAGES,
   LIBELLE_HEBERGEMENT,
   LIBELLE_STATUT,
@@ -120,20 +121,10 @@ export function FicheApplication({
       largeur={720}
       pied={
         <>
+          {/* Pas de bouton « Retirer du parc » : décommissionner, c'est passer le statut à
+              « Arrêtée ». Deux gestes pour le même sens en faisaient forcément diverger un. */}
           {detail !== null && modifiable && (
             <div className={local.piedActions}>
-              <Button
-                variante="secondaire"
-                className={detail.actif ? local.btnSortir : local.btnRemettre}
-                onClick={() => void patch({ actif: !detail.actif })}
-                title={
-                  detail.actif
-                    ? "Décommissionnée : elle quitte le parc actif, son historique reste"
-                    : 'La remettre au parc actif'
-                }
-              >
-                {detail.actif ? 'Retirer du parc' : 'Remettre en service'}
-              </Button>
               <BoutonSupprimer
                 cible={`l'application « ${detail.nom} »`}
                 onSupprimer={async () => {
@@ -161,13 +152,9 @@ export function FicheApplication({
           {/* L'essentiel en badges : ce qui tourne, où, et si ça sort de nos murs. */}
           <div className={local.badges}>
             <span className={local.badgeTitre}>{detail.nom}</span>
-            {detail.actif ? (
-              <StatusBadge couleur={COULEUR_STATUT[detail.statut] ?? 'var(--text-muted)'}>
-                {LIBELLE_STATUT[detail.statut] ?? detail.statut}
-              </StatusBadge>
-            ) : (
-              <StatusBadge statut="danger">Retirée du parc</StatusBadge>
-            )}
+            <StatusBadge couleur={COULEUR_STATUT[detail.statut] ?? 'var(--text-muted)'}>
+              {LIBELLE_STATUT[detail.statut] ?? detail.statut}
+            </StatusBadge>
             {detail.hebergement !== null && (
               <StatusBadge couleur={COULEUR_HEBERGEMENT[detail.hebergement] ?? 'var(--cat-1)'}>
                 {LIBELLE_HEBERGEMENT[detail.hebergement] ?? detail.hebergement}
@@ -335,6 +322,7 @@ export function FicheApplication({
                   valeur={detail.statut}
                   onChange={(v) => v !== null && void patch({ statut: v })}
                   couleurs={COULEUR_STATUT}
+                  icones={ICONE_STATUT}
                   desactive={!modifiable}
                   titreDesactive={raisonVerrou}
                 />
