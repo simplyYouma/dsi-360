@@ -12,6 +12,7 @@ import {
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { ChampInline } from '@/common/ChampInline';
+import { TexteRepliable } from '@/common/TexteRepliable';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { PastilleEcheance } from '@/common/PastilleEcheance';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
@@ -934,19 +935,25 @@ export function FicheTransition({
             )}
           </dl>
 
+          {/* La description est repliée sur quatre lignes : sans cela, un texte de dix lignes
+              repoussait le cycle de vie et l'historique hors de l'écran. « Voir plus » n'apparaît
+              que si quelque chose est réellement caché. */}
           {permissions.peut_editer_description ? (
             <div className={styles.description}>
               <ChampInline
                 valeur={detail.description ?? ''}
                 onValider={(val) => void modifierDescription(val)}
                 multiligne
+                repliable={4}
                 placeholder="Ajouter une description…"
                 aria-label="Description"
               />
             </div>
           ) : (
             detail.description !== null &&
-            detail.description !== '' && <p className={styles.description}>{detail.description}</p>
+            detail.description !== '' && (
+              <TexteRepliable texte={detail.description} lignes={4} classe={styles.description} />
+            )
           )}
 
           <div className={styles.workflow}>

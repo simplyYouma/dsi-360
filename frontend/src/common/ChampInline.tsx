@@ -1,5 +1,6 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { cx } from './cx';
+import { TexteRepliable } from './TexteRepliable';
 import styles from './ChampInline.module.css';
 
 interface Props {
@@ -21,6 +22,9 @@ interface Props {
   lectureSeule?: boolean;
   /** Pourquoi le champ ne s'édite pas (infobulle). */
   titreLectureSeule?: string | undefined;
+  /** Replie l'affichage sur ce nombre de lignes, dépliable au clic (textes longs). N'affecte
+   *  que la lecture : la saisie reste entière. */
+  repliable?: number | undefined;
   'aria-label'?: string | undefined;
 }
 
@@ -37,6 +41,7 @@ export function ChampInline({
   titre = false,
   lectureSeule = false,
   titreLectureSeule,
+  repliable,
   'aria-label': ariaLabel,
 }: Props): JSX.Element {
   const [edite, setEdite] = useState(false);
@@ -55,6 +60,20 @@ export function ChampInline({
   };
 
   if (!enEdition) {
+    // Texte long : on le replie, et l'on garde le clic-pour-éditer sur le texte lui-même.
+    // L'invite « Voir plus » vit à côté, jamais dedans : deux boutons imbriqués n'existent pas.
+    if (repliable !== undefined && valeur !== '') {
+      return (
+        <TexteRepliable
+          texte={valeur}
+          lignes={repliable}
+          classe={cx(styles.affichage, classeTexte, lectureSeule && styles.affichageFige)}
+          onTexte={lectureSeule ? undefined : () => setEdite(true)}
+          titre={lectureSeule ? titreLectureSeule : undefined}
+          aria-label={ariaLabel}
+        />
+      );
+    }
     return (
       <button
         type="button"

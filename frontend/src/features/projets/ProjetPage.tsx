@@ -529,6 +529,7 @@ export function ProjetPage(): JSX.Element {
                 lectureSeule={!creation && !permissions.peut_travailler}
                 titreLectureSeule={TITRE_LECTURE}
                 multiligne
+                repliable={4}
                 placeholder="Objectifs, périmètre…"
                 aria-label="Description"
               />

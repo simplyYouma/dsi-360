@@ -476,6 +476,7 @@ export function ChangementPage(): JSX.Element {
                 }
                 toujoursEdition={creation}
                 multiligne
+                repliable={4}
                 placeholder="Analyse d'impact, plan de déploiement, retour arrière…"
                 aria-label="Description"
                 lectureSeule={!creation && !permissions.peut_travailler}
@@ -577,6 +578,7 @@ export function ChangementPage(): JSX.Element {
                             void agir(() => changementsApi.modifier(id!, { [champ]: val }))
                           }
                           multiligne
+                          repliable={4}
                           indication={indication}
                           lectureSeule={!permissions.peut_completer_dossier}
                           titreLectureSeule={TITRE_LECTURE}

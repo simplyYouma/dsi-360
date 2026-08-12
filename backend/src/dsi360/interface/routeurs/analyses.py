@@ -69,7 +69,7 @@ WITH pas AS (
 SELECT p.module, p.statut,
        round((avg(extract(epoch FROM (p.fin - p.horodatage)) / 86400))::numeric, 1) AS jours,
        count(*) AS passages
-FROM pas p WHERE p.fin IS NOT NULL{periode}
+FROM pas p WHERE p.fin IS NOT NULL{periode}{modules}
 GROUP BY p.module, p.statut HAVING count(*) > 0
 """
 
@@ -77,7 +77,7 @@ GROUP BY p.module, p.statut HAVING count(*) > 0
 _ROUVERTS = """
 SELECT j.module AS libelle, count(DISTINCT j.cible_id) AS rouverts
 FROM audit.journal j
-WHERE j.action = 'TRANSITION' AND j.nouvelle_valeur->>'statut' = 'Réouvert'{periode}
+WHERE j.action = 'TRANSITION' AND j.nouvelle_valeur->>'statut' = 'Réouvert'{periode}{modules}
 GROUP BY j.module
 """
 
@@ -172,7 +172,7 @@ GROUP BY a.priorite ORDER BY a.priorite
 _SUIVIS = """
 SELECT aa.utilisateur_id::text AS id, count(*) AS suivis
 FROM core.activite_acteur aa JOIN core.activite a ON a.id = aa.activite_id
-WHERE aa.role = 'CONTRIBUTEUR'{periode}
+WHERE aa.role = 'CONTRIBUTEUR'{periode}{modules}
 GROUP BY aa.utilisateur_id
 """
 
@@ -195,6 +195,8 @@ async def analyses(
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
     du: date | None = None,
     au: date | None = None,
+    #: Modules à retenir (répétable : `?modules=incident&modules=demande`). Absent = tous.
+    modules: Annotated[list[str] | None, Query()] = None,
 ) -> dict[str, Any]:
     cond_dir = ""
     params: dict[str, Any] = dict(_pparams(jours, du, au))
@@ -204,6 +206,21 @@ async def analyses(
         # ignorerait tous les incidents/demandes importés.
         cond_dir = " AND (d.code = :dir OR a.direction_id IS NULL)"
         params["dir"] = courant["direction"]
+
+    # Filtre par module : un cadrage, pas une période. Il rejoint donc `cond_dir`, ce qui l'applique
+    # à TOUT — y compris la tendance et le vieillissement, qui échappent au filtre de période.
+    # Sans cela, on aurait vu un total restreint aux modules choisis mais une courbe portant encore
+    # tout le reste : deux chiffres contradictoires sur le même écran.
+    # Deux requêtes lisent le journal d'audit et n'ont pas l'alias `a` : les réouvertures filtrent
+    # sur `j.module`, les durées par statut sur `p.module` (l'alias du CTE). D'où les variantes.
+    cond_mod_j = ""
+    cond_mod_p = ""
+    if modules:
+        cond_dir += " AND a.module = ANY(:modules)"
+        cond_mod_j = " AND j.module = ANY(:modules)"
+        cond_mod_p = " AND p.module = ANY(:modules)"
+        params["modules"] = modules
+
     # Filtre période (sur la date de création) appliqué aux agrégations, hors tendance.
     cond = cond_dir + _periode(jours, du, au)
 
@@ -311,9 +328,13 @@ async def analyses(
         b_cur = _ajouter(unit, b_cur)
     if not seaux:
         seaux = [b_dep]
+    # La tendance a ses propres bornes de temps, mais elle doit porter le MÊME cadrage que le
+    # reste : direction et modules retenus. Les recopier ici est ce qui évite une courbe qui
+    # raconterait autre chose que les compteurs affichés juste à côté.
     tparams: dict[str, Any] = {"t_debut": seaux[0], "t_fin": _ajouter(unit, seaux[-1])}
-    if "dir" in params:
-        tparams["dir"] = params["dir"]
+    for cle in ("dir", "modules"):
+        if cle in params:
+            tparams[cle] = params[cle]
     crees_par = {
         r["bucket"]: r["n"]
         for r in await _lignes(
@@ -375,14 +396,20 @@ async def analyses(
     # trie depuis le CTE `pas p` (p.horodatage), celle des réouvertures depuis `journal j`.
     durees_statuts = await _lignes(
         session,
-        _DUREES_STATUTS.format(periode=_periode(jours, du, au, "p.horodatage")),
+        _DUREES_STATUTS.format(
+            periode=_periode(jours, du, au, "p.horodatage"), modules=cond_mod_p
+        ),
         params,
     )
 
     rouverts = {
         r["libelle"]: r["rouverts"]
         for r in await _lignes(
-            session, _ROUVERTS.format(periode=_periode(jours, du, au, "j.horodatage")), params
+            session,
+            _ROUVERTS.format(
+                periode=_periode(jours, du, au, "j.horodatage"), modules=cond_mod_j
+            ),
+            params,
         )
     }
     resolus_mod = await _lignes(session, _RESOLUS_PAR_MODULE.format(cond=cond), params)
@@ -563,13 +590,18 @@ async def evaluation_gestionnaires(
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
     du: date | None = None,
     au: date | None = None,
+    #: Mêmes modules que le reste des analyses : on évalue sur le périmètre qu'on regarde.
+    modules: Annotated[list[str] | None, Query()] = None,
 ) -> list[dict[str, Any]]:
+    cond_mod = " AND a.module = ANY(:modules)" if modules else ""
     requete = (
         f"SELECT s.id, (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
-        f"FROM ({_src_gest(_periode(jours, du, au))}) s "
+        f"FROM ({_src_gest(_periode(jours, du, au) + cond_mod)}) s "
         "GROUP BY s.id, s.prenom, s.nom ORDER BY volume DESC LIMIT 20"
     )
-    params = _pparams(jours, du, au)
+    params = dict(_pparams(jours, du, au))
+    if modules:
+        params["modules"] = modules
     lignes = (await session.execute(text(requete), params)).mappings().all()
     evaluations = [_eval_dict(r) for r in lignes]
 
@@ -577,7 +609,11 @@ async def evaluation_gestionnaires(
     # y compris pour un agent qui ne gère rien : il apparaît alors avec un volume nul.
     suivis = {
         r["id"]: r["suivis"]
-        for r in await _lignes(session, _SUIVIS.format(periode=_periode(jours, du, au)), params)
+        for r in await _lignes(
+            session,
+            _SUIVIS.format(periode=_periode(jours, du, au), modules=cond_mod),
+            params,
+        )
     }
     for e in evaluations:
         e["suivis"] = suivis.pop(e["id"], 0)
@@ -613,11 +649,17 @@ async def gestionnaire_detail(
     jours: Annotated[int | None, Query(ge=1, le=3650)] = None,
     du: date | None = None,
     au: date | None = None,
+    #: Même périmètre que la liste dont on vient : sans quoi le détail contredirait la ligne.
+    modules: Annotated[list[str] | None, Query()] = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {"id": ident, **_pparams(jours, du, au)}
+    cond_mod = ""
+    if modules:
+        cond_mod = " AND a.module = ANY(:modules)"
+        params["modules"] = modules
     requete = (
         f"SELECT (s.prenom || ' ' || s.nom) AS gestionnaire, {_AGREGATS_GEST} "
-        f"FROM ({_src_gest(_periode(jours, du, au) + ' AND r.id::text = :id')}) s "
+        f"FROM ({_src_gest(_periode(jours, du, au) + cond_mod + ' AND r.id::text = :id')}) s "
         "GROUP BY s.prenom, s.nom"
     )
     ligne = (await session.execute(text(requete), params)).mappings().first()
@@ -626,7 +668,7 @@ async def gestionnaire_detail(
         "SELECT extract(isodow from a.cree_le)::int AS jour, "
         "extract(hour from a.cree_le)::int AS heure, count(*) AS valeur "
         "FROM core.activite a WHERE a.responsable_id = cast(:id as uuid) "
-        f"AND a.cree_le IS NOT NULL{_periode(jours, du, au)} GROUP BY 1, 2",
+        f"AND a.cree_le IS NOT NULL{_periode(jours, du, au)}{cond_mod} GROUP BY 1, 2",
         params,
     )
     nb_suivis = (

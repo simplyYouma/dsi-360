@@ -122,4 +122,7 @@ async def test_l_ajout_d_un_lien_apparait_dans_l_historique(
     detail = (await client.get(f"/{base}/{ident}", headers=entetes(admin))).json()
     lignes = [e for e in detail["journal"] if e["action"] == "LIEN_AJOUTE"]
     assert len(lignes) == 1, "l'ajout du lien doit figurer au journal de la fiche"
-    assert "Espace COPIL" in (lignes[0]["detail"] or "")
+    ligne = lignes[0]["detail"] or ""
+    assert "Espace COPIL" in ligne
+    # L'historique dit qui a ajouté quoi, pas où ça pointe : l'adresse noyait la ligne.
+    assert "https://intranet.afgbank.ml/copil" not in ligne, ligne

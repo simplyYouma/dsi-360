@@ -186,12 +186,21 @@ export interface AnalysesMensuelles {
   niveaux: LigneNiveau[];
 }
 
+/** Ajoute les modules retenus à une URL déjà formée. Liste vide = aucun filtre (tout est regardé),
+ *  et le paramètre est répétable côté serveur : `?modules=incident&modules=demande`. */
+function avecModules(base: string, modules: string[] = []): string {
+  if (modules.length === 0) return base;
+  const sep = base.includes('?') ? '&' : '?';
+  return base + sep + modules.map((m) => `modules=${encodeURIComponent(m)}`).join('&');
+}
+
 export const analysesApi = {
-  charger: (p: Periode): Promise<Analyses> => api.get(`/analyses${requetePeriode(p)}`),
-  gestionnaires: (p: Periode): Promise<GestionnaireEval[]> =>
-    api.get(`/analyses/gestionnaires${requetePeriode(p)}`),
-  gestionnaire: (id: string, p: Periode): Promise<GestionnaireDetail> =>
-    api.get(`/analyses/gestionnaire/${id}${requetePeriode(p)}`),
+  charger: (p: Periode, modules?: string[]): Promise<Analyses> =>
+    api.get(avecModules(`/analyses${requetePeriode(p)}`, modules)),
+  gestionnaires: (p: Periode, modules?: string[]): Promise<GestionnaireEval[]> =>
+    api.get(avecModules(`/analyses/gestionnaires${requetePeriode(p)}`, modules)),
+  gestionnaire: (id: string, p: Periode, modules?: string[]): Promise<GestionnaireDetail> =>
+    api.get(avecModules(`/analyses/gestionnaire/${id}${requetePeriode(p)}`, modules)),
   mensuel: (p: Periode, statut: string | null = null): Promise<AnalysesMensuelles> => {
     const base = `/analyses/mensuel${requetePeriode(p)}`;
     const sep = base.includes('?') ? '&' : '?';

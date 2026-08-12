@@ -1,0 +1,67 @@
+/* Choix des modules regardés. Des pastilles à cocher plutôt qu'une liste déroulante : on voit
+   d'un coup ce qui est retenu et ce qui ne l'est pas, sans ouvrir quoi que ce soit. */
+
+.barre {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.intitule {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: var(--space-1);
+}
+
+.puce,
+.puceOn {
+  padding: 5px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.puce:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+/* Retenu : c'est le seul endroit où la couleur entre en jeu — elle porte le sens « regardé ». */
+.puceOn {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.puce:focus-visible,
+.puceOn:focus-visible,
+.tout:focus-visible {
+  outline: 2px solid var(--focus, var(--secondary));
+  outline-offset: 2px;
+}
+
+/* Retour à la vue complète. Discret : il n'existe que lorsqu'un filtre est posé. */
+.tout {
+  border: none;
+  background: none;
+  padding: 0 var(--space-1);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tout:hover {
+  color: var(--text);
+  text-decoration: underline;
+}

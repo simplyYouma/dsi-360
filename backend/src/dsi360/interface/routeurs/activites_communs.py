@@ -319,14 +319,20 @@ _ACTION_DOCUMENT = {
 
 
 def _detail_lien(anciennes: Any, nouvelles: Any) -> str | None:
-    """Libellé (et adresse) du lien concerné, pris dans la nouvelle valeur, sinon l'ancienne."""
+    """Libellé du lien concerné, pris dans la nouvelle valeur, sinon l'ancienne.
+
+    On s'en tient au **libellé** : une adresse complète (souvent longue, parfois signée) noyait la
+    ligne d'historique et cachait ce qui s'était passé. Le lien lui-même reste accessible dans le
+    bloc des liens de la fiche — l'historique dit qui a ajouté quoi, pas où ça pointe.
+    Sans libellé, l'adresse reste le seul repère : mieux vaut une URL qu'une ligne muette.
+    """
     d = nouvelles if isinstance(nouvelles, dict) and nouvelles else anciennes
     if not isinstance(d, dict):
         return None
     libelle, url = d.get("libelle"), d.get("url")
-    if libelle and url:
-        return f"« {libelle} » — {url}"
-    return libelle or url
+    if libelle:
+        return f"« {libelle} »"
+    return url
 
 
 def _detail_document(cible_id: str | None, reference: str) -> str | None:

@@ -280,6 +280,7 @@ export function FicheApplication({
                   onValider={(v) => void patch({ fonctionnalites: v })}
                   placeholder="—"
                   multiligne
+                  repliable={4}
                   lectureSeule={!modifiable}
                   titreLectureSeule={raisonVerrou}
                 />

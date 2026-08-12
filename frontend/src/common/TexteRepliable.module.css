@@ -1,0 +1,51 @@
+/* Texte long, replié sur quelques lignes, dépliable au clic.
+   La discrétion est le sujet : le texte reste le texte, et l'invite n'apparaît QUE lorsqu'il y a
+   vraiment quelque chose de caché. */
+
+.bloc {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+}
+
+/* Le repli : N lignes, le reste coupé. `--lignes` est posé par le composant. */
+.replie {
+  display: -webkit-box;
+  -webkit-line-clamp: var(--lignes, 4);
+  line-clamp: var(--lignes, 4);
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Le texte lui-même, quand il n'est pas porté par un champ éditable. */
+.texte {
+  margin: 0;
+  width: 100%;
+  text-align: left;
+}
+
+/* L'invite. Sobre : la taille d'une légende, la couleur d'un texte secondaire, souligné
+   seulement au survol — on la trouve quand on la cherche, elle ne réclame rien. */
+.plus {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-xs, 12px);
+  color: var(--text-muted);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+
+.plus:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.plus:focus-visible {
+  outline: 2px solid var(--focus, var(--secondary));
+  outline-offset: 2px;
+  border-radius: 3px;
+}

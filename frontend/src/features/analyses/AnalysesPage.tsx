@@ -35,6 +35,7 @@ import { BoutonExportPdf } from '@/common/BoutonExportPdf';
 import { BoutonExportPng } from '@/common/BoutonExportPng';
 import { MatriceMensuelle } from './MatriceMensuelle';
 import { ParcOnglet } from './ParcOnglet';
+import { FiltreModules } from './FiltreModules';
 import type { AnalysesMensuelles } from './analysesApi';
 import { FiltrePeriode } from '@/common/FiltrePeriode';
 import { PERIODE_DEFAUT, type Periode } from '@/common/periode';
@@ -529,6 +530,9 @@ export function AnalysesPage(): JSX.Element {
   const [a, setA] = useState<Analyses | null>(null);
   const [evals, setEvals] = useState<GestionnaireEval[]>([]);
   const [periode, setPeriode] = useState<Periode>(PERIODE_DEFAUT);
+  // Liste vide = tous les modules. On ne coche donc rien par défaut : la vue d'ouverture reste
+  // celle de toute la DSI, et l'on restreint quand on veut se concentrer sur un périmètre.
+  const [modules, setModules] = useState<string[]>([]);
   const [onglet, setOnglet] = useState<CleOnglet>('apercu');
   const [gestSel, setGestSel] = useState<string | null>(null);
   const [gestDetail, setGestDetail] = useState<GestionnaireDetail | null>(null);
@@ -537,23 +541,23 @@ export function AnalysesPage(): JSX.Element {
   const contenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    void analysesApi.charger(periode).then(setA);
-  }, [periode]);
+    void analysesApi.charger(periode, modules).then(setA);
+  }, [periode, modules]);
   // Onglet mensuel chargé à la demande (requête plus lourde), et rechargé au changement de période.
   useEffect(() => {
     if (onglet === 'mensuel') void analysesApi.mensuel(periode, statutMensuel).then(setMensuel);
   }, [onglet, periode, statutMensuel]);
   useEffect(() => {
-    void analysesApi.gestionnaires(periode).then(setEvals);
-  }, [periode]);
+    void analysesApi.gestionnaires(periode, modules).then(setEvals);
+  }, [periode, modules]);
   useEffect(() => {
     if (gestSel === null) {
       setGestDetail(null);
       return;
     }
     setGestDetail(null);
-    void analysesApi.gestionnaire(gestSel, periode).then(setGestDetail);
-  }, [gestSel, periode]);
+    void analysesApi.gestionnaire(gestSel, periode, modules).then(setGestDetail);
+  }, [gestSel, periode, modules]);
 
   const slaModules = (a?.sla_par_module ?? []).map((s) => ({
     nom: MODULE_LABEL[s.module] ?? s.module,
@@ -648,6 +652,11 @@ export function AnalysesPage(): JSX.Element {
             );
           })}
         </section>
+
+        {/* Le périmètre regardé, juste sous les indicateurs qu'il commande : on voit ce que les
+            chiffres couvrent avant de les lire. L'onglet « Parc » n'est pas concerné — il porte
+            sur le matériel, qui n'est pas une activité. */}
+        {onglet !== 'parc' && <FiltreModules valeur={modules} onChange={setModules} />}
 
         <div className={styles.onglets}>
           {ONGLETS.map((o) => (
