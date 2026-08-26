@@ -31,6 +31,50 @@
   width: 46px;
   height: 46px;
 }
+
+/* Ce que la largeur gagnée sert à dire : la composition qui explique le pourcentage.
+   Un taux seul ne se discute pas — avec ses trois parts, on voit d'où il vient. */
+.kpiCompo {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.kpiCompoBarre {
+  display: flex;
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+}
+.kpiCompoSeg {
+  height: 100%;
+  transition: width 0.25s ease;
+}
+.kpiCompoLegende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.kpiCompoItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.kpiCompoPastille {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.kpiCompoNb {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
 .kpiCarte {
   display: flex;
   flex-direction: column;

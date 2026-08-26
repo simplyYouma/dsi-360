@@ -158,6 +158,55 @@ const KPIS: MetaKpi[] = [
   },
 ];
 
+/** La composition qui explique le taux : résolues, en cours, arrêtées sans aboutir.
+ *
+ *  Un pourcentage seul ne se discute pas — 40 % peut vouloir dire « on n'y arrive pas » comme
+ *  « la moitié vient d'arriver ». Les trois parts et leurs effectifs disent lequel des deux.
+ */
+function CompositionResolution({
+  lignes,
+}: {
+  lignes: Analyses['resolution_par_module'];
+}): JSX.Element | null {
+  const cumul = lignes.reduce(
+    (acc, m) => ({
+      resolus: acc.resolus + m.resolus,
+      en_cours: acc.en_cours + m.en_cours,
+      abandonnes: acc.abandonnes + m.abandonnes,
+      recus: acc.recus + m.recus,
+    }),
+    { resolus: 0, en_cours: 0, abandonnes: 0, recus: 0 },
+  );
+  if (cumul.recus === 0) return null;
+  return (
+    <div className={styles.kpiCompo}>
+      <div className={styles.kpiCompoBarre}>
+        {RESOLUTION_SEGMENTS.map((s) => {
+          const v = cumul[s.cle];
+          if (v === 0) return null;
+          return (
+            <span
+              key={s.cle}
+              className={styles.kpiCompoSeg}
+              title={`${s.nom} : ${v}`}
+              style={{ width: `${(100 * v) / cumul.recus}%`, background: s.couleur }}
+            />
+          );
+        })}
+      </div>
+      <div className={styles.kpiCompoLegende}>
+        {RESOLUTION_SEGMENTS.map((s) => (
+          <span key={s.cle} className={styles.kpiCompoItem}>
+            <span className={styles.kpiCompoPastille} style={{ background: s.couleur }} />
+            <span className={styles.kpiCompoNb}>{cumul[s.cle]}</span>
+            {s.nom.toLowerCase()}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Matrice des risques
 
 const CRITICITE_BANDE = (c: number): string => {
@@ -672,6 +721,9 @@ export function AnalysesPage(): JSX.Element {
                 <span className={styles.kpiValeur}>{a ? k.format(a.kpis[k.cle]) : '—'}</span>
                 <span className={styles.kpiLibelle}>{k.libelle}</span>
                 <span className={styles.kpiNote}>{k.note}</span>
+                {k.principal === true && a !== null && (
+                  <CompositionResolution lignes={a.resolution_par_module} />
+                )}
               </Card>
             );
           })}
@@ -846,8 +898,8 @@ export function AnalysesPage(): JSX.Element {
               <BoutonExportPng nom="Taux de résolution par module" />
               <h2 className={styles.chartTitre}>Taux de résolution par module</h2>
               <p className={styles.chartSous}>
-                Sur les activités arrivées dans la période : ce qui a abouti, ce qui reste
-                ouvert, ce qui a été arrêté sans aboutir.
+                Sur les activités arrivées dans la période : ce qui a abouti, ce qui reste ouvert,
+                ce qui a été arrêté sans aboutir.
               </p>
               {(a?.resolution_par_module ?? []).length === 0 ? (
                 <p className={styles.vide}>Aucune activité sur la période.</p>
