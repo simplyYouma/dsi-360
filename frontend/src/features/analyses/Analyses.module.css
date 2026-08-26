@@ -80,6 +80,14 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+
+/* Les cartes d'une rangée ont la même hauteur, mais pas le même contenu : la principale porte sa
+   composition, les autres non. Sans réglage, tout se tassait en haut et le bas restait blanc.
+   On cale donc l'icône en haut et le bloc chiffre + libellé + note en bas : la carte est occupée
+   sur toute sa hauteur, et les chiffres s'alignent d'une carte à l'autre. */
+.kpiValeur {
+  margin-top: auto;
+}
 .kpiIcone {
   width: 40px;
   height: 40px;

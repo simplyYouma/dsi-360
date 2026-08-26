@@ -54,6 +54,21 @@ export function ChampInline({
     if (!toujoursEdition) setEdite(false);
     if (brouillon !== valeur) onValider(brouillon);
   };
+
+  /** Saisie : le brouillon local suit toujours, le parent seulement en mode création.
+   *
+   *  En clic-pour-éditer, la valeur ne remonte qu'à la validation (Entrée / sortie du champ) :
+   *  c'est ce qui permet d'annuler par Échap sans avoir rien écrit dans la fiche.
+   *
+   *  En mode création (`toujoursEdition`), c'est le parent qui tient le brouillon du formulaire,
+   *  et souvent un bouton « Créer » qui s'active dessus. Attendre la sortie du champ le laissait
+   *  désactivé au moment précis où l'on veut cliquer : on tapait le titre, on visait le bouton,
+   *  et le clic tombait sur un bouton encore éteint. La frappe doit donc remonter aussitôt.
+   */
+  const saisir = (val: string): void => {
+    setBrouillon(val);
+    if (toujoursEdition) onValider(val);
+  };
   const annuler = (): void => {
     setBrouillon(valeur);
     if (!toujoursEdition) setEdite(false);
@@ -103,7 +118,7 @@ export function ChampInline({
       placeholder={indication ?? placeholder}
       autoFocus={!toujoursEdition}
       aria-label={ariaLabel}
-      onChange={(e) => setBrouillon(e.target.value)}
+      onChange={(e) => saisir(e.target.value)}
       onBlur={valider}
       onKeyDown={surTouche}
     />
@@ -116,9 +131,7 @@ export function ChampInline({
       autoFocus={!toujoursEdition}
       aria-label={ariaLabel}
       onChange={(e) =>
-        setBrouillon(
-          inputMode === 'numeric' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value,
-        )
+        saisir(inputMode === 'numeric' ? e.target.value.replace(/[^0-9]/g, '') : e.target.value)
       }
       onBlur={valider}
       onKeyDown={surTouche}
