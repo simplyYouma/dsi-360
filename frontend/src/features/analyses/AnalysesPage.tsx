@@ -111,8 +111,19 @@ interface MetaKpi {
   couleur: string;
   format: (v: number) => string;
   note: string;
+  /** Carte de tête : deux colonnes, chiffre agrandi. Une seule à la fois. */
+  principal?: boolean;
 }
 const KPIS: MetaKpi[] = [
+  {
+    cle: 'taux_resolution',
+    libelle: 'Taux de résolution',
+    icone: CircleCheckBig,
+    couleur: '#2e9e5b',
+    format: (v) => `${v} %`,
+    note: 'Activités abouties sur activités reçues',
+    principal: true,
+  },
   {
     cle: 'ouvertes',
     libelle: 'Activités ouvertes',
@@ -136,14 +147,6 @@ const KPIS: MetaKpi[] = [
     couleur: '#8a5cf6',
     format: (v) => `${v} j`,
     note: 'Sur la période',
-  },
-  {
-    cle: 'taux_resolution',
-    libelle: 'Taux de résolution',
-    icone: CircleCheckBig,
-    couleur: '#2e9e5b',
-    format: (v) => `${v} %`,
-    note: 'Dossiers aboutis sur dossiers reçus',
   },
   {
     cle: 'en_retard',
@@ -653,7 +656,10 @@ export function AnalysesPage(): JSX.Element {
           {KPIS.map((k) => {
             const Icone = k.icone;
             return (
-              <Card key={k.cle} className={styles.kpiCarte}>
+              <Card
+                key={k.cle}
+                className={cx(styles.kpiCarte, k.principal === true && styles.kpiPrincipal)}
+              >
                 <span
                   className={styles.kpiIcone}
                   style={{
@@ -840,11 +846,11 @@ export function AnalysesPage(): JSX.Element {
               <BoutonExportPng nom="Taux de résolution par module" />
               <h2 className={styles.chartTitre}>Taux de résolution par module</h2>
               <p className={styles.chartSous}>
-                Sur les dossiers arrivés dans la période : ce qui a abouti, ce qui reste ouvert,
-                ce qui a été arrêté sans aboutir.
+                Sur les activités arrivées dans la période : ce qui a abouti, ce qui reste
+                ouvert, ce qui a été arrêté sans aboutir.
               </p>
               {(a?.resolution_par_module ?? []).length === 0 ? (
-                <p className={styles.vide}>Aucun dossier sur la période.</p>
+                <p className={styles.vide}>Aucune activité sur la période.</p>
               ) : (
                 <ul className={styles.stack}>
                   {(a?.resolution_par_module ?? []).map((m) => {
@@ -878,7 +884,7 @@ export function AnalysesPage(): JSX.Element {
                             dénominateur se lit de travers (100 % sur deux dossiers). */}
                         <span
                           className={styles.stackTot}
-                          title={`${m.resolus} résolu(s) sur ${m.recus} reçu(s)`}
+                          title={`${m.resolus} activité(s) aboutie(s) sur ${m.recus} reçue(s)`}
                         >
                           {m.taux} % · {m.recus}
                         </span>

@@ -1311,8 +1311,8 @@ class KpisAnalyse(BaseModel):
     respect_sla: int
     mttr_jours: float
     en_retard: int
-    #: Part des dossiers arrivés sur la période qui ont abouti. « Rejeté » et « Annulé » n'en
-    #: sont pas : ils sont arrêtés, pas résolus.
+    #: Part des activités arrivées sur la période qui ont abouti. « Rejeté » et « Annulé »
+    #: n'en sont pas : elles sont arrêtées, pas résolues.
     taux_resolution: int = 0
 
 
@@ -1327,7 +1327,7 @@ class ResolutionModule(BaseModel):
     """Ce qui est arrivé, ce qui a abouti, ce qui reste — pour un module, sur la période."""
 
     module: str
-    #: Dossiers créés sur la période, tous statuts confondus.
+    #: Activités créées sur la période, tous statuts confondus.
     recus: int
     #: Menés à leur terme (« Résolu », « Clôturé », « Réalisé »…).
     resolus: int

@@ -11,7 +11,7 @@ export interface Kpis {
   respect_sla: number;
   mttr_jours: number;
   en_retard: number;
-  /** Part des dossiers arrivés sur la période qui ont abouti. */
+  /** Part des activités arrivées sur la période qui ont abouti. */
   taux_resolution: number;
 }
 

@@ -1,13 +1,35 @@
 /* ---- KPI ---- */
+/* Cinq indicateurs, dont un principal qui occupe deux colonnes : 4 × 1 + 1 × 2 = 6 unités,
+   soit exactement une rangée pleine. Les paliers suivants sont choisis pour que ces 6 unités
+   tombent juste — 3 colonnes (2 rangées), puis 2 colonnes (3 rangées). Jamais 4 : il resterait
+   une demi-rangée vide à droite, et une rangée trouée se lit comme un oubli. */
 .kpiRow {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--space-4);
 }
-@media (max-width: 900px) {
+@media (max-width: 1280px) {
+  .kpiRow {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 760px) {
   .kpiRow {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* La carte principale : le chiffre que l'on vient chercher en premier. Elle se distingue par sa
+   largeur et la taille de son chiffre — pas par un fond coloré : la couleur reste au sens. */
+.kpiPrincipal {
+  grid-column: span 2;
+}
+.kpiPrincipal .kpiValeur {
+  font-size: 2.7rem;
+}
+.kpiPrincipal .kpiIcone {
+  width: 46px;
+  height: 46px;
 }
 .kpiCarte {
   display: flex;

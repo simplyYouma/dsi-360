@@ -182,14 +182,14 @@ def _taux(part: int, total: int) -> int:
 
 
 def _resolution_par_module(lignes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Reçus / résolus / abandonnés / en cours par module, et le taux qui en découle.
+    """Reçues / résolues / abandonnées / en cours par module, et le taux qui en découle.
 
-    Le tri se fait ici et non en SQL parce que c'est le **domaine** qui dit ce qu'est un dossier
-    abouti (`etats.est_aboutissement`) : recopier une liste de statuts dans une requête aurait
+    Le tri se fait ici et non en SQL parce que c'est le **domaine** qui dit ce qu'est une activité
+    aboutie (`etats.est_aboutissement`) : recopier une liste de statuts dans une requête aurait
     créé une seconde définition, condamnée à diverger au premier état ajouté.
 
-    « Rejeté » et « Annulé » ne comptent pas comme des résolutions — ils sont arrêtés, pas
-    résolus — mais restent au dénominateur : ils sont bel et bien arrivés.
+    « Rejeté » et « Annulé » ne comptent pas comme des résolutions — ces activités sont
+    arrêtées, pas résolues — mais restent au dénominateur : elles sont bel et bien arrivées.
     """
     par_module: dict[str, dict[str, int]] = {}
     for r in lignes:
@@ -314,7 +314,7 @@ async def analyses(
     )
 
     # Taux de résolution : ce qui a abouti sur ce qui est arrivé. On compte par (module, statut)
-    # — sans le filtre « ouvertes » : un dossier résolu est justement celui qui ne l'est plus.
+    # — sans le filtre « ouvertes » : une activité résolue est justement celle qui ne l'est plus.
     resolution_par_module = _resolution_par_module(
         await _lignes(
             session,

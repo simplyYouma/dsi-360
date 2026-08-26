@@ -72,8 +72,8 @@ Neuf modules, livrés par phases (cf. §7) :
 - **Reporting** : exports PDF / Excel / CSV ; rapports par responsable, par direction, SLA,
   incidents, projets, audits, risques. Les **analyses se filtrent par module** : le même écran sert
   la vue d'ensemble et le focus sur un périmètre (incidents et demandes, en pratique).
-- **Taux de résolution** : part des dossiers **arrivés** sur la période qui ont **abouti**. Ce qui
-  est arrêté sans aboutir (« Rejeté », « Annulé ») n'est pas une résolution, mais reste au
+- **Taux de résolution** : part des activités **arrivées** sur la période qui ont **abouti**. Ce
+  qui est arrêté sans aboutir (« Rejeté », « Annulé ») n'est pas une résolution, mais reste au
   dénominateur : c'est bien arrivé. La définition vient du domaine (`etats.est_aboutissement`),
   jamais d'une liste de statuts recopiée en SQL — deux définitions finiraient par diverger.
 - **Gestion des accès — profils métier paramétrables** ([ADR-0003](docs/adr/0003-profils-metier-et-perimetre-dsi.md)) :
