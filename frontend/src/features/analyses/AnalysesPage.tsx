@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity,
+  CircleCheckBig,
   Gauge,
   Timer,
   AlertTriangle,
@@ -83,6 +84,15 @@ const SLA_SEGMENTS = [
   { cle: 'depasse', nom: 'Dépassé', couleur: '#d64545' },
 ] as const;
 
+/** Composition d'un module : ce qui a abouti, ce qui reste, ce qui a été arrêté sans aboutir.
+ *  Le gris de l'abandon n'est pas une couleur d'alerte — un dossier annulé n'est pas un échec de
+ *  traitement, il ne compte simplement pas comme une résolution. */
+const RESOLUTION_SEGMENTS = [
+  { cle: 'resolus', nom: 'Résolus', couleur: '#1f9d55' },
+  { cle: 'en_cours', nom: 'En cours', couleur: '#4f6bed' },
+  { cle: 'abandonnes', nom: 'Arrêtés sans aboutir', couleur: '#8a93a6' },
+] as const;
+
 type CleOnglet = 'apercu' | 'flux' | 'priorites' | 'equipe' | 'mensuel' | 'parc';
 const ONGLETS: { cle: CleOnglet; libelle: string }[] = [
   { cle: 'apercu', libelle: "Vue d'ensemble" },
@@ -126,6 +136,14 @@ const KPIS: MetaKpi[] = [
     couleur: '#8a5cf6',
     format: (v) => `${v} j`,
     note: 'Sur la période',
+  },
+  {
+    cle: 'taux_resolution',
+    libelle: 'Taux de résolution',
+    icone: CircleCheckBig,
+    couleur: '#2e9e5b',
+    format: (v) => `${v} %`,
+    note: 'Dossiers aboutis sur dossiers reçus',
   },
   {
     cle: 'en_retard',
@@ -813,6 +831,62 @@ export function AnalysesPage(): JSX.Element {
                 Ancienneté des activités non clôturées — le vieux stock est le plus coûteux.
               </p>
               <Vieillissement tranches={a?.vieillissement ?? []} />
+            </Card>
+
+            {/* Le taux de résolution par module : ce qui arrive, ce qui aboutit, ce qui reste.
+                La barre montre la composition, le pourcentage à droite donne le verdict. Filtrer
+                par module en haut de page restreint ce visuel comme tous les autres. */}
+            <Card className={styles.span2} data-visuel="Taux de résolution par module">
+              <BoutonExportPng nom="Taux de résolution par module" />
+              <h2 className={styles.chartTitre}>Taux de résolution par module</h2>
+              <p className={styles.chartSous}>
+                Sur les dossiers arrivés dans la période : ce qui a abouti, ce qui reste ouvert,
+                ce qui a été arrêté sans aboutir.
+              </p>
+              {(a?.resolution_par_module ?? []).length === 0 ? (
+                <p className={styles.vide}>Aucun dossier sur la période.</p>
+              ) : (
+                <ul className={styles.stack}>
+                  {(a?.resolution_par_module ?? []).map((m) => {
+                    const total = Math.max(1, m.recus);
+                    return (
+                      <li key={m.module} className={styles.stackLigne}>
+                        <span
+                          className={styles.stackNom}
+                          title={MODULE_LABEL[m.module] ?? m.module}
+                        >
+                          {MODULE_LABEL[m.module] ?? m.module}
+                        </span>
+                        <div className={styles.stackBarre}>
+                          {RESOLUTION_SEGMENTS.map((s) => {
+                            const v = m[s.cle];
+                            if (v === 0) return null;
+                            return (
+                              <span
+                                key={s.cle}
+                                className={styles.stackSeg}
+                                title={`${s.nom} : ${v}`}
+                                style={{
+                                  width: `${(100 * v) / total}%`,
+                                  background: s.couleur,
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                        {/* Le taux d'abord, l'effectif ensuite : un pourcentage sans son
+                            dénominateur se lit de travers (100 % sur deux dossiers). */}
+                        <span
+                          className={styles.stackTot}
+                          title={`${m.resolus} résolu(s) sur ${m.recus} reçu(s)`}
+                        >
+                          {m.taux} % · {m.recus}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </Card>
 
             <Card className={styles.span2} data-visuel="Ce qui casse le plus">

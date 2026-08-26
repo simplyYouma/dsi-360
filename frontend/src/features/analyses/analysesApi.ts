@@ -11,6 +11,19 @@ export interface Kpis {
   respect_sla: number;
   mttr_jours: number;
   en_retard: number;
+  /** Part des dossiers arrivés sur la période qui ont abouti. */
+  taux_resolution: number;
+}
+
+/** Ce qui est arrivé, ce qui a abouti, ce qui reste — pour un module, sur la période. */
+export interface ResolutionModule {
+  module: string;
+  recus: number;
+  resolus: number;
+  /** Arrêtés sans aboutir (rejetés, annulés) : ni résolus, ni en cours. */
+  abandonnes: number;
+  en_cours: number;
+  taux: number;
 }
 
 export interface SlaModule {
@@ -81,6 +94,7 @@ export interface Analyses {
   par_priorite: AnalyseItem[];
   sla: { a_lheure: number; approche: number; depasse: number };
   sla_par_module: SlaModule[];
+  resolution_par_module: ResolutionModule[];
   sla_par_priorite: SlaPriorite[];
   matrice_risques: CaseRisque[];
   tendance: PointTendance[];

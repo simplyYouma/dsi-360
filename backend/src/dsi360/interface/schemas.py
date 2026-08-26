@@ -1311,6 +1311,9 @@ class KpisAnalyse(BaseModel):
     respect_sla: int
     mttr_jours: float
     en_retard: int
+    #: Part des dossiers arrivés sur la période qui ont abouti. « Rejeté » et « Annulé » n'en
+    #: sont pas : ils sont arrêtés, pas résolus.
+    taux_resolution: int = 0
 
 
 class SlaModule(BaseModel):
@@ -1318,6 +1321,21 @@ class SlaModule(BaseModel):
     a_lheure: int
     approche: int
     depasse: int
+
+
+class ResolutionModule(BaseModel):
+    """Ce qui est arrivé, ce qui a abouti, ce qui reste — pour un module, sur la période."""
+
+    module: str
+    #: Dossiers créés sur la période, tous statuts confondus.
+    recus: int
+    #: Menés à leur terme (« Résolu », « Clôturé », « Réalisé »…).
+    resolus: int
+    #: Arrêtés sans aboutir (« Rejeté », « Annulé ») : ni résolus, ni en cours.
+    abandonnes: int
+    en_cours: int
+    #: resolus / recus, en pourcentage.
+    taux: int
 
 
 class CaseRisque(BaseModel):
@@ -1406,6 +1424,7 @@ class AnalysesReponse(BaseModel):
     par_priorite: list[AnalyseItem]
     sla: SlaBuckets
     sla_par_module: list[SlaModule]
+    resolution_par_module: list[ResolutionModule]
     sla_par_priorite: list[SlaPrioriteItem]
     matrice_risques: list[CaseRisque]
     tendance: list[PointTendance]

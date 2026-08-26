@@ -181,6 +181,36 @@ def _taux(part: int, total: int) -> int:
     return round(part * 100 / total) if total else 0
 
 
+def _resolution_par_module(lignes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Reçus / résolus / abandonnés / en cours par module, et le taux qui en découle.
+
+    Le tri se fait ici et non en SQL parce que c'est le **domaine** qui dit ce qu'est un dossier
+    abouti (`etats.est_aboutissement`) : recopier une liste de statuts dans une requête aurait
+    créé une seconde définition, condamnée à diverger au premier état ajouté.
+
+    « Rejeté » et « Annulé » ne comptent pas comme des résolutions — ils sont arrêtés, pas
+    résolus — mais restent au dénominateur : ils sont bel et bien arrivés.
+    """
+    par_module: dict[str, dict[str, int]] = {}
+    for r in lignes:
+        module, statut = str(r["module"]), str(r["statut"])
+        valeur = int(r["valeur"])
+        agg = par_module.setdefault(
+            module, {"recus": 0, "resolus": 0, "abandonnes": 0, "en_cours": 0}
+        )
+        agg["recus"] += valeur
+        if etats.est_aboutissement(module, statut):
+            agg["resolus"] += valeur
+        elif etats.est_termine(module, statut):
+            agg["abandonnes"] += valeur
+        else:
+            agg["en_cours"] += valeur
+    return [
+        {"module": module, **agg, "taux": _taux(agg["resolus"], agg["recus"])}
+        for module, agg in sorted(par_module.items())
+    ]
+
+
 async def _lignes(
     session: AsyncSession, requete: str, params: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -282,6 +312,19 @@ async def analyses(
         "GROUP BY a.module ORDER BY a.module",
         params,
     )
+
+    # Taux de résolution : ce qui a abouti sur ce qui est arrivé. On compte par (module, statut)
+    # — sans le filtre « ouvertes » : un dossier résolu est justement celui qui ne l'est plus.
+    resolution_par_module = _resolution_par_module(
+        await _lignes(
+            session,
+            f"SELECT a.module, a.statut, count(*) AS valeur {_JOINTURE} "
+            f"WHERE a.cree_le IS NOT NULL{cond} GROUP BY a.module, a.statut",
+            params,
+        )
+    )
+    recus_total = sum(r["recus"] for r in resolution_par_module)
+    resolus_total = sum(r["resolus"] for r in resolution_par_module)
 
     matrice_risques = await _lignes(
         session,
@@ -491,6 +534,7 @@ async def analyses(
             "respect_sla": respect,
             "mttr_jours": float(mttr) if mttr is not None else 0.0,
             "en_retard": sla["depasse"],
+            "taux_resolution": _taux(resolus_total, recus_total),
         },
         "par_module": par_module,
         "par_direction": par_direction,
@@ -502,6 +546,7 @@ async def analyses(
             "depasse": sla["depasse"],
         },
         "sla_par_module": sla_par_module,
+        "resolution_par_module": resolution_par_module,
         "sla_par_priorite": sla_par_priorite,
         "matrice_risques": matrice_risques,
         "tendance": tendance,
