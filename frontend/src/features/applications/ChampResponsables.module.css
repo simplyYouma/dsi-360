@@ -6,6 +6,10 @@
   flex-direction: column;
   gap: var(--space-2);
   width: 100%;
+  /* Le sélecteur d'ajout touchait l'intitulé du champ suivant : deux blocs distincts se lisaient
+     comme un seul. On respire en dessous, jamais au-dessus — l'écart au libellé de CE champ doit
+     rester celui des autres champs du formulaire. */
+  margin-bottom: var(--space-3);
 }
 
 .jetons {

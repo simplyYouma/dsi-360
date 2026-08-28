@@ -25,11 +25,7 @@
   grid-column: span 2;
 }
 .kpiPrincipal .kpiValeur {
-  font-size: 2.7rem;
-}
-.kpiPrincipal .kpiIcone {
-  width: 46px;
-  height: 46px;
+  font-size: 2.2rem;
 }
 
 /* Ce que la largeur gagnée sert à dire : la composition qui explique le pourcentage.
@@ -38,11 +34,11 @@
   margin-top: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 7px;
 }
 .kpiCompoBarre {
   display: flex;
-  height: 9px;
+  height: 8px;
   border-radius: 999px;
   overflow: hidden;
   background: color-mix(in srgb, var(--text-muted) 14%, transparent);
@@ -54,8 +50,9 @@
 .kpiCompoLegende {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  font-size: var(--text-xs);
+  gap: 2px var(--space-3);
+  font-size: 11px;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 .kpiCompoItem {
@@ -75,41 +72,56 @@
   color: var(--text);
   font-weight: var(--weight-medium);
 }
+/* Carte compacte : padding resserré, contenu centré verticalement. Les cartes d'une rangée
+   partagent la hauteur de la plus haute (la principale, qui porte sa composition) — le contenu
+   se centre dans cette hauteur au lieu d'être poussé en haut ou en bas, ce qui laissait de longs
+   blancs et donnait des cartes étirées. */
 .kpiCarte {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
 }
 
-/* Les cartes d'une rangée ont la même hauteur, mais pas le même contenu : la principale porte sa
-   composition, les autres non. Sans réglage, tout se tassait en haut et le bas restait blanc.
-   On cale donc l'icône en haut et le bloc chiffre + libellé + note en bas : la carte est occupée
-   sur toute sa hauteur, et les chiffres s'alignent d'une carte à l'autre. */
-.kpiValeur {
-  margin-top: auto;
+/* Icône à gauche, chiffre à droite : la carte s'étale en largeur au lieu de s'étirer en hauteur. */
+.kpiTete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.kpiTexte {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 .kpiIcone {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: var(--space-2);
+  flex: none;
 }
 .kpiValeur {
-  font-size: 1.9rem;
+  font-size: 1.7rem;
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  line-height: 1.15;
 }
 .kpiLibelle {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
+  line-height: 1.3;
 }
 .kpiNote {
   font-size: var(--text-xs);
   color: var(--text-muted);
+  line-height: 1.35;
 }
 
 .actionsAnalyse {

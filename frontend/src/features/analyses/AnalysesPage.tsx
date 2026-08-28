@@ -709,18 +709,24 @@ export function AnalysesPage(): JSX.Element {
                 key={k.cle}
                 className={cx(styles.kpiCarte, k.principal === true && styles.kpiPrincipal)}
               >
-                <span
-                  className={styles.kpiIcone}
-                  style={{
-                    color: k.couleur,
-                    background: `color-mix(in srgb, ${k.couleur} 14%, transparent)`,
-                  }}
-                >
-                  <Icone size={20} />
-                </span>
-                <span className={styles.kpiValeur}>{a ? k.format(a.kpis[k.cle]) : '—'}</span>
-                <span className={styles.kpiLibelle}>{k.libelle}</span>
-                <span className={styles.kpiNote}>{k.note}</span>
+                {/* Icone a gauche, chiffre a droite : la carte s'etale en largeur au lieu de
+                    s'etirer en hauteur. Empilee, elle laissait un long blanc sous le texte. */}
+                <div className={styles.kpiTete}>
+                  <span
+                    className={styles.kpiIcone}
+                    style={{
+                      color: k.couleur,
+                      background: `color-mix(in srgb, ${k.couleur} 14%, transparent)`,
+                    }}
+                  >
+                    <Icone size={19} />
+                  </span>
+                  <div className={styles.kpiTexte}>
+                    <span className={styles.kpiValeur}>{a ? k.format(a.kpis[k.cle]) : '—'}</span>
+                    <span className={styles.kpiLibelle}>{k.libelle}</span>
+                    <span className={styles.kpiNote}>{k.note}</span>
+                  </div>
+                </div>
                 {k.principal === true && a !== null && (
                   <CompositionResolution lignes={a.resolution_par_module} />
                 )}
