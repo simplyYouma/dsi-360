@@ -133,11 +133,14 @@ function Show-Dsi360Banniere {
     )
     if ($script:AvecConsole) { try { Clear-Host } catch { } }
     $g = $script:Glyphes
+    # Vert de la charte (--secondary #7fc81f) : la console n'a que seize couleurs, Green et
+    # DarkGreen en sont les deux plus proches.
     Write-Dsi360Ligne ''
-    Write-Dsi360Ligne '   ____  ____ ___   _____  __   ___ ' 'Cyan'
-    Write-Dsi360Ligne '  / __ \/ __// _ | |__  / / /  / _ \' 'Cyan'
-    Write-Dsi360Ligne ' / /_/ /\ \ / __ |  /_ < / _ \/ // /' 'DarkCyan'
-    Write-Dsi360Ligne '/_____/___//_/ |_|____//_//_/\___/ ' 'DarkCyan'
+    Write-Dsi360Ligne '   ____   ____   ___    _____    __     ___  ' 'Green'
+    Write-Dsi360Ligne '  |  _ \ / ___| |_ _|  |___ /   / /_   / _ \ ' 'Green'
+    Write-Dsi360Ligne '  | | | |\___ \  | |     |_ \  | ''_ \ | | | |' 'Green'
+    Write-Dsi360Ligne '  | |_| | ___) | | |    ___) | | (_) | | |_| |' 'DarkGreen'
+    Write-Dsi360Ligne '  |____/ |____/ |___|  |____/   \___/   \___/ ' 'DarkGreen'
     Write-Dsi360Ligne ''
     Write-Dsi360Ligne "  $Titre" 'White'
     if ($Sous) { Write-Dsi360Ligne "  $Sous" 'DarkGray' }

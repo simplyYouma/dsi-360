@@ -158,6 +158,14 @@ const KPIS: MetaKpi[] = [
   },
 ];
 
+/** Valeur d'un indicateur, ou « — » s'il n'y a rien a mesurer sur la periode. */
+function formaterKpi(a: Analyses | null, k: MetaKpi): string {
+  if (a === null) return '—';
+  const valeur = a.kpis[k.cle];
+  if (valeur === null || valeur === undefined) return '—';
+  return k.format(valeur);
+}
+
 /** La composition qui explique le taux : résolues, en cours, arrêtées sans aboutir.
  *
  *  Un pourcentage seul ne se discute pas — 40 % peut vouloir dire « on n'y arrive pas » comme
@@ -723,7 +731,9 @@ export function AnalysesPage(): JSX.Element {
                   >
                     <Icone size={19} />
                   </span>
-                  <span className={styles.kpiValeur}>{a ? k.format(a.kpis[k.cle]) : '—'}</span>
+                  {/* Un indicateur sans donnee affiche un tiret, pas un zero ni un 100 % :
+                      une absence de mesure n'est pas une mesure. */}
+                  <span className={styles.kpiValeur}>{formaterKpi(a, k)}</span>
                 </div>
                 <div className={styles.kpiTexte}>
                   <span className={styles.kpiLibelle}>{k.libelle}</span>

@@ -7,8 +7,10 @@ export interface AnalyseItem {
 }
 
 export interface Kpis {
+  /** Activités encore en cours au sens du domaine, pas seulement « sans date de clôture ». */
   ouvertes: number;
-  respect_sla: number;
+  /** `null` quand il n'y a rien à mesurer : on affiche alors « — », jamais « 100 % ». */
+  respect_sla: number | null;
   mttr_jours: number;
   en_retard: number;
   /** Part des activités arrivées sur la période qui ont abouti. */

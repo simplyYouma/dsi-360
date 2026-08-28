@@ -1310,8 +1310,12 @@ class AnalyseItem(BaseModel):
 
 
 class KpisAnalyse(BaseModel):
+    #: Activités encore en cours au sens du domaine (pas seulement « sans date de clôture ») :
+    #: « Réalisé », « Accepté », « Corrigé » sont des fins, même sans horodatage.
     ouvertes: int
-    respect_sla: int
+    #: `None` quand il n'y a rien à mesurer : afficher « 100 % » sur un tableau vide annoncerait
+    #: une performance parfaite là où l'on n'a simplement aucune donnée.
+    respect_sla: int | None
     mttr_jours: float
     en_retard: int
     #: Part des activités arrivées sur la période qui ont abouti. « Rejeté » et « Annulé »

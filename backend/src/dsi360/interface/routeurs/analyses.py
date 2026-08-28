@@ -45,7 +45,36 @@ _MODULE_LABEL = {
 }
 
 _JOINTURE = "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id"
-_OUVERTES = f"{_JOINTURE} WHERE a.cloture_le IS NULL"
+
+
+def _condition_en_cours(alias: str = "a") -> str:
+    """« Encore ouverte » au sens du DOMAINE : le dossier réclame toujours du travail.
+
+    Les analyses jugeaient jusqu'ici sur un horodatage (`cloture_le IS NULL`). Or seuls
+    « Résolu » et « Clôturé » posent un `resolu_le` / `cloture_le` : « Réalisé », « Accepté »,
+    « Corrigé », « Maîtrisé » n'en posent aucun. Ces activités étaient donc comptées OUVERTES
+    ici et TERMINÉES dans les listes — deux réponses à la même question, sur le même écran.
+    Mesuré sur la base de développement : 67 annoncées ouvertes pour 56 réellement en cours.
+
+    On génère la condition depuis `domain.etats` : aucune liste de statuts n'est écrite en dur,
+    et un état ajouté demain sera pris en compte sans toucher à ce fichier.
+    """
+    paires = [
+        (module, statut)
+        for module, statuts in etats.ETATS.items()
+        for statut in statuts
+        if etats.est_termine(module, statut)
+    ]
+    if not paires:
+        return "true"
+    valeurs = ", ".join(
+        "('{}', '{}')".format(m.replace("'", "''"), s.replace("'", "''")) for m, s in paires
+    )
+    return f"({alias}.module, {alias}.statut) NOT IN ({valeurs})"
+
+
+_EN_COURS = _condition_en_cours()
+_OUVERTES = f"{_JOINTURE} WHERE {_EN_COURS}"
 
 # Cible de résolution = règle SLA paramétrable (core.sla_regle), jointe sur la priorité.
 _CIBLE = "sr.resolution_minutes"
@@ -93,7 +122,7 @@ _VIEILLISSEMENT = """
 SELECT b.libelle, count(a.id) AS valeur
 FROM (VALUES ('≤ 7 j', 0, 7), ('8–30 j', 7, 30), ('31–90 j', 30, 90), ('> 90 j', 90, 100000))
      AS b(libelle, de, jusqu_a)
-LEFT JOIN core.activite a ON a.cloture_le IS NULL AND a.cree_le IS NOT NULL
+LEFT JOIN core.activite a ON {en_cours} AND a.cree_le IS NOT NULL
   AND extract(epoch FROM now() - a.cree_le) / 86400 > b.de
   AND extract(epoch FROM now() - a.cree_le) / 86400 <= b.jusqu_a
 LEFT JOIN core.direction d ON d.id = a.direction_id
@@ -134,9 +163,9 @@ _ENTITE_SQL = (
 _DBS = f"""
 SELECT count(*) FILTER (WHERE a.responsable_id IS NOT NULL) AS dsi,
        count(*) FILTER (WHERE {_EST_DBS}) AS dbs,
-       count(*) FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL) AS dbs_ouverts,
+       count(*) FILTER (WHERE {_EST_DBS} AND {_EN_COURS}) AS dbs_ouverts,
        round((avg(extract(epoch FROM now() - a.cree_le) / 86400)
-         FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL))::numeric, 1)
+         FILTER (WHERE {_EST_DBS} AND {_EN_COURS}))::numeric, 1)
          AS dbs_age_jours
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD'{{cond}}
@@ -274,7 +303,7 @@ async def analyses(
         session,
         f"SELECT (r.prenom || ' ' || r.nom) AS libelle, count(*) AS valeur "
         f"{_JOINTURE} JOIN core.utilisateur r ON r.id = a.responsable_id "
-        f"WHERE a.cloture_le IS NULL{cond} "
+        f"WHERE {_EN_COURS}{cond} "
         "GROUP BY r.id, r.prenom, r.nom ORDER BY valeur DESC LIMIT 8",
         params,
     )
@@ -469,7 +498,9 @@ async def analyses(
 
     # Vieillissement : INSTANTANÉ de l'âge du stock ouvert (jamais filtré par période — filtrer sur
     # la date de création ferait disparaître le vieux stock, l'inverse du but du visuel).
-    vieillissement = await _lignes(session, _VIEILLISSEMENT.format(cond_dir=cond_dir), params)
+    vieillissement = await _lignes(
+        session, _VIEILLISSEMENT.format(cond_dir=cond_dir, en_cours=_EN_COURS), params
+    )
 
     ligne_dbs = (await session.execute(text(_DBS.format(cond=cond)), params)).mappings().one()
     dbs = {
@@ -520,12 +551,14 @@ async def analyses(
 
     avec_sla = sla["a_lheure"] + sla["approche"] + sla["depasse"]
     # Respect réel prioritaire (durées mesurées) ; repli sur les échéances en cours sinon.
+    # Sans aucune des deux populations, on ne renvoie RIEN : afficher « 100 % » là où il n'y a
+    # rien à mesurer, c'est annoncer une performance parfaite sur un tableau vide.
     if reel_total > 0:
         respect = round(reel_ok * 100 / reel_total)
     elif avec_sla > 0:
         respect = round(sla["a_lheure"] * 100 / avec_sla)
     else:
-        respect = 100
+        respect = None
 
     return {
         "total": total,

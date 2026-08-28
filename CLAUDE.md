@@ -76,6 +76,14 @@ Neuf modules, livrés par phases (cf. §7) :
   qui est arrêté sans aboutir (« Rejeté », « Annulé ») n'est pas une résolution, mais reste au
   dénominateur : c'est bien arrivé. La définition vient du domaine (`etats.est_aboutissement`),
   jamais d'une liste de statuts recopiée en SQL — deux définitions finiraient par diverger.
+- **« Ouverte » se juge sur la phase, jamais sur un horodatage.** Seuls « Résolu » et « Clôturé »
+  posent un `resolu_le` / `cloture_le` : « Réalisé », « Accepté », « Corrigé », « Maîtrisé » n'en
+  posent aucun. Compter `cloture_le IS NULL` faisait passer ces activités pour ouvertes dans les
+  analyses alors que les listes les donnaient terminées — deux réponses à la même question sur le
+  même écran. Toute agrégation d'état dérive donc de `domain.etats` (`est_termine`).
+- **Un indicateur sans donnée n'affiche pas un chiffre.** Le respect du SLA vaut `null` — rendu
+  « — » à l'écran — quand aucune population n'est mesurable. Afficher « 100 % » sur un tableau
+  vide annoncerait une performance parfaite là où l'on n'a rien mesuré.
 - **Gestion des accès — profils métier paramétrables** ([ADR-0003](docs/adr/0003-profils-metier-et-perimetre-dsi.md)) :
   Administrateur · IT Support Applicatif et HelpDesk · Réseau télécom · Système et Réseau télécom ·
   IT Support Applicatif. Créables, renommables, supprimables depuis l'administration ; seul `ADMIN`
