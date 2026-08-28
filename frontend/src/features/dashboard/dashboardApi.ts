@@ -8,7 +8,8 @@ export interface TableauBord {
     charge_dsi: number;
     en_retard: number;
     resolues: number;
-    respect_sla: number;
+    /** `null` quand aucune population n'est mesurable — l'écran affiche « — ». */
+    respect_sla: number | null;
     respect_sla_base: number;
   };
   sla: { a_lheure: number; approche: number; depasse: number };

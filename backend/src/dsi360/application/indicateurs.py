@@ -39,6 +39,8 @@ def _clause_periode(
 
 # Un dossier terminé ne court plus après son délai : seul ce qui est en cours peut être en retard.
 _EN_COURS = phases_sql.en_cours()
+# Mené à son terme : ce que « Résolues » compte. « Rejeté » et « Annulé » n'en sont pas.
+_ABOUTIS = phases_sql.aboutis()
 
 # Cartes du tableau de bord : un ÉTAT GÉNÉRAL, transverse à tous les modules (pas centré incidents).
 _CARTES = f"""
@@ -53,9 +55,12 @@ SELECT
   count(*) FILTER (WHERE {_EN_COURS} AND a.responsable_id IS NOT NULL) AS charge_dsi,
   count(*) FILTER (WHERE {_EN_COURS}
     AND a.sla_resolution_le IS NOT NULL AND a.sla_resolution_le < now()) AS en_retard,
-  count(*) FILTER (WHERE a.resolu_le IS NOT NULL OR a.cloture_le IS NOT NULL) AS resolues,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL) AS sla_total,
-  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND a.cloture_le IS NULL
+  -- « Résolues » = menées à terme au sens du domaine. Comptées sur les horodatages, elles
+  -- oubliaient « Réalisé », « Accepté » et « Corrigé », qui n'en posent aucun : le tableau de
+  -- bord en annonçait moins que les analyses pour la même période.
+  count(*) FILTER (WHERE {_ABOUTIS}) AS resolues,
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND {_EN_COURS}) AS sla_total,
+  count(*) FILTER (WHERE a.sla_resolution_le IS NOT NULL AND {_EN_COURS}
     AND a.sla_resolution_le >= now()) AS sla_ok,
   count(*) FILTER (WHERE a.source='IMPORT_SD'
     AND nullif(a.donnees->>'ttr_minutes','')::numeric > 0) AS sla_reel_total,
@@ -68,11 +73,11 @@ LEFT JOIN core.sla_regle sr ON sr.priorite = a.priorite AND sr.module = a.module
 WHERE 1=1
 """
 
-_REPARTITION = """
+_REPARTITION = f"""
 SELECT a.module AS module, count(*) AS valeur
 FROM core.activite a
 LEFT JOIN core.direction d ON d.id = a.direction_id
-WHERE a.cloture_le IS NULL
+WHERE {_EN_COURS}
 """
 
 # Tendance des activités ouvertes par état SLA courant, regroupées par bucket de temps. La
@@ -124,9 +129,9 @@ ORDER BY s.debut
 _EST_DBS = "(a.responsable_id IS NULL AND nullif(trim(a.donnees->>'gestionnaire'), '') IS NOT NULL)"
 
 _DBS_DASH = f"""
-SELECT count(*) FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL) AS dbs_ouverts,
+SELECT count(*) FILTER (WHERE {_EST_DBS} AND {_EN_COURS}) AS dbs_ouverts,
        round((avg(extract(epoch FROM now() - a.cree_le) / 86400)
-         FILTER (WHERE {_EST_DBS} AND a.cloture_le IS NULL))::numeric, 1)
+         FILTER (WHERE {_EST_DBS} AND {_EN_COURS}))::numeric, 1)
          AS dbs_age_jours
 FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id
 WHERE a.source = 'IMPORT_SD'
@@ -149,7 +154,7 @@ WHERE a.resolu_le >= now() - interval '30 days'
 # refléter le maintenant, pas la fenêtre de création (sinon on masque les vieux dossiers en retard).
 _SIGNAUX = f"""
 SELECT
-  count(*) FILTER (WHERE a.cloture_le IS NULL) AS ouverts_total,
+  count(*) FILTER (WHERE {_EN_COURS}) AS ouverts_total,
   count(*) FILTER (WHERE {_EN_COURS}
     AND a.cree_le < now() - interval '30 days') AS ouverts_30j,
   count(*) FILTER (WHERE {_EN_COURS}
@@ -195,7 +200,9 @@ async def tableau_de_bord(
         respect = round(100 * (ligne["sla_ok"] or 0) / total_sla)
         respect_base = total_sla
     else:
-        respect = 100
+        # Rien à mesurer : on ne renvoie pas 100 %. `respect_base = 0` dit à l'écran qu'il n'y a
+        # pas d'échantillon, et c'est ce qui neutralise l'affichage.
+        respect = None
         respect_base = 0
 
     repartition = (

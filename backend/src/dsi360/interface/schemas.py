@@ -1251,8 +1251,11 @@ class CartesBord(BaseModel):
     critiques: int
     charge_dsi: int
     en_retard: int
+    #: Menées à terme au sens du domaine (`etats.est_aboutissement`), pas d'après un horodatage :
+    #: « Réalisé », « Accepté » et « Corrigé » n'en posent aucun et manquaient à l'appel.
     resolues: int
-    respect_sla: int
+    #: `None` quand aucune population n'est mesurable — jamais « 100 % » sur un tableau vide.
+    respect_sla: int | None
     respect_sla_base: int  # nombre de tickets réellement mesurés (pour neutraliser les petits n)
 
 

@@ -85,3 +85,42 @@ async def test_le_respect_sla_ne_s_invente_pas_sans_donnee(
         # S'il y a un chiffre, c'est qu'il y avait bien une population derrière.
         total_sla = a["sla"]["a_lheure"] + a["sla"]["approche"] + a["sla"]["depasse"]
         assert total_sla > 0, "un taux affiche doit reposer sur des echeances reelles"
+
+
+async def test_le_tableau_de_bord_et_les_analyses_disent_la_meme_chose(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Deux écrans, une seule vérité : ouvertes, abouties et retards doivent coïncider.
+
+    Les deux tiraient leurs comptes d'endroits différents. Le tableau de bord comptait les
+    « Résolues » sur les horodatages : « Réalisé », « Accepté » et « Corrigé » n'en posent
+    aucun, et manquaient donc à l'appel — 13 annoncées ici pour 21 abouties là-bas.
+    """
+    admin = await creer_utilisateur(session, email="coh.deux@afgbank.ml", profil="ADMIN")
+    for i, statut in enumerate(("Nouveau", "Ouvert", "Résolu", "Clôturé")):
+        ref = f"INC-2026-9920{i}"
+        await creer_activite(session, module="incident", reference=ref, responsable_id=admin)
+        await _statut(session, ref, statut)
+    # Le cas piégeux : une fin qui ne pose aucun horodatage.
+    await creer_activite(
+        session, module="gouvernance", reference="GOV-2026-99201", responsable_id=admin
+    )
+    await _statut(session, "GOV-2026-99201", "Réalisé")
+
+    tb = (await client.get("/tableau-de-bord", headers=entetes(admin))).json()["cartes"]
+    an = (await client.get("/analyses", headers=entetes(admin))).json()
+    abouties = sum(m["resolus"] for m in an["resolution_par_module"])
+
+    assert tb["activites_ouvertes"] == an["kpis"]["ouvertes"]
+    assert tb["resolues"] == abouties
+    assert tb["en_retard"] == an["kpis"]["en_retard"]
+
+
+async def test_la_charge_ne_depasse_jamais_le_stock_ouvert(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« Charge de la DSI » est un sous-ensemble des ouvertes : celles qui ont un gestionnaire."""
+    admin = await creer_utilisateur(session, email="coh.charge@afgbank.ml", profil="ADMIN")
+    tb = (await client.get("/tableau-de-bord", headers=entetes(admin))).json()["cartes"]
+    assert tb["charge_dsi"] <= tb["activites_ouvertes"]
+    assert tb["critiques"] <= tb["activites_ouvertes"]

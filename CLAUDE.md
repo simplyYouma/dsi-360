@@ -80,7 +80,10 @@ Neuf modules, livrés par phases (cf. §7) :
   posent un `resolu_le` / `cloture_le` : « Réalisé », « Accepté », « Corrigé », « Maîtrisé » n'en
   posent aucun. Compter `cloture_le IS NULL` faisait passer ces activités pour ouvertes dans les
   analyses alors que les listes les donnaient terminées — deux réponses à la même question sur le
-  même écran. Toute agrégation d'état dérive donc de `domain.etats` (`est_termine`).
+  même écran. Toute agrégation d'état dérive donc de `domain.etats`, via le **helper partagé**
+  `infrastructure/phases_sql` (`en_cours`, `aboutis`) : tableau de bord, analyses et listes
+  tirent le même SQL de la même définition. Symétriquement, « Résolues » se compte sur la phase
+  et non sur `resolu_le` — sinon « Réalisé », « Accepté » et « Corrigé » manquent à l'appel.
 - **Un indicateur sans donnée n'affiche pas un chiffre.** Le respect du SLA vaut `null` — rendu
   « — » à l'écran — quand aucune population n'est mesurable. Afficher « 100 % » sur un tableau
   vide annoncerait une performance parfaite là où l'on n'a rien mesuré.

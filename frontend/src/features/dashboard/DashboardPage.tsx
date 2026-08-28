@@ -79,15 +79,22 @@ const META_CARTES: MetaCarte[] = [
     route: '/analyses',
     icone: Timer,
     couleur: 'var(--cat-2)',
-    valeur: (c) => (c.respect_sla_base === 0 ? '—' : `${c.respect_sla} %`),
+    // Sans échantillon, le serveur ne renvoie rien : on affiche un tiret plutôt qu'un taux
+    // inventé. Un « 100 % » sur zéro mesure annoncerait une performance parfaite.
+    valeur: (c) => (c.respect_sla === null ? '—' : `${c.respect_sla} %`),
     // Sous 5 tickets mesurés, un taux n'est pas significatif : on montre l'échantillon, ton neutre.
     note: (c) =>
-      c.respect_sla_base < 5
+      c.respect_sla === null || c.respect_sla_base < 5
         ? `Sur ${c.respect_sla_base} mesuré${c.respect_sla_base > 1 ? 's' : ''}`
         : c.respect_sla >= 90
           ? 'Objectif tenu'
           : "Sous l'objectif",
-    tonNote: (c) => (c.respect_sla_base < 5 ? undefined : c.respect_sla >= 90 ? 'ok' : 'warn'),
+    tonNote: (c) =>
+      c.respect_sla === null || c.respect_sla_base < 5
+        ? undefined
+        : c.respect_sla >= 90
+          ? 'ok'
+          : 'warn',
   },
   {
     libelle: 'Résolues',

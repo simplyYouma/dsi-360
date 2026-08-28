@@ -33,3 +33,25 @@ def condition(
 def en_cours(colonne: str = "a.statut", modules: tuple[str, ...] | None = None) -> str:
     """Le dossier réclame encore du travail — la seule population qui peut être « en retard »."""
     return condition(etats.EN_COURS, colonne=colonne, modules=modules)
+
+
+def aboutis(colonne: str = "a.statut") -> str:
+    """Le dossier a été mené à son terme — « Rejeté » et « Annulé » n'en sont pas.
+
+    Compter sur les horodatages sous-estimait ce compteur : « Réalisé », « Accepté »,
+    « Corrigé » n'écrivent ni `resolu_le` ni `cloture_le`, et disparaissaient donc des
+    « Résolues » du tableau de bord alors que les analyses les comptaient abouties.
+    C'est la même définition que `etats.est_aboutissement`, rendue en SQL.
+    """
+    noms = sorted(
+        {
+            nom
+            for module, statuts in etats.ETATS.items()
+            for nom in statuts
+            if etats.est_aboutissement(module, nom)
+        }
+    )
+    if not noms:
+        return "false"
+    valeurs = ", ".join("'" + n.replace("'", "''") + "'" for n in noms)
+    return f"{colonne} IN ({valeurs})"

@@ -20,6 +20,7 @@ from dsi360.application.granularite_temps import granularite as _granularite
 from dsi360.application.granularite_temps import libelle_bucket as _libelle_bucket
 from dsi360.application.granularite_temps import tronquer as _tronquer
 from dsi360.domain import etats
+from dsi360.infrastructure import phases_sql
 from dsi360.infrastructure.db import session_scope
 from dsi360.interface.schemas import (
     AnalysesMensuelles,
@@ -47,33 +48,12 @@ _MODULE_LABEL = {
 _JOINTURE = "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id"
 
 
-def _condition_en_cours(alias: str = "a") -> str:
-    """« Encore ouverte » au sens du DOMAINE : le dossier réclame toujours du travail.
-
-    Les analyses jugeaient jusqu'ici sur un horodatage (`cloture_le IS NULL`). Or seuls
-    « Résolu » et « Clôturé » posent un `resolu_le` / `cloture_le` : « Réalisé », « Accepté »,
-    « Corrigé », « Maîtrisé » n'en posent aucun. Ces activités étaient donc comptées OUVERTES
-    ici et TERMINÉES dans les listes — deux réponses à la même question, sur le même écran.
-    Mesuré sur la base de développement : 67 annoncées ouvertes pour 56 réellement en cours.
-
-    On génère la condition depuis `domain.etats` : aucune liste de statuts n'est écrite en dur,
-    et un état ajouté demain sera pris en compte sans toucher à ce fichier.
-    """
-    paires = [
-        (module, statut)
-        for module, statuts in etats.ETATS.items()
-        for statut in statuts
-        if etats.est_termine(module, statut)
-    ]
-    if not paires:
-        return "true"
-    valeurs = ", ".join(
-        "('{}', '{}')".format(m.replace("'", "''"), s.replace("'", "''")) for m, s in paires
-    )
-    return f"({alias}.module, {alias}.statut) NOT IN ({valeurs})"
-
-
-_EN_COURS = _condition_en_cours()
+# « Ouverte » se juge sur la PHASE du domaine, jamais sur un horodatage : seuls « Résolu » et
+# « Clôturé » posent un `resolu_le` / `cloture_le`. « Réalisé », « Accepté », « Corrigé » n'en
+# posent aucun, et se faisaient passer pour des dossiers vivants — 67 annoncées ouvertes pour 56
+# réellement en cours, mesuré sur la base de développement. Le même helper sert au tableau de
+# bord et aux listes : une seule définition, donc un seul chiffre.
+_EN_COURS = phases_sql.en_cours()
 _OUVERTES = f"{_JOINTURE} WHERE {_EN_COURS}"
 
 # Cible de résolution = règle SLA paramétrable (core.sla_regle), jointe sur la priorité.
@@ -620,10 +600,14 @@ def _pparams(jours: int | None, du: date | None, au: date | None) -> dict[str, A
     return {"jours": jours} if jours is not None else {}
 
 
+# Charge et résolus se jugent sur la PHASE, comme partout ailleurs : sur les horodatages, un
+# ticket « Résolu » mais pas encore clôturé restait dans la charge de son gestionnaire — et
+# manquait à ses résolus. Le même agent apparaissait donc plus chargé et moins productif qu'il
+# ne l'était.
 _AGREGATS_GEST = (
     "count(*) AS volume, "
-    "count(*) FILTER (WHERE s.cloture_le IS NULL) AS charge, "
-    "count(*) FILTER (WHERE s.resolu_le IS NOT NULL OR s.cloture_le IS NOT NULL) AS resolus, "
+    f"count(*) FILTER (WHERE {phases_sql.en_cours(colonne='s.statut')}) AS charge, "
+    f"count(*) FILTER (WHERE {phases_sql.aboutis(colonne='s.statut')}) AS resolus, "
     "round(avg(s.ttr) FILTER (WHERE s.ttr > 0) / 1440.0, 1) AS mttr_jours, "
     "round(avg(s.trep) FILTER (WHERE s.trep > 0) / 60.0, 1) AS prise_en_charge_h, "
     # Respect SLA : parmi les tickets à durée mesurée et cible connue, part résolue à temps.
@@ -634,7 +618,7 @@ _AGREGATS_GEST = (
 
 def _src_gest(extra: str) -> str:
     return (
-        "SELECT r.id::text AS id, r.prenom, r.nom, a.cloture_le, a.resolu_le, "
+        "SELECT r.id::text AS id, r.prenom, r.nom, a.statut, a.cloture_le, a.resolu_le, "
         "  nullif(a.donnees->>'ttr_minutes', '')::numeric AS ttr, "
         "  nullif(a.donnees->>'ttrespond_minutes', '')::numeric AS trep, "
         "  sr.resolution_minutes AS cible "
