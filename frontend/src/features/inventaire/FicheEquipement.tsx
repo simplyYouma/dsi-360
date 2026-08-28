@@ -121,6 +121,10 @@ export function FicheEquipement({
     void chargerAgents().then(setAgents);
   }, []);
 
+  // Un numéro de série déjà relevé est figé : il identifie physiquement le matériel. Tant qu'il
+  // est vide, on peut le saisir — tout le parc n'a pas encore été inventorié.
+  const serieFigee = (detail?.numero_serie ?? '').trim() !== '';
+
   const patch = async (corps: MajEquipement): Promise<void> => {
     if (id === null) return;
     try {
@@ -380,12 +384,19 @@ export function FicheEquipement({
             <div className={fiche.metaItem}>
               <dt>N° de série</dt>
               <dd>
+                {/* Gravé sur le matériel : on le relève une fois, puis il ne bouge plus. S'il ne
+                    correspond pas, ce n'est pas le numéro qui est faux — c'est la fiche qui parle
+                    d'un autre appareil. Le serveur applique la même règle. */}
                 <ChampInline
                   valeur={detail.numero_serie ?? ''}
                   onValider={(v) => void patch({ numero_serie: v })}
                   placeholder="—"
-                  lectureSeule={!modifiable}
-                  titreLectureSeule={raisonVerrou}
+                  lectureSeule={!modifiable || serieFigee}
+                  titreLectureSeule={
+                    serieFigee
+                      ? 'Le numéro de série identifie ce matériel : il ne se modifie plus.'
+                      : raisonVerrou
+                  }
                   classeTexte={local.technique}
                 />
               </dd>

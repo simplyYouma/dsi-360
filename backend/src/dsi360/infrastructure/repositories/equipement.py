@@ -71,6 +71,15 @@ async def par_id(session: AsyncSession, identifiant: str) -> RowMapping | None:
     return resultat.mappings().first()
 
 
+async def par_numero_serie(session: AsyncSession, serie: str) -> RowMapping | None:
+    """Recherche par numéro de série — il identifie physiquement le matériel."""
+    resultat = await session.execute(
+        text(f"SELECT {_CHAMPS} {_BASE} AND upper(btrim(e.numero_serie)) = upper(btrim(:s))"),
+        {"s": serie},
+    )
+    return resultat.mappings().first()
+
+
 async def par_code_immo(session: AsyncSession, code: str) -> RowMapping | None:
     """Recherche par code d'immobilisation — la clé de rapprochement de l'import."""
     resultat = await session.execute(

@@ -46,6 +46,7 @@ async def importer_classeur(
     cache_matricules = await index_matricules(session)
 
     crees = maj = ignores = 0
+    series_en_double = 0
     sans_detenteur = 0
     avec_etat = 0
     constats = 0
@@ -91,6 +92,17 @@ async def importer_classeur(
         }
 
         existant = await repo.par_code_immo(session, code)
+
+        # Le numéro de série identifie physiquement le matériel : il ne peut pas être porté par
+        # deux fiches. Un doublon dans le fichier ne doit pourtant pas faire échouer tout le
+        # chargement — on écarte le numéro pour cette ligne, le reste est importé, et le
+        # compte-rendu le dit. Écarter en silence reviendrait à cacher une erreur de saisie.
+        if terrain["numero_serie"] is not None:
+            porteur = await repo.par_numero_serie(session, str(terrain["numero_serie"]))
+            if porteur is not None and (existant is None or porteur["id"] != existant["id"]):
+                terrain["numero_serie"] = None
+                series_en_double += 1
+
         if existant is None:
             equipement_id = await repo.creer(
                 session,
@@ -141,6 +153,7 @@ async def importer_classeur(
             "crees": crees,
             "mis_a_jour": maj,
             "ignores": ignores,
+            "series_en_double": series_en_double,
             "constats_enregistres": constats,
         },
     )
@@ -151,6 +164,7 @@ async def importer_classeur(
         "mis_a_jour": maj,
         "ignores": ignores,
         "detenteurs_non_rapproches": sans_detenteur,
+        "series_en_double": series_en_double,
         "avec_etat_constate": avec_etat,
         "constats_enregistres": constats,
     }

@@ -92,6 +92,7 @@ async def test_un_premier_import_cree_le_parc(session: AsyncSession) -> None:
         "detenteurs_non_rapproches": 0,
         "avec_etat_constate": 0,
         "constats_enregistres": 0,
+        "series_en_double": 0,
     }
     e = await repo.par_code_immo(session, "INF00208")
     assert e is not None
@@ -355,6 +356,7 @@ class TestLignesDouteuses:
             "detenteurs_non_rapproches": 0,
             "avec_etat_constate": 0,
             "constats_enregistres": 0,
+            "series_en_double": 0,
         }
 
     async def test_une_ligne_sans_designation_n_est_pas_lue(self, session: AsyncSession) -> None:

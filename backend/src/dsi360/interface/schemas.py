@@ -869,6 +869,9 @@ class RapportImportEquipements(BaseModel):
     avec_etat_constate: int
     #: Constats effectivement rattachés à la campagne ouverte (0 si aucune campagne en cours).
     constats_enregistres: int = 0
+    #: Numéros de série que le fichier attribue à un matériel qui en porte déjà un autre : le
+    #: numéro est écarté pour ces lignes (le reste est importé), et il y a une saisie à corriger.
+    series_en_double: int = 0
 
 
 class RapportImport(BaseModel):

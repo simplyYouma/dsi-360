@@ -49,3 +49,6 @@ infra/nginx/certs/
 # Supports de présentation / marketing : ne jamais pousser (peuvent contenir des captures internes).
 docs/*.pdf
 *Présentation produit*
+
+# Journaux des scripts d exploitation (start-dev, maj-prod) : locaux a chaque poste.
+infra/local/logs/

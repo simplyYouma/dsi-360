@@ -503,6 +503,7 @@ async def creer(corps: EquipementCreation, courant: Courant, session: Session) -
     """
     exiger_admin(courant)
     await _refuser_code_deja_pris(session, corps.code_immo, None)
+    await _refuser_serie_deja_prise(session, corps.numero_serie, None)
     await _valider_references(session, corps.model_dump(exclude_none=True))
     ident = await creer_equipement(session, corps.model_dump(exclude_none=True), courant)
     await session.commit()
@@ -521,6 +522,9 @@ async def modifier(
     # l'information, pas un verrou qui figerait aussi les erreurs.
     if "code_immo" in champs:
         await _refuser_code_deja_pris(session, champs["code_immo"], ident)
+    _refuser_serie_modifiee(avant, champs)
+    if "numero_serie" in champs:
+        await _refuser_serie_deja_prise(session, champs["numero_serie"], ident)
     await _valider_references(session, champs)
     await maj_equipement(session, dict(avant), champs, courant)
     await session.commit()
@@ -590,6 +594,42 @@ async def supprimer(ident: str, courant: Courant, session: Session) -> None:
     avant = await _charger(session, ident)
     await supprimer_equipement(session, dict(avant), courant)
     await session.commit()
+
+
+async def _refuser_serie_deja_prise(
+    session: AsyncSession, serie: str | None, ident_courant: str | None
+) -> None:
+    """Deux fiches au même numéro de série, c'est un matériel compté deux fois."""
+    if serie is None or serie.strip() == "":
+        return
+    existant = await repo.par_numero_serie(session, serie)
+    if existant is not None and existant["id"] != ident_courant:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Le numéro de série « {serie.strip()} » est déjà porté par un autre matériel.",
+        )
+
+
+def _refuser_serie_modifiee(avant: RowMapping, champs: dict[str, Any]) -> None:
+    """Un numéro de série renseigné ne se change plus.
+
+    Il est gravé sur le matériel : s'il ne correspond pas, ce n'est pas le numéro qui est faux,
+    c'est la fiche qui parle d'un autre appareil — et l'on ne transforme pas un matériel en un
+    autre par une correction de champ. Tant qu'il est vide, en revanche, on peut le relever :
+    tout le parc n'a pas encore été inventorié.
+    """
+    if "numero_serie" not in champs:
+        return
+    ancien = (avant["numero_serie"] or "").strip()
+    if ancien == "":
+        return
+    nouveau = (champs["numero_serie"] or "").strip()
+    if nouveau.upper() != ancien.upper():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Le numéro de série « {ancien} » ne peut plus être modifié : il identifie ce "
+            "matériel. Si la fiche désigne un autre appareil, créez-en une nouvelle.",
+        )
 
 
 async def _refuser_code_deja_pris(
