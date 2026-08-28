@@ -1,21 +1,24 @@
-﻿# Démarre l'environnement de dev complet (API + frontend) dans UNE fenêtre.
+﻿# Démarre l'environnement de développement complet (API + frontend) dans UNE fenêtre.
 #
-# Ce script n'est qu'un lanceur : tout le travail est fait par `npm run dev` (frontend/dev.mjs),
-# seul point d'entrée qui démarre l'API et Vite. Il les supervise (relance celui qui tombe) et
-# Ctrl+C les arrête proprement tous les deux.
+# Ce script ne lance rien lui-même : tout le travail est fait par `npm run dev` (frontend/dev.mjs),
+# seul point d'entrée qui démarre l'API et Vite, les supervise et les arrête ensemble sur Ctrl+C.
+# Ce qu'il ajoute, ce sont les contrôles d'avant-vol : sans eux, un port pris ou un venv absent
+# faisait mourir l'enfant en boucle, le superviseur abandonnait, et la fenêtre se refermait sur
+# un message que personne n'avait eu le temps de lire.
 #
-# Ne jamais lancer d'uvicorn en plus d'ici : deux serveurs se disputeraient le port 8011 et
+# Ne jamais lancer d'uvicorn en plus d'ici : deux serveurs se disputeraient le port 8011, et
 # c'est le survivant — pas forcément le bon — qui répondrait.
 #
-# ATTENTION, encodage : ce fichier doit rester en UTF-8 **avec BOM**. Un double-clic ouvre Windows
-# PowerShell 5.1, qui lit un .ps1 sans BOM comme du Windows-1252 : les accents deviennent du
-# charabia et le script ne compile plus.
-param([switch]$SansOuvrir)  # -SansOuvrir : demarrer sans ouvrir automatiquement l'application
+# ATTENTION, encodage : UTF-8 **avec BOM** obligatoire (cf. lib/DSI360.Common.ps1).
+param(
+    [switch] $SansOuvrir,   # ne pas ouvrir l'application automatiquement
+    [switch] $Recreer       # réinstaller les dépendances du frontend avant de démarrer
+)
 
 $ErrorActionPreference = 'Stop'
 
-# Les scripts du projet visent PowerShell 7 (pwsh). Le double-clic lance 5.1 : on se relance nous-
-# mêmes sous pwsh plutôt que d'imposer à chacun d'ouvrir le bon terminal.
+# Les scripts du projet visent PowerShell 7. Le double-clic lance 5.1 : on se relance sous pwsh
+# plutôt que d'imposer à chacun d'ouvrir le bon terminal.
 if ($PSVersionTable.PSVersion.Major -lt 6) {
     $pwsh = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
     if (-not $pwsh) {
@@ -24,50 +27,98 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
         try { Read-Host "`nEntree pour fermer" | Out-Null } catch { }
         exit 1
     }
-    & $pwsh -NoProfile -File $PSCommandPath @args
+    & $pwsh -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @args
     exit $LASTEXITCODE
 }
 
-$racine   = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$frontend = Join-Path $racine 'frontend'
+. "$PSScriptRoot\lib\DSI360.Common.ps1"
 
-# Retient la fenêtre pour qu'on puisse lire l'erreur avant qu'elle ne se referme (double-clic).
-# Sans effet quand l'entrée est redirigée ou la console non interactive (CI, tâche planifiée).
-function Wait-Fermeture {
-    try { Read-Host "`nEntree pour fermer" | Out-Null } catch { }
-}
+$racine     = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$frontend   = Join-Path $racine 'frontend'
+$PORT_API   = 8011
+$PORT_FRONT = 5290
 
-# Un port déjà pris fait mourir l'enfant correspondant en boucle : le superviseur abandonne, la
-# fenêtre se referme, et l'on n'a rien pu lire. On vérifie donc avant de lancer.
-$occupes = @()
-foreach ($port in 8011, 5290) {
-    $ecoute = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-    if ($ecoute) {
-        $pids = ($ecoute.OwningProcess | Sort-Object -Unique) -join ', '
-        $occupes += "  port $port occupe (PID $pids)"
+Initialize-Dsi360Console -Titre 'DSI 360 - Developpement'
+$null = Initialize-Dsi360Journal -Dossier (Join-Path $PSScriptRoot 'logs') -Prefixe 'dev'
+Show-Dsi360Banniere -Titre 'Environnement de developpement' `
+                    -Sous "API $PORT_API  |  Frontend $PORT_FRONT" -Racine $racine
+
+try {
+    Set-Dsi360EtapeTotal 4
+
+    # --- 1. Outils ---------------------------------------------------------------------------
+    Write-Dsi360Etape 'Outils requis'
+    foreach ($outil in 'node', 'npm') {
+        if (-not (Resolve-Dsi360Executable $outil)) {
+            Write-Dsi360Echec "$outil est introuvable."
+            Write-Dsi360Cadre -Titre 'Que faire' -Couleur 'Yellow' -Lignes @(
+                'Installez Node.js (version 20 ou superieure) :',
+                '   winget install OpenJS.NodeJS.LTS',
+                'Puis rouvrez cette fenetre, pour que le PATH soit relu.'
+            )
+            throw "$outil introuvable."
+        }
     }
-}
-if ($occupes.Count -gt 0) {
-    Write-Host "Impossible de demarrer : un environnement tourne deja." -ForegroundColor Red
-    $occupes | ForEach-Object { Write-Host $_ -ForegroundColor Red }
-    Write-Host ""
-    Write-Host "Fermez-le (Ctrl+C dans sa fenetre), ou liberez les ports :" -ForegroundColor Yellow
-    Write-Host '  Get-NetTCPConnection -LocalPort 8011,5290 -State Listen |' -ForegroundColor Yellow
-    Write-Host '    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }' -ForegroundColor Yellow
-    Wait-Fermeture
-    exit 1
-}
+    Write-Dsi360Ok "Node $(& node --version) et npm $(& npm --version)"
 
-Set-Location $frontend
-if (-not (Test-Path 'node_modules')) { npm install }
+    # L'API tourne dans le venv du projet : sans lui, `npm run dev` demarre Vite seul et l'ecran
+    # s'affiche sans donnees — panne bien plus deroutante qu'un refus net.
+    $venv = Join-Path $racine 'backend\.venv\Scripts\python.exe'
+    if (-not (Test-Path $venv)) {
+        Write-Dsi360Echec "L'environnement Python du backend est absent."
+        Write-Dsi360Cadre -Titre 'Que faire' -Couleur 'Yellow' -Lignes @(
+            'Creez-le une fois pour toutes, depuis la racine du projet :',
+            '   python -m venv backend\.venv',
+            '   backend\.venv\Scripts\python.exe -m pip install -e ".\backend"'
+        )
+        throw 'venv backend absent.'
+    }
+    Write-Dsi360Ok 'Environnement Python du backend present'
 
-# Ouvre l'application des que le front repond, dans une fenetre autonome facon PWA (Chrome/Edge
-# --app), sans que tu aies a lancer deux choses. Un aide-ouvreur detache attend la disponibilite
-# pendant que `npm run dev` occupe cette fenetre. Desactivable avec -SansOuvrir.
-if (-not $SansOuvrir) {
-    $ouvreur = @'
-$url = "http://localhost:5290"
-for ($i = 0; $i -lt 60; $i++) {
+    # --- 2. Ports ----------------------------------------------------------------------------
+    Write-Dsi360Etape 'Ports disponibles'
+    $occupes = @()
+    foreach ($port in $PORT_API, $PORT_FRONT) {
+        $qui = Get-Dsi360PortOccupant -Port $port
+        if ($qui) { $occupes += "port $port occupe par $qui" }
+    }
+    if ($occupes.Count -gt 0) {
+        foreach ($o in $occupes) { Write-Dsi360Echec $o }
+        Write-Dsi360Cadre -Titre 'Un environnement tourne deja' -Couleur 'Yellow' -Lignes @(
+            'Fermez-le proprement (Ctrl+C dans sa fenetre), ou liberez les ports :',
+            '',
+            "   Get-NetTCPConnection -LocalPort $PORT_API,$PORT_FRONT -State Listen |",
+            '     ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }'
+        )
+        throw 'Ports occupes.'
+    }
+    Write-Dsi360Ok "Ports $PORT_API et $PORT_FRONT libres"
+
+    # --- 3. Dependances ----------------------------------------------------------------------
+    Write-Dsi360Etape 'Dependances du frontend'
+    Set-Location $frontend
+    if ($Recreer -and (Test-Path 'node_modules')) {
+        Write-Dsi360Info 'Suppression de node_modules (-Recreer)'
+        Remove-Item 'node_modules' -Recurse -Force
+    }
+    if (-not (Test-Path 'node_modules')) {
+        Write-Dsi360Info 'Premiere installation - cela peut prendre une minute'
+        $null = Invoke-Dsi360Verifie -Quoi 'npm install' -Action { npm install } -Remede @(
+            'Verifiez la connexion reseau et le proxy npm, puis relancez.'
+        )
+    } else {
+        Write-Dsi360Ok 'Deja installees'
+    }
+
+    # --- 4. Demarrage ------------------------------------------------------------------------
+    Write-Dsi360Etape 'Demarrage'
+    if (-not $SansOuvrir) {
+        # Un aide-ouvreur detache attend que le front reponde, pendant que `npm run dev` occupe
+        # cette fenetre. En fenetre autonome (--app) : on travaille dans l'application, pas dans
+        # un onglet perdu au milieu des autres.
+        $ouvreur = @'
+$url = "http://localhost:PORT_FRONT_ICI"
+for ($i = 0; $i -lt 90; $i++) {
     try { if ((Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { break } }
     catch { Start-Sleep -Milliseconds 700 }
 }
@@ -79,16 +130,41 @@ $edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
 if ($chrome) { Start-Process $chrome "--app=$url" }
 elseif (Test-Path $edge) { Start-Process $edge "--app=$url" }
 else { Start-Process $url }
-'@
-    Start-Process pwsh -ArgumentList '-NoProfile', '-WindowStyle', 'Hidden', '-Command', $ouvreur
-}
+'@ -replace 'PORT_FRONT_ICI', $PORT_FRONT
+        Start-Process pwsh -ArgumentList '-NoProfile', '-WindowStyle', 'Hidden', '-Command', $ouvreur
+        Write-Dsi360Ok "L'application s'ouvrira seule des qu'elle repondra"
+    } else {
+        Write-Dsi360Info 'Ouverture automatique desactivee (-SansOuvrir)'
+        Write-Dsi360Info "Adresse : http://localhost:$PORT_FRONT"
+    }
 
-Write-Host "API (8011) + frontend (5290). L'app s'ouvre seule - Ctrl+C arrete les deux." -ForegroundColor Green
-npm run dev
+    Write-Dsi360Cadre -Titre 'En route' -Couleur 'Green' -Lignes @(
+        "Frontend : http://localhost:$PORT_FRONT",
+        "API      : http://localhost:$PORT_API/api/v1/docs",
+        '',
+        'Ctrl+C dans cette fenetre arrete les deux services.'
+    )
 
-# `npm run dev` ne rend la main que si les deux services se sont arretes. En double-clic, la fenetre
-# se refermerait aussitot sur le message d'erreur : on la retient.
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "`nL'environnement s'est arrete (code $LASTEXITCODE)." -ForegroundColor Red
-    Wait-Fermeture
+    Write-Dsi360Journal 'Passage la main a npm run dev'
+    npm run dev
+    $code = $LASTEXITCODE
+
+    # `npm run dev` ne rend la main que si les deux services se sont arretes.
+    if ($code -ne 0) {
+        Write-Dsi360Echec "L'environnement s'est arrete (code $code)."
+        Write-Dsi360Bilan -Titre 'Arret anormal' -Couleur 'Red' -Lignes @(
+            'Les dernieres lignes ci-dessus disent lequel des deux services est tombe.'
+        )
+        Wait-Dsi360Fermeture
+        exit $code
+    }
+    Write-Dsi360Bilan -Titre 'Environnement arrete' `
+                      -Lignes @('Les deux services se sont arretes proprement.')
+} catch {
+    Write-Dsi360Echec $_.Exception.Message
+    Write-Dsi360Bilan -Titre 'Demarrage impossible' -Couleur 'Red' -Lignes @(
+        "L'environnement n'a pas demarre. Le detail est dans le journal."
+    )
+    Wait-Dsi360Fermeture
+    exit 1
 }
