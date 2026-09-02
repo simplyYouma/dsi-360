@@ -84,6 +84,17 @@ Neuf modules, livrés par phases (cf. §7) :
   `infrastructure/phases_sql` (`en_cours`, `aboutis`) : tableau de bord, analyses et listes
   tirent le même SQL de la même définition. Symétriquement, « Résolues » se compte sur la phase
   et non sur `resolu_le` — sinon « Réalisé », « Accepté » et « Corrigé » manquent à l'appel.
+- **La mise à jour du serveur ne dépend pas d'Internet sans raison.** L'installation du backend
+  est *editable* : le code est lu en place, une modification de `.py` s'applique sans rien
+  réinstaller. `pip install -e` n'est donc relancé que si la **déclaration** des dépendances a
+  changé (`backend/pyproject.toml`, `requirements*.txt`) ou si le paquet n'est pas importable.
+  Le relancer à chaque fois exigeait un accès sortant vers PyPI pour rien — et c'est ce qui a
+  interrompu la mise à jour du 02/09/2026, alors qu'aucune dépendance n'avait bougé.
+- **Un script d'exploitation qui échoue doit dire pourquoi.** `$ErrorActionPreference = 'Stop'`
+  transforme la redirection `2>&1` d'un programme externe en erreur terminante : la sortie réelle
+  était perdue et le journal ne gardait qu'une ligne blanche. `Invoke-Dsi360Verifie` neutralise la
+  préférence le temps de l'appel. Et le bilan d'échec **relit `HEAD`** au lieu de le supposer :
+  après un `pull` réussi, annoncer « le serveur est resté en <ancienne version> » est faux.
 - **Un indicateur sans donnée n'affiche pas un chiffre.** Le respect du SLA vaut `null` — rendu
   « — » à l'écran — quand aucune population n'est mesurable. Afficher « 100 % » sur un tableau
   vide annoncerait une performance parfaite là où l'on n'a rien mesuré.

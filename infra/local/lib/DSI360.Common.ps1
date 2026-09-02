@@ -270,14 +270,26 @@ function Invoke-Dsi360Verifie {
     Write-Dsi360Journal "COMMANDE : $Quoi"
     $sortie = @()
     $code = 0
+
+    # `$ErrorActionPreference = 'Stop'` — que posent les scripts appelants — transforme la
+    # redirection `2>&1` de la sortie d'erreur d'un programme externe en erreur TERMINANTE.
+    # On tombait alors dans le `catch` avec un message souvent vide : le journal ne gardait
+    # qu'une ligne blanche là où pip expliquait précisément ce qui n'allait pas. On neutralise
+    # la préférence le temps de l'appel, puis on la restaure.
+    $prefPrecedente = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
         $sortie = & $Action 2>&1
         $code = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
     } catch {
-        $sortie = @($_.Exception.Message)
+        $sortie = @("$($_.Exception.GetType().Name) : $($_.Exception.Message)")
         $code = 1
+    } finally {
+        $ErrorActionPreference = $prefPrecedente
     }
 
+    # Une sortie vide n'est pas une explication : on le dit, plutôt que d'aligner des blancs.
+    $sortie = @($sortie | Where-Object { "$_".Trim() -ne '' })
     foreach ($ligne in $sortie) { Write-Dsi360Journal "    $ligne" }
 
     if ($code -eq 0) {
@@ -286,9 +298,14 @@ function Invoke-Dsi360Verifie {
     }
 
     Write-Dsi360Echec "$Quoi (code $code)"
-    $dernieres = @($sortie | Select-Object -Last 8)
-    foreach ($ligne in $dernieres) {
-        Write-Dsi360Ligne ("          $ligne") 'DarkRed'
+    if ($sortie.Count -eq 0) {
+        $muet = 'La commande a echoue sans rien ecrire - relancez-la a la main pour voir.'
+        Write-Dsi360Ligne "          $muet" 'DarkRed'
+        Write-Dsi360Journal $muet 'ERREUR'
+    } else {
+        foreach ($ligne in @($sortie | Select-Object -Last 12)) {
+            Write-Dsi360Ligne ("          $ligne") 'DarkRed'
+        }
     }
     if ($Remede.Count -gt 0) {
         Write-Dsi360Cadre -Titre 'Que faire' -Lignes $Remede -Couleur 'Yellow'

@@ -149,10 +149,37 @@ try {
 
     # === 5. Dependances =======================================================================
     Write-Dsi360Etape 'Dependances du backend'
-    $null = Invoke-Dsi360Verifie -Quoi 'pip install -e backend' `
-        -Action { & $DSI360_PY -m pip install -e ".\backend" --quiet 2>&1 } -Remede @(
-            'Verifiez l''acces reseau a PyPI (proxy) et l''environnement Python.'
-        )
+    # L'installation est « editable » : le code source est lu en place, une modification de .py
+    # est donc prise en compte sans rien reinstaller. Reinstaller a chaque mise a jour ne servait
+    # qu'a exiger un acces sortant vers PyPI — et c'est exactement ce qui a fait echouer la mise
+    # a jour du 02/09/2026, alors qu'aucune dependance n'avait bouge. On ne reinstalle donc que si
+    # la DECLARATION des dependances a change, ou si le paquet n'est pas importable.
+    $fichiersChanges = @(& git diff --name-only "$versionAvant..$versionApres")
+    $declarationChangee = @(
+        $fichiersChanges | Where-Object {
+            $_ -match '^backend/(pyproject\.toml|requirements.*\.txt)$'
+        }
+    )
+    & $DSI360_PY -c 'import dsi360' 2>$null | Out-Null
+    $paquetPresent = ($LASTEXITCODE -eq 0)
+
+    if ($declarationChangee.Count -gt 0 -or -not $paquetPresent) {
+        $pourquoi = if ($declarationChangee.Count -gt 0) {
+            "declaration modifiee ($($declarationChangee -join ', '))"
+        } else {
+            'paquet dsi360 non importable'
+        }
+        Write-Dsi360Info "Reinstallation necessaire : $pourquoi"
+        $null = Invoke-Dsi360Verifie -Quoi 'pip install -e backend' `
+            -Action { & $DSI360_PY -m pip install -e ".\backend" --no-input 2>&1 } -Remede @(
+                'Verifiez l''acces reseau a PyPI (proxy) et l''environnement Python.',
+                '',
+                'Sans acces sortant, installez depuis un cache local de roues :',
+                '   pip install -e .\backend --no-index --find-links <dossier-des-roues>'
+            )
+    } else {
+        Write-Dsi360Ok 'Inchangees - installation editable, rien a reinstaller'
+    }
 
     # === 6. Migrations ========================================================================
     Write-Dsi360Etape 'Migrations de la base'
@@ -221,7 +248,20 @@ try {
 } catch {
     Write-Dsi360Echec $_.Exception.Message
     $lignes = @('La mise a jour a ete interrompue.')
-    if ($versionAvant) { $lignes += "Le serveur est reste en $versionAvant." }
+    # On relit HEAD au lieu de le supposer : apres un pull reussi, le code EST a jour meme si une
+    # etape suivante a echoue. Annoncer « le serveur est reste en <ancienne version> » etait alors
+    # faux — et c'est le genre de phrase sur laquelle on prend ensuite de mauvaises decisions.
+    $versionCourante = ''
+    try {
+        $versionCourante = (& git -C $DSI360_RACINE rev-parse --short HEAD 2>$null).Trim()
+    } catch { }
+    if ($versionCourante -and $versionAvant -and $versionCourante -ne $versionAvant) {
+        $lignes += "Le code est deja recupere ($versionAvant -> $versionCourante), mais"
+        $lignes += "l'installation n'est pas terminee et le service n'a PAS ete redemarre :"
+        $lignes += "il tourne encore sur l'ancien code charge en memoire."
+    } elseif ($versionCourante) {
+        $lignes += "Le serveur est reste en $versionCourante."
+    }
     $lignes += 'Corrigez la cause indiquee ci-dessus, puis relancez : le script est rejouable.'
     Write-Dsi360Bilan -Titre 'Mise a jour interrompue' -Couleur 'Red' -Lignes $lignes
     Wait-Dsi360Fermeture
