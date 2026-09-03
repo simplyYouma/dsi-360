@@ -95,6 +95,14 @@ Neuf modules, livrés par phases (cf. §7) :
   était perdue et le journal ne gardait qu'une ligne blanche. `Invoke-Dsi360Verifie` neutralise la
   préférence le temps de l'appel. Et le bilan d'échec **relit `HEAD`** au lieu de le supposer :
   après un `pull` réussi, annoncer « le serveur est resté en <ancienne version> » est faux.
+- **Un modèle de saisie dit la vérité du code, et propose ce que la plateforme sait.** Le classeur
+  d'import de l'inventaire annonçait qu'une ligne sans « Code immo » créait un équipement ; l'import
+  l'ignore, faute de clé pour la reconnaître au tour suivant. Deux colonnes sont donc obligatoires
+  (**Code immo** et **Désignation**) et le modèle le dit ; **aucune autre case n'est bloquante** —
+  une case vide laisse la fiche incomplète, jamais l'import en échec. Type, emplacement et
+  département proposent une **liste déroulante ouverte**, remplie des valeurs *actives* du
+  référentiel au moment du téléchargement : elle oriente la saisie vers un nom unique par site sans
+  interdire d'en taper un nouveau, qui sera créé à l'import.
 - **Un indicateur sans donnée n'affiche pas un chiffre.** Le respect du SLA vaut `null` — rendu
   « — » à l'écran — quand aucune population n'est mesurable. Afficher « 100 % » sur un tableau
   vide annoncerait une performance parfaite là où l'on n'a rien mesuré.

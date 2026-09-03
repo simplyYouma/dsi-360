@@ -434,10 +434,20 @@ _ENTETES_EXPORT = [
 
 
 @routeur.get("/modele-import")
-async def modele_import(courant: Courant) -> Response:
-    """Le classeur modèle à remplir pour l'import : feuille de saisie + mode d'emploi."""
+async def modele_import(courant: Courant, session: Session) -> Response:
+    """Le classeur modèle à remplir : feuille de saisie, mode d'emploi, et listes déroulantes.
+
+    Les listes proposées (type, emplacement, département) sont celles que la plateforme connaît
+    **à cet instant**, pas une copie figée dans le code : un site créé hier est proposé aujourd'hui.
+    Seules les entrées actives sont offertes — proposer une valeur retirée du référentiel
+    relancerait le désordre qu'on cherche à éviter.
+    """
+    listes = {
+        cle: [r["libelle"] for r in await repo.lister_referentiel(session, cle) if r["actif"]]
+        for cle in ("types", "emplacements", "departements")
+    }
     return Response(
-        content=construire_modele(),
+        content=construire_modele(listes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": "attachment; filename=modele-import-inventaire.xlsx"

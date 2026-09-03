@@ -1,17 +1,25 @@
 """Modèle Excel d'import d'inventaire : un classeur prêt à remplir par le métier.
 
-Deux feuilles :
+Trois feuilles :
 - **Inventaire** — la grille de saisie. La ligne d'en-tête reprend *exactement* les intitulés que
   l'import sait lire ; en dessous, tout est vide, prêt à remplir. Chaque en-tête porte une note
   (survol) courte ; le détail complet est dans le mode d'emploi.
 - **Mode d'emploi** — mis en page : bandeau, tableau des colonnes (obligatoire ? / ce qu'on y met),
   et la règle de création / mise à jour.
+- **Listes** — masquée : elle alimente les listes déroulantes. Ses valeurs sont celles **réellement
+  présentes dans la plateforme** au moment du téléchargement, pas une liste figée dans le code.
+
+Type, emplacement et département se choisissent dans une liste déroulante **sans être enfermés
+dedans** : la validation ne refuse rien, on peut taper un nouveau site ou un nouveau type, qui sera
+créé à l'import. Proposer sans imposer est le seul moyen d'éviter à la fois « AGENCE KAYES » /
+« Agence 11 Kayes » / « Kayes » et le blocage sur un matériel dont le lieu n'existe pas encore.
 
 On ne met **aucune ligne d'exemple** dans la feuille de saisie : elle serait importée comme un vrai
 équipement. L'exemple vit dans le mode d'emploi, que l'import ignore (il ne lit que la feuille
 portant les en-têtes).
 """
 
+from collections.abc import Mapping, Sequence
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -30,18 +38,26 @@ _GRIS_FOND = "F6F7F9"
 
 # (en-tête EXACT — doit correspondre aux alias du lecteur —, obligatoire, ce qu'on y met).
 _COLONNES: tuple[tuple[str, bool, str], ...] = (
-    ("Code immo", False,
-     "Code d'immobilisation comptable. C'est la CLÉ : un code déjà connu met à jour la fiche, "
-     "un code nouveau (ou vide) crée un équipement."),
+    ("Code immo", True,
+     "Code d'immobilisation comptable. C'est la CLÉ de reconnaissance : un code déjà connu met à "
+     "jour la fiche, un code nouveau crée l'équipement. Sans lui, la ligne est ignorée — rien ne "
+     "permettrait de la retrouver au prochain import."),
     ("Désignation", True,
      "Ce qu'est le matériel (ex. « Ordinateur portable Dell Latitude 5540 »). "
      "Sans elle, la ligne est ignorée."),
     ("Type", False,
-     "Nature (Ordinateur portable, Serveur, Imprimante…). Créé tout seul s'il n'existe pas."),
-    ("N° série", False, "Numéro de série constructeur."),
+     "Nature (Ordinateur portable, Serveur, Imprimante…). À choisir dans la liste déroulante, "
+     "ou à taper librement : un type inconnu est créé à l'import."),
+    ("N° série", False,
+     "Numéro de série constructeur. Unique dans tout le parc : si deux lignes portent le même, "
+     "ou s'il est déjà pris, il est écarté pour cette ligne et le compte-rendu le signale."),
     ("Modèle", False, "Référence du modèle (ex. Latitude 5540)."),
-    ("Emplacement", False, "Où se trouve le matériel. Créé tout seul s'il n'existe pas."),
-    ("Département", False, "Service rattaché. Créé tout seul s'il n'existe pas."),
+    ("Emplacement", False,
+     "Où se trouve le matériel (agence, siège…). À choisir dans la liste déroulante, ou à taper "
+     "librement : un emplacement inconnu est créé à l'import."),
+    ("Département", False,
+     "Service rattaché. À choisir dans la liste déroulante, ou à taper librement : un département "
+     "inconnu est créé à l'import."),
     ("Matricule", False,
      "Matricule de l'agent détenteur. Rapproché d'un compte s'il existe, sinon conservé tel quel."),
     ("Taux", False, "Taux d'amortissement annuel, en % (ex. 25)."),
@@ -54,6 +70,9 @@ _COLONNES: tuple[tuple[str, bool, str], ...] = (
 #: Largeur d'une colonne : ajustée à l'intitulé (comme l'export), la désignation un peu plus large
 #: car elle porte du texte long. Fini les colonnes démesurées.
 _LARGEUR_DESIGNATION = 30
+
+#: Intitulé -> rang de la colonne, pour la retrouver sans compter à la main.
+_RANG = {titre: i for i, (titre, _, _) in enumerate(_COLONNES, start=1)}
 
 _TRAIT = Side(style="thin", color=_GRIS_LIGNE)
 _BORDURE = Border(left=_TRAIT, right=_TRAIT, top=_TRAIT, bottom=_TRAIT)
@@ -97,7 +116,63 @@ def _dropdown_etat(feuille: Worksheet) -> None:
         error="Choisissez Bon, Rebut ou Cassé — ou laissez vide.",
     )
     feuille.add_data_validation(validation)
-    validation.add(f"{lettre}2:{lettre}1000")
+    validation.add(f"{lettre}2:{lettre}{_LIGNES_SAISIE}")
+
+
+#: Colonne de saisie -> (clé du référentiel, colonne de la feuille « Listes »).
+_REFERENTIELS: tuple[tuple[str, str, str], ...] = (
+    ("Type", "types", "A"),
+    ("Emplacement", "emplacements", "B"),
+    ("Département", "departements", "C"),
+)
+
+#: Au-delà, un classeur d'inventaire n'est plus rempli à la main.
+_LIGNES_SAISIE = 1000
+
+
+def _feuille_listes(feuille: Worksheet, listes: Mapping[str, Sequence[str]]) -> None:
+    """Les valeurs qui alimentent les déroulantes, une par colonne. Feuille masquée.
+
+    Masquée, mais pas protégée : qui veut voir ce que la plateforme connaît déjà peut l'afficher.
+    """
+    for titre, cle, colonne in _REFERENTIELS:
+        feuille[f"{colonne}1"] = titre
+        feuille[f"{colonne}1"].font = Font(bold=True, color=_NOIR)
+        feuille.column_dimensions[colonne].width = 28
+        for i, valeur in enumerate(listes.get(cle, ()), start=2):
+            feuille[f"{colonne}{i}"] = valeur
+    feuille.sheet_state = "hidden"
+
+
+def _deroulantes_referentiels(
+    saisie: Worksheet, listes: Mapping[str, Sequence[str]], nom_listes: str
+) -> None:
+    """Une déroulante par référentiel, **ouverte** : elle propose, elle n'impose pas.
+
+    ``showErrorMessage=False`` est le cœur du réglage : Excel affiche la flèche et la liste, mais
+    laisse passer une valeur tapée à la main. Un import crée le type ou le site inconnu ; refuser
+    la saisie bloquerait le remplissage sur un matériel dont le lieu n'est pas encore référencé.
+    """
+    for titre, cle, colonne in _REFERENTIELS:
+        valeurs = listes.get(cle, ())
+        # Pas de liste vide : une flèche sans rien derrière déroute plus qu'elle n'aide.
+        if not valeurs:
+            continue
+        position = _RANG.get(titre)
+        if position is None:
+            continue
+        lettre = get_column_letter(position)
+        validation = DataValidation(
+            type="list",
+            formula1=f"'{nom_listes}'!${colonne}$2:${colonne}${len(valeurs) + 1}",
+            allow_blank=True,
+            showErrorMessage=False,
+            promptTitle=titre,
+            prompt="Choisissez dans la liste, ou tapez une nouvelle valeur : elle sera creee.",
+            showInputMessage=True,
+        )
+        saisie.add_data_validation(validation)
+        validation.add(f"{lettre}2:{lettre}{_LIGNES_SAISIE}")
 
 
 def _bandeau(feuille: Worksheet, ligne: int, texte: str) -> None:
@@ -112,14 +187,20 @@ def _bandeau(feuille: Worksheet, ligne: int, texte: str) -> None:
 
 _REGLES = (
     "• Le « Code immo » est la clé. Code déjà connu → la ligne MET À JOUR la fiche ; "
-    "code nouveau ou vide → elle CRÉE un équipement.",
+    "code nouveau → elle CRÉE un équipement.",
+    "• Une ligne SANS code immo est ignorée, et comptée comme telle dans le compte-rendu : sans "
+    "clé, on ne saurait ni éviter le doublon, ni la retrouver au prochain import.",
     "• À la mise à jour, les colonnes comptables (désignation, taux, date, durée, valeur) sont "
     "reprises du fichier.",
     "• Les colonnes de terrain (type, n° série, modèle, emplacement, département, matricule) ne "
     "sont remplies QUE si elles étaient vides : une correction faite à l'écran n'est jamais "
     "écrasée.",
     "• Réimporter le même fichier ne crée pas de doublon.",
-    "• Seule la « Désignation » est obligatoire ; tout le reste peut rester vide.",
+    "• Deux colonnes sont obligatoires : « Code immo » et « Désignation ». Tout le reste peut "
+    "rester vide — une case vide n'est jamais bloquante, elle laisse simplement la fiche "
+    "incomplète, à compléter plus tard à l'écran.",
+    "• Type, emplacement et département proposent une liste, sans l'imposer : une valeur tapée à "
+    "la main est acceptée et créée à l'import.",
     "• La plateforme attribue elle-même une référence « INV-… » à chaque équipement : elle n'est "
     "pas dans le fichier, ne la saisissez pas.",
 )
@@ -194,8 +275,14 @@ def _mode_emploi(feuille: Worksheet) -> None:
     feuille.row_dimensions[ligne].height = 30
 
 
-def construire_modele() -> bytes:
-    """Le classeur modèle, en octets .xlsx."""
+def construire_modele(listes: Mapping[str, Sequence[str]] | None = None) -> bytes:
+    """Le classeur modèle, en octets .xlsx.
+
+    ``listes`` porte les valeurs à proposer, par clé de référentiel (``types``, ``emplacements``,
+    ``departements``) : ce sont celles de la plateforme, lues au moment du téléchargement. Sans
+    elles, le modèle reste utilisable — il propose seulement moins.
+    """
+    listes = listes or {}
     classeur = Workbook()
     saisie = classeur.active
     assert saisie is not None  # un classeur neuf a toujours sa feuille active
@@ -203,6 +290,9 @@ def construire_modele() -> bytes:
     _entete_saisie(saisie)
     _dropdown_etat(saisie)
     _mode_emploi(classeur.create_sheet("Mode d'emploi"))
+    nom_listes = "Listes"
+    _feuille_listes(classeur.create_sheet(nom_listes), listes)
+    _deroulantes_referentiels(saisie, listes, nom_listes)
     tampon = BytesIO()
     classeur.save(tampon)
     return tampon.getvalue()
