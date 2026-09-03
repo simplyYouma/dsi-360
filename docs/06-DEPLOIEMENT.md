@@ -232,12 +232,13 @@ Attendu : `21 contrôles franchis, 0 faille(s)` (détail : [04-SECURITY.md](04-S
 
 ### En un clic (recommandé)
 
-Double-cliquer **`METTRE-A-JOUR-DSI360.bat`** (ou son raccourci sur le bureau du serveur). Il
-demande l'élévation administrateur puis déroule, tout seul et dans l'ordre :
+Double-cliquer **`METTRE-A-JOUR-DSI360.bat`**, à la racine du dépôt. Il demande l'élévation
+administrateur puis déroule, tout seul et dans l'ordre :
 
 1. **contrôle du dépôt** (refuse s'il y a des modifications locales — le code ne se modifie que par git) ;
 2. **`git pull --ff-only`** (jamais de fusion surprise) ;
-3. **dépendances backend** (`pip install -e .\backend`) ;
+3. **dépendances backend** — réinstallées **seulement** si leur déclaration a changé, ou si le
+   paquet n'est plus importable (cf. CLAUDE.md §4) ; sinon l'étape passe sans toucher au réseau ;
 4. **migrations** (idempotentes, verrouillées) ;
 5. **build du frontend** (`npm ci && npm run build`) ;
 6. **redémarrage de la tâche `DSI360`** (sans quoi l'ancien code et l'ancien certificat restent en mémoire) ;
