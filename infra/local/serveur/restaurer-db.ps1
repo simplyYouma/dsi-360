@@ -1,14 +1,14 @@
 ﻿# Restaure une sauvegarde DSI 360 (produite par sauvegarde-db.ps1) dans la base configurée.
 # ATTENTION : écrase les données existantes (pg_restore --clean --if-exists). Demande confirmation.
 #
-#   infra\local\restaurer-db.ps1 -Fichier C:\MY_APPS\logs\DSI360\backups\dsi360_dsi360_20260711_020000.dump
+#   infra\local\serveur\restaurer-db.ps1 -Fichier C:\MY_APPS\logs\DSI360\backups\dsi360_dsi360_20260711_020000.dump
 param(
     [Parameter(Mandatory = $true)][string]$Fichier,
     [string]$PgBin = '',
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
-. "$PSScriptRoot\env.ps1"
+. "$PSScriptRoot\..\env.ps1"
 
 if (-not (Test-Path $Fichier)) { throw "Sauvegarde introuvable : $Fichier" }
 

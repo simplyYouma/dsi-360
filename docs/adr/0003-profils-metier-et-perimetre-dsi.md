@@ -144,7 +144,7 @@ d'activer son mot de passe : un agent créé par l'administration n'en a pas enc
   paramétrables, `ADMIN` protégé ». Aucun code ne doit dépendre d'une liste figée de profils.
 - ➖ Les comptes portant un profil supprimé sont basculés vers `SUPPORT_APP_HELPDESK`. Sur la base
   de développement, les 53 comptes concernés viennent du jeu de démonstration : il est régénéré
-  après migration (`infra/local/donnees-demo.ps1`) plutôt que migré.
+  après migration (`infra/local/base/donnees-demo.ps1`) plutôt que migré.
 - Les tests d'intégration RBAC encodent la matrice réelle : la modifier fait échouer la suite, ce
   qui est le comportement voulu.
 

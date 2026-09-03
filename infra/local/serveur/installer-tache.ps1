@@ -7,7 +7,7 @@
 # Idempotent : réexécutable, remplace la tâche existante. À lancer EN ADMINISTRATEUR
 # (double-clic sur installer-tache.bat, qui élève tout seul).
 #
-#   infra\local\installer-tache.ps1 [-Tache DSI360] [-Port 8453] [-SansPareFeu] [-SansDemarrer]
+#   infra\local\serveur\installer-tache.ps1 [-Tache DSI360] [-Port 8453] [-SansPareFeu] [-SansDemarrer]
 #
 # ATTENTION, encodage : UTF-8 **avec BOM** (cf. infra/local/README.md).
 param(
@@ -25,10 +25,10 @@ function Etape($texte) { Write-Host "==> $texte" -ForegroundColor Cyan }
 $estAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
            ).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 if (-not $estAdmin) {
-    throw "Ce script doit tourner en administrateur. Double-cliquez plutot infra\local\installer-tache.bat."
+    throw "Ce script doit tourner en administrateur. Double-cliquez plutot infra\local\serveur\installer-tache.bat."
 }
 
-$racine  = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$racine  = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $script  = Join-Path $PSScriptRoot 'start-prod.sh'
 $cert    = Join-Path $racine 'cert\cert.pem'
 $cle     = Join-Path $racine 'cert\key.pem'
@@ -48,7 +48,7 @@ $manquants = @()
 foreach ($p in @(
     @{ Chemin = $script;                                              Quoi = 'lanceur de production start-prod.sh' },
     @{ Chemin = Join-Path $racine 'backend\.venv\Scripts\python.exe'; Quoi = 'venv backend (cf. README infra/local)' },
-    @{ Chemin = Join-Path $PSScriptRoot '.env';                       Quoi = 'configuration infra\local\.env' },
+    @{ Chemin = Join-Path $PSScriptRoot '..\.env';                       Quoi = 'configuration infra\local\.env' },
     @{ Chemin = Join-Path $racine 'frontend\dist\index.html';         Quoi = 'build du frontend (front-build.ps1)' },
     @{ Chemin = $cert;                                                Quoi = 'certificat TLS (docs/06-DEPLOIEMENT §3.5)' },
     @{ Chemin = $cle;                                                 Quoi = 'cle du certificat TLS' }
@@ -129,6 +129,6 @@ if ($pret -match '"db"\s*:\s*"ok"') {
 } else {
     Write-Warning ("L'application tourne mais la BASE ne repond pas : $pret`n" +
         "Provisionnez-la puis relancez la tache :`n" +
-        "  psql -U postgres -f infra\local\provisionner-db.sql   puis   infra\local\migrer.ps1`n" +
+        "  psql -U postgres -f infra\local\base\provisionner-db.sql   puis   infra\local\base\migrer.ps1`n" +
         "  Stop-ScheduledTask -TaskName $Tache ; Start-ScheduledTask -TaskName $Tache")
 }

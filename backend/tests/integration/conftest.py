@@ -4,7 +4,7 @@ Trois garanties, dans cet ordre d'importance :
 
 1. **Jamais la base de développement.** La DSN est dérivée en suffixant « _test », et un garde-fou
    refuse de démarrer si le nom de base ne finit pas par ``_test``. Provisionner la base une fois :
-   ``psql -U postgres -f infra/local/provisionner-db-test.sql``.
+   ``psql -U postgres -f infra/local/base/provisionner-db-test.sql``.
 2. **Aucune fuite entre tests.** Chaque test s'exécute dans une transaction ouverte par le harnais
    et annulée à la fin. Les ``commit()`` de l'application (l'audit en fait un) tombent sur un
    SAVEPOINT : ils sont visibles pendant le test, effacés après.

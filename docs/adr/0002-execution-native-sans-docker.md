@@ -37,7 +37,7 @@ Exécution **native** :
 | Secrets | `infra/env/.env` | `infra/local/.env` (git-ignoré) chargé par `infra/local/env.ps1` |
 
 Scripts natifs et procédure : [`infra/local/README.md`](../../infra/local/README.md).
-Provisionnement DB à privilèges limités : `infra/local/provisionner-db.sql` (rôle applicatif
+Provisionnement DB à privilèges limités : `infra/local/base/provisionner-db.sql` (rôle applicatif
 distinct du superuser, propriétaire de sa seule base).
 
 **Fichiers Docker supprimés** : `infra/docker-compose.yml`, `backend/Dockerfile`,

@@ -12,7 +12,7 @@
 # Prerequis : build du frontend (front-build.ps1) et infra/local/.env renseigne
 # (DSI360_ENVIRONNEMENT=recette|prod pour activer HSTS, DSI360_JWT_SECRET_KEY fort).
 #
-#   infra/local/start-prod.sh --port 8453 --cert /c/MY_APPS/dsi-360/cert/cert.pem \
+#   infra/local/serveur/start-prod.sh --port 8453 --cert /c/MY_APPS/dsi-360/cert/cert.pem \
 #                             --key /c/MY_APPS/dsi-360/cert/key.pem
 #
 # Sans --cert : demarre en HTTP (a reserver au cas « derriere un reverse-proxy qui fait le TLS »).
@@ -36,9 +36,9 @@ while [ $# -gt 0 ]; do
 done
 
 ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-racine="$(cd "$ici/../.." && pwd)"
+racine="$(cd "$ici/../../.." && pwd)"
 py="$racine/backend/.venv/Scripts/python.exe"
-fichier_env="$ici/.env"
+fichier_env="$ici/../.env"
 
 [ -x "$py" ]           || { echo "venv introuvable : $py — cf. infra/local/README.md" >&2; exit 1; }
 [ -f "$fichier_env" ]  || { echo "Config absente : $fichier_env — copiez .env.example en .env." >&2; exit 1; }

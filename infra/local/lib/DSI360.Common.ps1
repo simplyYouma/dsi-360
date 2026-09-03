@@ -124,6 +124,25 @@ function Write-Dsi360Ligne {
     if ($script:EnCouleur) { Write-Host $Texte -ForegroundColor $Couleur } else { Write-Host $Texte }
 }
 
+#: Le vert de marque en couleurs vraies : --secondary #7fc81f, --secondary-hover #6fb314.
+$script:MarqueVert      = "$([char]27)[38;2;127;200;31m"
+$script:MarqueVertFonce = "$([char]27)[38;2;111;179;20m"
+$script:MarqueFin       = "$([char]27)[0m"
+
+function Write-Dsi360Marque {
+    <# .SYNOPSIS Une ligne du logo, au vert exact de la charte quand la console le permet. #>
+    param([AllowEmptyString()][string] $Texte = '', [switch] $Foncee)
+    if (-not $script:EnCouleur) { Write-Host $Texte; return }
+    # $PSStyle n'existe qu'en PowerShell 7 : sa présence dit que l'hôte interprète l'ANSI. En 5.1
+    # on retombe sur les seize couleurs, où seul Green approche le vert du logo.
+    if ($null -ne $PSStyle -and $PSStyle.OutputRendering -ne 'PlainText') {
+        $ton = if ($Foncee) { $script:MarqueVertFonce } else { $script:MarqueVert }
+        Write-Host "$ton$Texte$($script:MarqueFin)"
+    } else {
+        Write-Host $Texte -ForegroundColor $(if ($Foncee) { 'DarkGreen' } else { 'Green' })
+    }
+}
+
 function Show-Dsi360Banniere {
     <# .SYNOPSIS En-tête de session : ce qu'on lance, où, et dans quel environnement. #>
     param(
@@ -133,14 +152,16 @@ function Show-Dsi360Banniere {
     )
     if ($script:AvecConsole) { try { Clear-Host } catch { } }
     $g = $script:Glyphes
-    # Vert de la charte (--secondary #7fc81f) : la console n'a que seize couleurs, Green et
-    # DarkGreen en sont les deux plus proches.
+    # Le vert de la marque (--secondary #7fc81f). En couleurs vraies quand la console les
+    # gère — les seize couleurs héritées n'ont rien à ce ton — et repli sur Green sinon. Les
+    # deux dernières lignes prennent le ton foncé (--secondary-hover) : le logo a du relief,
+    # pas un aplat.
     Write-Dsi360Ligne ''
-    Write-Dsi360Ligne '   ____   ____   ___    _____    __     ___  ' 'Green'
-    Write-Dsi360Ligne '  |  _ \ / ___| |_ _|  |___ /   / /_   / _ \ ' 'Green'
-    Write-Dsi360Ligne '  | | | |\___ \  | |     |_ \  | ''_ \ | | | |' 'Green'
-    Write-Dsi360Ligne '  | |_| | ___) | | |    ___) | | (_) | | |_| |' 'DarkGreen'
-    Write-Dsi360Ligne '  |____/ |____/ |___|  |____/   \___/   \___/ ' 'DarkGreen'
+    Write-Dsi360Marque '    ____    ____   ___     _____   __     ___  '
+    Write-Dsi360Marque '  |  _ \   / ___| |_ _|   |___ /  / /_   / _ \ '
+    Write-Dsi360Marque '  | | | |  \___ \  | |      |_ \ | ''_ \ | | | |'
+    Write-Dsi360Marque '  | |_| |   ___) | | |     ___) || (_) || |_| |' -Foncee
+    Write-Dsi360Marque '  |____/   |____/ |___|   |____/  \___/  \___/ ' -Foncee
     Write-Dsi360Ligne ''
     Write-Dsi360Ligne "  $Titre" 'White'
     if ($Sous) { Write-Dsi360Ligne "  $Sous" 'DarkGray' }

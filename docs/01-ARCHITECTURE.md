@@ -74,7 +74,15 @@ DSI_360/
 │       ├── lib/               ← client API, auth, i18n
 │       └── common/            ← composants/logique partagés
 ├── db/migrations/
-└── infra/local/               ← scripts de lancement natifs (PowerShell 7), env.ps1
+├── infra/local/               ← env.ps1 + .env (configuration), puis, rangé par métier :
+│   ├── exploitation/          ← faire tourner : demarrer-dev, arreter-dev, maj-prod, api, front-build
+│   ├── serveur/               ← production seule : start-prod.sh, installer-tache, sauvegarde, restauration
+│   ├── base/                  ← provisionnement, migrations, données de démo
+│   ├── outils/                ← pentest
+│   └── lib/                   ← socle commun des scripts PowerShell
+├── DEMARRER-DSI360.bat        ← les trois gestes courants, à la racine et en clair
+├── ARRETER-DSI360.bat
+└── METTRE-A-JOUR-DSI360.bat
 ```
 
 ## 7. Conventions

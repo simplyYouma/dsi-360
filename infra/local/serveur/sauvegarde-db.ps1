@@ -1,8 +1,8 @@
 ﻿# Sauvegarde native de la base DSI 360 (pg_dump, format custom -Fc, compressé et restaurable).
 # Aucune dépendance Docker. À planifier (tâche « DSI360-Sauvegarde ») sur le serveur.
 #
-#   infra\local\sauvegarde-db.ps1
-#   infra\local\sauvegarde-db.ps1 -Destination C:\MY_APPS\logs\DSI360\backups -RetentionJours 30
+#   infra\local\serveur\sauvegarde-db.ps1
+#   infra\local\serveur\sauvegarde-db.ps1 -Destination C:\MY_APPS\logs\DSI360\backups -RetentionJours 30
 #
 # La cible (-Destination) doit être HORS git et, idéalement, sur un volume sauvegardé/chiffré.
 param(
@@ -11,7 +11,7 @@ param(
     [string]$PgBin = ''
 )
 $ErrorActionPreference = 'Stop'
-. "$PSScriptRoot\env.ps1"
+. "$PSScriptRoot\..\env.ps1"
 
 if ([string]::IsNullOrWhiteSpace($Destination)) {
     $Destination = Join-Path $DSI360_RACINE 'data\backups'   # /data est gitignore

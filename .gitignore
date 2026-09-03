@@ -23,7 +23,7 @@ infra/env/.env
 *.env
 !*.env.example
 # Script de provisionnement DB natif : contient le mot de passe applicatif
-infra/local/provisionner-db.sql
+infra/local/base/provisionner-db.sql
 
 # Données / uploads locaux
 /data/

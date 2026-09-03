@@ -4,13 +4,16 @@ REM  DSI 360 - Mise a jour du serveur (double-cliquez sur ce fichier)
 REM ---------------------------------------------------------------------------
 REM  Ce fichier ne contient volontairement aucune logique : il prepare une
 REM  console correcte, s'assure des droits administrateur, puis delegue a
-REM  maj-prod.ps1.
+REM  infra\local\exploitation\maj-prod.ps1.
+REM
+REM  Il vit a la RACINE du depot, et non au fond de infra\local : on ne doit
+REM  pas avoir a connaitre l'arborescence pour mettre le serveur a jour.
 REM
 REM  Les droits administrateur sont necessaires pour arreter et relancer la
 REM  tache planifiee qui porte le service. Sans eux, la mise a jour irait
 REM  jusqu'au bout puis echouerait sur la derniere etape - le pire moment.
 REM
-REM  Arguments transmis tels quels :  maj-prod.bat -SansRedemarrage
+REM  Arguments transmis tels quels :  METTRE-A-JOUR-DSI360.bat -SansRedemarrage
 REM ===========================================================================
 
 setlocal
@@ -44,7 +47,7 @@ if not defined PS_EXE (
     exit /b 1
 )
 
-"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0maj-prod.ps1" %*
+"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0infra\local\exploitation\maj-prod.ps1" %*
 set "CODE=%ERRORLEVEL%"
 
 echo.

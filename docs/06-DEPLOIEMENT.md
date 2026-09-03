@@ -25,7 +25,7 @@ Références : [ADR-0002 exécution native](adr/0002-execution-native-sans-docke
 | **Certificat** | `C:\MY_APPS\dsi-360\cert\cert.pem` / `key.pem` — **jamais** versionné |
 | **Préfixe des variables** | `DSI360_` (ex. `DSI360_JWT_SECRET_KEY`, `DSI360_DATABASE_URL`) |
 | **Tâches planifiées** | `DSI360` (app), `DSI360-Sauvegarde` (pg_dump) — **préfixées, jamais génériques** |
-| **Lanceurs bureau** | **`installer-tache.bat`** — démarrage auto avec Windows (une fois) · **`maj-prod.bat`** — mise à jour un-clic. Les deux s'élèvent en admin tout seuls. |
+| **Lanceurs bureau** | **`installer-tache.bat`** — démarrage auto avec Windows (une fois) · **`METTRE-A-JOUR-DSI360.bat`** — mise à jour un-clic. Les deux s'élèvent en admin tout seuls. |
 | **PWA** | Oui — installable (manifest + service worker). Le SW ne met **jamais** `/api` en cache et sert la navigation en réseau-d'abord ; après un `git pull` + rebuild, il se met à jour tout seul au prochain chargement en ligne. |
 | **Reverse-proxy** | **Facultatif** : l'API termine elle-même le TLS (voir §1) |
 
@@ -89,7 +89,7 @@ cd C:\MY_APPS\dsi-360
 ```powershell
 # Rôle applicatif + base (en superuser postgres). Le script porte le mot de passe applicatif :
 # il est gitignore — le renseigner sur le serveur.
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\provisionner-db.sql
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\base\provisionner-db.sql
 ```
 
 ### 3.3 Backend : venv, secrets, migrations
@@ -117,14 +117,14 @@ Copy-Item infra\local\.env.example infra\local\.env
 
 Migrer + seed :
 ```powershell
-infra\local\migrer.ps1
+infra\local\base\migrer.ps1
 ```
 > Les migrations se rejouent **aussi au démarrage** de l'API (`migrer_au_demarrage`, idempotent) :
 > après un `git pull`, un simple redémarrage de la tâche met la base à jour.
 
 ### 3.4 Frontend : build de production
 ```powershell
-infra\local\front-build.ps1     # génère frontend\dist
+infra\local\exploitation\front-build.ps1     # génère frontend\dist
 ```
 
 ### 3.5 Certificat HTTPS « Chrome-proof » (SAN=IP + EKU serverAuth)
@@ -160,12 +160,12 @@ Import-Certificate -FilePath "C:\MY_APPS\dsi-360\cert\cert.pem" -CertStoreLocati
 
 ### 3.7 Lancement automatique au démarrage de Windows (tâche planifiée `DSI360`)
 
-Le lanceur de production est **`infra/local/start-prod.sh`** (Git Bash — prérequis serveur §2). Il
+Le lanceur de production est **`infra/local/serveur/start-prod.sh`** (Git Bash — prérequis serveur §2). Il
 applique les points non négociables : `--no-server-header` (bannière masquée), `--ssl-*` (TLS), bind
 `0.0.0.0`, **pas** de `--reload`, **pas** de `--workers`. Il termine par `exec` : python **remplace**
 le shell, donc la tâche surveille l'API elle-même, sans processus intermédiaire.
 
-**En un clic** — double-cliquer **`infra\local\installer-tache.bat`** (élévation admin automatique).
+**En un clic** — double-cliquer **`infra\local\serveur\installer-tache.bat`** (élévation admin automatique).
 Il installe la tâche, ouvre le port au pare-feu, démarre l'app et contrôle sa santé. Idempotent :
 réexécutable, il remplace la tâche existante. Options : `-Port`, `-SansPareFeu`, `-SansDemarrer`.
 
@@ -197,12 +197,12 @@ Ce que fait `installer-tache.ps1`, et pourquoi :
 ### 3.8 Sauvegarde planifiée (tâche `DSI360-Sauvegarde`)
 ```powershell
 $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument @'
--NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\MY_APPS\dsi-360\infra\local\sauvegarde-db.ps1" -Destination "C:\MY_APPS\logs\DSI360\backups" -RetentionJours 30
+-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\MY_APPS\dsi-360\infra\local\serveur\sauvegarde-db.ps1" -Destination "C:\MY_APPS\logs\DSI360\backups" -RetentionJours 30
 '@
 $t = New-ScheduledTaskTrigger -Daily -At 2am
 Register-ScheduledTask -TaskName "DSI360-Sauvegarde" -Action $a -Trigger $t -RunLevel Highest -User "SYSTEM"
 ```
-> Restauration testée : `infra\local\restaurer-db.ps1 -Fichier <chemin\vers\.dump>`.
+> Restauration testée : `infra\local\serveur\restaurer-db.ps1 -Fichier <chemin\vers\.dump>`.
 > **Vérifier la restauration au moins une fois** — une sauvegarde jamais restaurée n'est pas une
 > sauvegarde. La cible doit être **hors git** et, idéalement, sur un volume sauvegardé/chiffré.
 
@@ -222,7 +222,7 @@ Attendu :
 
 Puis **dérouler le test d'intrusion** avant d'ouvrir aux utilisateurs :
 ```powershell
-infra\local\pentest.ps1 -Url https://<IP>:8453/api/v1 -SansVerifTls
+infra\local\outils\pentest.ps1 -Url https://<IP>:8453/api/v1 -SansVerifTls
 ```
 Attendu : `21 contrôles franchis, 0 faille(s)` (détail : [04-SECURITY.md](04-SECURITY.md) §6).
 
@@ -232,7 +232,7 @@ Attendu : `21 contrôles franchis, 0 faille(s)` (détail : [04-SECURITY.md](04-S
 
 ### En un clic (recommandé)
 
-Double-cliquer **`infra\local\maj-prod.bat`** (ou son raccourci sur le bureau du serveur). Il
+Double-cliquer **`METTRE-A-JOUR-DSI360.bat`** (ou son raccourci sur le bureau du serveur). Il
 demande l'élévation administrateur puis déroule, tout seul et dans l'ordre :
 
 1. **contrôle du dépôt** (refuse s'il y a des modifications locales — le code ne se modifie que par git) ;
@@ -243,19 +243,19 @@ demande l'élévation administrateur puis déroule, tout seul et dans l'ordre :
 6. **redémarrage de la tâche `DSI360`** (sans quoi l'ancien code et l'ancien certificat restent en mémoire) ;
 7. **contrôle de santé** (`/healthz` doit répondre 200).
 
-Le moteur est `infra\local\maj-prod.ps1` — le `.bat` n'est que l'enveloppe qui l'élève et l'exécute.
+Le moteur est `infra\local\exploitation\maj-prod.ps1` — le `.bat` n'est que l'enveloppe qui l'élève et l'exécute.
 En cas d'anomalie, le script s'arrête net sur l'étape fautive et l'affiche.
 
 > Démarrage/arrêt manuels du service : ils passent par la **tâche planifiée `DSI360`**
 > (`Start-ScheduledTask`/`Stop-ScheduledTask`, ou le Planificateur de tâches Windows). Le boot du
-> serveur la lance seule ; `maj-prod.bat` la redémarre après chaque mise à jour.
+> serveur la lance seule ; `METTRE-A-JOUR-DSI360.bat` la redémarre après chaque mise à jour.
 
 ### À la main (équivalent, si besoin)
 ```powershell
 cd C:\MY_APPS\dsi-360
 git pull --ff-only
 backend\.venv\Scripts\python.exe -m pip install -e ".\backend"   # si dépendances changées
-infra\local\front-build.ps1                                       # rebuild du front
+infra\local\exploitation\front-build.ps1                                       # rebuild du front
 Stop-ScheduledTask  -TaskName "DSI360"
 Start-ScheduledTask -TaskName "DSI360"
 ```
@@ -326,10 +326,10 @@ Remplacer `<IP>` et `<URL_DU_DEPOT>` par les valeurs réelles.
 1. **Contexte** : Windows, accès par **IP:8453** (pas de nom d'hôte), dossier `C:\MY_APPS\dsi-360`,
    port 8453 ouvert au pare-feu.
 2. **Code** : `git clone`/`git pull` dans `C:\MY_APPS\dsi-360`.
-3. **Base** : `provisionner-db.sql` (1re fois), puis `infra\local\migrer.ps1`.
+3. **Base** : `provisionner-db.sql` (1re fois), puis `infra\local\base\migrer.ps1`.
 4. **Backend** : venv + `pip install -e .\backend` ; `.env.example` → `.env`, y injecter un **secret
    fort**, `DSI360_ENVIRONNEMENT=prod`, la DSN, `DSI360_URL_APP=https://<IP>:8453`.
-5. **Frontend** : `infra\local\front-build.ps1`.
+5. **Frontend** : `infra\local\exploitation\front-build.ps1`.
 6. **Certificat** : générer SAN=IP + EKU serverAuth dans `cert\` (Git Bash, chemins **relatifs**),
    **vérifier `certutil -dump`**, puis importer dans `LocalMachine\Root` + `CurrentUser\Root`.
 7. **Tâche `DSI360`** : `installer-tache.bat` → `start-prod.sh` (HTTPS + bannière masquée + un seul process), au
