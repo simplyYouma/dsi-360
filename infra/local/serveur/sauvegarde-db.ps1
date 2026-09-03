@@ -3,10 +3,17 @@
 #
 #   infra\local\serveur\sauvegarde-db.ps1
 #   infra\local\serveur\sauvegarde-db.ps1 -Destination C:\MY_APPS\logs\DSI360\backups -RetentionJours 30
+#   infra\local\serveur\sauvegarde-db.ps1 -Copie \\nas-afg\dsi360\backups
 #
 # La cible (-Destination) doit être HORS git et, idéalement, sur un volume sauvegardé/chiffré.
+#
+# `-Copie` recopie la sauvegarde AILLEURS QUE SUR CETTE MACHINE. Sans elle, la sauvegarde vit sur
+# le même disque que la base qu'elle protège : le jour où ce disque lâche, on perd les deux d'un
+# coup, et trente jours de rétention n'auront servi à rien. Un échec de copie ne fait pas échouer
+# la sauvegarde — le dump local, lui, est bien écrit — mais il est signalé sans détour.
 param(
     [string]$Destination = '',
+    [string]$Copie = '',
     [int]$RetentionJours = 30,
     [string]$PgBin = ''
 )
@@ -59,11 +66,45 @@ try {
 $taille = [math]::Round((Get-Item $fichier).Length / 1MB, 1)
 Write-Host "Sauvegarde OK : $fichier ($taille Mo)" -ForegroundColor Green
 
-# Retention : purger les sauvegardes plus vieilles que -RetentionJours.
+# Une sauvegarde de taille nulle passerait le controle de pg_dump et ne se decouvrirait qu'au jour
+# de la restauration. On le dit tout de suite.
+if ((Get-Item $fichier).Length -lt 1024) {
+    throw "La sauvegarde fait moins de 1 Ko : elle est vide ou tronquee ($fichier)."
+}
+
+# --- Copie hors machine ------------------------------------------------------------------------
+$copieFaite = $null
+if ($Copie) {
+    try {
+        if (-not (Test-Path $Copie)) { New-Item -ItemType Directory -Force -Path $Copie | Out-Null }
+        $cible = Join-Path $Copie (Split-Path $fichier -Leaf)
+        Copy-Item $fichier $cible -Force
+        # Verifier la taille a l'arrivee : une copie interrompue sur un partage reseau laisse un
+        # fichier plus court, et personne ne s'en apercoit avant d'en avoir besoin.
+        $arrivee = (Get-Item $cible).Length
+        if ($arrivee -ne (Get-Item $fichier).Length) {
+            throw "copie incomplete ($arrivee octets recus)"
+        }
+        $copieFaite = $cible
+        Write-Host "Copie hors machine OK : $cible" -ForegroundColor Green
+    } catch {
+        # La sauvegarde locale existe : on ne fait pas echouer la tache, mais on ne masque rien.
+        Write-Host "ALERTE - copie hors machine impossible : $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  La sauvegarde locale ($fichier) est valide, mais elle reste sur le meme" -ForegroundColor Yellow
+        Write-Host "  disque que la base. Retablissez l'acces a $Copie." -ForegroundColor Yellow
+    }
+}
+
+# --- Retention ---------------------------------------------------------------------------------
+# Purger les sauvegardes plus vieilles que -RetentionJours, ici comme sur la copie.
 $limite = (Get-Date).AddDays(-$RetentionJours)
-$purges = Get-ChildItem $Destination -Filter 'dsi360_*.dump' |
-    Where-Object { $_.LastWriteTime -lt $limite }
-foreach ($p in $purges) {
-    Remove-Item $p.FullName -Force
-    Write-Host "  purge (> $RetentionJours j) : $($p.Name)" -ForegroundColor DarkGray
+$dossiers = @($Destination)
+if ($copieFaite) { $dossiers += $Copie }
+foreach ($dossier in $dossiers) {
+    $purges = Get-ChildItem $dossier -Filter 'dsi360_*.dump' -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -lt $limite }
+    foreach ($p in $purges) {
+        Remove-Item $p.FullName -Force
+        Write-Host "  purge (> $RetentionJours j) : $($p.FullName)" -ForegroundColor DarkGray
+    }
 }

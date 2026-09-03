@@ -194,17 +194,74 @@ Ce que fait `installer-tache.ps1`, et pourquoi :
 > Start-ScheduledTask -TaskName "DSI360"
 > ```
 
-### 3.8 Sauvegarde planifiée (tâche `DSI360-Sauvegarde`)
+### 3.8 Résilience : surveillance, sauvegarde, preuve de restauration
+
+**En une commande**, en administrateur :
+
 ```powershell
-$a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument @'
--NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\MY_APPS\dsi-360\infra\local\serveur\sauvegarde-db.ps1" -Destination "C:\MY_APPS\logs\DSI360\backups" -RetentionJours 30
-'@
-$t = New-ScheduledTaskTrigger -Daily -At 2am
-Register-ScheduledTask -TaskName "DSI360-Sauvegarde" -Action $a -Trigger $t -RunLevel Highest -User "SYSTEM"
+infra\local\serveur\installer-resilience.ps1 -Copie \\<partage>\dsi360 -Alerte <e-mail>
 ```
-> Restauration testée : `infra\local\serveur\restaurer-db.ps1 -Fichier <chemin\vers\.dump>`.
-> **Vérifier la restauration au moins une fois** — une sauvegarde jamais restaurée n'est pas une
-> sauvegarde. La cible doit être **hors git** et, idéalement, sur un volume sauvegardé/chiffré.
+
+Elle installe trois tâches, puis **une** opération manuelle reste à faire, en superuser `postgres` :
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\base\provisionner-db-verif.sql
+```
+
+| Tâche | Quand | Ce qu'elle fait |
+|---|---|---|
+| `DSI360-Surveillance` | toutes les 5 min | interroge `/healthz` et `/readyz`, relance le service, alerte |
+| `DSI360-Sauvegarde` | chaque jour 02:00 | `pg_dump`, copie hors machine, rétention |
+| `DSI360-VerifSauvegarde` | dimanche 03:00 | restaure la dernière sauvegarde et compte ce qui en sort |
+
+**Ce que la surveillance fait, et surtout ce qu'elle ne fait pas.** La tâche `DSI360` démarre au
+boot et Windows la relance trois fois en cas d'échec ; passé ces trois essais elle abandonne
+**jusqu'au prochain redémarrage de la machine**, sans prévenir personne — un incident de nuit se
+découvrait donc au matin, par un utilisateur. `surveiller.ps1` reprend la main :
+
+- `/healthz` muet → le processus est mort ou bloqué : **relance** de la tâche, puis contrôle que la
+  relance a servi à quelque chose. Annoncer « relancé » sans le vérifier n'est que se rassurer.
+- `/readyz` « degrade » → l'API vit, c'est **PostgreSQL** qui ne répond pas : **alerte sans
+  relancer**. Redémarrer l'API ne ramènerait pas la base et effacerait le diagnostic. Un creux court
+  (redémarrage du service, bascule de sauvegarde) est toléré 10 minutes avant de déranger quelqu'un.
+- **trois relances en une heure** → on cesse de relancer et on alerte. Une panne qui revient toutes
+  les cinq minutes n'est pas un incident passager ; la relancer en boucle efface les traces.
+
+L'alerte part toujours dans le **journal d'événements Windows** (source `DSI 360`, ID 1360) : c'est
+le seul canal qui ne dépend d'aucune configuration. L'e-mail n'arrive que si un relais SMTP *et* un
+destinataire sont renseignés.
+
+**La copie hors machine n'est pas une option.** Sans `-Copie`, la sauvegarde vit sur le disque de la
+base qu'elle protège : le jour où ce disque lâche, on perd les deux ensemble et trente jours de
+rétention n'auront servi à rien. Un échec de copie ne fait pas échouer la sauvegarde — le dump
+local est bien écrit — mais il est signalé sans détour.
+
+**Une sauvegarde jamais restaurée n'est pas une sauvegarde**, c'est un fichier dont on espère
+quelque chose. `pg_dump` peut réussir tous les jours et produire un dump inexploitable (version de
+PostgreSQL incompatible, écriture tronquée, disque plein en fin de course) — on ne le découvre alors
+que le jour de l'incident. `verifier-restauration.ps1` restaure pour de vrai la dernière sauvegarde
+dans la base jetable `dsi360_verif`, compte les tables, les comptes et les activités, puis la vide.
+Il éprouve la **copie hors machine** quand elle existe : c'est celle dont on se servira réellement.
+La base de production n'est ni lue ni touchée, et le compte applicatif garde ses privilèges limités
+— c'est le superuser qui crée `dsi360_verif`, une fois, et le rôle n'en est que propriétaire.
+
+Contrôles utiles :
+
+```powershell
+Get-ScheduledTaskInfo -TaskName DSI360-Surveillance         # dernier passage, dernier code
+Start-ScheduledTask   -TaskName DSI360-VerifSauvegarde      # forcer une preuve maintenant
+Get-EventLog -LogName Application -Source 'DSI 360' -Newest 10
+infra\local\serveur\surveiller.ps1 -Simuler                 # diagnostiquer sans rien relancer
+```
+
+> Restauration réelle vers la production : `infra\local\serveur\restaurer-db.ps1 -Fichier <chemin\vers\.dump>`.
+> La cible des sauvegardes doit être **hors git** et, idéalement, sur un volume sauvegardé/chiffré.
+
+**Ce que tout cela ne couvre pas.** Un serveur unique, joint par son adresse IP, reste un point de
+défaillance unique : si la machine tombe, DSI 360 tombe avec elle, et aucune surveillance n'y peut
+rien. Y remédier demande deux décisions d'infrastructure, hors du code : un **nom DNS** au lieu de
+`10.20.10.145` — sans lui, aucune bascule n'est possible, l'adresse étant écrite dans les favoris
+de chacun — puis un **second serveur** pour une vraie reprise.
 
 ### 3.9 Vérifier le déploiement
 ```powershell

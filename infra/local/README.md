@@ -20,7 +20,7 @@ Le reste vit ici, rangé par métier — plus par ordre alphabétique d'un dossi
 | Dossier | Ce qu'on y met |
 |---|---|
 | `exploitation/` | faire tourner l'application : `demarrer-dev.ps1`, `arreter-dev.ps1`, `maj-prod.ps1`, `api.ps1`, `front-build.ps1` |
-| `serveur/` | ce qui n'existe qu'en production : `start-prod.sh`, `installer-tache.*`, `sauvegarde-db.ps1`, `restaurer-db.ps1` |
+| `serveur/` | ce qui n'existe qu'en production : `start-prod.sh`, `installer-tache.*`, `installer-resilience.ps1`, `surveiller.ps1`, `sauvegarde-db.ps1`, `verifier-restauration.ps1`, `restaurer-db.ps1` |
 | `base/` | la base de données : `provisionner-db*.sql`, `migrer.ps1`, `donnees-demo.ps1`, `promouvoir-admin.ps1` |
 | `outils/` | l'outillage ponctuel : `pentest.ps1` |
 | `lib/` | le socle commun des scripts PowerShell (`DSI360.Common.ps1`) |

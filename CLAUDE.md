@@ -103,6 +103,17 @@ Neuf modules, livrés par phases (cf. §7) :
   département proposent une **liste déroulante ouverte**, remplie des valeurs *actives* du
   référentiel au moment du téléchargement : elle oriente la saisie vers un nom unique par site sans
   interdire d'en taper un nouveau, qui sera créé à l'import.
+- **Une panne doit se voir, et une sauvegarde doit se prouver.** La tâche du service abandonne
+  après trois relances Windows, définitivement et sans prévenir : `DSI360-Surveillance` reprend la
+  main toutes les 5 min. Elle **relance** quand `/healthz` est muet (le processus est mort), mais
+  **alerte sans relancer** quand `/readyz` est « degrade » (c'est PostgreSQL qui manque — redémarrer
+  l'API ne le ramènerait pas et effacerait le diagnostic), et **cesse de relancer** après trois
+  essais en une heure : une panne qui revient toutes les cinq minutes n'est pas passagère. L'alerte
+  passe toujours par le journal d'événements Windows, seul canal sans configuration. Symétriquement,
+  une sauvegarde qui reste sur le disque de la base qu'elle protège ne protège rien (`-Copie` hors
+  machine), et une sauvegarde jamais restaurée n'est pas une sauvegarde : `DSI360-VerifSauvegarde`
+  la restaure chaque semaine dans une base jetable et compte ce qui en sort. Détail :
+  [`docs/06-DEPLOIEMENT.md`](docs/06-DEPLOIEMENT.md) §3.8.
 - **Un indicateur sans donnée n'affiche pas un chiffre.** Le respect du SLA vaut `null` — rendu
   « — » à l'écran — quand aucune population n'est mesurable. Afficher « 100 % » sur un tableau
   vide annoncerait une performance parfaite là où l'on n'a rien mesuré.
