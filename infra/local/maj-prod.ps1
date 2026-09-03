@@ -147,6 +147,20 @@ try {
     $versionApres = (& git rev-parse --short HEAD).Trim()
     Write-Dsi360Info "Version deployee : $versionApres"
 
+    $fichiersChanges = @(& git diff --name-only "$versionAvant..$versionApres")
+
+    # Ce script est charge en memoire au lancement : s'il vient lui-meme d'etre mis a jour, c'est
+    # l'ANCIENNE version qui finit le travail. Le dire clairement evite de chercher pourquoi un
+    # correctif d'exploitation ne semble pas s'appliquer (cas du 03/09/2026, ou l'ancien helper
+    # prenait le bavardage normal de « git fetch » sur stderr pour un echec).
+    $lanceursChanges = @($fichiersChanges | Where-Object { $_ -match '^infra/local/' })
+    $noteLanceurs = @()
+    if ($lanceursChanges.Count -gt 0) {
+        Write-Dsi360Alerte 'Les scripts d''exploitation ont change dans cette mise a jour.'
+        Write-Dsi360Info 'La version en cours d''execution reste l''ancienne : relancez ce script pour en profiter.'
+        $noteLanceurs = @('', 'Scripts d''exploitation mis a jour - relancez maj-prod pour utiliser la nouvelle version.')
+    }
+
     # === 5. Dependances =======================================================================
     Write-Dsi360Etape 'Dependances du backend'
     # L'installation est « editable » : le code source est lu en place, une modification de .py
@@ -154,7 +168,6 @@ try {
     # qu'a exiger un acces sortant vers PyPI — et c'est exactement ce qui a fait echouer la mise
     # a jour du 02/09/2026, alors qu'aucune dependance n'avait bouge. On ne reinstalle donc que si
     # la DECLARATION des dependances a change, ou si le paquet n'est pas importable.
-    $fichiersChanges = @(& git diff --name-only "$versionAvant..$versionApres")
     $declarationChangee = @(
         $fichiersChanges | Where-Object {
             $_ -match '^backend/(pyproject\.toml|requirements.*\.txt)$'
@@ -230,10 +243,10 @@ try {
 
     if (Test-Dsi360Http -Url $UrlSante -Secondes 40 -SansVerifierCertificat) {
         Write-Dsi360Ok "L'API repond sur $UrlSante"
-        Write-Dsi360Bilan -Titre 'DSI 360 est a jour et en ligne' -Lignes @(
+        Write-Dsi360Bilan -Titre 'DSI 360 est a jour et en ligne' -Lignes (@(
             "Version : $versionAvant -> $versionApres",
             "Sante   : $UrlSante"
-        )
+        ) + $noteLanceurs)
     } else {
         Write-Dsi360Echec "L'API ne repond pas apres 40 s."
         Write-Dsi360Bilan -Titre 'Deploye, mais le service ne repond pas' -Couleur 'Red' -Lignes @(
