@@ -8,7 +8,7 @@ d'accès RBAC, le module domaine et l'URL.
 import json
 import math
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -364,13 +364,16 @@ def _ligne_journal(e: dict[str, Any], noms: dict[str, str], reference: str) -> d
 
 
 async def rendre_journal(
-    session: AsyncSession, module: str, reference: str
+    session: AsyncSession, module: str, reference: str,
+    antecedents: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Journal complet d'un dossier, rendu lisible (statuts, acteurs, liens, pièces jointes…).
 
     Public : partagé avec le module risques, qui a son propre routeur mais la même fiche à l'écran.
+    `antecedents` : identités précédentes d'un ticket requalifié — sans elles, tout ce qui s'est
+    passé avant le changement de module disparaîtrait de la fiche.
     """
-    entrees = await audit.journal_complet(session, module, reference)
+    entrees = await audit.journal_complet(session, module, reference, antecedents=antecedents)
     noms = await _noms_pour(session, _collecter_uuids(entrees))
     return [_ligne_journal(e, noms, reference) for e in entrees]
 
@@ -831,10 +834,15 @@ def creer_routeur(
         r: RowMapping, session: AsyncSession, courant: dict[str, Any]
     ) -> dict[str, Any]:
         base = _detail(module, r, datetime.now(UTC), import_uniquement)
-        base["historique"] = await audit.historique_statuts(session, module, r["reference"])
+        # Un ticket requalifie (incident -> demande) a ete journalise sous son ancienne
+        # reference : sans ses antecedents, sa fiche perdrait tout ce qui precede le changement.
+        anterieurs = r["antecedents"] if "antecedents" in r.keys() else None
+        base["historique"] = await audit.historique_statuts(
+            session, module, r["reference"], antecedents=anterieurs
+        )
         base["retard_final_jours"] = _retard_final(r, base["historique"])
         # Le journal complet du dossier : gestionnaire, valideurs, contributeurs, dates… en clair.
-        base["journal"] = await rendre_journal(session, module, r["reference"])
+        base["journal"] = await rendre_journal(session, module, r["reference"], anterieurs)
         if module in ("incident", "demande"):
             # Fraîcheur du miroir (ADR-0005) : la date du dernier rapport quotidien chargé.
             base["synchronise_le"] = await session.scalar(

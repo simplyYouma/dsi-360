@@ -28,6 +28,22 @@ PREFIXE_REFERENCE: dict[str, str] = {
     "gouvernance": "GOV",
 }
 
+#: Modules alimentés par le rapport quotidien SysAid (ADR-0005), et **numérotés dans la même
+#: série** : le numéro d'un ticket ne change pas quand on le requalifie, seul son type change.
+#: C'est ce qui permet de reconnaître qu'un incident est devenu une demande — et l'inverse.
+MODULES_TICKETS: tuple[str, ...] = ("incident", "demande")
+
+
+def reference_ticket(module: str, source_id: str) -> str:
+    """Référence lisible d'un ticket importé : « INC-1234 », « DEM-1234 ».
+
+    Le numéro est celui de la source ; seul le préfixe suit le module. Une requalification change
+    donc la référence sans changer le ticket — d'où la mémoire des identités précédentes
+    (``core.activite.antecedents``).
+    """
+    return f"{PREFIXE_REFERENCE[module]}-{source_id}"
+
+
 # Chemin de la liste de chaque module dans l'application (cf. features/shell/navigation.ts).
 CHEMIN_MODULE: dict[str, str] = {
     "incident": "/incidents",

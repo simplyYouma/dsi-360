@@ -103,6 +103,19 @@ Neuf modules, livrés par phases (cf. §7) :
   département proposent une **liste déroulante ouverte**, remplie des valeurs *actives* du
   référentiel au moment du téléchargement : elle oriente la saisie vers un nom unique par site sans
   interdire d'en taper un nouveau, qui sera créé à l'import.
+- **Le numéro d'un ticket l'identifie, quel que soit son module.** SysAid numérote incidents et
+  demandes dans la **même série** : requalifier un ticket n'en change ni le numéro ni le contenu,
+  seul son type bascule. Notre unicité portant sur `(module, source_id)`, le ticket requalifié
+  entrait une seconde fois sous l'autre module — deux fiches pour une seule activité réelle,
+  l'ancienne figée pour toujours, la nouvelle sans commentaires ni historique, et les statistiques
+  comptant double. L'import **déplace** donc la fiche existante (`application/reclassement`) : elle
+  garde son identifiant, donc ses commentaires, ses pièces jointes et ses contributeurs ; seule sa
+  référence change (INC-1234 → DEM-1234). Quand un doublon existe déjà — le cas du parc déjà en
+  production — on rapatrie son contenu sur la fiche d'origine **avant** de le supprimer, jamais
+  l'inverse : la suppression est en cascade. La référence d'avant est mémorisée dans
+  `core.activite.antecedents`, car le journal est append-only : sans elle, la fiche paraîtrait née
+  le jour de sa requalification. Et quand deux fiches subsistent pour un numéro absent du rapport,
+  on les **compte** sans trancher — rien ne dit lequel des deux modules est le bon.
 - **Une panne doit se voir, et une sauvegarde doit se prouver.** La tâche du service abandonne
   après trois relances Windows, définitivement et sans prévenir : `DSI360-Surveillance` reprend la
   main toutes les 5 min. Elle **relance** quand `/healthz` est muet (le processus est mort), mais

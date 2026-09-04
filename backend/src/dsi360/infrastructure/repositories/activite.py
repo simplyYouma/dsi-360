@@ -83,7 +83,12 @@ async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
 async def par_id(
     session: AsyncSession, module: str, identifiant: str, *, moi: str | None = None
 ) -> RowMapping | None:
-    requete = text(f"SELECT {_LISTE_CHAMPS}, a.description {_BASE} AND a.id::text = :id")
+    # `antecedents` n'est lu QUE sur la fiche : la liste n'en a pas l'usage, et le trimballer sur
+    # des milliers de lignes coûterait pour rien. Il sert à retrouver, dans le journal append-only,
+    # ce qui a été écrit sous l'ancienne référence d'un ticket requalifié.
+    requete = text(
+        f"SELECT {_LISTE_CHAMPS}, a.description, a.antecedents {_BASE} AND a.id::text = :id"
+    )
     resultat = await session.execute(
         requete, {"module": module, "id": identifiant, "moi": moi}
     )

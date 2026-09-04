@@ -69,6 +69,20 @@
   border-radius: var(--radius-md);
 }
 
+/* Une requalification n'est pas une erreur : c'est un fait à connaître. Même forme que .erreur,
+   au ton de la réussite — la fiche a été déplacée correctement, rien n'a été perdu. */
+.info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--status-ok);
+  background: var(--status-ok-bg);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+}
+
 .tuiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

@@ -881,6 +881,14 @@ class RapportImport(BaseModel):
     crees: int
     mis_a_jour: int
     inchanges: int
+    #: Tickets que le rapport range désormais dans l'autre module : la fiche a été DÉPLACÉE, avec
+    #: ses commentaires et ses pièces jointes, au lieu d'être dupliquée.
+    reclasses: int = 0
+    #: Doublons hérités des imports précédents, absorbés par la fiche d'origine puis supprimés.
+    doublons_fusionnes: int = 0
+    #: Numéros de ticket encore portés par deux fiches : le rapport ne les contenait pas, donc rien
+    #: ne dit lequel des deux modules est le bon. On les compte plutôt que de trancher au hasard.
+    doublons_restants: int = 0
     demandeurs_crees: int
     gestionnaires_crees: int
     #: Libellés de statut que la table de correspondance ignore : repliés sur « ouvert »,

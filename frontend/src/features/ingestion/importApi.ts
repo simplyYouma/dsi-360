@@ -7,6 +7,13 @@ export interface RapportImport {
   crees: number;
   mis_a_jour: number;
   inchanges: number;
+  /** Tickets que le rapport range désormais dans l'autre module : la fiche a été DÉPLACÉE, avec
+   *  ses commentaires et ses pièces jointes, au lieu d'être dupliquée. */
+  reclasses: number;
+  /** Doublons hérités des imports précédents, absorbés par la fiche d'origine puis supprimés. */
+  doublons_fusionnes: number;
+  /** Numéros encore portés par deux fiches : absents du rapport, donc impossibles à départager. */
+  doublons_restants: number;
   demandeurs_crees: number;
   gestionnaires_crees: number;
   /** Libellés de statut que le serveur ne connaît pas : repliés sur « en cours », mais dits. */

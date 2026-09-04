@@ -13,7 +13,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.domain.activite import PREFIXE_REFERENCE
+from dsi360.application import reclassement
+from dsi360.domain.activite import reference_ticket
 from dsi360.domain.sla import CiblesSla, echeances
 from dsi360.domain.texte import nom_propre, nom_significatif, phrase_propre
 from dsi360.infrastructure import audit
@@ -148,6 +149,20 @@ async def _statuts_avant(session: AsyncSession) -> dict[tuple[str, str], str]:
     return {(module, source_id): statut for module, source_id, statut in lignes}
 
 
+# Deux fiches pour un meme numero de ticket : le rapport ne les a pas departagees, faute d'y
+# figurer encore (ticket supprime a la source). On ne devine pas lequel des deux modules est le
+# bon — on le COMPTE et on le dit, plutot que de trancher a la place de la DSI.
+_DOUBLONS_RESTANTS = text(
+    "SELECT count(*) FROM (SELECT source_id FROM core.activite "
+    "                      WHERE source = 'IMPORT_SD' AND source_id IS NOT NULL "
+    "                      GROUP BY source_id HAVING count(DISTINCT module) > 1) d"
+)
+
+
+async def _doublons_restants(session: AsyncSession) -> int:
+    return int(await session.scalar(_DOUBLONS_RESTANTS) or 0)
+
+
 def _echeances_sla(
     matrice: dict[int, CiblesSla], priorite: int | None, cree_le: datetime | None
 ) -> tuple[datetime | None, datetime | None]:
@@ -174,8 +189,12 @@ async def importer_tickets(
     cache_dem: dict[str, str] = {}
     cache_cat: dict[str, str] = {}
     statuts_avant = await _statuts_avant(session)
+    # Les tickets deja connus, indexes par NUMERO et non par (module, numero) : c'est ce qui permet
+    # de reconnaitre qu'un incident est devenu une demande. Lu une fois, avant la boucle.
+    tickets_connus = await reclassement.index_tickets(session)
 
     crees = maj = inchanges = 0
+    reclasses = doublons_fusionnes = 0
     par_module = {"incident": 0, "demande": 0}
     # Libellés de statut que la table ne connaît pas : repliés sur « ouvert », mais SIGNALÉS —
     # c'est la cause silencieuse de tickets clos à la source restés « en cours » chez nous.
@@ -190,7 +209,38 @@ async def importer_tickets(
         responsable_id = _gestionnaire_id(cache_gest, gest)
         if t["statut_inconnu"]:
             statuts_inconnus.add(t["statut_inconnu"])
-        reference = f"{PREFIXE_REFERENCE[t['module']]}-{t['source_id']}"
+        reference = reference_ticket(t["module"], t["source_id"])
+
+        # Requalification : le rapport range aujourd'hui sous un autre module un ticket que nous
+        # connaissons deja — ou bien deux fiches trainent pour un seul numero, heritage des imports
+        # d'avant ce correctif. On DEPLACE la fiche d'origine, qui garde ses commentaires, ses
+        # pieces jointes et son historique, et l'on absorbe les fiches en trop. Doit passer AVANT
+        # l'upsert : celui-ci reconnait la fiche sur (module, source_id), donc une fois deplacee.
+        fiches = tickets_connus.get(t["source_id"], [])
+        if len(fiches) > 1 or (fiches and fiches[0]["module"] != t["module"]):
+            conservee = fiches[0]  # la plus ancienne : index_tickets les trie
+            fait = await reclassement.requalifier(
+                session,
+                fiches=fiches,
+                module_cible=t["module"],
+                source_id=t["source_id"],
+                acteur=acteur,
+            )
+            reclasses += fait.get("reclasses", 0)
+            doublons_fusionnes += fait.get("doublons_fusionnes", 0)
+            # Il ne reste qu'une fiche, sous le module cible. L'index et les statuts d'avant doivent
+            # le savoir : sinon le meme ticket serait retraite une seconde fois dans ce meme import
+            # (si le rapport portait deux lignes pour lui), et la transition journalisee comparerait
+            # le statut d'une fiche supprimee.
+            statut_conserve = statuts_avant.get((conservee["module"], t["source_id"]))
+            for f in fiches:
+                statuts_avant.pop((f["module"], t["source_id"]), None)
+            if statut_conserve is not None:
+                statuts_avant[(t["module"], t["source_id"])] = statut_conserve
+            tickets_connus[t["source_id"]] = [
+                {**conservee, "module": t["module"], "reference": reference}
+            ]
+
         statut_avant = statuts_avant.get((t["module"], t["source_id"]))
 
         donnees = {
@@ -283,6 +333,8 @@ async def importer_tickets(
             "crees": crees,
             "mis_a_jour": maj,
             "inchanges": inchanges,
+            "reclasses": reclasses,
+            "doublons_fusionnes": doublons_fusionnes,
             "demandeurs_crees": demandeurs_crees,
             "gestionnaires_crees": gestionnaires_crees,
             "statuts_inconnus": len(statuts_inconnus),
@@ -297,6 +349,9 @@ async def importer_tickets(
         "crees": crees,
         "mis_a_jour": maj,
         "inchanges": inchanges,
+        "reclasses": reclasses,
+        "doublons_fusionnes": doublons_fusionnes,
+        "doublons_restants": await _doublons_restants(session),
         "demandeurs_crees": demandeurs_crees,
         "gestionnaires_crees": gestionnaires_crees,
         "statuts_non_reconnus": sorted(statuts_inconnus),

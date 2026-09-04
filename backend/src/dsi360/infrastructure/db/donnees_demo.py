@@ -1103,6 +1103,12 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
         await _journal_equipements(conn)
         directions = [r["code"] for r in await conn.fetch("SELECT code FROM core.direction")]
 
+        # Numero de ticket, commun aux incidents ET aux demandes : la source les numerote dans une
+        # seule serie, et c'est ce qui permet de reconnaitre un ticket requalifie. Un compteur par
+        # module donnerait le meme numero a un incident et a une demande — le jeu de demonstration
+        # mentirait sur la regle que le code applique.
+        numero_ticket = 0
+
         for module, titres in TITRES.items():
             prefixe = PREFIXE_REFERENCE[module]
             cats = await _categories(conn, module)
@@ -1163,7 +1169,8 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                 # rapport n'est personne chez nous (ADR-0005).
                 if module in MODULES_IMPORTES:
                     source = "IMPORT_SD"
-                    source_id = f"{seq:06d}"
+                    numero_ticket += 1
+                    source_id = f"{numero_ticket:06d}"
                     cibles = matrice.get(priorite or 3, CiblesSla(30, 480))
                     ttr = int(cibles.resolution_minutes * random.choice([0.4, 0.7, 0.9, 1.3, 1.8]))
                     trep = int(

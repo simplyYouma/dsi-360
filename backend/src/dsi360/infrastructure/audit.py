@@ -7,6 +7,7 @@ détectable. L'e-mail de l'acteur est figé à l'écriture (il survit à la supp
 import contextvars
 import hashlib
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -29,13 +30,47 @@ _DERNIER = text("SELECT hash_courant FROM audit.journal ORDER BY id DESC LIMIT 1
 # Verrou de sérialisation de l'écriture du journal (clé arbitraire, propre à ce verrou).
 _VERROU_CHAINE = text("SELECT pg_advisory_xact_lock(872361)")
 
-_HISTORIQUE = text(
-    "SELECT nouvelle_valeur->>'statut' AS statut, horodatage, acteur_email "
-    "FROM audit.journal "
-    "WHERE module = :module AND cible_id = :reference "
-    "AND action IN ('CREATION', 'TRANSITION') AND nouvelle_valeur->>'statut' IS NOT NULL "
-    "ORDER BY id"
-)
+# Le journal est append-only : quand un ticket est requalifie (incident -> demande), ses ecritures
+# d'avant gardent l'ancien module et l'ancienne reference. Interroger la seule identite courante
+# ferait repartir l'historique de la fiche a zero — une perte silencieuse. On interroge donc
+# l'identite courante ET toutes les precedentes, que la fiche memorise (`antecedents`).
+def _identites(
+    module: str, reference: str, antecedents: Sequence[Any] | None
+) -> list[dict[str, str]]:
+    """Identites successives du dossier, la courante d'abord : [{module, reference}, ...]."""
+    vues = {(module, reference)}
+    couples = [{"module": module, "reference": reference}]
+    for a in antecedents or []:
+        cle = (str(a.get("module", "")), str(a.get("reference", "")))
+        if all(cle) and cle not in vues:
+            vues.add(cle)
+            couples.append({"module": cle[0], "reference": cle[1]})
+    return couples
+
+
+def _ou_identites(couples: Sequence[dict[str, str]]) -> tuple[str, dict[str, str]]:
+    """Clause SQL « (module, cible_id) parmi ces couples », et ses parametres nommes."""
+    morceaux = []
+    parametres: dict[str, str] = {}
+    for i, c in enumerate(couples):
+        morceaux.append(f"(module = :module{i} AND cible_id = :reference{i})")
+        parametres[f"module{i}"] = c["module"]
+        parametres[f"reference{i}"] = c["reference"]
+    return "(" + " OR ".join(morceaux) + ")", parametres
+
+
+def _historique_sql(couples: Sequence[dict[str, str]]) -> tuple[Any, dict[str, str]]:
+    ou, parametres = _ou_identites(couples)
+    return (
+        text(
+            "SELECT nouvelle_valeur->>'statut' AS statut, horodatage, acteur_email "
+            "FROM audit.journal "
+            f"WHERE {ou} "
+            "AND action IN ('CREATION', 'TRANSITION') AND nouvelle_valeur->>'statut' IS NOT NULL "
+            "ORDER BY id"
+        ),
+        parametres,
+    )
 
 
 #: Horodatage de la DERNIÈRE transition de chaque dossier d'un module, en une seule requête.
@@ -61,10 +96,16 @@ async def dernieres_transitions(session: AsyncSession, module: str) -> dict[str,
 
 
 async def historique_statuts(
-    session: AsyncSession, module: str, reference: str
+    session: AsyncSession, module: str, reference: str,
+    antecedents: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Parcours réel des statuts d'une activité, reconstitué depuis le journal d'audit."""
-    resultat = await session.execute(_HISTORIQUE, {"module": module, "reference": reference})
+    """Parcours réel des statuts d'une activité, reconstitué depuis le journal d'audit.
+
+    `antecedents` : identités précédentes après requalification — sans elles, l'historique d'un
+    ticket passé d'incident à demande commencerait au jour du changement.
+    """
+    requete, parametres = _historique_sql(_identites(module, reference, antecedents))
+    resultat = await session.execute(requete, parametres)
     return [
         {"statut": r["statut"], "horodatage": r["horodatage"], "acteur": r["acteur_email"]}
         for r in resultat.mappings().all()
@@ -78,24 +119,39 @@ async def historique_statuts(
 # Liens et documents sont journalisés sous leur propre `cible_type` ('lien', 'document') — sinon
 # ils n'apparaissaient pas dans l'historique. Leur `cible_id` est la référence du dossier, ou
 # « référence/nom-du-fichier » pour un document : on accepte donc l'égalité ET le préfixe.
-_JOURNAL_COMPLET = text(
-    "SELECT action, horodatage, acteur_email AS acteur, cible_type, cible_id, "
-    "ancienne_valeur AS anciennes, nouvelle_valeur AS nouvelles "
-    "FROM audit.journal "
-    "WHERE module = :module AND cible_type IN (:module, 'lien', 'document') "
-    "  AND (cible_id = :reference OR cible_id LIKE :prefixe) "
-    "ORDER BY id DESC LIMIT :limite"
-)
+def _journal_complet_sql(couples: Sequence[dict[str, str]]) -> tuple[Any, dict[str, str]]:
+    morceaux = []
+    parametres: dict[str, str] = {}
+    for i, c in enumerate(couples):
+        morceaux.append(
+            f"(module = :module{i} AND cible_type IN (:module{i}, 'lien', 'document') "
+            f" AND (cible_id = :reference{i} OR cible_id LIKE :prefixe{i}))"
+        )
+        parametres[f"module{i}"] = c["module"]
+        parametres[f"reference{i}"] = c["reference"]
+        parametres[f"prefixe{i}"] = f"{c['reference']}/%"
+    return (
+        text(
+            "SELECT action, horodatage, acteur_email AS acteur, cible_type, cible_id, "
+            "ancienne_valeur AS anciennes, nouvelle_valeur AS nouvelles "
+            "FROM audit.journal "
+            f"WHERE ({' OR '.join(morceaux)}) "
+            "ORDER BY id DESC LIMIT :limite"
+        ),
+        parametres,
+    )
 
 
 async def journal_complet(
-    session: AsyncSession, module: str, reference: str, limite: int = 25
+    session: AsyncSession, module: str, reference: str, limite: int = 25,
+    antecedents: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Dernières écritures du journal sur ce dossier, brutes — l'appelant les rend lisibles."""
-    resultat = await session.execute(
-        _JOURNAL_COMPLET,
-        {"module": module, "reference": reference, "prefixe": f"{reference}/%", "limite": limite},
-    )
+    """Dernières écritures du journal sur ce dossier, brutes — l'appelant les rend lisibles.
+
+    `antecedents` : identités précédentes après requalification (cf. `historique_statuts`).
+    """
+    requete, parametres = _journal_complet_sql(_identites(module, reference, antecedents))
+    resultat = await session.execute(requete, {**parametres, "limite": limite})
     return [dict(r) for r in resultat.mappings().all()]
 
 def _serialiser(valeurs: dict[str, Any] | None) -> str | None:

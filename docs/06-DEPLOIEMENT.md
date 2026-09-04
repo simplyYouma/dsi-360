@@ -336,6 +336,23 @@ Start-ScheduledTask -TaskName "DSI360"
 | 8 | Deux backends se battent pour 8453 | Ancien process encore vivant | `start-prod.sh` refuse de démarrer ; libérer le port (ci-dessous) puis relancer. |
 | 9 | 503 aux requêtes après un plantage Postgres | Base momentanément absente | **Normal et voulu** : l'app rend un 503 propre et se rétablit seule dès que la base revient (`pool_pre_ping`). Aucune action. |
 
+| 10 | Une même activité apparaît **deux fois**, en incident *et* en demande | Le ticket a été requalifié à la source ; l'unicité portait sur (module, numéro) | Corrigé : l'import **déplace** désormais la fiche au lieu de la dupliquer, et absorbe les doublons hérités. Voir ci-dessous. |
+
+**Doublons de requalification — état des lieux avant import** :
+```sql
+SELECT source_id, string_agg(reference, ' / ' ORDER BY module) AS fiches
+FROM core.activite
+WHERE source = 'IMPORT_SD' AND source_id IS NOT NULL
+GROUP BY source_id HAVING count(DISTINCT module) > 1
+ORDER BY source_id;
+```
+Chaque numéro listé est **une seule** activité réelle portée par deux fiches. Le prochain import
+les fusionne : la fiche d'origine est conservée (avec ses commentaires et ses pièces jointes),
+celle créée en double est absorbée puis supprimée, et le compte-rendu à l'écran annonce
+« Requalifiés » et « Doublons fusionnés ». Ceux qui subsistent après l'import sont ceux que le
+rapport ne contenait pas : rien ne dit lequel des deux modules est le bon, il faut trancher à la
+source puis relancer un import.
+
 **Libérer le port 8453** :
 ```powershell
 Get-NetTCPConnection -State Listen -LocalPort 8453 -ErrorAction SilentlyContinue |

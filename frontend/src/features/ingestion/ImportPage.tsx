@@ -24,6 +24,8 @@ const LIBELLE_DETAIL: Record<string, string> = {
   demandeurs_crees: 'demandeurs créés',
   constats_enregistres: 'constats de campagne',
   statuts_inconnus: 'statuts non reconnus',
+  reclasses: 'requalifiés',
+  doublons_fusionnes: 'doublons fusionnés',
   incidents: 'incidents',
   demandes: 'demandes',
   lus: 'lus',
@@ -47,12 +49,25 @@ function importFrais(iso: string): boolean {
 /** Tuiles de compte-rendu selon la nature reconnue par le serveur. */
 function tuilesDe(r: RapportFichier): { libelle: string; valeur: number; couleur: string }[] {
   if (r.nature === 'tickets') {
-    return [
+    const tuilesTickets = [
       { libelle: 'Tickets traités', valeur: r.total, couleur: '#4f6bed' },
       { libelle: 'Créés', valeur: r.crees, couleur: '#1f9d55' },
       { libelle: 'Mis à jour', valeur: r.mis_a_jour, couleur: '#c77700' },
       { libelle: 'Inchangés', valeur: r.inchanges, couleur: '#8a93a6' },
     ];
+    // Une requalification n'a rien d'anodin : une activité a changé de module. On ne montre la
+    // tuile que lorsqu'il s'en est produit — une ligne « 0 » ne dit rien à personne.
+    if (r.reclasses > 0) {
+      tuilesTickets.push({ libelle: 'Requalifiés', valeur: r.reclasses, couleur: '#7a5af8' });
+    }
+    if (r.doublons_fusionnes > 0) {
+      tuilesTickets.push({
+        libelle: 'Doublons fusionnés',
+        valeur: r.doublons_fusionnes,
+        couleur: '#7a5af8',
+      });
+    }
+    return tuilesTickets;
   }
   const tuiles = [
     { libelle: 'Équipements lus', valeur: r.total, couleur: '#4f6bed' },
@@ -253,6 +268,32 @@ export function ImportPage(): JSX.Element {
             </div>
             {/* Un libellé de statut hors table serait resté « en cours » en silence : on le dit,
                 pour qu'il soit ajouté à la correspondance. */}
+            {/* Un ticket requalifié à la source change de module chez nous : la fiche est
+                déplacée, jamais dupliquée. On le dit — c'est une activité qui a changé de liste. */}
+            {rapport.nature === 'tickets' && rapport.reclasses > 0 && (
+              <p className={styles.info}>
+                <CheckCircle2 size={15} />
+                {rapport.reclasses === 1
+                  ? '1 ticket a changé de module à la source : sa fiche a été déplacée'
+                  : `${rapport.reclasses} tickets ont changé de module à la source : leurs fiches ont été déplacées`}
+                {rapport.doublons_fusionnes > 0 &&
+                  `, dont ${rapport.doublons_fusionnes} qui existai${
+                    rapport.doublons_fusionnes === 1 ? 't' : 'ent'
+                  } en double depuis un import précédent`}
+                . Commentaires, pièces jointes et historique ont suivi.
+              </p>
+            )}
+            {/* Deux fiches pour un même numéro, et le rapport ne les contient plus : rien ne dit
+                lequel des deux modules est le bon. On le signale plutôt que de trancher au hasard. */}
+            {rapport.nature === 'tickets' && rapport.doublons_restants > 0 && (
+              <p className={styles.erreur}>
+                <AlertTriangle size={15} />
+                {rapport.doublons_restants} numéro
+                {rapport.doublons_restants > 1 ? 's' : ''} de ticket {rapport.doublons_restants > 1 ? 'sont portés' : 'est porté'}{' '}
+                par deux fiches que ce rapport ne contenait pas : impossible de savoir lequel des
+                deux modules est le bon. À trancher à la source, puis relancer un import.
+              </p>
+            )}
             {rapport.nature === 'tickets' && rapport.statuts_non_reconnus.length > 0 && (
               <p className={styles.erreur}>
                 <AlertTriangle size={15} />
