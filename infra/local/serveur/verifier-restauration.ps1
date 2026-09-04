@@ -130,10 +130,12 @@ try {
     if ("$existe".Trim() -ne '1') {
         Write-Dsi360Echec "La base de verification '$BaseTest' n'existe pas."
         Write-Dsi360Cadre -Titre 'Que faire' -Couleur 'Yellow' -Lignes @(
-            'A creer une seule fois, en superuser postgres :',
+            'A creer une seule fois, en superuser postgres. Le numero de version de',
+            'PostgreSQL varie d''un serveur a l''autre : on le laisse chercher.',
             '',
-            '   & "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres \',
-            '       -f infra\local\base\provisionner-db-verif.sql',
+            '   $psql = (Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" |',
+            '            Sort-Object FullName -Descending | Select-Object -First 1).FullName',
+            '   & $psql -U postgres -f infra\local\base\provisionner-db-verif.sql',
             '',
             'Le compte applicatif en sera proprietaire, sans gagner le moindre privilege.'
         )

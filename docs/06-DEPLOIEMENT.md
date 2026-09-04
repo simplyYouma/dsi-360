@@ -68,7 +68,8 @@ La règle d'or : **chaque projet ne touche que lui-même.**
 ## 2. Prérequis (une fois par serveur)
 
 1. **PostgreSQL 16+** installé (service Windows), client `psql`/`pg_dump` disponibles
-   (`C:\Program Files\PostgreSQL\17\bin`).
+   (`C:\Program Files\PostgreSQL\<version>\bin` — **le numero de version varie**
+   d'un serveur a l'autre, ne le recopiez pas au hasard).
 2. **Python 3.12+** et **Node 20+** installés.
 3. **Git** installé (avec Git Bash pour la génération du certificat).
 4. **Port 8453 ouvert au pare-feu** (demander à l'admin — une seule fois).
@@ -89,7 +90,9 @@ cd C:\MY_APPS\dsi-360
 ```powershell
 # Rôle applicatif + base (en superuser postgres). Le script porte le mot de passe applicatif :
 # il est gitignore — le renseigner sur le serveur.
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\base\provisionner-db.sql
+$psql = (Get-ChildItem 'C:\Program Files\PostgreSQL\*\bin\psql.exe' |
+         Sort-Object FullName -Descending | Select-Object -First 1).FullName
+& $psql -U postgres -f infra\local\base\provisionner-db.sql
 ```
 
 ### 3.3 Backend : venv, secrets, migrations
@@ -205,7 +208,9 @@ infra\local\serveur\installer-resilience.ps1 -Copie \\<partage>\dsi360 -Alerte <
 Elle installe trois tâches, puis **une** opération manuelle reste à faire, en superuser `postgres` :
 
 ```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\base\provisionner-db-verif.sql
+$psql = (Get-ChildItem 'C:\Program Files\PostgreSQL\*\bin\psql.exe' |
+         Sort-Object FullName -Descending | Select-Object -First 1).FullName
+& $psql -U postgres -f infra\local\base\provisionner-db-verif.sql
 ```
 
 | Tâche | Quand | Ce qu'elle fait |

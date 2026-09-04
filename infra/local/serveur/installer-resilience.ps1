@@ -140,7 +140,9 @@ try {
         $lignes += @(
             'Reste a faire UNE fois, en superuser postgres, sans quoi la preuve de',
             'restauration echouera faute de base ou la travailler :',
-            '   psql -U postgres -f infra\local\base\provisionner-db-verif.sql',
+            '   $psql = (Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" |',
+            '            Sort-Object FullName -Descending | Select-Object -First 1).FullName',
+            '   & $psql -U postgres -f infra\local\base\provisionner-db-verif.sql',
             ''
         )
     }

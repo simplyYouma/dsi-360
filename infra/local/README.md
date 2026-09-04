@@ -45,7 +45,9 @@ serveur, hors dépôt. Le déplacer priverait silencieusement la production de s
 
 1. **Provisionner la base** (en superuser postgres) :
    ```powershell
-   & "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\base\provisionner-db.sql
+   $psql = (Get-ChildItem 'C:\Program Files\PostgreSQL\*\bin\psql.exe' |
+         Sort-Object FullName -Descending | Select-Object -First 1).FullName
+& $psql -U postgres -f infra\local\base\provisionner-db.sql
    ```
    Crée le rôle applicatif `dsi360` (privilèges limités) et la base `dsi360`.
 
@@ -150,7 +152,9 @@ Les tests d'intégration tournent sur une base dédiée `dsi360_test`, jamais su
 développement. La créer une fois, en superuser :
 
 ```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -f infra\local\base\provisionner-db-test.sql
+$psql = (Get-ChildItem 'C:\Program Files\PostgreSQL\*\bin\psql.exe' |
+         Sort-Object FullName -Descending | Select-Object -First 1).FullName
+& $psql -U postgres -f infra\local\base\provisionner-db-test.sql
 ```
 
 Ensuite `pytest tests` s'en occupe seul : migrations, seed, puis chaque test dans une transaction
