@@ -653,7 +653,7 @@ _TYPES_MATERIEL: tuple[tuple[str, str, int, int, int, int, str], ...] = (
     ("Imprimante réseau", "HP LaserJet M507", 350_000, 800_000, 25, 4, "Imprimante"),
     ("Copieur multifonction", "Ricoh IM C3000", 1_800_000, 3_400_000, 20, 5, "Imprimante"),
     ("Scanner de production", "Kodak i3450", 1_200_000, 2_600_000, 25, 4, "Scanner"),
-    ("Vidéo projecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4, "Vidéo projecteur"),
+    ("Vidéoprojecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4, "Vidéoprojecteur"),
     ("Écran de salle", "Samsung QM65R", 900_000, 1_900_000, 25, 4, "Écran"),
 )
 
