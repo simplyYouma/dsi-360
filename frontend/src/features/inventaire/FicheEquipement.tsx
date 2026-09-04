@@ -27,6 +27,10 @@ import {
 
 interface Props {
   id: string | null;
+  /** Change à chaque écriture faite par la page (constat posé ou effacé) : la fiche se relit.
+   *  Sans ce signal, le clic sur un constat n'avait aucun effet visible tant qu'on n'avait pas
+   *  fermé puis rouvert la fiche — l'action semblait perdue. */
+  revision: number;
   types: ReferentielItem[];
   emplacements: ReferentielItem[];
   departements: ReferentielItem[];
@@ -90,6 +94,7 @@ function jour(iso: string | null): string {
  *  gauche, la discussion interne à droite. */
 export function FicheEquipement({
   id,
+  revision,
   types,
   emplacements,
   departements,
@@ -113,10 +118,16 @@ export function FicheEquipement({
     setDetail(await inventaireApi.detail(id));
   }, [id]);
 
+  // Vider le détail n'a de sens qu'en CHANGEANT de fiche : le faire à chaque rafraîchissement
+  // ferait clignoter le squelette sur place, à chaque clic.
   useEffect(() => {
     setDetail(null);
+  }, [id]);
+  // `revision` ne sert pas au calcul, elle en est le déclencheur : la page l'incrémente après
+  // avoir écrit à la place de la fiche (un constat), et la fiche se relit.
+  useEffect(() => {
     void charger();
-  }, [charger]);
+  }, [charger, revision]);
   useEffect(() => {
     void chargerAgents().then(setAgents);
   }, []);

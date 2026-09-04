@@ -5,6 +5,7 @@ import { BoutonsExport } from '@/common/BoutonsExport';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { chargerAgents, type Agent } from '@/common/agentsApi';
 import { useFicheUrl } from '@/common/useFicheUrl';
+import { ModaleConfirmation, type DemandeConfirmation } from '@/common/ModaleConfirmation';
 import { useAuth } from '@/lib/auth';
 import { ErreurApi, telecharger } from '@/lib/api';
 import styles from '@/features/incidents/IncidentsPage.module.css';
@@ -109,20 +110,54 @@ export function InventairePage(): JSX.Element {
   const [motif, setMotif] = useState<{ equipement: Equipement; etat: EtatConstat } | null>(null);
   const [texteMotif, setTexteMotif] = useState('');
   const [envoiConstat, setEnvoiConstat] = useState(false);
+  const [confirmation, setConfirmation] = useState<DemandeConfirmation | null>(null);
+  // Un constat se pose depuis la LISTE comme depuis la FICHE, mais c'est la page qui l'écrit :
+  // sans ce compteur, la fiche ouverte gardait à l'écran l'état d'avant, et il fallait la fermer
+  // et la rouvrir pour voir le résultat de son propre clic.
+  const [revision, setRevision] = useState(0);
+
+  /** Après une écriture faite par la LISTE : la liste et les compteurs suffisent. */
+  const rafraichirListe = (): void => {
+    void charger();
+    chargerStats();
+  };
+
+  /** Après une écriture que la page fait POUR la fiche (un constat) : elle doit se relire aussi.
+   *  La fiche, quand elle écrit elle-même, se met déjà à jour — inutile de la faire recharger. */
+  const rafraichirTout = (): void => {
+    rafraichirListe();
+    setRevision((r) => r + 1);
+  };
 
   const erreurConstat = (e: unknown, repli: string): void =>
     notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
 
-  const demanderConstat = async (equipement: Equipement, etat: EtatConstat): Promise<void> => {
-    // Recliquer le constat déjà posé l'efface : le matériel redevient « à contrôler ».
+  const demanderConstat = (equipement: Equipement, etat: EtatConstat): void => {
+    // Recliquer le constat déjà posé l'EFFACE. Ce n'est pas une observation de plus, c'est la
+    // suppression de ce que quelqu'un avait relevé sur le terrain, avec son motif et sa date :
+    // on ne l'exécute pas sur un clic qui peut être un faux mouvement.
     if (equipement.etat_constate === etat) {
-      try {
-        await inventaireApi.retirerConstat(equipement.id);
-        await charger();
-        chargerStats();
-      } catch (err) {
-        erreurConstat(err, 'Constat impossible.');
-      }
+      const libelle = CONSTATS.find((c) => c.etat === etat)?.libelle ?? etat;
+      setConfirmation({
+        titre: 'Effacer ce constat ?',
+        message: (
+          <>
+            Le constat « {libelle} » de <b>{equipement.designation}</b> sera retiré : le matériel
+            redeviendra « jamais contrôlé ». Le motif relevé sur le terrain sera perdu — le journal
+            de la fiche en gardera la trace.
+          </>
+        ),
+        libelleConfirmer: 'Effacer le constat',
+        variante: 'danger',
+        action: async () => {
+          try {
+            await inventaireApi.retirerConstat(equipement.id);
+            rafraichirTout();
+          } catch (err) {
+            erreurConstat(err, 'Constat impossible.');
+          }
+        },
+      });
       return;
     }
     setTexteMotif('');
@@ -135,8 +170,7 @@ export function InventairePage(): JSX.Element {
     try {
       await inventaireApi.constater(motif.equipement.id, motif.etat, texteMotif);
       setMotif(null);
-      await charger();
-      chargerStats();
+      rafraichirTout();
     } catch (err) {
       erreurConstat(err, 'Constat impossible.');
     } finally {
@@ -556,16 +590,14 @@ export function InventairePage(): JSX.Element {
 
       <FicheEquipement
         id={ficheId}
+        revision={revision}
         types={types}
         emplacements={emplacements}
         departements={departements}
         onFermer={() => setFicheId(null)}
-        onChange={() => {
-          void charger();
-          chargerStats();
-        }}
+        onChange={rafraichirListe}
         onReferentiels={chargerReferentiels}
-        onConstat={(equipement, etat) => void demanderConstat(equipement, etat)}
+        onConstat={demanderConstat}
       />
 
       <ModaleEquipement
@@ -579,8 +611,7 @@ export function InventairePage(): JSX.Element {
         onCree={(cree) => {
           setModale(false);
           notifier(`${cree.designation} ajouté au parc.`, 'succes');
-          void charger();
-          chargerStats();
+          rafraichirListe();
         }}
         onErreur={(e) =>
           notifier(e instanceof ErreurApi ? e.message : 'Création impossible.', 'erreur')
@@ -635,6 +666,7 @@ export function InventairePage(): JSX.Element {
         )}
       </Modale>
 
+      <ModaleConfirmation demande={confirmation} onFermer={() => setConfirmation(null)} />
     </div>
   );
 }
