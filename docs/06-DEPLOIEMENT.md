@@ -338,6 +338,8 @@ Start-ScheduledTask -TaskName "DSI360"
 
 | 10 | Une même activité apparaît **deux fois**, en incident *et* en demande | Le ticket a été requalifié à la source ; l'unicité portait sur (module, numéro) | Corrigé : l'import **déplace** désormais la fiche au lieu de la dupliquer, et absorbe les doublons hérités. Voir ci-dessous. |
 
+| 11 | Mise à jour réussie, mais l'API ne répond plus après le redémarrage | La tâche planifiée garde le chemin **absolu** du lanceur, figé à son installation : la mise à jour a déplacé `start-prod.sh` | Réinstaller la tâche : `infra\local\serveur\installer-tache.bat`. Le code est déjà en place, rien à reprendre côté dépôt. **Arrivé le 04/09/2026**, lors du rangement de `infra\local`. |
+
 **Doublons de requalification — état des lieux avant import** :
 ```sql
 SELECT source_id, string_agg(reference, ' / ' ORDER BY module) AS fiches
