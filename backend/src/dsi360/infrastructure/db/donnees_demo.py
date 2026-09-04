@@ -649,11 +649,11 @@ _TYPES_MATERIEL: tuple[tuple[str, str, int, int, int, int, str], ...] = (
     ("Borne Wi-Fi", "Ubiquiti UniFi U6", 180_000, 420_000, 25, 4, "Point d'accès Wi-Fi"),
     ("Poste de travail", "Dell Latitude 5540", 450_000, 950_000, 25, 4, "Ordinateur portable"),
     ("Poste de travail", "HP EliteBook 840", 500_000, 1_100_000, 25, 4, "Ordinateur portable"),
-    ("Poste fixe", "Lenovo ThinkCentre M70", 380_000, 760_000, 25, 4, "Ordinateur fixe"),
+    ("Poste fixe", "Lenovo ThinkCentre M70", 380_000, 760_000, 25, 4, "Ordinateur desktop"),
     ("Imprimante réseau", "HP LaserJet M507", 350_000, 800_000, 25, 4, "Imprimante"),
     ("Copieur multifonction", "Ricoh IM C3000", 1_800_000, 3_400_000, 20, 5, "Imprimante"),
     ("Scanner de production", "Kodak i3450", 1_200_000, 2_600_000, 25, 4, "Scanner"),
-    ("Vidéoprojecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4, "Vidéoprojecteur"),
+    ("Vidéo projecteur", "Epson EB-L200", 600_000, 1_300_000, 25, 4, "Vidéo projecteur"),
     ("Écran de salle", "Samsung QM65R", 900_000, 1_900_000, 25, 4, "Écran"),
 )
 

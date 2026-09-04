@@ -19,7 +19,7 @@ ALTER TABLE core.equipement
 -- Types de départ d'un parc informatique. L'administrateur ajoute, renomme et retire ensuite.
 INSERT INTO core.type_equipement (libelle) VALUES
     ('Ordinateur portable'),
-    ('Ordinateur fixe'),
+    ('Ordinateur desktop'),
     ('Serveur'),
     ('Écran'),
     ('Imprimante'),
