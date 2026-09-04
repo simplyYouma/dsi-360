@@ -22,8 +22,12 @@ htmlcov/
 infra/env/.env
 *.env
 !*.env.example
-# Script de provisionnement DB natif : contient le mot de passe applicatif
-infra/local/base/provisionner-db.sql
+# Script de provisionnement DB natif : contient le mot de passe applicatif.
+# Motif SANS chemin, volontairement : ce fichier ne doit jamais être commité, où qu'il se trouve.
+# La règle visait auparavant un chemin précis ; le jour où le dossier a été réorganisé, l'exemplaire
+# resté en place sur le serveur a cessé d'être ignoré — et la mise à jour a refusé de démarrer sur
+# « modifications locales », en proposant un `git clean` qui l'aurait effacé avec son mot de passe.
+provisionner-db.sql
 
 # Données / uploads locaux
 /data/
