@@ -89,28 +89,56 @@ try {
         "-NoProfile -ExecutionPolicy Bypass -File `"$Script`" $Suite".TrimEnd()
     }
 
+    # Enregistrer PUIS RELIRE. `Register-ScheduledTask` remonte certains refus du planificateur
+    # comme une erreur non terminante : le script continuait, et annonçait « Installee » une tâche
+    # qui n'existait pas. Une installation qui ment est pire que pas d'installation du tout — on
+    # croit protégé ce qui ne l'est pas. On ne se fie donc qu'à ce que le planificateur rend.
+    # La definition arrive en TABLE DE HACHAGE, pas en arguments restants : le splat d'un simple
+    # tableau perd les noms de parametres (« -Trigger » y redevient une valeur positionnelle) et
+    # les trois installations echoueraient. Verifie.
+    function Register-Dsi360Tache {
+        param([string] $Nom, [hashtable] $Definition)
+        Unregister-ScheduledTask -TaskName $Nom -Confirm:$false -ErrorAction SilentlyContinue
+        try {
+            Register-ScheduledTask -TaskName $Nom -Force @Definition -ErrorAction Stop | Out-Null
+        } catch {
+            throw "La tache '$Nom' n'a pas ete installee : $($_.Exception.Message)"
+        }
+        if (-not (Get-ScheduledTask -TaskName $Nom -ErrorAction SilentlyContinue)) {
+            throw "La tache '$Nom' est absente du planificateur apres son enregistrement."
+        }
+    }
+
     # --- 3. Surveillance -----------------------------------------------------------------------
     Write-Dsi360Etape 'Tache DSI360-Surveillance (toutes les 5 min)'
     $suite = "-Tache $Tache -UrlSante https://127.0.0.1:$Port/healthz -UrlPret https://127.0.0.1:$Port/readyz"
     if ($Alerte) { $suite += " -Destinataire $Alerte" }
     # Répétition « pour toujours » à partir de maintenant : un déclencheur quotidien ne surveillerait
     # que quelques minutes par jour.
+    #
+    # SANS `-RepetitionDuration` : une durée vide est la façon dont le planificateur écrit
+    # « indéfiniment ». L'idiome répandu `[TimeSpan]::MaxValue` produit `P99999999DT23H59M59S`,
+    # que Windows refuse — « valeur hors limites ». Vu le 04/09/2026 sur le serveur AFG.
     $decl = New-ScheduledTaskTrigger -Once -At (Get-Date) `
-                -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration ([TimeSpan]::MaxValue)
-    Register-ScheduledTask -TaskName 'DSI360-Surveillance' -Force -Principal $principal `
-        -Trigger $decl -Settings (New-Reglages 10) `
-        -Action (New-ScheduledTaskAction -Execute $pwsh -Argument (Arguments $surveiller $suite)) |
-        Out-Null
+                -RepetitionInterval (New-TimeSpan -Minutes 5)
+    Register-Dsi360Tache 'DSI360-Surveillance' @{
+        Principal = $principal
+        Trigger   = $decl
+        Settings  = New-Reglages 10
+        Action    = New-ScheduledTaskAction -Execute $pwsh -Argument (Arguments $surveiller $suite)
+    }
     Write-Dsi360Ok 'Installee'
 
     # --- 4. Sauvegarde -------------------------------------------------------------------------
     Write-Dsi360Etape 'Tache DSI360-Sauvegarde (chaque jour a 02:00)'
     $suite = "-Destination `"$Destination`" -RetentionJours $RetentionJours"
     if ($Copie) { $suite += " -Copie `"$Copie`"" }
-    Register-ScheduledTask -TaskName 'DSI360-Sauvegarde' -Force -Principal $principal `
-        -Trigger (New-ScheduledTaskTrigger -Daily -At '02:00') -Settings (New-Reglages 120) `
-        -Action (New-ScheduledTaskAction -Execute $pwsh -Argument (Arguments $sauvegarde $suite)) |
-        Out-Null
+    Register-Dsi360Tache 'DSI360-Sauvegarde' @{
+        Principal = $principal
+        Trigger   = New-ScheduledTaskTrigger -Daily -At '02:00'
+        Settings  = New-Reglages 120
+        Action    = New-ScheduledTaskAction -Execute $pwsh -Argument (Arguments $sauvegarde $suite)
+    }
     Write-Dsi360Ok "Installee - vers $Destination$(if ($Copie) { " puis $Copie" })"
 
     # --- 5. Preuve de restauration -------------------------------------------------------------
@@ -121,11 +149,13 @@ try {
         # On éprouve la copie hors machine quand elle existe : c'est celle dont on se servira
         # vraiment le jour où la machine aura brûlé.
         $ou = if ($Copie) { $Copie } else { $Destination }
-        Register-ScheduledTask -TaskName 'DSI360-VerifSauvegarde' -Force -Principal $principal `
-            -Trigger (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At '03:00') `
-            -Settings (New-Reglages 120) `
-            -Action (New-ScheduledTaskAction -Execute $pwsh `
-                        -Argument (Arguments $verifier "-Dossier `"$ou`"")) | Out-Null
+        Register-Dsi360Tache 'DSI360-VerifSauvegarde' @{
+            Principal = $principal
+            Trigger   = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At '03:00'
+            Settings  = New-Reglages 120
+            Action    = New-ScheduledTaskAction -Execute $pwsh `
+                            -Argument (Arguments $verifier "-Dossier `"$ou`"")
+        }
         Write-Dsi360Ok "Installee - eprouve les sauvegardes de $ou"
     }
 
