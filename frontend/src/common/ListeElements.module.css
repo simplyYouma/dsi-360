@@ -1,0 +1,159 @@
+.bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Repliée, la liste est bornée en hauteur : une fiche qui déroule six risques repousse le cycle de
+   vie hors de l'écran. Le fondu par-dessus dit qu'il y a une suite — il ne la cache pas, le bouton
+   juste en dessous la donne. */
+.listeRepliee,
+.listeOuverte {
+  position: relative;
+  overflow: hidden;
+  transition: max-height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.listeRepliee {
+  max-height: 76px;
+}
+.listeOuverte {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.fondu {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, var(--surface) 92%);
+}
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.element {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 5px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  transition: background 0.15s ease;
+}
+.element:hover {
+  background: var(--bg-subtle);
+}
+
+.icone {
+  flex: none;
+  margin-top: 2px;
+}
+
+.texte {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Le retrait n'apparaît qu'au survol de sa ligne : présent quand on en a besoin, discret sinon. */
+.retirer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+.element:hover .retirer,
+.retirer:focus-visible {
+  opacity: 1;
+}
+.retirer:hover {
+  color: var(--status-danger);
+}
+
+.deplier {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lien, var(--secondary));
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.deplier:hover {
+  text-decoration: underline;
+}
+
+.ajout {
+  display: flex;
+  gap: var(--space-2);
+}
+.champ {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.champ:focus-visible {
+  outline: none;
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px var(--secondary-subtle);
+}
+
+.bouton {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.bouton:hover:not(:disabled) {
+  border-color: var(--secondary);
+  color: var(--secondary);
+}
+.bouton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vide {
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listeRepliee,
+  .listeOuverte {
+    transition: none;
+  }
+}

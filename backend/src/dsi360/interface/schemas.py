@@ -194,6 +194,9 @@ class JustificationAvancement(BaseModel):
     texte: str
     auteur: str | None = None
     horodatage: datetime
+    #: Pourcentage déclaré ce jour-là. `None` pour les toutes premières notes, écrites avant que
+    #: le contexte ne le porte — mieux vaut l'avouer que d'afficher un chiffre inventé.
+    avancement: int | None = None
 
 
 class PermissionsActivite(BaseModel):
@@ -250,9 +253,9 @@ class ActiviteDetail(ActiviteResume):
     #: Un pourcentage sans son motif ne se relit pas : la fiche doit pouvoir les rendre.
     justifications_avancement: list[JustificationAvancement] = []
     # Sujet de gouvernance : ce qu'il peut coûter s'il dérape, et ce qu'il change s'il aboutit.
-    # Stockés dans donnees, comme les champs RFC des changements.
-    risques: str | None = None
-    impacts: str | None = None
+    # Des listes, stockées dans donnees comme les champs RFC des changements.
+    risques: list[str] = []
+    impacts: list[str] = []
     # Revue périodique (risques, cybersécurité, gouvernance) — stockés dans donnees.
     periodicite: str | None = None
     prochaine_revue: date | None = None
@@ -672,8 +675,8 @@ class ActiviteMaj(BaseModel):
     plan_deploiement: str | None = None
     plan_retour_arriere: str | None = None
     bilan_post_implementation: str | None = None
-    risques: str | None = Field(default=None, max_length=4000)
-    impacts: str | None = Field(default=None, max_length=4000)
+    risques: list[str] | None = None
+    impacts: list[str] | None = None
 
 
 class ContributeurDemande(BaseModel):
@@ -1185,11 +1188,15 @@ class DepartementActiviteDemande(BaseModel):
 
 
 class ChampsGouvernance(BaseModel):
-    """Risques et impacts d'un sujet de gouvernance. Deux textes, pas une cotation : un sujet de
-    COPIL se raconte — il n'a pas la nature d'une fiche du registre des risques IT."""
+    """Risques et impacts d'un sujet de gouvernance : deux LISTES, pas une cotation.
 
-    risques: str | None = Field(default=None, max_length=4000)
-    impacts: str | None = Field(default=None, max_length=4000)
+    Un sujet de COPIL porte rarement un seul risque — il en porte trois ou quatre, distincts, qu'on
+    ajoute au fil des comités. Et il se raconte : il n'a pas la nature d'une fiche du registre des
+    risques IT, dont la cotation probabilité × impact ne conviendrait pas ici.
+    """
+
+    risques: list[str] | None = None
+    impacts: list[str] | None = None
 
 
 class AvancementDemande(BaseModel):

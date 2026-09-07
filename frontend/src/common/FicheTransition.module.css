@@ -518,3 +518,22 @@
 .verdictOk {
   color: var(--status-ok);
 }
+
+/* Compteur d'éléments d'une liste (risques, impacts), collé à son intitulé : on sait combien il y
+   en a avant même de déplier — sinon le fondu laisserait croire qu'il n'en manque qu'un. */
+.compteur {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}

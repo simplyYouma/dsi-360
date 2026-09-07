@@ -196,7 +196,9 @@ def _detail(
             else None
         ),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
-        **{champ: _donnees(r).get(champ) for champ in _CHAMPS_GOUVERNANCE},
+        # Toujours une liste : `None` obligerait chaque lecteur à s'en méfier, et l'écran à
+        # traiter deux cas pour la même absence.
+        **{champ: _lignes_module(_donnees(r).get(champ)) for champ in _CHAMPS_GOUVERNANCE},
         "periodicite": _donnees(r).get("periodicite"),
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
         "derniere_revue": _donnees(r).get("derniere_revue"),
@@ -223,6 +225,10 @@ _LIBELLE_JOURNAL = {
     "departement_id": "département",
     "risques": "risques identifiés",
     "impacts": "impacts attendus",
+    "risques_ajoutes": "risque ajouté",
+    "risques_retires": "risque retiré",
+    "impacts_ajoutes": "impact ajouté",
+    "impacts_retires": "impact retiré",
     "justification": "justification",
     "categorie_id": "catégorie",
     "contributeur_ajoute": "contributeur ajouté",
@@ -420,9 +426,22 @@ _CHAMPS_RFC = (
 )
 
 # Champs propres à la gouvernance, stockés dans `donnees` comme les RFC : ce que le sujet peut
-# coûter s'il dérape, ce qu'il change s'il aboutit. Deux textes et non une cotation — un sujet de
-# COPIL se raconte, il n'a pas la nature d'une fiche du registre des risques IT.
+# coûter s'il dérape, ce qu'il change s'il aboutit. Deux LISTES et non une cotation — un sujet de
+# COPIL se raconte, et il porte rarement un seul risque.
 _CHAMPS_GOUVERNANCE = ("risques", "impacts")
+
+
+def _lignes_module(valeur: Any) -> list[str]:
+    """Normalise un champ de module en liste de lignes non vides.
+
+    Tolère la forme d'avant (une chaîne unique) : une fiche ouverte pendant le déploiement ne doit
+    pas se vider parce que la migration n'est pas encore passée sur cet enregistrement.
+    """
+    if isinstance(valeur, str):
+        return [valeur] if valeur.strip() else []
+    if isinstance(valeur, list):
+        return [str(v).strip() for v in valeur if str(v).strip()]
+    return []
 
 #: Champs JSON qu'un module a le droit d'écrire par le PATCH. Le schéma les accepte tous ; c'est
 #: ici qu'on refuse qu'une analyse de changement atterrisse dans un sujet de gouvernance.
@@ -626,8 +645,12 @@ def valeurs_export(
         "derniere_revue": horodate_export(donnees.get("derniere_revue")),
         "prochaine_revue": horodate_export(donnees.get("prochaine_revue")),
     }
-    for champ in (*_CHAMPS_RFC, *_CHAMPS_GOUVERNANCE):
+    for champ in _CHAMPS_RFC:
         valeurs[champ] = donnees.get(champ) or ""
+    # Les listes du module tiennent sur une cellule, séparées comme les contributeurs : un tableur
+    # n'a pas de sous-lignes, et une cellule multiligne se lit mal dans un filtre.
+    for champ in _CHAMPS_GOUVERNANCE:
+        valeurs[champ] = " · ".join(_lignes_module(donnees.get(champ)))
     return valeurs
 
 
@@ -931,9 +954,12 @@ def creer_routeur(
         if avec_avancement_manuel:
             notes = await session.execute(
                 text(
-                    "SELECT texte, auteur_email AS auteur, cree_le AS horodatage "
+                    "SELECT texte, auteur_email AS auteur, cree_le AS horodatage, "
+                    # « avancement:45 » -> 45. Les toutes premières notes ne portaient que
+                    # « avancement » : elles rendent NULL plutôt que de faire échouer la lecture.
+                    "       nullif(split_part(contexte, ':', 2), '')::int AS avancement "
                     "FROM core.note WHERE activite_id = cast(:a as uuid) "
-                    "AND contexte = 'avancement' ORDER BY cree_le"
+                    "AND contexte LIKE 'avancement%' ORDER BY cree_le"
                 ),
                 {"a": str(r["id"])},
             )
@@ -1281,12 +1307,20 @@ def creer_routeur(
                     ),
                     {"id": ident, "f": json.dumps({"avancement": corps.avancement})},
                 )
+                # Le contexte situe la note, comme l'état visé situe une transition de projet
+                # (« Suspendu », « Clôturé ») : ici, le pourcentage déclaré. Sans lui, on relirait
+                # un motif sans savoir de quel palier il rend compte.
                 await session.execute(
                     text(
                         "INSERT INTO core.note (activite_id, texte, contexte, auteur_email) "
-                        "VALUES (cast(:id as uuid), :texte, 'avancement', :email)"
+                        "VALUES (cast(:id as uuid), :texte, :contexte, :email)"
                     ),
-                    {"id": ident, "texte": justification, "email": courant["email"]},
+                    {
+                        "id": ident,
+                        "texte": justification,
+                        "contexte": f"avancement:{corps.avancement}",
+                        "email": courant["email"],
+                    },
                 )
                 # Prévenir AVANT l'audit, qui committe la transaction (cf. application/activites).
                 if precedent != corps.avancement:
@@ -1642,6 +1676,25 @@ def creer_routeur(
             fragment_json = {
                 c: champs[c] for c in _CHAMPS_MODULE.get(module, ()) if c in champs
             }
+            # Listes du module : on nettoie (vides retirés, doublons écartés) et l'on journalise le
+            # MOUVEMENT — « + tel risque », « − tel autre » — plutôt que de recopier toute la liste
+            # à chaque fois. Un journal qui répète l'état complet ne se relit pas.
+            mouvements: dict[str, Any] = {}
+            for champ in _CHAMPS_GOUVERNANCE:
+                if champ not in fragment_json:
+                    continue
+                avant_liste = _lignes_module(_donnees(avant).get(champ))
+                apres_liste: list[str] = []
+                for ligne in _lignes_module(fragment_json[champ]):
+                    if ligne not in apres_liste:
+                        apres_liste.append(ligne)
+                fragment_json[champ] = apres_liste
+                ajouts = [x for x in apres_liste if x not in avant_liste]
+                retraits = [x for x in avant_liste if x not in apres_liste]
+                if ajouts:
+                    mouvements[f"{champ}_ajoutes"] = " · ".join(ajouts)
+                if retraits:
+                    mouvements[f"{champ}_retires"] = " · ".join(retraits)
             if fragment_json:
                 await session.execute(
                     text(
@@ -1659,7 +1712,14 @@ def creer_routeur(
                     module=module,
                     cible_type=module,
                     cible_id=avant["reference"],
-                    nouvelle={k: champs[k] for k in champs},
+                    nouvelle={
+                        **{
+                            k: champs[k]
+                            for k in champs
+                            if k not in _CHAMPS_GOUVERNANCE
+                        },
+                        **mouvements,
+                    },
                 )
                 await session.commit()
             r = await charger_visible(session, ident, courant)

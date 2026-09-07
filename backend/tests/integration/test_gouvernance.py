@@ -70,8 +70,20 @@ async def test_le_gestionnaire_declare_l_avancement_avec_justification(
             {"a": sujet},
         )
     ).mappings().one()
-    assert note["contexte"] == "avancement"
+    # Le contexte situe la note, comme l'état visé situe une transition de projet : ici le
+    # pourcentage déclaré. Sans lui, on relirait un motif sans savoir de quel palier il rend compte.
+    assert note["contexte"] == "avancement:40"
     assert note["texte"] == "Cadrage validé en COPIL du 12/09"
+    assert (await _detail(client, sujet, gestionnaire))["justifications_avancement"] == [
+        {
+            "texte": "Cadrage validé en COPIL du 12/09",
+            "auteur": "gest.gouv1@afgbank.ml",
+            "horodatage": (await _detail(client, sujet, gestionnaire))[
+                "justifications_avancement"
+            ][0]["horodatage"],
+            "avancement": 40,
+        }
+    ]
 
 
 async def test_un_avancement_sans_justification_est_refuse(
@@ -211,9 +223,10 @@ async def test_ranger_un_sujet_ne_le_cache_a_personne(
 # --- Risques et impacts --------------------------------------------------------------------------
 
 
-async def test_risques_et_impacts_se_saisissent_et_se_relisent(
+async def test_risques_et_impacts_sont_des_listes(
     client: AsyncClient, session: AsyncSession
 ) -> None:
+    """Un sujet de COPIL porte rarement UN risque : il en porte plusieurs, distincts."""
     gestionnaire = await creer_utilisateur(session, email="gest.gouv8@afgbank.ml")
     sujet = await _sujet(session, "GOV-RI-1", responsable_id=gestionnaire)
 
@@ -221,15 +234,60 @@ async def test_risques_et_impacts_se_saisissent_et_se_relisent(
         f"/gouvernance/{sujet}",
         headers=entetes(gestionnaire),
         json={
-            "risques": "Indisponibilité du prestataire en fin d'année",
-            "impacts": "Report du COPIL et du budget associé",
+            "risques": ["Prestataire indisponible", "Budget non arbitré"],
+            "impacts": ["Report du COPIL"],
         },
     )
 
     assert r.status_code == 200, r.text
     detail = r.json()
-    assert detail["risques"] == "Indisponibilité du prestataire en fin d'année"
-    assert detail["impacts"] == "Report du COPIL et du budget associé"
+    assert detail["risques"] == ["Prestataire indisponible", "Budget non arbitré"]
+    assert detail["impacts"] == ["Report du COPIL"]
+
+
+async def test_les_lignes_vides_et_les_doublons_sont_ecartes(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Une liste qu'on remplit au fil des comités finit par recevoir deux fois la même ligne.
+
+    Le serveur nettoie : c'est lui qui garantit la forme, pas la discipline de l'écran.
+    """
+    gestionnaire = await creer_utilisateur(session, email="gest.gouv10@afgbank.ml")
+    sujet = await _sujet(session, "GOV-RI-3", responsable_id=gestionnaire)
+
+    r = await client.patch(
+        f"/gouvernance/{sujet}",
+        headers=entetes(gestionnaire),
+        json={"risques": ["Retard fournisseur", "  ", "Retard fournisseur", "Budget"]},
+    )
+
+    assert r.status_code == 200, r.text
+    assert r.json()["risques"] == ["Retard fournisseur", "Budget"]
+
+
+async def test_le_journal_dit_ce_qui_a_ete_ajoute_ou_retire(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Recopier la liste entière à chaque modification ne se relit pas : on journalise le
+    MOUVEMENT — ce qui entre, ce qui sort."""
+    gestionnaire = await creer_utilisateur(session, email="gest.gouv11@afgbank.ml")
+    sujet = await _sujet(session, "GOV-RI-4", responsable_id=gestionnaire)
+    await client.patch(
+        f"/gouvernance/{sujet}",
+        headers=entetes(gestionnaire),
+        json={"risques": ["Prestataire indisponible", "Budget non arbitré"]},
+    )
+
+    r = await client.patch(
+        f"/gouvernance/{sujet}",
+        headers=entetes(gestionnaire),
+        json={"risques": ["Budget non arbitré", "Adhésion des métiers"]},
+    )
+    assert r.status_code == 200, r.text
+
+    details = " ".join(e["detail"] or "" for e in r.json()["journal"])
+    assert "risque ajouté : Adhésion des métiers" in details, details
+    assert "risque retiré : Prestataire indisponible" in details, details
 
 
 async def test_un_champ_de_changement_n_entre_pas_dans_un_sujet_de_gouvernance(
@@ -246,11 +304,11 @@ async def test_un_champ_de_changement_n_entre_pas_dans_un_sujet_de_gouvernance(
     r = await client.patch(
         f"/gouvernance/{sujet}",
         headers=entetes(gestionnaire),
-        json={"risques": "Retard fournisseur", "analyse_impact": "n'a rien à faire ici"},
+        json={"risques": ["Retard fournisseur"], "analyse_impact": "n'a rien à faire ici"},
     )
 
     assert r.status_code == 200, r.text
-    assert r.json()["risques"] == "Retard fournisseur"
+    assert r.json()["risques"] == ["Retard fournisseur"]
     donnees = await session.scalar(
         text("SELECT donnees FROM core.activite WHERE id = cast(:a as uuid)"), {"a": sujet}
     )

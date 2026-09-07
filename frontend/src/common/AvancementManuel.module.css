@@ -34,10 +34,28 @@
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
+/* Pendant le survol, le chiffre annonce la valeur visée : atténué, pour qu'on ne le confonde
+   pas avec l'avancement réellement déclaré. */
+.chiffreSurvol {
+  composes: chiffre;
+  color: var(--text-muted);
+}
 .pourcent {
   font-size: 1rem;
   font-weight: var(--weight-medium);
   color: var(--text-muted);
+}
+
+/* Le palier auquel la justification se rapporte, en tête de pastille. */
+.palier {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--secondary) 18%, transparent);
+  color: color-mix(in srgb, var(--secondary) 75%, var(--text));
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 
 .piste {
@@ -49,10 +67,35 @@
 }
 
 .rail {
+  position: relative;
   height: 10px;
   border-radius: var(--radius-pill);
   background: var(--bg-subtle);
   overflow: hidden;
+}
+/* Le fantôme : ce que la barre vaudrait si l'on cliquait. Hachuré et pâle — on doit le lire comme
+   une intention, jamais comme un état acquis. */
+.fantomeAvant,
+.fantomeArriere {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--radius-pill);
+  transition: width 0.12s ease-out;
+}
+.fantomeAvant {
+  background: repeating-linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--secondary) 26%, transparent) 0 5px,
+    transparent 5px 10px
+  );
+}
+/* Reculer l'avancement se dit autrement : la part qu'on retirerait vire à l'ambre. */
+.fantomeArriere {
+  background: repeating-linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--status-warn) 30%, transparent) 0 5px,
+    transparent 5px 10px
+  );
 }
 .remplissage,
 .remplissageComplet {

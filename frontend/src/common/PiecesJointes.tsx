@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Eye, Paperclip, Upload } from 'lucide-react';
+import {
+  Download,
+  Eye,
+  FileArchive,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileType,
+  Paperclip,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react';
 import { useToast } from '@/design-system/primitives';
 import { ApercuDocument } from '@/common/ApercuDocument';
 import { BoutonSupprimer } from '@/common/BoutonSupprimer';
@@ -24,8 +35,27 @@ interface Props {
   supprimer: (docId: string) => Promise<void>;
   /** Variante compacte (pièces jointes d'une tâche). */
   compact?: boolean;
+  /** Variante « explorateur » : colonne étroite accrochée au bord d'une modale. Le nom passe
+   *  au-dessus de la taille, le type porte son icône, et les actions n'apparaissent qu'au survol. */
+  explorateur?: boolean;
   /** Si fourni, affiche un en-tête « {titre} · N » (compteur de fichiers). */
   titre?: string;
+}
+
+/** L'icône dit la nature du fichier avant qu'on ait lu son nom : dans une colonne étroite, un nom
+ *  tronqué ne suffit plus à savoir si l'on a affaire à un tableur ou à un compte rendu. */
+function iconeDuType(type: string, nom: string): LucideIcon {
+  const t = type.toLowerCase();
+  const ext = nom.toLowerCase().split('.').pop() ?? '';
+  if (t.startsWith('image/')) return FileImage;
+  if (t === 'application/pdf' || ext === 'pdf') return FileType;
+  if (t.includes('sheet') || t.includes('excel') || ['xlsx', 'xls', 'csv'].includes(ext)) {
+    return FileSpreadsheet;
+  }
+  if (t.includes('zip') || t.includes('compressed') || ['zip', 'rar', '7z'].includes(ext)) {
+    return FileArchive;
+  }
+  return FileText;
 }
 
 function formaterTaille(octets: number): string {
@@ -43,6 +73,7 @@ export function PiecesJointes({
   renommer,
   supprimer,
   compact,
+  explorateur = false,
   titre,
 }: Props): JSX.Element {
   const [docs, setDocs] = useState<PieceJointe[]>([]);
@@ -163,51 +194,96 @@ export function PiecesJointes({
               : 'Glissez des fichiers ou cliquez'}
         </span>
       </div>
-      {docs.map((d) => (
-        <div key={d.id} className={styles.docLigne}>
-          <button
-            type="button"
-            className={styles.docApercu}
-            title={`Aperçu de ${d.nom}`}
-            aria-label={`Aperçu de ${d.nom}`}
-            onClick={() => void visualiser(d)}
-          >
-            <Paperclip size={13} />
-          </button>
-          <div className={styles.docNom}>
-            <ChampInline
-              valeur={d.nom}
-              onValider={(nom) => void nommer(d.id, nom)}
-              aria-label={`Renommer ${d.nom}`}
+      {explorateur &&
+        docs.map((d) => {
+          const Icone = iconeDuType(d.type_mime, d.nom);
+          return (
+            <div key={d.id} className={styles.fichier}>
+              <button
+                type="button"
+                className={styles.fichierVignette}
+                title={`Aperçu de ${d.nom}`}
+                aria-label={`Aperçu de ${d.nom}`}
+                onClick={() => void visualiser(d)}
+              >
+                <Icone size={20} />
+              </button>
+              <div className={styles.fichierCorps}>
+                <div className={styles.fichierNom}>
+                  <ChampInline
+                    valeur={d.nom}
+                    onValider={(nom) => void nommer(d.id, nom)}
+                    aria-label={`Renommer ${d.nom}`}
+                  />
+                </div>
+                <span className={styles.fichierTaille}>{formaterTaille(d.taille)}</span>
+              </div>
+              <div className={styles.fichierActions}>
+                <button
+                  type="button"
+                  className={styles.docAction}
+                  aria-label="Télécharger"
+                  title="Télécharger"
+                  onClick={() => void telecharger(d.id)}
+                >
+                  <Download size={14} />
+                </button>
+                <BoutonSupprimer
+                  cible={`la pièce jointe « ${d.nom} »`}
+                  onSupprimer={() => retirer(d.id)}
+                  className={styles.docAction}
+                  taille={14}
+                />
+              </div>
+            </div>
+          );
+        })}
+      {!explorateur &&
+        docs.map((d) => (
+          <div key={d.id} className={styles.docLigne}>
+            <button
+              type="button"
+              className={styles.docApercu}
+              title={`Aperçu de ${d.nom}`}
+              aria-label={`Aperçu de ${d.nom}`}
+              onClick={() => void visualiser(d)}
+            >
+              <Paperclip size={13} />
+            </button>
+            <div className={styles.docNom}>
+              <ChampInline
+                valeur={d.nom}
+                onValider={(nom) => void nommer(d.id, nom)}
+                aria-label={`Renommer ${d.nom}`}
+              />
+            </div>
+            <span className={styles.taille}>{formaterTaille(d.taille)}</span>
+            <button
+              type="button"
+              className={styles.docAction}
+              aria-label="Aperçu"
+              title="Aperçu"
+              onClick={() => void visualiser(d)}
+            >
+              <Eye size={14} />
+            </button>
+            <button
+              type="button"
+              className={styles.docAction}
+              aria-label="Télécharger"
+              title="Télécharger"
+              onClick={() => void telecharger(d.id)}
+            >
+              <Download size={14} />
+            </button>
+            <BoutonSupprimer
+              cible={`la pièce jointe « ${d.nom} »`}
+              onSupprimer={() => retirer(d.id)}
+              className={styles.docAction}
+              taille={14}
             />
           </div>
-          <span className={styles.taille}>{formaterTaille(d.taille)}</span>
-          <button
-            type="button"
-            className={styles.docAction}
-            aria-label="Aperçu"
-            title="Aperçu"
-            onClick={() => void visualiser(d)}
-          >
-            <Eye size={14} />
-          </button>
-          <button
-            type="button"
-            className={styles.docAction}
-            aria-label="Télécharger"
-            title="Télécharger"
-            onClick={() => void telecharger(d.id)}
-          >
-            <Download size={14} />
-          </button>
-          <BoutonSupprimer
-            cible={`la pièce jointe « ${d.nom} »`}
-            onSupprimer={() => retirer(d.id)}
-            className={styles.docAction}
-            taille={14}
-          />
-        </div>
-      ))}
+        ))}
       {vue !== null && (
         <ApercuDocument
           url={vue.url}

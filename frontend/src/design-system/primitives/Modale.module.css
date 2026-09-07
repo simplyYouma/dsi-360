@@ -79,6 +79,18 @@
   min-width: 0;
   min-height: 0;
 }
+/* Colonne de gauche : l'explorateur de pièces jointes. Séparée par un filet plutôt que par une
+   couleur — c'est une annexe du dossier, pas un autre écran. Son défilement lui est propre : on
+   parcourt les fichiers sans perdre sa place dans la fiche. */
+.panneauGauche {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--border);
+}
 .panneau {
   display: flex;
   flex-direction: column;

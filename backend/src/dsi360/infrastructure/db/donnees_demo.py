@@ -1180,9 +1180,10 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     priorite = calculer_priorite(impact, urgence)
                     # Un sujet « À engager » n'a rien à raconter encore : lui inventer un
                     # avancement ferait mentir la démonstration.
+                    # Des LISTES : un sujet de COPIL porte rarement un seul risque.
                     donnees = {
-                        "risques": random.choice(RISQUES_GOUVERNANCE),
-                        "impacts": random.choice(IMPACTS_GOUVERNANCE),
+                        "risques": random.sample(RISQUES_GOUVERNANCE, random.randint(1, 3)),
+                        "impacts": random.sample(IMPACTS_GOUVERNANCE, random.randint(1, 2)),
                     }
                 elif module == "risque":
                     statut = random.choice(STATUTS[module])
@@ -1350,8 +1351,8 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     for rang, motif in enumerate(motifs):
                         await conn.execute(
                             "INSERT INTO core.note (activite_id, texte, contexte, auteur_email, "
-                            " cree_le) VALUES ($1,$2,'avancement',$3,$4)",
-                            activite_id, motif, EMAILS_DEMO[0],
+                            " cree_le) VALUES ($1,$2,$3,$4,$5)",
+                            activite_id, motif, f"avancement:{paliers[rang]}", EMAILS_DEMO[0],
                             cree_le + timedelta(days=3 * (rang + 1)),
                         )
                     await conn.execute(

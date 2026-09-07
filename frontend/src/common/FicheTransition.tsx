@@ -1,6 +1,16 @@
 import type { EtatSla } from '@/common/SablierSla';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, Clock, Download, RefreshCw, XCircle } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Clock,
+  Download,
+  RefreshCw,
+  ShieldAlert,
+  Target,
+  XCircle,
+} from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { ChampInline } from '@/common/ChampInline';
@@ -33,6 +43,7 @@ import {
 } from './statuts';
 import { ModaleConfirmation, type DemandeConfirmation } from '@/common/ModaleConfirmation';
 import { AvancementManuel, type JustificationAvancement } from '@/common/AvancementManuel';
+import { ListeElements } from '@/common/ListeElements';
 import styles from './FicheTransition.module.css';
 
 interface Detail {
@@ -84,9 +95,10 @@ interface Detail {
   /** Département de la DSI dont relève le dossier (gouvernance). Range, ne cloisonne rien. */
   departement?: string | null;
   departement_id?: string | null;
-  /** Sujet de gouvernance : ce qu'il peut coûter s'il dérape, ce qu'il change s'il aboutit. */
-  risques?: string | null;
-  impacts?: string | null;
+  /** Sujet de gouvernance : ce qu'il peut coûter s'il dérape, ce qu'il change s'il aboutit.
+   *  Des LISTES : un sujet de COPIL porte rarement un seul risque. */
+  risques?: string[];
+  impacts?: string[];
   /** Les motifs déjà écrits pour justifier un changement d'avancement. */
   justifications_avancement?: JustificationAvancement[];
 }
@@ -487,9 +499,11 @@ export function FicheTransition({
   };
 
   // Risques et impacts d'un sujet de gouvernance : du contenu de dossier, comme les analyses RFC.
+  // La liste ENTIÈRE part à chaque fois ; c'est le serveur qui en tire le mouvement (ce qui entre,
+  // ce qui sort) pour le journal. Une route, une règle sur qui a le droit d'écrire.
   const modifierChampGouvernance = async (
     champ: 'risques' | 'impacts',
-    valeur: string,
+    valeur: string[],
   ): Promise<void> => {
     if (id === null) return;
     setErreur(null);
@@ -631,6 +645,23 @@ export function FicheTransition({
       titre={detail ? detail.reference : 'Fiche'}
       largeur={640}
       largeurPanneau={450}
+      // Les pièces jointes quittent le fil du dossier pour une colonne à elles : il fallait
+      // auparavant faire défiler toute la fiche pour savoir si un compte rendu était joint.
+      // Elles se consultent maintenant en parallèle de ce qu'on lit.
+      panneauGauche={
+        avecDocuments && id !== null ? (
+          <PiecesJointes
+            titre="Pièces jointes"
+            explorateur
+            charger={() => api.get(`${base}/${id}/documents`)}
+            deposer={(fichier) => televerser(`${base}/${id}/documents`, fichier)}
+            telecharger={(docId) => telecharger(`${base}/${id}/documents/${docId}`)}
+            apercu={(docId) => recupererBlob(`${base}/${id}/documents/${docId}`)}
+            renommer={(docId, nom) => api.patch(`${base}/${id}/documents/${docId}`, { nom })}
+            supprimer={(docId) => api.del(`${base}/${id}/documents/${docId}`)}
+          />
+        ) : undefined
+      }
       panneau={
         <div className={styles.panneauDiscussion}>
           <div className={styles.panneauEntete}>
@@ -968,30 +999,46 @@ export function FicheTransition({
                 raconte, il n'a pas la nature d'une fiche du registre des risques IT. */}
             {avecRisquesImpacts && (
               <>
-                <div className={cx(styles.metaItem, styles.metaLarge)}>
-                  <dt>Risques identifiés</dt>
+                <div className={styles.metaItem}>
+                  <dt>
+                    Risques identifiés
+                    {(detail.risques ?? []).length > 0 && (
+                      <span className={styles.compteur}>{(detail.risques ?? []).length}</span>
+                    )}
+                  </dt>
                   <dd>
-                    <ChampInline
-                      valeur={detail.risques ?? ''}
-                      onValider={(val) => void modifierChampGouvernance('risques', val)}
-                      multiligne
-                      repliable={4}
-                      indication="Ce qui peut faire dérailler le sujet, et sa probabilité."
-                      lectureSeule={!permissions.peut_completer_dossier}
+                    <ListeElements
+                      valeur={detail.risques ?? []}
+                      onChange={
+                        permissions.peut_completer_dossier
+                          ? (v) => void modifierChampGouvernance('risques', v)
+                          : undefined
+                      }
+                      icone={ShieldAlert}
+                      couleur="var(--status-warn)"
+                      indication="Ajouter un risque, puis Entrée…"
                       titreLectureSeule={TITRE_LECTURE}
                     />
                   </dd>
                 </div>
-                <div className={cx(styles.metaItem, styles.metaLarge)}>
-                  <dt>Impacts attendus</dt>
+                <div className={styles.metaItem}>
+                  <dt>
+                    Impacts attendus
+                    {(detail.impacts ?? []).length > 0 && (
+                      <span className={styles.compteur}>{(detail.impacts ?? []).length}</span>
+                    )}
+                  </dt>
                   <dd>
-                    <ChampInline
-                      valeur={detail.impacts ?? ''}
-                      onValider={(val) => void modifierChampGouvernance('impacts', val)}
-                      multiligne
-                      repliable={4}
-                      indication="Ce que le sujet change s'il aboutit : services, agents, budget."
-                      lectureSeule={!permissions.peut_completer_dossier}
+                    <ListeElements
+                      valeur={detail.impacts ?? []}
+                      onChange={
+                        permissions.peut_completer_dossier
+                          ? (v) => void modifierChampGouvernance('impacts', v)
+                          : undefined
+                      }
+                      icone={Target}
+                      couleur="var(--status-ok)"
+                      indication="Ajouter un impact, puis Entrée…"
                       titreLectureSeule={TITRE_LECTURE}
                     />
                   </dd>
@@ -1173,20 +1220,6 @@ export function FicheTransition({
                 creer={(libelle, url) => api.post(`${base}/${id}/liens`, { libelle, url })}
                 supprimer={(lienId) => api.del(`${base}/${id}/liens/${lienId}`)}
                 modifiable={permissions.peut_travailler}
-              />
-            </div>
-          )}
-
-          {avecDocuments && id !== null && (
-            <div className={styles.histo}>
-              <PiecesJointes
-                titre="Pièces jointes"
-                charger={() => api.get(`${base}/${id}/documents`)}
-                deposer={(f) => televerser(`${base}/${id}/documents`, f)}
-                telecharger={(docId) => telecharger(`${base}/${id}/documents/${docId}`)}
-                apercu={(docId) => recupererBlob(`${base}/${id}/documents/${docId}`)}
-                renommer={(docId, nom) => api.patch(`${base}/${id}/documents/${docId}`, { nom })}
-                supprimer={(docId) => api.del(`${base}/${id}/documents/${docId}`)}
               />
             </div>
           )}

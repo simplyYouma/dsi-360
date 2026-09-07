@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ShieldAlert, Target } from 'lucide-react';
 import { Button, Modale, StatusBadge, Table, type Colonne } from '@/design-system/primitives';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { CelluleActeur } from '@/common/CelluleActeur';
@@ -10,6 +10,7 @@ import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurGestionnaire } from '@/common/SelecteurGestionnaire';
 import { SelecteurListe } from '@/common/SelecteurListe';
+import { ListeElements } from '@/common/ListeElements';
 import { CAPACITES_MODULE } from '@/common/routesModule';
 import { ApercuEcheance } from '@/common/ApercuEcheance';
 import { FiltreTickets } from '@/common/FiltreTickets';
@@ -77,8 +78,8 @@ export function PageActiviteCategorie({
   const [urgence, setUrgence] = useState(3);
   const [liens, setLiens] = useState<LienSaisi[]>([]);
   const [departement, setDepartement] = useState<string | null>(null);
-  const [risques, setRisques] = useState('');
-  const [impacts, setImpacts] = useState('');
+  const [risques, setRisques] = useState<string[]>([]);
+  const [impacts, setImpacts] = useState<string[]>([]);
   const [departements, setDepartements] = useState<{ id: string; libelle: string }[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -215,11 +216,8 @@ export function PageActiviteCategorie({
       // Risques et impacts passent par le PATCH du module, comme depuis la fiche : la création
       // pose le dossier, le PATCH le remplit. Une seule route qui écrit ces champs, donc une seule
       // règle sur qui a le droit de le faire.
-      if (capacites.avecRisquesImpacts === true && (risques.trim() || impacts.trim())) {
-        await api.patch(`${base}/${cree.id}`, {
-          risques: risques.trim() || null,
-          impacts: impacts.trim() || null,
-        });
+      if (capacites.avecRisquesImpacts === true && (risques.length > 0 || impacts.length > 0)) {
+        await api.patch(`${base}/${cree.id}`, { risques, impacts });
       }
       await persisterLiens((l) => api.post(`${base}/${cree.id}/liens`, l), liens);
       setModale(false);
@@ -231,8 +229,8 @@ export function PageActiviteCategorie({
       setUrgence(3);
       setLiens([]);
       setDepartement(null);
-      setRisques('');
-      setImpacts('');
+      setRisques([]);
+      setImpacts([]);
       if (page === 1) await charger(1);
       else setPage(1);
     } catch (err) {
@@ -380,24 +378,26 @@ export function PageActiviteCategorie({
             risques déjà écrits — mais présents, pour qu'on puisse les poser quand on les connaît. */}
         {capacites.avecRisquesImpacts === true && (
           <>
-            <label className={styles.champ}>
+            <div className={styles.champ}>
               <span>Risques identifiés</span>
-              <textarea
-                value={risques}
-                onChange={(e) => setRisques(e.target.value)}
-                rows={2}
-                placeholder="Ce qui peut faire dérailler le sujet…"
+              <ListeElements
+                valeur={risques}
+                onChange={setRisques}
+                icone={ShieldAlert}
+                couleur="var(--status-warn)"
+                indication="Ce qui peut faire dérailler le sujet, puis Entrée…"
               />
-            </label>
-            <label className={styles.champ}>
+            </div>
+            <div className={styles.champ}>
               <span>Impacts attendus</span>
-              <textarea
-                value={impacts}
-                onChange={(e) => setImpacts(e.target.value)}
-                rows={2}
-                placeholder="Ce que le sujet change s'il aboutit…"
+              <ListeElements
+                valeur={impacts}
+                onChange={setImpacts}
+                icone={Target}
+                couleur="var(--status-ok)"
+                indication="Ce que le sujet change s'il aboutit, puis Entrée…"
               />
-            </label>
+            </div>
           </>
         )}
         <div className={styles.champ}>

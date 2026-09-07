@@ -8,6 +8,9 @@ export interface JustificationAvancement {
   texte: string;
   auteur: string | null;
   horodatage: string;
+  /** Pourcentage déclaré ce jour-là. `null` sur les toutes premières notes, écrites avant que le
+   *  contexte ne le porte — on l'avoue plutôt que d'afficher un chiffre inventé. */
+  avancement: number | null;
 }
 
 interface Props {
@@ -67,6 +70,9 @@ export function AvancementManuel({
   const [motif, setMotif] = useState('');
   const [envoi, setEnvoi] = useState(false);
   const [ouverte, setOuverte] = useState<number | null>(null);
+  // Le cran survolé : la barre montre alors, en fantôme, ce que le clic déclarerait. Sans cet
+  // aperçu, on choisit un pourcentage sans voir ce qu'il donne.
+  const [survol, setSurvol] = useState<number | null>(null);
   const champ = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -97,15 +103,25 @@ export function AvancementManuel({
   return (
     <section className={styles.bandeau} aria-label="Avancement du sujet">
       <div className={styles.tete}>
-        <span className={styles.chiffre}>
-          {valeur}
+        {/* Le chiffre suit le survol : on lit la valeur qu'on s'apprête à déclarer, en teinte
+            atténuée, avant même de cliquer. */}
+        <span className={survol !== null ? styles.chiffreSurvol : styles.chiffre}>
+          {survol ?? valeur}
           <span className={styles.pourcent}>%</span>
         </span>
         <div className={styles.piste}>
           <div className={styles.rail}>
+            {/* Le fantôme : ce que la barre vaudrait après le clic. En retrait quand il dépasse
+                la valeur réelle, en creux quand il la ramène en arrière. */}
+            {survol !== null && survol !== valeur && (
+              <div
+                className={survol > valeur ? styles.fantomeAvant : styles.fantomeArriere}
+                style={{ width: `${Math.max(survol, valeur)}%` }}
+              />
+            )}
             <div
               className={valeur === 100 ? styles.remplissageComplet : styles.remplissage}
-              style={{ width: `${valeur}%` }}
+              style={{ width: `${survol !== null && survol < valeur ? survol : valeur}%` }}
             />
           </div>
 
@@ -114,6 +130,7 @@ export function AvancementManuel({
               className={styles.crans}
               role="group"
               aria-label="Déclarer l’avancement"
+              onMouseLeave={() => setSurvol(null)}
               onKeyDown={(e) => {
                 // Pilotable au clavier : la charte proscrit les composants natifs, elle n'excuse
                 // pas de rendre le geste inaccessible à qui n'utilise pas la souris.
@@ -133,6 +150,9 @@ export function AvancementManuel({
                   type="button"
                   className={v <= valeur ? styles.cranAtteint : styles.cran}
                   onClick={() => demander(v)}
+                  onMouseEnter={() => setSurvol(v)}
+                  onFocus={() => setSurvol(v)}
+                  onBlur={() => setSurvol(null)}
                   title={`Déclarer ${v} %`}
                   aria-label={`Déclarer ${v} %`}
                   aria-pressed={v === valeur}
@@ -162,7 +182,13 @@ export function AvancementManuel({
                   aria-expanded={active}
                   title={active ? 'Replier' : 'Lire en entier'}
                 >
-                  <Quote size={13} className={styles.guillemet} aria-hidden="true" />
+                  {/* Le palier déclaré ce jour-là : sans lui, on relit un motif sans savoir de
+                      quel pourcentage il rend compte. */}
+                  {j.avancement !== null ? (
+                    <span className={styles.palier}>{j.avancement} %</span>
+                  ) : (
+                    <Quote size={13} className={styles.guillemet} aria-hidden="true" />
+                  )}
                   <span className={active ? styles.texteEntier : styles.texteCoupe}>{j.texte}</span>
                   {active && (
                     <span className={styles.signature}>

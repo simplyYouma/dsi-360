@@ -18,6 +18,11 @@ interface ModaleProps {
   panneau?: ReactNode;
   /** Largeur de la colonne latérale en px (défaut 380). */
   largeurPanneau?: number;
+  /** Colonne latérale fixe à GAUCHE (ex. explorateur de pièces jointes), avec son propre
+   *  défilement. Ce qui s'y trouve se consulte en parallèle du dossier, sans le faire défiler. */
+  panneauGauche?: ReactNode;
+  /** Largeur de la colonne de gauche en px (défaut 250). */
+  largeurPanneauGauche?: number;
   /** Étiquettes flottantes collées au bord gauche, comme des stickers (ex. constats). */
   etiquettes?: ReactNode;
 }
@@ -35,6 +40,8 @@ export function Modale({
   largeur = 560,
   panneau,
   largeurPanneau = 380,
+  panneauGauche,
+  largeurPanneauGauche = 250,
   etiquettes,
 }: ModaleProps): JSX.Element | null {
   useEffect(() => {
@@ -57,7 +64,12 @@ export function Modale({
     <div className={styles.overlay} onMouseDown={onFermer}>
       <div
         className={styles.modale}
-        style={{ maxWidth: panneau !== undefined ? largeur + largeurPanneau : largeur }}
+        style={{
+          maxWidth:
+            largeur +
+            (panneau !== undefined ? largeurPanneau : 0) +
+            (panneauGauche !== undefined ? largeurPanneauGauche : 0),
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={titre}
@@ -68,6 +80,11 @@ export function Modale({
         </button>
         {etiquettes !== undefined && <div className={styles.etiquettes}>{etiquettes}</div>}
         <div className={styles.grille}>
+          {panneauGauche !== undefined && (
+            <aside className={styles.panneauGauche} style={{ flexBasis: largeurPanneauGauche }}>
+              {panneauGauche}
+            </aside>
+          )}
           <div className={styles.principal}>
             <h2 className={styles.titre}>{titre}</h2>
             <div className={styles.corps}>{children}</div>

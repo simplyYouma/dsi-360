@@ -25,6 +25,17 @@ import {
 } from './inventaireApi';
 import { api } from '@/lib/api';
 
+/** Date courte, pour une colonne de liste : « 12/03/2024 ». Le mois en toutes lettres tient sur
+ *  une fiche, pas dans un tableau où il pousserait les colonnes suivantes hors de l'écran. */
+function jourCourt(iso: string | null): string {
+  if (iso === null) return '—';
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
 function jourLong(iso: string | null): string {
   if (iso === null) return '—';
   return new Date(iso).toLocaleDateString('fr-FR', {
@@ -67,23 +78,6 @@ export function couleurType(libelle: string): string {
 export function formaterMontant(valeur: number | null): string {
   if (valeur === null) return '—';
   return Math.round(valeur).toLocaleString('fr-FR');
-}
-
-/** Part amortie : barre discrète, rouge quand le matériel ne vaut plus rien au bilan. */
-function Amortissement({ pct }: { pct: number | null }): JSX.Element {
-  if (pct === null) return <span className={local.vide}>—</span>;
-  const couleur = pct >= 100 ? 'var(--status-danger)' : 'var(--secondary)';
-  return (
-    <span className={local.amorti} title={`${pct} % amorti`}>
-      <span className={local.amortiPiste}>
-        <span
-          className={local.amortiPlein}
-          style={{ width: `${Math.min(100, pct)}%`, background: couleur }}
-        />
-      </span>
-      <span className={local.amortiTexte}>{pct} %</span>
-    </span>
-  );
 }
 
 const VUES: { cle: string; libelle: string; actif: boolean | null }[] = [
@@ -285,33 +279,26 @@ export function InventairePage(): JSX.Element {
         // Sans compte rapproché, on montre le matricule brut : il reste un rattachement à faire.
         e.detenteur ?? (e.matricule ? <span className={local.brut}>{e.matricule}</span> : '—'),
     },
+    // Le MODÈLE et la DATE D'ACQUISITION plutôt que la valeur nette et l'amortissement : c'est
+    // ce qu'on cherche en parcourant un parc — reconnaître le matériel et savoir son âge. La
+    // comptabilité, elle, se lit sur la fiche et dans l'export, où elle a la place de s'expliquer.
     {
-      cle: 'valeur_nette',
-      entete: 'Valeur nette',
-      valeur: (e) => e.valeur_nette ?? 0,
-      // La colonne dit ce que le chiffre veut dire : verte tant que le bien pèse au bilan,
-      // ambre sous le quart restant, « Amorti » quand il ne vaut plus rien.
-      rendu: (e) => {
-        if (e.valeur_nette === null) return <span className={local.vide}>—</span>;
-        const part =
-          e.valeur_acquisition !== null && e.valeur_acquisition > 0
-            ? e.valeur_nette / e.valeur_acquisition
-            : null;
-        const classe =
-          e.valeur_nette === 0
-            ? local.vncNulle
-            : part !== null && part < 0.25
-              ? local.vncFaible
-              : local.vncSaine;
-        return <span className={`tabular ${classe}`}>{formaterMontant(e.valeur_nette)}</span>;
-      },
+      cle: 'modele',
+      entete: 'Modèle',
+      valeur: (e) => e.modele ?? '',
+      rendu: (e) => e.modele ?? <span className={local.vide}>—</span>,
     },
     {
-      cle: 'amorti_pct',
-      entete: 'Amorti',
+      cle: 'date_acquisition',
+      entete: 'Acquis le',
       largeur: '130px',
-      valeur: (e) => e.amorti_pct ?? 0,
-      rendu: (e) => <Amortissement pct={e.amorti_pct} />,
+      valeur: (e) => e.date_acquisition ?? '',
+      rendu: (e) =>
+        e.date_acquisition === null ? (
+          <span className={local.vide}>—</span>
+        ) : (
+          <span className="tabular">{jourCourt(e.date_acquisition)}</span>
+        ),
     },
   ];
 

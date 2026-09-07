@@ -148,8 +148,12 @@ Neuf modules, livrés par phases (cf. §7) :
   pas une contribution de plus. Toute déclaration exige une **justification** (refus serveur en 422,
   l'écran ne fait que l'annoncer plus tôt), conservée comme **note** du dossier — le mécanisme des
   transitions justifiées des projets, réutilisé plutôt que redoublé. Un sujet porte aussi ses
-  **risques et impacts** en deux textes libres : un sujet de COPIL se raconte, il n'a pas la nature
-  d'une fiche du registre des risques IT, dont la cotation probabilité × impact ne conviendrait pas.
+  **risques et impacts** en deux **listes** : un sujet de COPIL se raconte et porte rarement un seul
+  risque — il en reçoit au fil des comités. Ce n'est pas une fiche du registre des risques IT, dont
+  la cotation probabilité × impact ne conviendrait pas ici. Le journal consigne le **mouvement**
+  (« risque ajouté : … », « risque retiré : … ») et non la liste entière recopiée : un journal qui
+  répète l'état complet ne se relit pas. Et l'écran n'affiche que les premiers éléments, le reste
+  sous un fondu — une fiche qui déroule six risques repousse le cycle de vie hors de l'écran.
 - **Une panne doit se voir, et une sauvegarde doit se prouver.** La tâche du service abandonne
   après trois relances Windows, définitivement et sans prévenir : `DSI360-Surveillance` reprend la
   main toutes les 5 min. Elle **relance** quand `/healthz` est muet (le processus est mort), mais
