@@ -51,7 +51,7 @@ const PAGES: Record<string, JSX.Element> = {
   ),
   '/gouvernance': (
     <PageActiviteCategorie
-      titre="Gouvernance DSI"
+      titre="Gouvernance"
       sous="COPIL, comités, décisions DG, engagements et plans d'actions."
       base="/gouvernance"
       module="gouvernance"

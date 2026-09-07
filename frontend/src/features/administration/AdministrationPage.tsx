@@ -25,6 +25,7 @@ import filtres from '@/common/FiltreTickets.module.css';
 import a from './AdministrationPage.module.css';
 import {
   adminApi,
+  type Departement,
   type Direction,
   type EntreeJournal,
   type Matrice,
@@ -85,6 +86,15 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
 
   // L'administrateur distribue le travail, il ne traite pas de tickets : lui seul est sans niveau.
   const niveauRequis = profil !== 'ADMIN';
+  const profilChoisi = profils.find((p) => p.code === profil);
+  // Changer de direction peut retirer de la liste le profil déjà choisi. Le laisser affiché
+  // enverrait au serveur un profil que l'écran ne propose plus : on le libère, et le champ
+  // redemande un choix au lieu de mentir.
+  useEffect(() => {
+    if (profil !== '' && profils.length > 0 && !profils.some((p) => p.code === profil)) {
+      setProfil('');
+    }
+  }, [profils, profil]);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(async (p: number): Promise<void> => {
@@ -102,9 +112,14 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
     void charger(page);
   }, [charger, page]);
   useEffect(() => {
-    void adminApi.profils().then(setProfils);
     void adminApi.directions().then(setDirections);
   }, []);
+  // Choisir une direction ne montre plus que SES profils — et toujours les transverses, sinon
+  // l'administrateur disparaîtrait de la liste et plus personne ne pourrait en nommer un.
+  // Le filtrage vit côté serveur : l'écran n'a pas à savoir quel profil appartient à quoi.
+  useEffect(() => {
+    void adminApi.profils(direction).then(setProfils);
+  }, [direction]);
 
   const ouvrirCreation = (): void => {
     setEmail('');
@@ -344,12 +359,20 @@ function OngletUtilisateurs({ signalCreation }: { signalCreation: number }): JSX
         <div className={styles.niveaux}>
           <div className={styles.champ}>
             <span>Profil</span>
+            {/* Le libellé porte le département : c'est lui qui range l'agent dans la DSI, et le
+                répéter dans un champ à part ouvrirait deux vérités pour une seule information. */}
             <SelecteurListe
-              options={profils.map((p) => ({ valeur: p.code, libelle: p.libelle }))}
+              options={profils.map((p) => ({
+                valeur: p.code,
+                libelle: p.departement ? `${p.libelle} — ${p.departement}` : p.libelle,
+              }))}
               valeur={profil === '' ? null : profil}
               onChange={(v) => setProfil(v ?? '')}
               placeholder="Choisir un profil"
             />
+            {profilChoisi?.departement != null && (
+              <span className={a.aide}>Département : {profilChoisi.departement}</span>
+            )}
           </div>
           <div className={styles.champ}>
             <span>Direction (cloisonnement)</span>
@@ -966,6 +989,146 @@ function OngletCategories(): JSX.Element {
 
 // ---------------------------------------------------------------- Profils
 
+/** Départements de la DSI : « Production et Applicatif », « Réseau et Infrastructure ».
+ *
+ *  Un département RANGE — il classe les profils, les sujets de gouvernance et les analyses. Il ne
+ *  restreint aucun accès : c'est la direction qui porte le périmètre de visibilité. La phrase en
+ *  tête de l'onglet le dit, parce que la confusion serait naturelle et lourde de conséquences. */
+function OngletDepartements(): JSX.Element {
+  const { notifier } = useToast();
+  const [departements, setDepartements] = useState<Departement[]>([]);
+  const [nouveau, setNouveau] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+
+  const charger = useCallback((): void => {
+    void adminApi.departements().then(setDepartements);
+  }, []);
+  useEffect(() => {
+    charger();
+  }, [charger]);
+
+  const echouer = (e: unknown, repli: string): void =>
+    notifier(e instanceof ErreurApi ? e.message : repli, 'erreur');
+
+  const ajouter = async (): Promise<void> => {
+    const libelle = nouveau.trim();
+    if (libelle === '') return;
+    setEnvoi(true);
+    try {
+      await adminApi.creerDepartement(libelle);
+      setNouveau('');
+      charger();
+      notifier('Département créé — rattachez-lui des profils dans l’onglet Profils', 'succes');
+    } catch (e) {
+      echouer(e, 'Création impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const renommer = async (d: Departement, libelle: string): Promise<void> => {
+    if (libelle.trim() === '' || libelle.trim() === d.libelle) return;
+    setEnvoi(true);
+    try {
+      await adminApi.renommerDepartement(d.id, libelle.trim());
+      charger();
+      notifier('Département renommé', 'succes');
+    } catch (e) {
+      echouer(e, 'Modification impossible.');
+      charger(); // le refus serveur fait foi : on réaffiche l'état réel
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const supprimer = async (d: Departement): Promise<void> => {
+    setEnvoi(true);
+    try {
+      await adminApi.supprimerDepartement(d.id);
+      charger();
+      notifier('Département supprimé', 'succes');
+    } catch (e) {
+      echouer(e, 'Suppression impossible.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
+      <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
+        Subdivisions de la direction. Un département <strong>range</strong> : il classe les profils,
+        les sujets de gouvernance et les analyses. Il ne <strong>restreint</strong> rien — deux
+        agents de départements différents voient les mêmes dossiers. C’est la direction qui porte le
+        périmètre de visibilité. Le code technique est dérivé du libellé et ne change jamais.
+      </p>
+      <table className={a.matrice}>
+        <thead>
+          <tr>
+            <th>Libellé</th>
+            <th>Code</th>
+            <th style={{ width: 120 }}>Direction</th>
+            <th style={{ width: 110, textAlign: 'right' }}>Profils</th>
+            <th style={{ width: 60, textAlign: 'right' }} />
+          </tr>
+        </thead>
+        <tbody>
+          {departements.map((d) => (
+            <tr key={d.id}>
+              <td>
+                <ChampInline valeur={d.libelle} onValider={(v) => void renommer(d, v)} />
+              </td>
+              <td style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                {d.code}
+              </td>
+              <td style={{ color: 'var(--text-muted)' }}>{d.direction}</td>
+              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {d.nb_profils}
+              </td>
+              <td style={{ textAlign: 'right' }}>
+                {/* Un département qui porte des profils ne se supprime pas : le serveur refuse et
+                    dit combien. On garde le bouton — le refus explique mieux qu'un grisage muet. */}
+                <BoutonSupprimer
+                  cible={`le département « ${d.libelle} »`}
+                  onSupprimer={() => supprimer(d)}
+                  className={a.supprCat}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          marginTop: 'var(--space-4)',
+          maxWidth: 420,
+        }}
+      >
+        <input
+          className={a.slaInput}
+          style={{ flex: 1, textAlign: 'left' }}
+          value={nouveau}
+          placeholder="Nouveau département"
+          aria-label="Libellé du nouveau département"
+          onChange={(e) => setNouveau(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void ajouter();
+            }
+          }}
+        />
+        <Button onClick={() => void ajouter()} disabled={envoi || nouveau.trim() === ''}>
+          <Plus size={16} />
+          Ajouter
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Le profil administrateur est protégé côté serveur : ni suppression, ni perte du transverse.
  *  L'écran le reflète — un bouton qui déclenche un refus est un bouton de trop. */
 const PROFIL_ADMIN = 'ADMIN';
@@ -973,11 +1136,13 @@ const PROFIL_ADMIN = 'ADMIN';
 function OngletProfils(): JSX.Element {
   const { notifier } = useToast();
   const [profils, setProfils] = useState<Profil[]>([]);
+  const [departements, setDepartements] = useState<Departement[]>([]);
   const [nouveau, setNouveau] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
   const charger = useCallback((): void => {
     void adminApi.profils().then(setProfils);
+    void adminApi.departements().then(setDepartements);
   }, []);
   useEffect(() => {
     charger();
@@ -1002,11 +1167,16 @@ function OngletProfils(): JSX.Element {
     }
   };
 
-  const modifier = async (p: Profil, libelle: string, transverse: boolean): Promise<void> => {
-    if (libelle.trim() === '' || (libelle === p.libelle && transverse === p.transverse)) return;
+  const modifier = async (
+    p: Profil,
+    corps: { libelle?: string; transverse?: boolean; departement_id?: string | null },
+  ): Promise<void> => {
+    const libelle = (corps.libelle ?? p.libelle).trim();
+    if (libelle === '') return;
     setEnvoi(true);
     try {
-      await adminApi.modifierProfil(p.code, libelle.trim(), transverse);
+      // `departement_id` n'est envoyé que s'il change : omis, le serveur le laisse tel quel.
+      await adminApi.modifierProfil(p.code, { ...corps, libelle });
       charger();
       notifier('Profil modifié', 'succes');
     } catch (e) {
@@ -1033,16 +1203,19 @@ function OngletProfils(): JSX.Element {
   return (
     <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
       <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-        Profils métier de la DSI. Le code technique est dérivé du libellé et ne change jamais : il
+Profils métier de la DSI. Le code technique est dérivé du libellé et ne change jamais : il
         est référencé par les comptes et par la matrice d’accès. Un profil porté par des comptes ne
         peut pas être supprimé. Un nouveau profil n’ouvre aucun module tant que vous ne lui en
-        donnez pas dans l’onglet Accès.
+        donnez pas dans l’onglet Accès. Le <strong>département</strong> range le profil dans la
+        DSI : il sert à lire et à analyser, il ne restreint aucun accès — c’est le périmètre de
+        direction qui le fait.
       </p>
       <table className={a.matrice}>
         <thead>
           <tr>
             <th>Libellé</th>
             <th>Code</th>
+            <th style={{ width: 220 }}>Département</th>
             <th style={{ width: 190 }}>Périmètre</th>
             <th style={{ width: 60, textAlign: 'right' }} />
           </tr>
@@ -1055,12 +1228,26 @@ function OngletProfils(): JSX.Element {
                 <td>
                   <ChampInline
                     valeur={p.libelle}
-                    onValider={(v) => void modifier(p, v, p.transverse)}
+                    onValider={(v) => void modifier(p, { libelle: v })}
                     aria-label={`Renommer ${p.libelle}`}
                   />
                 </td>
                 <td style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                   {p.code}
+                </td>
+                <td>
+                  {/* Un profil transverse n'appartient à aucun département : il les voit tous. */}
+                  {protege ? (
+                    <span style={{ color: 'var(--text-muted)' }}>—</span>
+                  ) : (
+                    <SelecteurListe
+                      valeur={p.departement_id}
+                      options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
+                      onChange={(v) => void modifier(p, { departement_id: v })}
+                      permettreVide
+                      libelleVide="Aucun"
+                    />
+                  )}
                 </td>
                 <td>
                   <button
@@ -1072,7 +1259,7 @@ function OngletProfils(): JSX.Element {
                         ? 'L’administrateur reste transverse'
                         : 'Voit les activités de toutes les directions'
                     }
-                    onClick={() => void modifier(p, p.libelle, !p.transverse)}
+                    onClick={() => void modifier(p, { transverse: !p.transverse })}
                   >
                     <span className={cx(a.case, p.transverse && a.caseOn)}>
                       {p.transverse && <Check size={13} />}
@@ -1129,7 +1316,7 @@ function OngletProfils(): JSX.Element {
 
 export function AdministrationPage(): JSX.Element {
   const [onglet, setOnglet] = useState<
-    'utilisateurs' | 'profils' | 'acces' | 'journal' | 'sla' | 'categories'
+    'utilisateurs' | 'departements' | 'profils' | 'acces' | 'journal' | 'sla' | 'categories'
   >('utilisateurs');
   const [signalCreation, setSignalCreation] = useState(0);
 
@@ -1139,7 +1326,7 @@ export function AdministrationPage(): JSX.Element {
         <div>
           <h1 className={styles.titre}>Administration</h1>
           <p className={styles.sous}>
-            Utilisateurs, profils, accès, catégories, SLA et journal d’audit.
+            Utilisateurs, départements, profils, accès, catégories, SLA et journal d’audit.
           </p>
         </div>
       </header>
@@ -1152,7 +1339,14 @@ export function AdministrationPage(): JSX.Element {
           >
             Utilisateurs
           </button>
-          {/* Profils avant Accès : on crée un profil, puis on lui ouvre des modules. */}
+          {/* Départements avant Profils, Profils avant Accès : on crée un département, on y
+              rattache un profil, puis on lui ouvre des modules. L'ordre raconte la marche à suivre. */}
+          <button
+            className={onglet === 'departements' ? a.tabActif : a.tab}
+            onClick={() => setOnglet('departements')}
+          >
+            Départements
+          </button>
           <button
             className={onglet === 'profils' ? a.tabActif : a.tab}
             onClick={() => setOnglet('profils')}
@@ -1195,6 +1389,7 @@ export function AdministrationPage(): JSX.Element {
       </div>
 
       {onglet === 'utilisateurs' && <OngletUtilisateurs signalCreation={signalCreation} />}
+      {onglet === 'departements' && <OngletDepartements />}
       {onglet === 'profils' && <OngletProfils />}
       {onglet === 'acces' && <OngletAcces />}
       {onglet === 'journal' && <OngletJournal />}

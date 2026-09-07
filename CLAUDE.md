@@ -44,7 +44,10 @@ Neuf modules, livrés par phases (cf. §7) :
 6. **Audit & Recommandations** — sources (Audit Groupe, Interne, BCEAO, Contrôle Permanent, Risques, CAC), plan d'action, échéance, justificatifs, validation de clôture.
 7. **Risques IT** — identification, probabilité × impact = criticité, plan de traitement, revue périodique.
 8. **Cybersécurité** — habilitations sensibles, comptes admin, revue des accès, vulnérabilités, correctifs, MFA, contrôles IAM.
-9. **Gouvernance DSI** — COPIL, comités, décisions DG, plan d'actions, suivi des engagements.
+9. **Gouvernance** — COPIL, comités, décisions DG, plan d'actions, suivi des engagements. Chaque
+   sujet se range dans un **département** de la DSI, porte ses **risques** et ses **impacts** en
+   clair, et affiche un **avancement déclaré** par son gestionnaire — justification obligatoire à
+   chaque mise à jour.
 
 > **Hors cahier, ajouts assumés** — deux modules de patrimoine, tracés ici comme tels :
 > **Inventaire** (parc matériel, immobilisations IT) et **Applications** (inventaire applicatif :
@@ -116,6 +119,37 @@ Neuf modules, livrés par phases (cf. §7) :
   `core.activite.antecedents`, car le journal est append-only : sans elle, la fiche paraîtrait née
   le jour de sa requalification. Et quand deux fiches subsistent pour un numéro absent du rapport,
   on les **compte** sans trancher — rien ne dit lequel des deux modules est le bon.
+- **Le département range, la direction cloisonne.** La DSI se subdivise en **départements**
+  (`core.departement`) — « Production et Applicatif », « Réseau et Infrastructure » — pour que l'on
+  distingue à la saisie comme à la lecture ce qui relève de chacun. Ce niveau **organise et
+  analyse** ; il ne masque rien. Le seul périmètre de sécurité reste la **direction**
+  (`autorisations.visible`) : deux agents de départements différents voient les mêmes dossiers de
+  leur direction. Se servir de la direction pour ranger aurait du même coup caché ; s'être servi du
+  département pour cloisonner aurait transformé un besoin de lisibilité en restriction que personne
+  n'a demandée. Le département est porté par le **profil** — celui d'un agent se déduit donc de son
+  profil, une seule vérité — et par l'activité (`core.activite.departement_id`, gouvernance
+  d'abord). Choisir une direction à la création d'un compte ne propose que ses profils, **plus les
+  transverses** : sans cette exception, `ADMIN` disparaîtrait du formulaire et plus personne ne
+  pourrait nommer d'administrateur.
+- **Plusieurs contributeurs, un seul valideur.** La règle inverse — un acteur par rôle, « nommer
+  quelqu'un d'autre est une réaffectation » — obligeait à retirer un appui pour en désigner un
+  second, alors qu'un dossier en mobilise couramment plusieurs. Elle tombe pour **tous** les
+  modules : une règle qui varierait de module en module ne serait plus garantie par la base,
+  seulement espérée par le code (`ux_activite_valideur_unique`, index partiel). Le **valideur**
+  reste unique : sa décision engage, le circuit CAB/ECAB s'appuie sur un décideur identifié, et la
+  liste se fige dès la première décision. Conséquence tenue partout : la colonne d'export devient
+  « Contributeurs » et les porte tous — n'en exporter qu'un donnerait un fichier faux, pas
+  incomplet — et les listes affichent « Awa Touré +2 » plutôt qu'un nom seul.
+- **Le contributeur travaille, le gestionnaire rend compte.** L'avancement d'un sujet de
+  **gouvernance** se déclare à la main (`peut_avancer`), là où celui des projets et des changements
+  se **déduit** des tâches terminées — cumuler les deux est refusé au démarrage du routeur, car deux
+  sources pour un même chiffre finiraient par diverger. `peut_avancer` est volontairement distinct
+  de `peut_travailler` : annoncer un pourcentage engage celui à qui le sujet est affecté, ce n'est
+  pas une contribution de plus. Toute déclaration exige une **justification** (refus serveur en 422,
+  l'écran ne fait que l'annoncer plus tôt), conservée comme **note** du dossier — le mécanisme des
+  transitions justifiées des projets, réutilisé plutôt que redoublé. Un sujet porte aussi ses
+  **risques et impacts** en deux textes libres : un sujet de COPIL se raconte, il n'a pas la nature
+  d'une fiche du registre des risques IT, dont la cotation probabilité × impact ne conviendrait pas.
 - **Une panne doit se voir, et une sauvegarde doit se prouver.** La tâche du service abandonne
   après trois relances Windows, définitivement et sans prévenir : `DSI360-Surveillance` reprend la
   main toutes les 5 min. Elle **relance** quand `/healthz` est muet (le processus est mort), mais

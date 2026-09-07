@@ -12,6 +12,7 @@ from dsi360.infrastructure.repositories import sla as repo_sla
 from dsi360.interface.schemas import (
     AgentItem,
     CategorieItem,
+    DepartementBref,
     EtatReferentiel,
     SlaRegleItem,
 )
@@ -30,13 +31,27 @@ _CATEGORIES = text(
 #
 # Le filtre passe par core.acces_role, jamais par une liste de codes de profils : ceux-ci se créent
 # et se suppriment depuis l'administration (ADR-0003).
+# `departement` restreint aux agents de ce département. Le département d'un agent se déduit de son
+# PROFIL : une seule vérité, aucune divergence possible. Les profils transverses (l'administrateur)
+# restent proposés — ils n'appartiennent à aucun département mais travaillent partout, et les
+# écarter reviendrait à empêcher de leur confier un sujet.
 _AGENTS = text(
     "SELECT u.id::text AS id, (u.prenom || ' ' || u.nom) AS nom, p.code AS profil "
     "FROM core.utilisateur u JOIN core.profil p ON p.id = u.profil_id "
     "WHERE u.actif AND (cast(:module as text) IS NULL OR EXISTS ("
     "    SELECT 1 FROM core.acces_role ar "
     "    WHERE ar.profil_code = p.code AND ar.acces = :module)) "
+    "AND (cast(:departement as text) IS NULL "
+    "     OR p.transverse OR p.departement_id::text = :departement) "
     "ORDER BY u.prenom, u.nom"
+)
+
+#: Départements, en lecture pour tous : la fiche d'un sujet de gouvernance doit pouvoir les
+#: proposer sans exiger l'accès à l'administration.
+_DEPARTEMENTS = text(
+    "SELECT dep.id::text AS id, dep.code, dep.libelle, dir.code AS direction "
+    "FROM core.departement dep JOIN core.direction dir ON dir.id = dep.direction_id "
+    "ORDER BY dep.libelle"
 )
 
 
@@ -55,9 +70,24 @@ async def agents(
     session: Annotated[AsyncSession, Depends(session_scope)],
     _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
     module: Annotated[str | None, Query()] = None,
+    departement: Annotated[str | None, Query()] = None,
 ) -> list[dict[str, Any]]:
-    """Comptes désignables. `module` = clé d'accès (« incidents », « projets »…)."""
-    resultat = await session.execute(_AGENTS, {"module": module})
+    """Comptes désignables. `module` = clé d'accès (« incidents », « projets »…).
+
+    `departement` restreint au département visé — utile quand on confie un sujet de gouvernance à
+    l'équipe qui en répond, plutôt que de faire chercher un nom dans toute la DSI.
+    """
+    resultat = await session.execute(_AGENTS, {"module": module, "departement": departement})
+    return [dict(ligne) for ligne in resultat.mappings().all()]
+
+
+@routeur.get("/departements", response_model=list[DepartementBref])
+async def departements(
+    session: Annotated[AsyncSession, Depends(session_scope)],
+    _: Annotated[dict[str, Any], Depends(utilisateur_courant)],
+) -> list[dict[str, Any]]:
+    """Départements de la DSI, en lecture. Leur gestion vit dans /admin/departements."""
+    resultat = await session.execute(_DEPARTEMENTS)
     return [dict(ligne) for ligne in resultat.mappings().all()]
 
 

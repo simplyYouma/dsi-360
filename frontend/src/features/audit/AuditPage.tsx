@@ -73,6 +73,7 @@ const COLONNES: Colonne<Recommandation>[] = [
       <CelluleActeur
         nom={r.responsable ? `${r.responsable.prenom} ${r.responsable.nom}` : null}
         contributeur={r.contributeur}
+        nbContributeurs={r.nb_contributeurs ?? 0}
         vide="—"
       />
     ),

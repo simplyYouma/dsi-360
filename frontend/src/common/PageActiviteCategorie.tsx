@@ -9,6 +9,8 @@ import { useFicheUrl } from '@/common/useFicheUrl';
 import { CurseurNiveau } from '@/common/CurseurNiveau';
 import { SelecteurCategorie } from '@/common/SelecteurCategorie';
 import { SelecteurGestionnaire } from '@/common/SelecteurGestionnaire';
+import { SelecteurListe } from '@/common/SelecteurListe';
+import { CAPACITES_MODULE } from '@/common/routesModule';
 import { ApercuEcheance } from '@/common/ApercuEcheance';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { BadgePriorite, BadgeStatut } from '@/common/statuts';
@@ -33,6 +35,10 @@ interface Props {
   couleurCategorie: string;
 }
 
+/** Un module de département choisit aussi son équipe : le sélecteur de gestionnaire se restreint
+ *  au département retenu. Le reste des capacités vient de `CAPACITES_MODULE`, miroir des drapeaux
+ *  serveur — une seule table plutôt qu'une liste de props à recopier à chaque appel. */
+
 function formaterDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', {
     day: '2-digit',
@@ -52,6 +58,7 @@ export function PageActiviteCategorie({
   labelNouveau,
   couleurCategorie,
 }: Props): JSX.Element {
+  const capacites = CAPACITES_MODULE[module] ?? {};
   const [items, setItems] = useState<Incident[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -69,11 +76,20 @@ export function PageActiviteCategorie({
   const [impact, setImpact] = useState(3);
   const [urgence, setUrgence] = useState(3);
   const [liens, setLiens] = useState<LienSaisi[]>([]);
+  const [departement, setDepartement] = useState<string | null>(null);
+  const [departements, setDepartements] = useState<{ id: string; libelle: string }[]>([]);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const { moi } = useAuth();
   const gerable = moi?.acces.includes('administration') ?? false;
+
+  useEffect(() => {
+    if (capacites.avecDepartement !== true) return;
+    void api
+      .get<{ id: string; libelle: string }[]>('/referentiels/departements')
+      .then(setDepartements);
+  }, [capacites.avecDepartement]);
 
   const colonnes: Colonne<Incident>[] = [
     {
@@ -123,6 +139,7 @@ export function PageActiviteCategorie({
         <CelluleActeur
           nom={a.responsable ? `${a.responsable.prenom} ${a.responsable.nom}` : null}
           contributeur={a.contributeur}
+          nbContributeurs={a.nb_contributeurs ?? 0}
           vide="—"
         />
       ),
@@ -191,6 +208,7 @@ export function PageActiviteCategorie({
         urgence,
         categorie_id: categorie,
         responsable_id: gestionnaire,
+        departement_id: departement,
       });
       await persisterLiens((l) => api.post(`${base}/${cree.id}/liens`, l), liens);
       setModale(false);
@@ -201,6 +219,7 @@ export function PageActiviteCategorie({
       setImpact(3);
       setUrgence(3);
       setLiens([]);
+      setDepartement(null);
       if (page === 1) await charger(1);
       else setPage(1);
     } catch (err) {
@@ -256,6 +275,9 @@ export function PageActiviteCategorie({
         avecLiens
         labelCategorie={labelCategorie}
         moduleCategorie={module}
+        avecAvancementManuel={capacites.avecAvancementManuel ?? false}
+        avecDepartement={capacites.avecDepartement ?? false}
+        avecRisquesImpacts={capacites.avecRisquesImpacts ?? false}
         onFermer={() => setFicheId(null)}
         onChange={() => void charger(page)}
         onVu={(aid) =>
@@ -295,7 +317,31 @@ export function PageActiviteCategorie({
             />
           </div>
         )}
-        <SelecteurGestionnaire valeur={gestionnaire} onChange={setGestionnaire} />
+        {capacites.avecDepartement === true && (
+          <div className={styles.champ}>
+            <span>Département</span>
+            <SelecteurListe
+              valeur={departement}
+              options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
+              onChange={(v) => {
+                setDepartement(v);
+                // Le gestionnaire déjà choisi peut ne plus appartenir au département retenu :
+                // le garder afficherait un nom que la liste ne propose plus.
+                setGestionnaire(null);
+              }}
+              permettreVide
+              libelleVide="Non rattaché"
+              placeholder="Choisir un département"
+            />
+          </div>
+        )}
+        {/* Le département filtre les agents proposés : on confie le sujet à l'équipe qui en
+            répond. Sans département choisi, toute la DSI reste proposable. */}
+        <SelecteurGestionnaire
+          valeur={gestionnaire}
+          onChange={setGestionnaire}
+          departement={capacites.avecDepartement === true ? departement : undefined}
+        />
         <label className={styles.champ}>
           <span>Description</span>
           <textarea

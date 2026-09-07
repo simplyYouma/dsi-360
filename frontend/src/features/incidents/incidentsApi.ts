@@ -23,7 +23,12 @@ export interface Incident {
   responsable: ResponsableBref | null;
   demandeur: string | null;
   gestionnaire: string | null;
+  /** Premier contributeur par ordre alphabétique, et combien ils sont en tout. Ils peuvent
+   *  être plusieurs : n'afficher qu'un nom sans le dire ferait mentir la liste par omission. */
   contributeur: string | null;
+  nb_contributeurs?: number;
+  /** Département de la DSI dont relève le dossier (gouvernance). */
+  departement?: string | null;
   responsable_id: string | null;
   nb_commentaires: number;
   nb_non_vus: number;

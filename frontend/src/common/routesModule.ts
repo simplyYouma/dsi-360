@@ -35,6 +35,13 @@ export interface CapacitesModule {
   gestionnaireFige?: boolean;
   moduleCategorie?: string;
   labelCategorie?: string;
+  /** Avancement déclaré par le gestionnaire, avec justification (gouvernance). Ailleurs il se
+   *  déduit des tâches : deux sources pour un même chiffre finiraient par diverger. */
+  avecAvancementManuel?: boolean;
+  /** Rattachement à un département de la DSI (gouvernance). Range, ne cloisonne rien. */
+  avecDepartement?: boolean;
+  /** Risques et impacts en clair (gouvernance). */
+  avecRisquesImpacts?: boolean;
 }
 
 export const CAPACITES_MODULE: Record<string, CapacitesModule> = {
@@ -54,6 +61,9 @@ export const CAPACITES_MODULE: Record<string, CapacitesModule> = {
     avecRevue: true,
     moduleCategorie: 'gouvernance',
     labelCategorie: 'Type',
+    avecAvancementManuel: true,
+    avecDepartement: true,
+    avecRisquesImpacts: true,
   },
   projet: { avecDocuments: true },
 };

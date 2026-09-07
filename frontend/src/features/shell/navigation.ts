@@ -80,7 +80,7 @@ export const SECTIONS: SectionNav[] = [
   },
   {
     titre: 'Gouvernance',
-    entrees: [{ chemin: '/gouvernance', libelle: 'Gouvernance DSI', icone: Landmark, phase: 'P3' }],
+    entrees: [{ chemin: '/gouvernance', libelle: 'Gouvernance', icone: Landmark, phase: 'P3' }],
   },
   {
     titre: 'Système',

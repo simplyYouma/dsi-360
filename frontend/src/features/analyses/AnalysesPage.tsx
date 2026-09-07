@@ -1015,6 +1015,51 @@ export function AnalysesPage(): JSX.Element {
               )}
             </Card>
 
+            {/* Répartition par département : la lecture que la DSI demandait — ce qui relève de
+                Production & Applicatif, ce qui relève de Réseau & Infrastructure. « Non rattaché »
+                y figure sans fard : le masquer laisserait croire que tout est rangé. */}
+            <Card data-visuel="Charge par département">
+              <BoutonExportPng nom="Charge par département" />
+              <h2 className={styles.chartTitre}>Charge par département</h2>
+              <p className={styles.chartSous}>
+                Dossiers ouverts par département de la DSI. Le département range et éclaire ; il ne
+                restreint l’accès de personne.
+              </p>
+              {(a?.par_departement ?? []).length === 0 ? (
+                <p className={styles.vide}>Aucun dossier ouvert sur la période.</p>
+              ) : (
+                <ul className={cx(styles.stack, styles.repartition)}>
+                  {(a?.par_departement ?? []).map((d) => {
+                    const total = (a?.par_departement ?? []).reduce((n, x) => n + x.valeur, 0);
+                    const part = total === 0 ? 0 : Math.round((d.valeur / total) * 100);
+                    // « Non rattaché » n'est pas un département : il se lit en gris, pour qu'on
+                    // ne le compare pas aux autres comme s'il en était un.
+                    const rattache = d.libelle !== 'Non rattaché';
+                    return (
+                      <li key={d.libelle} className={styles.stackLigne}>
+                        <span className={styles.stackNom}>{d.libelle}</span>
+                        <span className={styles.stackBarre}>
+                          <span
+                            className={styles.stackSeg}
+                            style={{
+                              width: `${part}%`,
+                              background: rattache ? 'var(--secondary)' : 'var(--text-muted)',
+                            }}
+                          />
+                        </span>
+                        <span
+                          className={styles.stackTot}
+                          style={rattache ? undefined : { color: 'var(--text-muted)' }}
+                        >
+                          {d.valeur} · {part} %
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+
             <Card data-visuel="Résolutions qui n'ont pas tenu">
               <BoutonExportPng nom="Résolutions qui n'ont pas tenu" />
               <h2 className={styles.chartTitre}>Résolutions qui n'ont pas tenu</h2>

@@ -29,10 +29,18 @@ interface Props {
   avecDecision?: boolean;
   /** Seul l'administrateur désigne : les autres voient la liste, sans ajout ni retrait. */
   lectureSeule?: boolean;
+  /** Plusieurs titulaires possibles (contributeurs). Le « + » reste un ajout, jamais un
+   *  remplacement. Faux pour les valideurs, qui restent uniques. */
+  plusieurs?: boolean;
 }
 
-/** Acteur secondaire d'une activité (contributeur, valideur) : un seul titulaire par rôle.
- *  Vide, le « + » désigne ; occupé, l'icône devient une réaffectation — nommer remplace. */
+/** Acteur secondaire d'une activité.
+ *
+ *  Deux régimes, et l'icône dit lequel :
+ *  - **contributeurs** (`plusieurs`) : le « + » AJOUTE. Ils sont plusieurs depuis le 07/09/2026 —
+ *    un dossier mobilise couramment plusieurs appuis.
+ *  - **valideurs** : un seul titulaire. Vide, le « + » désigne ; occupé, l'icône devient une
+ *    réaffectation — nommer remplace, et la décision du prédécesseur ne l'engage pas. */
 export function GestionActeurs({
   acteurs,
   agents,
@@ -43,8 +51,11 @@ export function GestionActeurs({
   disabled = false,
   avecDecision = false,
   lectureSeule = false,
+  plusieurs = false,
 }: Props): JSX.Element {
   const [ajout, setAjout] = useState(false);
+  // Le geste n'est un remplacement que sur un rôle à titulaire unique déjà pourvu.
+  const remplace = !plusieurs && acteurs.length > 0;
   const exclus = new Set([...exclureIds, ...acteurs.map((a) => a.id)]);
   const options = agents
     .filter((a) => !exclus.has(a.id))
@@ -82,10 +93,10 @@ export function GestionActeurs({
               className={styles.ajouter}
               disabled={disabled || options.length === 0}
               onClick={() => setAjout(true)}
-              title={acteurs.length > 0 ? 'Réaffecter' : placeholder}
-              aria-label={acteurs.length > 0 ? 'Réaffecter' : placeholder}
+              title={remplace ? 'Réaffecter' : placeholder}
+              aria-label={remplace ? 'Réaffecter' : placeholder}
             >
-              {acteurs.length > 0 ? <Repeat2 size={14} /> : <Plus size={14} />}
+              {remplace ? <Repeat2 size={14} /> : <Plus size={14} />}
             </button>
           </li>
         )}

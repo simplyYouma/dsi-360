@@ -92,6 +92,9 @@ export interface Analyses {
   kpis: Kpis;
   par_module: AnalyseItem[];
   par_direction: AnalyseItem[];
+  /** Répartition par département de la DSI. « Non rattaché » regroupe ce qui n'en porte pas —
+   *  l'import quotidien ne connaît pas le découpage interne de la direction. */
+  par_departement: AnalyseItem[];
   par_responsable: AnalyseItem[];
   par_priorite: AnalyseItem[];
   sla: { a_lheure: number; approche: number; depasse: number };

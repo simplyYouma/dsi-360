@@ -68,6 +68,7 @@ const COLONNES: Colonne<Changement>[] = [
       <CelluleActeur
         nom={c.responsable ? `${c.responsable.prenom} ${c.responsable.nom}` : null}
         contributeur={c.contributeur}
+        nbContributeurs={c.nb_contributeurs ?? 0}
         vide="—"
       />
     ),

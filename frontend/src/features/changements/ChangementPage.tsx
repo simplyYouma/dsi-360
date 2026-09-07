@@ -414,6 +414,7 @@ export function ChangementPage(): JSX.Element {
                           void agir(() => changementsApi.retirerContributeur(id!, val))
                         }
                         placeholder="Ajouter un contributeur…"
+                    plusieurs
                         disabled={envoi}
                         lectureSeule={!permissions.peut_gerer_acteurs}
                       />

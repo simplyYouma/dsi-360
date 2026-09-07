@@ -40,6 +40,7 @@ import {
   libelleStatut,
 } from './statuts';
 import { ModaleConfirmation, type DemandeConfirmation } from '@/common/ModaleConfirmation';
+import { AvancementManuel, type JustificationAvancement } from '@/common/AvancementManuel';
 import styles from './FicheTransition.module.css';
 
 interface Detail {
@@ -86,6 +87,16 @@ interface Detail {
   periodicite?: string | null;
   prochaine_revue?: string | null;
   derniere_revue?: string | null;
+  /** Avancement du sujet. Déduit des tâches ailleurs ; DÉCLARÉ par le gestionnaire en gouvernance. */
+  avancement?: number;
+  /** Département de la DSI dont relève le dossier (gouvernance). Range, ne cloisonne rien. */
+  departement?: string | null;
+  departement_id?: string | null;
+  /** Sujet de gouvernance : ce qu'il peut coûter s'il dérape, ce qu'il change s'il aboutit. */
+  risques?: string | null;
+  impacts?: string | null;
+  /** Les motifs déjà écrits pour justifier un changement d'avancement. */
+  justifications_avancement?: JustificationAvancement[];
 }
 
 interface FicheTransitionProps {
@@ -112,6 +123,12 @@ interface FicheTransitionProps {
   gestionnaireFige?: boolean;
   /** Affiche le niveau de support, déduit du gestionnaire (tickets importés : incidents, demandes). */
   avecNiveauSupport?: boolean;
+  /** Avancement déclaré à la main, avec justification obligatoire (gouvernance). */
+  avecAvancementManuel?: boolean;
+  /** Rattachement à un département de la DSI (gouvernance). */
+  avecDepartement?: boolean;
+  /** Risques et impacts en clair (gouvernance). */
+  avecRisquesImpacts?: boolean;
 }
 
 function formaterDate(iso: string | null): string {
@@ -230,6 +247,9 @@ export function FicheTransition({
   avecRevue = false,
   avecLiens = false,
   avecNiveauSupport = false,
+  avecAvancementManuel = false,
+  avecDepartement = false,
+  avecRisquesImpacts = false,
 }: FicheTransitionProps): JSX.Element {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -244,6 +264,7 @@ export function FicheTransition({
   const { notifier } = useToast();
   const { moi } = useAuth();
   const [categories, setCategories] = useState<OptionCategorie[]>([]);
+  const [departements, setDepartements] = useState<{ id: string; libelle: string }[]>([]);
 
   // Le serveur a calculé ce que l'utilisateur peut faire sur CETTE activité : on obéit. Aucune
   // règle d'autorisation ici — la seule source est `permissions` (cf. common/permissions.ts).
@@ -265,6 +286,15 @@ export function FicheTransition({
     }
     chargerCategories();
   }, [moduleCategorie, id, chargerCategories]);
+
+  // Référentiel lisible par tous : la fiche doit pouvoir proposer les départements sans exiger
+  // l'accès à l'administration, qui appartient au seul administrateur.
+  useEffect(() => {
+    if (!avecDepartement) return;
+    void api
+      .get<{ id: string; libelle: string }[]>('/referentiels/departements')
+      .then(setDepartements);
+  }, [avecDepartement]);
 
   const changerCategorie = async (categorie_id: string | null): Promise<void> => {
     if (id === null) return;
@@ -428,6 +458,46 @@ export function FicheTransition({
       setErreur(err instanceof ErreurApi ? err.message : 'Enregistrement impossible.');
     } finally {
       setEnvoi(false);
+    }
+  };
+
+  const declarerAvancement = async (valeur: number, justification: string): Promise<void> => {
+    if (id === null) return;
+    setErreur(null);
+    try {
+      setDetail(await api.post<Detail>(`${base}/${id}/avancement`, { avancement: valeur, justification }));
+      onChange();
+      notifier(`Avancement : ${valeur} %`, 'succes');
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Enregistrement impossible.');
+    }
+  };
+
+  const changerDepartement = async (departementId: string | null): Promise<void> => {
+    if (id === null) return;
+    setErreur(null);
+    try {
+      setDetail(
+        await api.post<Detail>(`${base}/${id}/departement`, { departement_id: departementId }),
+      );
+      onChange();
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Modification impossible.');
+    }
+  };
+
+  // Risques et impacts d'un sujet de gouvernance : du contenu de dossier, comme les analyses RFC.
+  const modifierChampGouvernance = async (
+    champ: 'risques' | 'impacts',
+    valeur: string,
+  ): Promise<void> => {
+    if (id === null) return;
+    setErreur(null);
+    try {
+      setDetail(await api.patch<Detail>(`${base}/${id}`, { [champ]: valeur }));
+      onChange();
+    } catch (err) {
+      setErreur(err instanceof ErreurApi ? err.message : 'Enregistrement impossible.');
     }
   };
 
@@ -775,6 +845,7 @@ export function FicheTransition({
                     onAjouter={(v) => void ajouterContributeur(v)}
                     onRetirer={(v) => void retirerContributeur(v)}
                     placeholder="Ajouter un contributeur…"
+                    plusieurs
                     disabled={envoi}
                     lectureSeule={!permissions.peut_gerer_acteurs}
                   />
@@ -932,6 +1003,83 @@ export function FicheTransition({
                   )}
                 </dd>
               </div>
+            )}
+
+            {/* Le département RANGE le sujet dans la DSI. Il ne restreint rien : quiconque voit
+                la fiche continue de la voir, quel que soit son propre département. */}
+            {avecDepartement && (
+              <div className={styles.ligne}>
+                <dt>Département</dt>
+                <dd>
+                  <SelecteurListe
+                    valeur={detail.departement_id ?? null}
+                    options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
+                    onChange={(v) => void changerDepartement(v)}
+                    permettreVide
+                    libelleVide="Non rattaché"
+                    placeholder="Choisir un département"
+                    desactive={!permissions.peut_assigner}
+                    titreDesactive="Le rattachement d’un sujet revient à l’administrateur."
+                  />
+                </dd>
+              </div>
+            )}
+
+            {/* L'avancement DÉCLARÉ : c'est le gestionnaire qui rend compte, pas les
+                contributeurs. `peut_avancer` vient du serveur — l'écran n'en décide pas. */}
+            {avecAvancementManuel && (
+              <div className={styles.ligne}>
+                <dt>Avancement</dt>
+                <dd>
+                  <AvancementManuel
+                    valeur={detail.avancement ?? 0}
+                    modifiable={permissions.peut_avancer}
+                    onValider={declarerAvancement}
+                    justifications={detail.justifications_avancement ?? []}
+                    raisonVerrou={
+                      permissions.peut_travailler
+                        ? 'Seul le gestionnaire du sujet déclare son avancement.'
+                        : TITRE_LECTURE
+                    }
+                  />
+                </dd>
+              </div>
+            )}
+
+            {/* Risques et impacts : deux textes repliés sur quatre lignes, comme la description.
+                Un sujet de COPIL se raconte — il n'a pas la nature d'une fiche du registre des
+                risques IT, dont la cotation probabilité × impact ne conviendrait pas ici. */}
+            {avecRisquesImpacts && (
+              <>
+                <div className={styles.ligne}>
+                  <dt>Risques identifiés</dt>
+                  <dd>
+                    <ChampInline
+                      valeur={detail.risques ?? ''}
+                      onValider={(val) => void modifierChampGouvernance('risques', val)}
+                      multiligne
+                      repliable={4}
+                      indication="Ce qui peut faire dérailler le sujet, et sa probabilité."
+                      lectureSeule={!permissions.peut_completer_dossier}
+                      titreLectureSeule={TITRE_LECTURE}
+                    />
+                  </dd>
+                </div>
+                <div className={styles.ligne}>
+                  <dt>Impacts attendus</dt>
+                  <dd>
+                    <ChampInline
+                      valeur={detail.impacts ?? ''}
+                      onValider={(val) => void modifierChampGouvernance('impacts', val)}
+                      multiligne
+                      repliable={4}
+                      indication="Ce que le sujet change s'il aboutit : services, agents, budget."
+                      lectureSeule={!permissions.peut_completer_dossier}
+                      titreLectureSeule={TITRE_LECTURE}
+                    />
+                  </dd>
+                </div>
+              </>
             )}
           </dl>
 

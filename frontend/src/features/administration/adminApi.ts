@@ -19,6 +19,17 @@ export interface Profil {
   libelle: string;
   /** Voit au-delà de son périmètre de direction. */
   transverse: boolean;
+  /** Département auquel le profil appartient. `null` pour un profil transverse, qui n'en a aucun. */
+  departement_id: string | null;
+  departement: string | null;
+}
+export interface Departement {
+  id: string;
+  code: string;
+  libelle: string;
+  direction: string;
+  /** Profils rattachés : la suppression est refusée tant qu'il y en a. */
+  nb_profils: number;
 }
 export interface Direction {
   code: string;
@@ -69,13 +80,24 @@ export interface SlaRegle {
 }
 
 export const adminApi = {
-  profils: (): Promise<Profil[]> => api.get('/admin/profils'),
+  /** `direction` ne garde que les profils de cette direction — plus les transverses, toujours. */
+  profils: (direction?: string | null): Promise<Profil[]> =>
+    api.get(direction ? `/admin/profils?direction=${encodeURIComponent(direction)}` : '/admin/profils'),
   /** Le code technique est dérivé du libellé côté serveur : on nomme, on ne code pas. */
   creerProfil: (libelle: string, transverse: boolean): Promise<Profil> =>
     api.post('/admin/profils', { libelle, transverse }),
-  modifierProfil: (code: string, libelle: string, transverse: boolean): Promise<Profil> =>
-    api.patch(`/admin/profils/${code}`, { libelle, transverse }),
+  /** `departement_id` omis = inchangé ; `null` explicite = détacher. */
+  modifierProfil: (
+    code: string,
+    corps: { libelle: string; transverse?: boolean; departement_id?: string | null },
+  ): Promise<Profil> => api.patch(`/admin/profils/${code}`, corps),
   supprimerProfil: (code: string): Promise<void> => api.del(`/admin/profils/${code}`),
+  departements: (): Promise<Departement[]> => api.get('/admin/departements'),
+  creerDepartement: (libelle: string): Promise<Departement> =>
+    api.post('/admin/departements', { libelle }),
+  renommerDepartement: (id: string, libelle: string): Promise<Departement> =>
+    api.patch(`/admin/departements/${id}`, { libelle }),
+  supprimerDepartement: (id: string): Promise<void> => api.del(`/admin/departements/${id}`),
   modulesSla: (): Promise<string[]> => api.get('/admin/sla/modules'),
   sla: (module: string): Promise<SlaRegle[]> => api.get(`/admin/sla?module=${module}`),
   definirSla: (module: string, regles: SlaRegle[]): Promise<void> =>

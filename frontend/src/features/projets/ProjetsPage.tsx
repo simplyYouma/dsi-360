@@ -52,6 +52,7 @@ const COLONNES: Colonne<Projet>[] = [
       <CelluleActeur
         nom={p.chef ? `${p.chef.prenom} ${p.chef.nom}` : null}
         contributeur={p.contributeur}
+        nbContributeurs={p.nb_contributeurs ?? 0}
         vide="—"
       />
     ),

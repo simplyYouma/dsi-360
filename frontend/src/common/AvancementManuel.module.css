@@ -1,0 +1,163 @@
+.bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Dix crans, une seule ligne. Le repère chiffré vit SOUS le cran : lu de gauche à droite, on
+   suit la progression sans avoir à interpréter une graduation muette. */
+.crans {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 3px;
+}
+
+.cran,
+.cranAtteint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-muted);
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+/* La marque elle-même : un trait, pas une pastille. La couleur reste au sens (atteint / à venir). */
+.cran::before,
+.cranAtteint::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  transition: background 0.2s ease;
+}
+
+.cranAtteint::before {
+  background: var(--secondary);
+}
+
+.cran:hover,
+.cranAtteint:hover {
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.cran:hover::before {
+  background: color-mix(in srgb, var(--secondary) 45%, var(--bg-subtle));
+}
+
+.cran:focus-visible,
+.cranAtteint:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.cranValeur {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Sans le droit de déclarer : on dit pourquoi, on ne se contente pas de retirer les boutons. */
+.verrou {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Les justifications passées : discrètes, tronquées, et entièrement lisibles au clic. */
+.motifs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.motif {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 3px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.motif:hover {
+  border-color: var(--secondary);
+  color: var(--text);
+  /* L'agrandissement au survol annonce ce que fait le clic : ouvrir en grand. */
+  transform: scale(1.04);
+}
+
+.motif:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.motifTexte {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.motifOuvert {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.champ textarea {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.champ textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.aide {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

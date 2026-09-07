@@ -20,6 +20,10 @@ export interface Permissions {
   peut_completer_dossier: boolean;
   /** Description d'un incident/demande importé : saisissable par les acteurs (jamais écrasée). */
   peut_editer_description: boolean;
+  /** Déclarer l'avancement d'un sujet (gouvernance). Volontairement distinct de
+   *  `peut_travailler` : le contributeur fait avancer le travail, le **gestionnaire** rend
+   *  compte. Annoncer un pourcentage engage celui à qui le sujet est affecté. */
+  peut_avancer: boolean;
 }
 
 /** Aucune capacité : ce qu'on affiche tant que le détail n'est pas chargé. */
@@ -31,4 +35,5 @@ export const AUCUNE_PERMISSION: Permissions = {
   peut_decider: false,
   peut_completer_dossier: false,
   peut_editer_description: false,
+  peut_avancer: false,
 };

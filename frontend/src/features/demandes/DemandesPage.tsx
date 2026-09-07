@@ -80,7 +80,7 @@ const COLONNES: Colonne<Demande>[] = [
     cle: 'gestionnaire',
     entete: 'Gestionnaire',
     valeur: (d) => d.gestionnaire ?? '',
-    rendu: (d) => <CelluleActeur nom={d.gestionnaire} contributeur={d.contributeur} />,
+    rendu: (d) => <CelluleActeur nom={d.gestionnaire} contributeur={d.contributeur} nbContributeurs={d.nb_contributeurs ?? 0} />,
   },
   {
     cle: 'cree_le',

@@ -1043,3 +1043,10 @@
   color: var(--text-muted);
   font-weight: var(--weight-medium);
 }
+
+/* ---- Répartition par département ----
+   Les libellés (« Production et Applicatif ») sont plus longs que ceux des barres empilées, et la
+   valeur porte un volume ET une part : la grille de `.stackLigne` les tronquerait tous les deux. */
+.repartition .stackLigne {
+  grid-template-columns: 170px 1fr 76px;
+}

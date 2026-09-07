@@ -8,19 +8,27 @@ interface Props {
   onChange: (id: string | null) => void;
   /** Clé d'accès du module : n'affiche que les agents qui peuvent ouvrir cette activité. */
   module?: string | undefined;
+  /** Restreint aux agents de ce département (gouvernance) : on confie le sujet à l'équipe qui en
+   *  répond, plutôt que de faire chercher un nom dans toute la DSI. */
+  departement?: string | null | undefined;
 }
 
 /** Champ « Gestionnaire » (responsable DSI) autonome : libellé + sélecteur d'agents. Se masque
  *  s'il n'y a pas d'agents (ou pas d'accès). Partagé entre création et édition pour un comportement
  *  identique partout. */
-export function SelecteurGestionnaire({ valeur, onChange, module }: Props): JSX.Element | null {
+export function SelecteurGestionnaire({
+  valeur,
+  onChange,
+  module,
+  departement,
+}: Props): JSX.Element | null {
   const [agents, setAgents] = useState<Agent[]>([]);
 
   useEffect(() => {
-    void chargerAgents(module)
+    void chargerAgents(module, departement)
       .then(setAgents)
       .catch(() => setAgents([]));
-  }, [module]);
+  }, [module, departement]);
 
   if (agents.length === 0) return null;
   return (

@@ -187,6 +187,15 @@ class ActiviteResume(BaseModel):
     transfere_dbs: bool = False
 
 
+class JustificationAvancement(BaseModel):
+    """Ce qui a été écrit pour justifier un changement d'avancement. Conservé comme note du
+    dossier — le même mécanisme que les transitions justifiées des projets."""
+
+    texte: str
+    auteur: str | None = None
+    horodatage: datetime
+
+
 class PermissionsActivite(BaseModel):
     """Ce que l'appelant peut faire sur *cette* activité, calculé par le serveur.
 
@@ -237,6 +246,9 @@ class ActiviteDetail(ActiviteResume):
     plan_retour_arriere: str | None = None
     bilan_post_implementation: str | None = None
     departement_id: str | None = None
+    #: Les justifications d'avancement déjà consignées, de la plus ancienne à la plus récente.
+    #: Un pourcentage sans son motif ne se relit pas : la fiche doit pouvoir les rendre.
+    justifications_avancement: list[JustificationAvancement] = []
     # Sujet de gouvernance : ce qu'il peut coûter s'il dérape, et ce qu'il change s'il aboutit.
     # Stockés dans donnees, comme les champs RFC des changements.
     risques: str | None = None
@@ -990,6 +1002,16 @@ class DepartementItem(BaseModel):
     direction: str
     #: Nombre de profils rattachés : l'écran refuse la suppression quand il y en a, et le dit.
     nb_profils: int = 0
+
+
+class DepartementBref(BaseModel):
+    """Département en lecture, pour les formulaires. Sans compteur : les écrans n'en ont pas
+    l'usage, et le calculer sur chaque ouverture de fiche coûterait pour rien."""
+
+    id: str
+    code: str
+    libelle: str
+    direction: str
 
 
 class CreationDepartement(BaseModel):

@@ -925,6 +925,20 @@ def creer_routeur(
             dict(c) for c in await repo.lister_contributeurs(session, r["id"])
         ]
         base["valideurs"] = [dict(c) for c in await repo.lister_valideurs(session, r["id"])]
+        # Les justifications d'avancement, dans l'ordre où elles ont été écrites. Elles vivent
+        # dans `core.note` (contexte « avancement ») : le même endroit que les transitions
+        # justifiées des projets, plutôt qu'un stockage de plus pour la même nature de trace.
+        if avec_avancement_manuel:
+            notes = await session.execute(
+                text(
+                    "SELECT texte, auteur_email AS auteur, cree_le AS horodatage "
+                    "FROM core.note WHERE activite_id = cast(:a as uuid) "
+                    "AND contexte = 'avancement' ORDER BY cree_le"
+                ),
+                {"a": str(r["id"])},
+            )
+            base["justifications_avancement"] = [dict(n) for n in notes.mappings().all()]
+
         # Le serveur calcule les capacités ; l'écran obéit. La règle ne vit qu'ici.
         clos = est_etat_terminal(module, r["statut"])
         roles = await charger_roles(session, r, courant)

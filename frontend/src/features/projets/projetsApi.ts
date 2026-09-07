@@ -18,6 +18,7 @@ export interface Projet {
   direction: string | null;
   chef: Chef | null;
   contributeur: string | null;
+  nb_contributeurs?: number;
   responsable_id: string | null;
   /** Type de projet : c'est lui qui amène le déroulé (jalons) à la création. */
   categorie_id: string | null;
