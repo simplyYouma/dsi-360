@@ -39,7 +39,7 @@ _COMMUNES = (
     "Direction",
     "Demandeur",
     "Responsable",
-    "Contributeur",
+    "Contributeurs",
     "Description",
     "Créé le",
     "Échéance de prise en charge",

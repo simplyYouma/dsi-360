@@ -123,12 +123,17 @@ class MaTache(BaseModel):
 
 
 class ActiviteCreation(BaseModel):
+    """Création manuelle d'une activité. `departement_id` n'est lu que par les modules qui le
+    déclarent (gouvernance) — ailleurs il est ignoré plutôt que refusé, pour ne pas casser un
+    appelant qui l'enverrait par mégarde."""
+
     titre: str = Field(min_length=3, max_length=200)
     description: str | None = None
     impact: int = Field(ge=1, le=5)
     urgence: int = Field(ge=1, le=5)
     categorie_id: str | None = None
     direction_id: str | None = None
+    departement_id: str | None = None
     responsable_id: str | None = None
     demandeur: str | None = Field(default=None, max_length=160)
 
@@ -165,7 +170,13 @@ class ActiviteResume(BaseModel):
     responsable: ResponsableBref | None
     demandeur: str | None
     gestionnaire: str | None
+    #: Premier contributeur par ordre alphabétique, et combien ils sont en tout. Ils peuvent être
+    #: plusieurs : n'afficher qu'un nom sans le dire ferait mentir la liste par omission.
     contributeur: str | None = None
+    nb_contributeurs: int = 0
+    #: Département de la DSI dont relève le dossier (gouvernance). Range et sert aux analyses ;
+    #: ne cloisonne RIEN — le périmètre d'accès reste la direction.
+    departement: str | None = None
     responsable_id: str | None
     nb_commentaires: int = 0
     nb_non_vus: int = 0
@@ -192,6 +203,8 @@ class PermissionsActivite(BaseModel):
     peut_completer_dossier: bool = False
     # description d'un incident/demande importé — saisissable par les acteurs (jamais écrasée)
     peut_editer_description: bool = False
+    # avancement : le GESTIONNAIRE rend compte, pas les contributeurs ni les valideurs
+    peut_avancer: bool = False
 
 
 class ActiviteDetail(ActiviteResume):
@@ -223,6 +236,11 @@ class ActiviteDetail(ActiviteResume):
     plan_deploiement: str | None = None
     plan_retour_arriere: str | None = None
     bilan_post_implementation: str | None = None
+    departement_id: str | None = None
+    # Sujet de gouvernance : ce qu'il peut coûter s'il dérape, et ce qu'il change s'il aboutit.
+    # Stockés dans donnees, comme les champs RFC des changements.
+    risques: str | None = None
+    impacts: str | None = None
     # Revue périodique (risques, cybersécurité, gouvernance) — stockés dans donnees.
     periodicite: str | None = None
     prochaine_revue: date | None = None
@@ -626,10 +644,13 @@ class DescriptionMaj(BaseModel):
 
 
 class ActiviteMaj(BaseModel):
-    """Édition en place d'une activité : titre/description + champs RFC (changement).
+    """Édition en place d'une activité : titre/description + les champs propres au module.
 
-    Les champs RFC (analyse d'impact/risque, plans, bilan) sont stockés dans `donnees` (ITIL
-    SI-12.04). Tous optionnels : seuls les champs fournis sont modifiés.
+    Champs RFC (analyse d'impact/risque, plans, bilan) pour les changements (ITIL SI-12.04),
+    risques et impacts pour la gouvernance — tous stockés dans `donnees`. Le schéma les accepte
+    tous ; c'est la ROUTE qui ne retient que ceux du module concerné, sinon un champ de
+    changement finirait dans un sujet de COPIL. Tous optionnels : seuls les champs fournis sont
+    modifiés.
     """
 
     titre: str | None = Field(default=None, min_length=3, max_length=200)
@@ -639,6 +660,8 @@ class ActiviteMaj(BaseModel):
     plan_deploiement: str | None = None
     plan_retour_arriere: str | None = None
     bilan_post_implementation: str | None = None
+    risques: str | None = Field(default=None, max_length=4000)
+    impacts: str | None = Field(default=None, max_length=4000)
 
 
 class ContributeurDemande(BaseModel):
@@ -932,23 +955,51 @@ class ProfilItem(BaseModel):
     libelle: str
     # Voit au-delà de son périmètre de direction (cf. activites_communs._visible).
     transverse: bool = False
+    # Département auquel le profil appartient. `None` pour un profil transverse, qui n'en a aucun.
+    departement_id: str | None = None
+    departement: str | None = None
 
 
 class CreationProfil(BaseModel):
     # Le code technique est dérivé du libellé : l'administrateur nomme, il ne code pas.
     libelle: str = Field(min_length=1, max_length=80)
     transverse: bool = False
+    departement_id: str | None = None
 
 
 class MajProfil(BaseModel):
     libelle: str = Field(min_length=1, max_length=80)
     # Omis = inchangé. Retirer le transverse à ADMIN est refusé (anti-verrouillage).
     transverse: bool | None = None
+    # Omis = inchangé ; `null` explicite = détacher. Pydantic ne distingue pas les deux : on
+    # s'appuie sur `model_dump(exclude_unset=True)` côté route.
+    departement_id: str | None = None
 
 
 class DirectionItem(BaseModel):
     code: str
     libelle: str
+
+
+class DepartementItem(BaseModel):
+    """Subdivision d'une direction. Range et sert aux analyses — ne cloisonne aucun accès."""
+
+    id: str
+    code: str
+    libelle: str
+    direction: str
+    #: Nombre de profils rattachés : l'écran refuse la suppression quand il y en a, et le dit.
+    nb_profils: int = 0
+
+
+class CreationDepartement(BaseModel):
+    libelle: str = Field(min_length=1, max_length=80)
+    #: Code de la direction. Omis, la direction unique est prise — il n'y en a qu'une aujourd'hui.
+    direction_code: str | None = None
+
+
+class MajDepartement(BaseModel):
+    libelle: str = Field(min_length=1, max_length=80)
 
 
 class UtilisateurResume(BaseModel):
@@ -1105,8 +1156,30 @@ class PageProjets(BaseModel):
     taille: int
 
 
+class DepartementActiviteDemande(BaseModel):
+    """Rattachement d'un dossier à un département. `None` le détache."""
+
+    departement_id: str | None = None
+
+
+class ChampsGouvernance(BaseModel):
+    """Risques et impacts d'un sujet de gouvernance. Deux textes, pas une cotation : un sujet de
+    COPIL se raconte — il n'a pas la nature d'une fiche du registre des risques IT."""
+
+    risques: str | None = Field(default=None, max_length=4000)
+    impacts: str | None = Field(default=None, max_length=4000)
+
+
 class AvancementDemande(BaseModel):
+    """Mise à jour manuelle de l'avancement d'un sujet de gouvernance, et ce qui la justifie.
+
+    La justification n'est pas une politesse : un pourcentage sans explication ne se relit pas
+    trois mois plus tard, et personne ne peut dire ce qui a bougé. Elle est donc **exigée par le
+    serveur** — l'écran ne fait que refléter ce refus.
+    """
+
     avancement: int = Field(ge=0, le=100)
+    justification: str = Field(min_length=3, max_length=500)
 
 
 class ModeleJalonItem(BaseModel):
@@ -1438,6 +1511,9 @@ class AnalysesReponse(BaseModel):
     kpis: KpisAnalyse
     par_module: list[AnalyseItem]
     par_direction: list[AnalyseItem]
+    #: Répartition par département de la DSI. « Non rattaché » regroupe tout ce qui n'en porte
+    #: pas — l'import quotidien ne connaît pas le découpage interne.
+    par_departement: list[AnalyseItem] = []
     par_responsable: list[AnalyseItem]
     par_priorite: list[AnalyseItem]
     sla: SlaBuckets

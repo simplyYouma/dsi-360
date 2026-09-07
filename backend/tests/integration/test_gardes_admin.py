@@ -389,10 +389,14 @@ async def test_seul_l_administrateur_change_la_categorie_d_un_risque(
         assert r.status_code == attendu, r.text
 
 
-async def test_designer_un_second_contributeur_remplace_le_premier(
+async def test_plusieurs_contributeurs_coexistent(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Un seul contributeur par activité : nommer quelqu'un d'autre est une réaffectation."""
+    """Nommer un contributeur AJOUTE ; il n'efface plus celui qui était là (07/09/2026).
+
+    La règle d'avant — « un seul par rôle, nommer quelqu'un d'autre le remplace » — obligeait à
+    retirer un appui pour en désigner un second. Un dossier en mobilise couramment plusieurs.
+    """
     admin = await creer_utilisateur(session, email="admin.unique@afgbank.ml", profil="ADMIN")
     premier = await creer_utilisateur(session, email="premier.unique@afgbank.ml")
     second = await creer_utilisateur(session, email="second.unique@afgbank.ml")
@@ -407,8 +411,40 @@ async def test_designer_un_second_contributeur_remplace_le_premier(
         assert r.status_code == 200, r.text
 
     contributeurs = r.json()["contributeurs"]
-    assert len(contributeurs) == 1, "le second remplace le premier"
-    assert contributeurs[0]["email"] == "second.unique@afgbank.ml"
+    assert {c["email"] for c in contributeurs} == {
+        "premier.unique@afgbank.ml",
+        "second.unique@afgbank.ml",
+    }
+    # Redésigner quelqu'un qui est déjà là ne doit ni échouer ni le dupliquer.
+    r = await client.post(
+        f"/changements/{changement}/contributeurs",
+        headers=entetes(admin),
+        json={"utilisateur_id": premier},
+    )
+    assert r.status_code == 200, r.text
+    assert len(r.json()["contributeurs"]) == 2
+
+
+async def test_un_second_valideur_remplace_le_premier(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le valideur, lui, reste unique : sa décision engage, elle ne se partage pas."""
+    admin = await creer_utilisateur(session, email="admin.val1@afgbank.ml", profil="ADMIN")
+    premier = await creer_utilisateur(session, email="premier.val1@afgbank.ml")
+    second = await creer_utilisateur(session, email="second.val1@afgbank.ml")
+    changement = await creer_activite(session, module="changement", reference="CHG-VAL-1")
+
+    for uid in (premier, second):
+        r = await client.post(
+            f"/changements/{changement}/valideurs",
+            headers=entetes(admin),
+            json={"utilisateur_id": uid},
+        )
+        assert r.status_code == 200, r.text
+
+    valideurs = r.json()["valideurs"]
+    assert len(valideurs) == 1, "le second valideur remplace le premier"
+    assert valideurs[0]["email"] == "second.val1@afgbank.ml"
 
 
 async def test_une_decision_fige_la_liste_des_valideurs(

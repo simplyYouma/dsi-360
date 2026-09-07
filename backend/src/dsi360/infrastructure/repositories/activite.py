@@ -15,14 +15,20 @@ _LISTE_CHAMPS = """
     a.id::text AS id, a.reference, a.module, a.titre, a.statut, a.priorite, a.impact, a.urgence,
     a.sla_prise_en_charge_le, a.sla_resolution_le, a.cree_le, a.resolu_le, a.cloture_le, a.donnees,
     c.libelle AS categorie, a.categorie_id::text AS categorie_id, d.code AS direction,
+    dep.libelle AS departement, a.departement_id::text AS departement_id,
     r.id::text AS resp_id, r.prenom AS resp_prenom, r.nom AS resp_nom, r.email AS resp_email,
     -- Niveau de support du gestionnaire : le niveau du ticket importé s'en déduit (ADR-0005).
     r.niveau_support AS resp_niveau,
     dem.nom_complet AS demandeur_nom,
-    -- Contributeur (au plus un, cf. contrainte d'unicité) : visible en liste sans ouvrir la fiche.
+    -- Contributeurs : le premier par ordre alphabétique, et combien ils sont. Ils sont plusieurs
+    -- depuis le 07/09/2026 ; n'en montrer qu'un sans dire qu'il y en a d'autres ferait mentir la
+    -- liste par omission. L'ORDER BY rend le « premier » stable d'un affichage à l'autre.
     (SELECT u.prenom || ' ' || u.nom FROM core.activite_acteur aa
      JOIN core.utilisateur u ON u.id = aa.utilisateur_id
-     WHERE aa.activite_id = a.id AND aa.role = 'CONTRIBUTEUR' LIMIT 1) AS contributeur,
+     WHERE aa.activite_id = a.id AND aa.role = 'CONTRIBUTEUR'
+     ORDER BY u.prenom, u.nom LIMIT 1) AS contributeur,
+    (SELECT count(*) FROM core.activite_acteur aa
+     WHERE aa.activite_id = a.id AND aa.role = 'CONTRIBUTEUR') AS nb_contributeurs,
     (SELECT count(*) FROM core.commentaire cm
      WHERE cm.activite_id = a.id AND cm.tache_id IS NULL) AS nb_commentaires,
     (SELECT count(*) FROM core.commentaire cm
@@ -37,6 +43,7 @@ _BASE = """
     FROM core.activite a
     LEFT JOIN core.categorie c ON c.id = a.categorie_id
     LEFT JOIN core.direction d ON d.id = a.direction_id
+    LEFT JOIN core.departement dep ON dep.id = a.departement_id
     LEFT JOIN core.utilisateur r ON r.id = a.responsable_id
     LEFT JOIN core.demandeur dem ON dem.id = a.demandeur_externe_id
     WHERE a.module = :module
@@ -64,12 +71,15 @@ async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
     champs.setdefault("sla_resolution_le", None)
     champs.setdefault("donnees", None)
     champs.setdefault("demandeur_externe_id", None)
+    # Seuls les modules qui le déclarent le renseignent ; ailleurs il reste NULL.
+    champs.setdefault("departement_id", None)
     requete = text(
         "INSERT INTO core.activite "
-        "(reference, module, titre, description, direction_id, categorie_id, demandeur_id, "
-        " demandeur_externe_id, responsable_id, impact, urgence, priorite, statut, "
+        "(reference, module, titre, description, direction_id, departement_id, categorie_id, "
+        " demandeur_id, demandeur_externe_id, responsable_id, impact, urgence, priorite, statut, "
         " sla_prise_en_charge_le, sla_resolution_le, donnees) "
         "VALUES (:reference, :module, :titre, :description, cast(:direction_id as uuid), "
+        " cast(:departement_id as uuid), "
         " cast(:categorie_id as uuid), cast(:demandeur_id as uuid), "
         " cast(:demandeur_externe_id as uuid), cast(:responsable_id as uuid), "
         " :impact, :urgence, :priorite, :statut, :sla_prise_en_charge_le, :sla_resolution_le, "
@@ -284,6 +294,15 @@ async def compter_etats(
     return {k: int(ligne[k]) for k in cles}
 
 
+#: Tous les contributeurs d'un dossier, en une chaîne. Réservé à l'EXPORT : les listes paginées
+#: n'affichent qu'un nom et un compteur, agréger sur chaque page coûterait sans rien apporter.
+_CONTRIBUTEURS_AGREGES = """
+    (SELECT string_agg(u.prenom || ' ' || u.nom, ' · ' ORDER BY u.prenom, u.nom)
+     FROM core.activite_acteur aa JOIN core.utilisateur u ON u.id = aa.utilisateur_id
+     WHERE aa.activite_id = a.id AND aa.role = 'CONTRIBUTEUR') AS contributeurs
+"""
+
+
 async def lister_tout(
     session: AsyncSession,
     module: str,
@@ -305,7 +324,7 @@ async def lister_tout(
         params["direction"] = direction
     lignes = await session.execute(
         text(
-            f"SELECT {_LISTE_CHAMPS}, a.description {_BASE}{cond} "
+            f"SELECT {_LISTE_CHAMPS}, a.description, {_CONTRIBUTEURS_AGREGES} {_BASE}{cond} "
             "ORDER BY a.cree_le DESC LIMIT :limite"
         ),
         params,
@@ -377,22 +396,48 @@ async def definir_decision(
     return resultat.first() is not None
 
 
-async def ajouter_acteur(
-    session: AsyncSession, identifiant: str, utilisateur_id: str, role: str
-) -> None:
-    """Désigne l'acteur du rôle. Un seul par rôle : nommer quelqu'un d'autre le remplace.
+_INSERER_ACTEUR = text(
+    "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+    "VALUES (cast(:aid as uuid), cast(:uid as uuid), :role) "
+    # La clé primaire porte déjà (activite_id, utilisateur_id, role) : redésigner la même personne
+    # au même titre ne doit ni échouer ni dupliquer, simplement ne rien faire.
+    "ON CONFLICT (activite_id, utilisateur_id, role) DO NOTHING"
+)
 
-    La décision repart à zéro avec le nouveau valideur — l'avis de son prédécesseur
-    ne l'engage pas.
+
+async def ajouter_contributeur(
+    session: AsyncSession, identifiant: str, utilisateur_id: str
+) -> None:
+    """Ajoute un contributeur — ils sont **plusieurs** depuis le 07/09/2026.
+
+    Nommer quelqu'un n'efface plus personne : un dossier mobilise couramment plusieurs appuis, et
+    l'écran obligeait auparavant à en retirer un pour en désigner un autre.
+    """
+    await session.execute(
+        _INSERER_ACTEUR,
+        {"aid": identifiant, "uid": utilisateur_id, "role": "CONTRIBUTEUR"},
+    )
+
+
+async def ajouter_valideur(session: AsyncSession, identifiant: str, utilisateur_id: str) -> None:
+    """Désigne LE valideur : il reste unique, nommer quelqu'un d'autre le remplace.
+
+    La décision repart à zéro avec le nouveau valideur — l'avis de son prédécesseur ne l'engage
+    pas. On efface puis on insère plutôt qu'un `ON CONFLICT` : depuis que l'unicité ne porte plus
+    que sur les valideurs (index partiel `ux_activite_valideur_unique`), aucune contrainte ne
+    correspond à une clause `ON CONFLICT (activite_id, role)`, et PostgreSQL refuserait la requête.
+    L'appelant a déjà vérifié qu'aucune décision n'a été rendue (`_exiger_valideurs_ouverts`).
     """
     await session.execute(
         text(
-            "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
-            "VALUES (cast(:aid as uuid), cast(:uid as uuid), :role) "
-            "ON CONFLICT (activite_id, role) DO UPDATE "
-            "SET utilisateur_id = excluded.utilisateur_id, decision = NULL"
+            "DELETE FROM core.activite_acteur "
+            "WHERE activite_id = cast(:aid as uuid) AND role = 'VALIDEUR'"
         ),
-        {"aid": identifiant, "uid": utilisateur_id, "role": role},
+        {"aid": identifiant},
+    )
+    await session.execute(
+        _INSERER_ACTEUR,
+        {"aid": identifiant, "uid": utilisateur_id, "role": "VALIDEUR"},
     )
 
 
@@ -412,12 +457,6 @@ async def lister_contributeurs(session: AsyncSession, identifiant: str) -> list[
     return await lister_acteurs(session, identifiant, "CONTRIBUTEUR")
 
 
-async def ajouter_contributeur(
-    session: AsyncSession, identifiant: str, utilisateur_id: str
-) -> None:
-    await ajouter_acteur(session, identifiant, utilisateur_id, "CONTRIBUTEUR")
-
-
 async def retirer_contributeur(
     session: AsyncSession, identifiant: str, utilisateur_id: str
 ) -> None:
@@ -426,10 +465,6 @@ async def retirer_contributeur(
 
 async def lister_valideurs(session: AsyncSession, identifiant: str) -> list[RowMapping]:
     return await lister_acteurs(session, identifiant, "VALIDEUR")
-
-
-async def ajouter_valideur(session: AsyncSession, identifiant: str, utilisateur_id: str) -> None:
-    await ajouter_acteur(session, identifiant, utilisateur_id, "VALIDEUR")
 
 
 async def retirer_valideur(

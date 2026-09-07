@@ -28,7 +28,7 @@ from dsi360.application.activites import (
     transition,
 )
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
-from dsi360.application.notifications import notifier
+from dsi360.application.notifications import notifier, notifier_acteurs
 from dsi360.application.revue import ecrire_revue
 from dsi360.application.taches import (
     blocages_transitions,
@@ -60,10 +60,12 @@ from dsi360.interface.schemas import (
     ActiviteMaj,
     AssignationDemande,
     AssignationLot,
+    AvancementDemande,
     CategorieDemande,
     ContributeurDemande,
     CreationReponse,
     DecisionDemande,
+    DepartementActiviteDemande,
     DescriptionMaj,
     EvaluationDemande,
     NoteCreation,
@@ -154,6 +156,8 @@ def _resume(r: RowMapping, maintenant: datetime, importe: bool = False) -> dict[
         "demandeur": r["demandeur_nom"],
         "gestionnaire": _gestionnaire(r),
         "contributeur": r["contributeur"] if "contributeur" in r else None,
+        "nb_contributeurs": int(r["nb_contributeurs"]) if "nb_contributeurs" in r else 0,
+        "departement": r["departement"] if "departement" in r else None,
         "responsable_id": r["resp_id"],
         "nb_commentaires": r["nb_commentaires"],
         "nb_non_vus": r["nb_non_vus"] if "nb_non_vus" in r else 0,
@@ -186,7 +190,13 @@ def _detail(
         # L'état attend-il la décision des valideurs ? L'écran dit alors pourquoi rien n'avance.
         "en_attente_validation": est_porte_validation(module, r["statut"]),
         "avancement": int(_donnees(r).get("avancement", 0)),
+        "departement_id": (
+            str(r["departement_id"])
+            if "departement_id" in r and r["departement_id"] is not None
+            else None
+        ),
         **{champ: _donnees(r).get(champ) for champ in _CHAMPS_RFC},
+        **{champ: _donnees(r).get(champ) for champ in _CHAMPS_GOUVERNANCE},
         "periodicite": _donnees(r).get("periodicite"),
         "prochaine_revue": _donnees(r).get("prochaine_revue"),
         "derniere_revue": _donnees(r).get("derniere_revue"),
@@ -210,6 +220,10 @@ _LIBELLE_JOURNAL = {
     "urgence": "urgence",
     "probabilite": "probabilité",
     "responsable_id": "gestionnaire",
+    "departement_id": "département",
+    "risques": "risques identifiés",
+    "impacts": "impacts attendus",
+    "justification": "justification",
     "categorie_id": "catégorie",
     "contributeur_ajoute": "contributeur ajouté",
     "contributeur_retire": "contributeur retiré",
@@ -405,6 +419,18 @@ _CHAMPS_RFC = (
     "bilan_post_implementation",
 )
 
+# Champs propres à la gouvernance, stockés dans `donnees` comme les RFC : ce que le sujet peut
+# coûter s'il dérape, ce qu'il change s'il aboutit. Deux textes et non une cotation — un sujet de
+# COPIL se raconte, il n'a pas la nature d'une fiche du registre des risques IT.
+_CHAMPS_GOUVERNANCE = ("risques", "impacts")
+
+#: Champs JSON qu'un module a le droit d'écrire par le PATCH. Le schéma les accepte tous ; c'est
+#: ici qu'on refuse qu'une analyse de changement atterrisse dans un sujet de gouvernance.
+_CHAMPS_MODULE: dict[str, tuple[str, ...]] = {
+    "changement": _CHAMPS_RFC,
+    "gouvernance": _CHAMPS_GOUVERNANCE,
+}
+
 
 # Niveau 3 = DBS, hors du système. La DSI ne tient que N1 et N2 : aucun compte ne porte le
 # niveau 3 (ADR-0003 §3).
@@ -473,7 +499,7 @@ _COLONNES_BASE: tuple[tuple[str, str], ...] = (
     ("Direction", "direction"),
     ("Demandeur", "demandeur"),
     ("Responsable", "responsable"),
-    ("Contributeur", "contributeur"),
+    ("Contributeurs", "contributeurs"),
     ("Description", "description"),
     ("Créé le", "cree_le"),
     ("Échéance de prise en charge", "sla_prise_en_charge_le"),
@@ -577,7 +603,10 @@ def valeurs_export(
         "direction": r["direction"] or "",
         "demandeur": r["demandeur_nom"] or "",
         "responsable": resp,
-        "contributeur": (r["contributeur"] if "contributeur" in r else None) or "",
+        # TOUS les contributeurs, agrégés par le repository : depuis qu'ils sont plusieurs, n'en
+        # exporter qu'un donnerait un fichier faux plutôt qu'incomplet.
+        "contributeurs": (r["contributeurs"] if "contributeurs" in r else None) or "",
+        "departement": (r["departement"] if "departement" in r else None) or "",
         # La description porte le fond du dossier : sans elle, l'export ne dit pas de quoi il parle.
         "description": r["description"] if "description" in r else "",
         "cree_le": horodate_export(r["cree_le"]),
@@ -597,13 +626,29 @@ def valeurs_export(
         "derniere_revue": horodate_export(donnees.get("derniere_revue")),
         "prochaine_revue": horodate_export(donnees.get("prochaine_revue")),
     }
-    for champ in _CHAMPS_RFC:
+    for champ in (*_CHAMPS_RFC, *_CHAMPS_GOUVERNANCE):
         valeurs[champ] = donnees.get(champ) or ""
     return valeurs
 
 
+#: Le département de la DSI dont relève le dossier (gouvernance).
+_COLONNES_DEPARTEMENT: tuple[tuple[str, str], ...] = (("Département", "departement"),)
+
+#: Ce qu'un sujet de gouvernance peut coûter, et ce qu'il change.
+_COLONNES_GOUVERNANCE: tuple[tuple[str, str], ...] = (
+    ("Risques identifiés", "risques"),
+    ("Impacts attendus", "impacts"),
+)
+
+
 def colonnes_export(
-    module: str, *, import_uniquement: bool, avec_taches: bool, avec_revue: bool
+    module: str,
+    *,
+    import_uniquement: bool,
+    avec_taches: bool,
+    avec_revue: bool,
+    avec_departement: bool = False,
+    avec_avancement_manuel: bool = False,
 ) -> tuple[tuple[str, str], ...]:
     """Colonnes de l'export d'un module : le socle, plus ce que ce module porte réellement.
 
@@ -611,12 +656,18 @@ def colonnes_export(
     n'est pas de l'exhaustivité, c'est du bruit.
     """
     colonnes = list(_COLONNES_BASE)
+    if avec_departement:
+        colonnes += list(_COLONNES_DEPARTEMENT)
     if import_uniquement:
         colonnes += list(_COLONNES_IMPORT)
-    if avec_taches:
+    # L'avancement se lit de la même façon qu'il vienne des tâches ou de la main du gestionnaire :
+    # c'est la manière de le POSER qui diffère, pas la colonne.
+    if avec_taches or avec_avancement_manuel:
         colonnes += list(_COLONNES_AVANCEMENT)
     if module == "changement":
         colonnes += list(_COLONNES_RFC)
+    if module == "gouvernance":
+        colonnes += list(_COLONNES_GOUVERNANCE)
     if avec_revue:
         colonnes += list(_COLONNES_REVUE)
     return tuple(colonnes)
@@ -651,6 +702,8 @@ def creer_routeur(
     avec_notes: bool = False,
     avec_liens: bool = False,
     editable: bool = False,
+    avec_departement: bool = False,
+    avec_avancement_manuel: bool = False,
 ) -> APIRouter:
     """Routeur générique d'un module d'activités.
 
@@ -662,7 +715,19 @@ def creer_routeur(
 
     avec_liens=True (gouvernance, cybersécurité, audit) : expose les liens utiles sans les tâches.
     Sans quoi l'écran proposerait un ajout de lien que le serveur ne saurait pas recevoir.
+
+    avec_departement=True (gouvernance) : le dossier se range dans un département de la DSI, et le
+    choix se fait à la création comme après coup. Le département ORGANISE — il ne cloisonne rien,
+    le périmètre d'accès reste la direction.
+
+    avec_avancement_manuel=True (gouvernance) : le gestionnaire déclare lui-même où en est le
+    sujet, avec justification obligatoire. À ne pas cumuler avec avec_taches, qui DÉDUIT
+    l'avancement des tâches terminées : deux sources pour un même chiffre finiraient par diverger.
     """
+    if avec_taches and avec_avancement_manuel:
+        raise ValueError(
+            f"{module} : l'avancement ne peut pas être à la fois déduit des tâches et saisi."
+        )
     routeur = APIRouter(prefix=prefixe, tags=[tag])
     Courant = Annotated[dict[str, Any], Depends(exiger_acces(acces))]  # noqa: N806
 
@@ -782,6 +847,9 @@ def creer_routeur(
                 responsable_id=corps.responsable_id,
                 acteur=courant,
                 demandeur=corps.demandeur,
+                # Ignoré par les modules qui ne déclarent pas le département : mieux vaut le
+                # laisser tomber en silence que refuser un appelant pour un champ inoffensif.
+                departement_id=corps.departement_id if avec_departement else None,
             )
             return {"id": ident}
 
@@ -803,6 +871,8 @@ def creer_routeur(
             import_uniquement=import_uniquement,
             avec_taches=avec_taches,
             avec_revue=avec_revue,
+            avec_departement=avec_departement,
+            avec_avancement_manuel=avec_avancement_manuel,
         )
         entetes = [entete for entete, _ in colonnes]
         donnees = [
@@ -1110,6 +1180,128 @@ def creer_routeur(
             r = await charger_visible(session, ident, courant)
             return await detail_complet(r, session, courant)
 
+        if avec_departement:
+
+            @routeur.post("/{ident}/departement", response_model=ActiviteDetail)
+            async def changer_departement(
+                ident: str,
+                corps: DepartementActiviteDemande,
+                ctx: CtxAdmin,
+                session: Session,
+            ) -> dict[str, Any]:
+                """Ranger le dossier dans un département de la DSI.
+
+                Réservé à l'administrateur, comme l'affectation : c'est de l'organisation, pas du
+                travail sur le fond. Le département ne cloisonne aucun accès — il sert à ranger et
+                à analyser.
+                """
+                courant, avant = ctx.courant, ctx.activite
+                if corps.departement_id is not None:
+                    connu = await session.scalar(
+                        text("SELECT 1 FROM core.departement WHERE id::text = :d"),
+                        {"d": corps.departement_id},
+                    )
+                    if connu is None:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Département inconnu.",
+                        )
+                await session.execute(
+                    text(
+                        "UPDATE core.activite SET departement_id = cast(:d as uuid) "
+                        "WHERE id = cast(:id as uuid)"
+                    ),
+                    {"id": ident, "d": corps.departement_id},
+                )
+                await audit.consigner(
+                    session,
+                    action="MODIFICATION",
+                    acteur_id=courant["id"],
+                    acteur_email=courant["email"],
+                    module=module,
+                    cible_type=module,
+                    cible_id=avant["reference"],
+                    ancienne={"departement_id": avant["departement_id"]},
+                    nouvelle={"departement_id": corps.departement_id},
+                )
+                await session.commit()
+                r = await charger_visible(session, ident, courant)
+                return await detail_complet(r, session, courant)
+
+        if avec_avancement_manuel:
+
+            @routeur.post("/{ident}/avancement", response_model=ActiviteDetail)
+            async def declarer_avancement(
+                ident: str, corps: AvancementDemande, ctx: CtxActeur, session: Session
+            ) -> dict[str, Any]:
+                """Le gestionnaire déclare où en est le sujet, et dit pourquoi.
+
+                La justification n'est pas une formalité : un pourcentage seul ne se relit pas
+                trois mois plus tard, et personne ne peut dire ce qui a bougé. Elle est exigée par
+                le schéma (min. 3 caractères) et conservée comme **note** du dossier — même
+                mécanisme que les transitions justifiées des projets, plutôt qu'un stockage de plus.
+
+                Le contributeur, lui, fait avancer le travail mais ne rend pas compte : c'est
+                `peut_avancer`, distinct de `peut_travailler`, qui tranche — et c'est la même
+                fonction qui pilote l'affichage, donc l'écran ne peut pas dire autre chose.
+                """
+                courant, avant = ctx.courant, ctx.activite
+                clos = est_etat_terminal(module, avant["statut"])
+                if not capacites(ctx.roles, lecture_seule=import_uniquement, clos=clos)[
+                    "peut_avancer"
+                ]:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=(
+                            "Seul le gestionnaire du sujet rend compte de son avancement."
+                            if not clos
+                            else "Sujet terminé : seul l'administrateur corrige son avancement."
+                        ),
+                    )
+                precedent = int(_donnees(avant).get("avancement", 0))
+                justification = corps.justification.strip()
+                await session.execute(
+                    text(
+                        "UPDATE core.activite SET donnees = donnees || cast(:f as jsonb) "
+                        "WHERE id = cast(:id as uuid)"
+                    ),
+                    {"id": ident, "f": json.dumps({"avancement": corps.avancement})},
+                )
+                await session.execute(
+                    text(
+                        "INSERT INTO core.note (activite_id, texte, contexte, auteur_email) "
+                        "VALUES (cast(:id as uuid), :texte, 'avancement', :email)"
+                    ),
+                    {"id": ident, "texte": justification, "email": courant["email"]},
+                )
+                # Prévenir AVANT l'audit, qui committe la transaction (cf. application/activites).
+                if precedent != corps.avancement:
+                    await notifier_acteurs(
+                        session,
+                        activite_id=ident,
+                        exclure_id=courant["id"],
+                        type_="AVANCEMENT",
+                        titre=f"Avancement mis à jour — {avant['reference']}",
+                        message=(
+                            f"{avant['reference']} « {avant['titre']} » passe de {precedent} % "
+                            f"à {corps.avancement} %. Motif : {justification}"
+                        ),
+                    )
+                await audit.consigner(
+                    session,
+                    action="MODIFICATION",
+                    acteur_id=courant["id"],
+                    acteur_email=courant["email"],
+                    module=module,
+                    cible_type=module,
+                    cible_id=avant["reference"],
+                    ancienne={"avancement": precedent},
+                    nouvelle={"avancement": corps.avancement, "justification": justification},
+                )
+                await session.commit()
+                r = await charger_visible(session, ident, courant)
+                return await detail_complet(r, session, courant)
+
         @routeur.post("/{ident}/categorie", response_model=ActiviteDetail)
         async def changer_categorie(
             ident: str, corps: CategorieDemande, ctx: CtxAdmin, session: Session
@@ -1404,7 +1596,7 @@ def creer_routeur(
         async def modifier(
             ident: str, corps: ActiviteMaj, ctx: CtxDossier, session: Session
         ) -> dict[str, Any]:
-            """Titre, description, analyses RFC : c'est du travail, pas de la lecture.
+            """Titre, description, champs du module : c'est du travail, pas de la lecture.
 
             La clôture ne ferme plus ce chemin : on corrige un intitulé inexact ou l'on complète
             un bilan longtemps après la mise en production. Le journal d'audit garde qui a changé
@@ -1430,8 +1622,12 @@ def creer_routeur(
                     ),
                     params,
                 )
-            # Champs RFC -> fusionnés dans la colonne JSON `donnees`.
-            fragment_json = {c: champs[c] for c in _CHAMPS_RFC if c in champs}
+            # Champs propres au module -> fusionnés dans la colonne JSON `donnees`. On ne retient
+            # que ceux que CE module déclare : le schéma les accepte tous, mais une analyse de
+            # changement n'a rien à faire dans un sujet de gouvernance.
+            fragment_json = {
+                c: champs[c] for c in _CHAMPS_MODULE.get(module, ()) if c in champs
+            }
             if fragment_json:
                 await session.execute(
                     text(

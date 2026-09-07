@@ -19,11 +19,14 @@ from dsi360.infrastructure.repositories import utilisateur as repo_u
 from dsi360.interface.schemas import (
     CategorieItem,
     CreationCategorie,
+    CreationDepartement,
     CreationProfil,
     CreationReponse,
     CreationUtilisateur,
+    DepartementItem,
     DirectionItem,
     MajAcces,
+    MajDepartement,
     MajProfil,
     MajSlaRegles,
     MajUtilisateur,
@@ -46,9 +49,32 @@ _TAILLE = 15
 
 
 @routeur.get("/profils", response_model=list[ProfilItem])
-async def profils(courant: Courant, session: Session) -> list[dict[str, Any]]:
+async def profils(
+    courant: Courant,
+    session: Session,
+    direction: Annotated[str | None, Query()] = None,
+) -> list[dict[str, Any]]:
+    """Les profils, avec leur département. `?direction=DSI` ne garde que ceux de cette direction.
+
+    Les profils **transverses** restent listés quoi qu'il arrive : ils n'appartiennent à aucun
+    département, donc à aucune direction — les filtrer ferait disparaître `ADMIN` du formulaire de
+    création de compte, et personne ne pourrait plus nommer d'administrateur.
+    """
+    cond = ""
+    params: dict[str, Any] = {}
+    if direction is not None:
+        cond = " WHERE p.transverse OR dir.code = :direction"
+        params["direction"] = direction
     r = await session.execute(
-        text("SELECT code, libelle, transverse FROM core.profil ORDER BY libelle")
+        text(
+            "SELECT p.code, p.libelle, p.transverse, dep.id::text AS departement_id, "
+            "       dep.libelle AS departement "
+            "FROM core.profil p "
+            "LEFT JOIN core.departement dep ON dep.id = p.departement_id "
+            "LEFT JOIN core.direction dir ON dir.id = dep.direction_id"
+            f"{cond} ORDER BY p.libelle"
+        ),
+        params,
     )
     return [dict(x) for x in r.mappings().all()]
 
@@ -65,7 +91,11 @@ async def profils(courant: Courant, session: Session) -> list[dict[str, Any]]:
 async def _profil_ou_404(session: AsyncSession, code: str) -> dict[str, Any]:
     ligne = (
         await session.execute(
-            text("SELECT code, libelle, transverse FROM core.profil WHERE code = :c"), {"c": code}
+            text(
+                "SELECT code, libelle, transverse, departement_id::text AS departement_id "
+                "FROM core.profil WHERE code = :c"
+            ),
+            {"c": code},
         )
     ).mappings().first()
     if ligne is None:
@@ -103,10 +133,11 @@ async def creer_profil(corps: CreationProfil, courant: Courant, session: Session
     ligne = (
         await session.execute(
             text(
-                "INSERT INTO core.profil (code, libelle, transverse) VALUES (:c, :l, :t) "
-                "RETURNING code, libelle, transverse"
+                "INSERT INTO core.profil (code, libelle, transverse, departement_id) "
+                "VALUES (:c, :l, :t, cast(:d as uuid)) "
+                "RETURNING code, libelle, transverse, departement_id::text AS departement_id"
             ),
-            {"c": code, "l": libelle, "t": corps.transverse},
+            {"c": code, "l": libelle, "t": corps.transverse, "d": corps.departement_id},
         )
     ).mappings().one()
     # Aucun accès n'est accordé : sécurité par défaut, l'administrateur ouvre ensuite les modules.
@@ -118,7 +149,12 @@ async def creer_profil(corps: CreationProfil, courant: Courant, session: Session
         module="administration",
         cible_type="profil",
         cible_id=code,
-        nouvelle={"code": code, "libelle": libelle, "transverse": corps.transverse},
+        nouvelle={
+            "code": code,
+            "libelle": libelle,
+            "transverse": corps.transverse,
+            "departement_id": corps.departement_id,
+        },
     )
     await session.commit()
     return dict(ligne)
@@ -139,13 +175,22 @@ async def modifier_profil(
             status_code=status.HTTP_409_CONFLICT,
             detail="L'administrateur doit rester transverse.",
         )
+    # Omis = inchangé. Sans `exclude_unset`, un PATCH qui ne parle que du libellé détacherait le
+    # profil de son département sans que personne ne l'ait demandé.
+    fournis = corps.model_dump(exclude_unset=True)
+    departement_id = (
+        fournis["departement_id"] if "departement_id" in fournis else avant["departement_id"]
+    )
+    if departement_id is not None:
+        await _departement_ou_404(session, departement_id)
     ligne = (
         await session.execute(
             text(
-                "UPDATE core.profil SET libelle = :l, transverse = :t WHERE code = :c "
-                "RETURNING code, libelle, transverse"
+                "UPDATE core.profil SET libelle = :l, transverse = :t, "
+                "       departement_id = cast(:d as uuid) WHERE code = :c "
+                "RETURNING code, libelle, transverse, departement_id::text AS departement_id"
             ),
-            {"c": code, "l": libelle, "t": transverse},
+            {"c": code, "l": libelle, "t": transverse, "d": departement_id},
         )
     ).mappings().one()
     await audit.consigner(
@@ -157,7 +202,12 @@ async def modifier_profil(
         cible_type="profil",
         cible_id=code,
         ancienne=avant,
-        nouvelle={"code": code, "libelle": libelle, "transverse": transverse},
+        nouvelle={
+            "code": code,
+            "libelle": libelle,
+            "transverse": transverse,
+            "departement_id": departement_id,
+        },
     )
     await session.commit()
     return dict(ligne)
@@ -195,6 +245,192 @@ async def supprimer_profil(code: str, courant: Courant, session: Session) -> Non
         module="administration",
         cible_type="profil",
         cible_id=code,
+        ancienne=avant,
+    )
+    await session.commit()
+
+
+# --- Départements (paramétrage) ---
+#
+# Subdivision d'une direction : « Production et Applicatif », « Réseau et Infrastructure ». Le
+# département ORGANISE — il range les dossiers et alimente les analyses. Il ne cloisonne RIEN :
+# le périmètre d'accès reste la direction (`autorisations.visible`). Confondre les deux
+# transformerait un besoin de lisibilité en restriction d'accès que personne n'a demandée.
+#
+# Il est porté par le PROFIL : le département d'un agent se déduit de son profil, une seule vérité.
+
+
+async def _departement_ou_404(session: AsyncSession, identifiant: str) -> dict[str, Any]:
+    ligne = (
+        await session.execute(
+            text(
+                "SELECT dep.id::text AS id, dep.code, dep.libelle, dir.code AS direction "
+                "FROM core.departement dep JOIN core.direction dir ON dir.id = dep.direction_id "
+                "WHERE dep.id::text = :i"
+            ),
+            {"i": identifiant},
+        )
+    ).mappings().first()
+    if ligne is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Département introuvable."
+        )
+    return dict(ligne)
+
+
+async def _exiger_departement_unique(
+    session: AsyncSession, *, code: str, libelle: str, sauf: str | None = None
+) -> None:
+    """Refuse un code ou un libellé déjà pris — casse et espaces ignorés, comme en base."""
+    conflit = await session.scalar(
+        text(
+            "SELECT id FROM core.departement "
+            "WHERE (code = :code OR upper(btrim(libelle)) = upper(btrim(:libelle))) "
+            "AND (cast(:sauf as text) IS NULL OR id::text <> :sauf) LIMIT 1"
+        ),
+        {"code": code, "libelle": libelle, "sauf": sauf},
+    )
+    if conflit is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Ce département existe déjà."
+        )
+
+
+@routeur.get("/departements", response_model=list[DepartementItem])
+async def departements(courant: Courant, session: Session) -> list[dict[str, Any]]:
+    r = await session.execute(
+        text(
+            "SELECT dep.id::text AS id, dep.code, dep.libelle, dir.code AS direction, "
+            "       (SELECT count(*) FROM core.profil p WHERE p.departement_id = dep.id) "
+            "         AS nb_profils "
+            "FROM core.departement dep JOIN core.direction dir ON dir.id = dep.direction_id "
+            "ORDER BY dep.libelle"
+        )
+    )
+    return [dict(x) for x in r.mappings().all()]
+
+
+@routeur.post(
+    "/departements", response_model=DepartementItem, status_code=status.HTTP_201_CREATED
+)
+async def creer_departement(
+    corps: CreationDepartement, courant: Courant, session: Session
+) -> dict[str, Any]:
+    libelle = corps.libelle.strip()
+    code = _code_technique(libelle, "departement")
+    await _exiger_departement_unique(session, code=code, libelle=libelle)
+    # Sans direction précisée, on prend la seule qui existe. Le jour où il y en aura plusieurs,
+    # l'appelant devra choisir — et le refus ci-dessous le dira au lieu d'en désigner une au hasard.
+    directions_connues = list(
+        (
+            await session.execute(text("SELECT id::text, code FROM core.direction ORDER BY code"))
+        ).all()
+    )
+    if corps.direction_code is not None:
+        choisie = next((d for d in directions_connues if d[1] == corps.direction_code), None)
+    elif len(directions_connues) == 1:
+        choisie = directions_connues[0]
+    else:
+        choisie = None
+    if choisie is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Direction inconnue : précisez à quelle direction rattacher ce département.",
+        )
+    identifiant = await session.scalar(
+        text(
+            "INSERT INTO core.departement (code, libelle, direction_id) "
+            "VALUES (:c, :l, cast(:d as uuid)) RETURNING id::text"
+        ),
+        {"c": code, "l": libelle, "d": choisie[0]},
+    )
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="departement",
+        cible_id=libelle,
+        nouvelle={"code": code, "libelle": libelle, "direction": choisie[1]},
+    )
+    await session.commit()
+    return {**await _departement_ou_404(session, str(identifiant)), "nb_profils": 0}
+
+
+@routeur.patch("/departements/{identifiant}", response_model=DepartementItem)
+async def modifier_departement(
+    identifiant: str, corps: MajDepartement, courant: Courant, session: Session
+) -> dict[str, Any]:
+    avant = await _departement_ou_404(session, identifiant)
+    libelle = corps.libelle.strip()
+    # Le code technique ne bouge pas avec le libellé : il est ce à quoi les profils sont rattachés.
+    await _exiger_departement_unique(
+        session, code=avant["code"], libelle=libelle, sauf=identifiant
+    )
+    await session.execute(
+        text("UPDATE core.departement SET libelle = :l WHERE id::text = :i"),
+        {"i": identifiant, "l": libelle},
+    )
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="departement",
+        cible_id=libelle,
+        ancienne=avant,
+        nouvelle={**avant, "libelle": libelle},
+    )
+    await session.commit()
+    nb = await session.scalar(
+        text("SELECT count(*) FROM core.profil WHERE departement_id::text = :i"),
+        {"i": identifiant},
+    )
+    return {**await _departement_ou_404(session, identifiant), "nb_profils": int(nb or 0)}
+
+
+@routeur.delete("/departements/{identifiant}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_departement(
+    identifiant: str, courant: Courant, session: Session
+) -> None:
+    avant = await _departement_ou_404(session, identifiant)
+    rattaches = await session.scalar(
+        text("SELECT count(*) FROM core.profil WHERE departement_id::text = :i"),
+        {"i": identifiant},
+    )
+    if rattaches:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{rattaches} profil(s) appartiennent à ce département — "
+                "rattachez-les ailleurs avant de le supprimer."
+            ),
+        )
+    dossiers = await session.scalar(
+        text("SELECT count(*) FROM core.activite WHERE departement_id::text = :i"),
+        {"i": identifiant},
+    )
+    if dossiers:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"{dossiers} dossier(s) sont rangés dans ce département — "
+                "déplacez-les avant de le supprimer."
+            ),
+        )
+    await session.execute(
+        text("DELETE FROM core.departement WHERE id::text = :i"), {"i": identifiant}
+    )
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module="administration",
+        cible_type="departement",
+        cible_id=avant["libelle"],
         ancienne=avant,
     )
     await session.commit()
@@ -621,6 +857,8 @@ _LIBELLE_CIBLE = {
     "note": "Note",
     "activite": "Activité",
     "profil": "Profil",
+    "departement": "Département",
+    "gouvernance": "Gouvernance",
     "utilisateur": "Utilisateur",
     "categorie": "Catégorie",
     "acces_role": "Accès",

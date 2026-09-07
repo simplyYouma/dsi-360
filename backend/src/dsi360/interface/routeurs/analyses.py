@@ -279,6 +279,19 @@ async def analyses(
         params,
     )
 
+    # Répartition par département de la DSI. La jointure est locale à cette requête : la porter
+    # dans `_JOINTURE` ferait payer un LEFT JOIN à toutes les agrégations du fichier pour une
+    # seule d'entre elles. Repli « Non rattaché » : la très grande majorité des dossiers vient de
+    # l'import, qui ne connaît pas le découpage interne de la DSI — le dire vaut mieux que de les
+    # faire disparaître du graphe.
+    par_departement = await _lignes(
+        session,
+        "SELECT coalesce(dep.libelle, 'Non rattaché') AS libelle, count(*) AS valeur "
+        f"{_JOINTURE} LEFT JOIN core.departement dep ON dep.id = a.departement_id "
+        f"WHERE {_EN_COURS}{cond} GROUP BY dep.libelle ORDER BY valeur DESC",
+        params,
+    )
+
     par_responsable = await _lignes(
         session,
         f"SELECT (r.prenom || ' ' || r.nom) AS libelle, count(*) AS valeur "
@@ -551,6 +564,7 @@ async def analyses(
         },
         "par_module": par_module,
         "par_direction": par_direction,
+        "par_departement": par_departement,
         "par_responsable": par_responsable,
         "par_priorite": par_priorite,
         "sla": {

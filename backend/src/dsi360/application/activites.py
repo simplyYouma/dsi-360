@@ -85,6 +85,7 @@ async def creer_activite(
     responsable_id: str | None,
     acteur: dict[str, Any],
     demandeur: str | None = None,
+    departement_id: str | None = None,
 ) -> str:
     debut = datetime.now(UTC)
     priorite = calculer_priorite(impact, urgence)
@@ -101,6 +102,7 @@ async def creer_activite(
             "titre": phrase_propre(titre),
             "description": description,
             "direction_id": direction_id,
+            "departement_id": departement_id,
             "categorie_id": categorie_id,
             "demandeur_id": acteur["id"],
             "demandeur_externe_id": demandeur_externe_id,

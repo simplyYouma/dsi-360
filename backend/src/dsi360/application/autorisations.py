@@ -86,6 +86,11 @@ def capacites(
     réécriraient l'histoire plutôt qu'une donnée : une **décision de valideur** déjà rendue ne
     se rejoue pas, et le **statut** d'un état terminal ne se change que par les transitions que
     le domaine autorise (`etats`).
+
+    ``peut_avancer`` se distingue volontairement de ``peut_travailler`` : le contributeur fait
+    avancer le travail, le **gestionnaire** déclare où en est le dossier. Annoncer un pourcentage
+    engage celui à qui le sujet est affecté — ce n'est pas une contribution de plus, c'est un
+    compte rendu. Le valideur, lui, n'y touche pas : il juge le résultat, il ne le pilote pas.
     """
     acteur = roles.est_acteur_travail
     if lecture_seule:
@@ -104,6 +109,8 @@ def capacites(
             # Annotation interne, jamais écrasée par l'import : ouverte à tout agent du module,
             # comme la discussion et la désignation d'un contributeur.
             "peut_editer_description": True,
+            # Un miroir d'import n'a pas d'avancement : son état vient du rapport, pas de nous.
+            "peut_avancer": False,
         }
     if clos:
         return {
@@ -115,6 +122,9 @@ def capacites(
             "peut_decider": False,
             "peut_completer_dossier": acteur,
             "peut_editer_description": False,
+            # Dossier clos : seul l'administrateur corrige un avancement resté faux, comme il
+            # corrige une affectation. Le gestionnaire, lui, n'a plus rien à piloter.
+            "peut_avancer": roles.est_admin,
         }
     return {
         "peut_assigner": roles.est_admin,
@@ -125,6 +135,7 @@ def capacites(
         "peut_completer_dossier": acteur,
         # Modules pilotés (changement…) : la description passe par le PATCH principal.
         "peut_editer_description": False,
+        "peut_avancer": roles.est_responsable or roles.est_admin,
     }
 
 
