@@ -1,5 +1,6 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Plus, X, type LucideIcon } from 'lucide-react';
+import { ChampInline } from './ChampInline';
 import styles from './ListeElements.module.css';
 
 interface Props {
@@ -12,8 +13,6 @@ interface Props {
   /** Teinte de la nature listée. Réservée au sens, jamais décorative. */
   couleur: string;
   indication: string;
-  /** Combien d'éléments restent visibles avant le fondu. Au-delà, la carte s'ouvre au clic. */
-  apercu?: number;
   /** Pourquoi la liste ne s'édite pas (infobulle). */
   titreLectureSeule?: string | undefined;
 }
@@ -23,16 +22,20 @@ const MINI = 3;
 /**
  * Liste d'éléments courts saisis un par un — risques d'un sujet, impacts attendus.
  *
- * Trois partis pris :
+ * Quatre partis pris :
  *
  * 1. **Un par un, à la touche Entrée.** Un sujet de COPIL porte rarement un seul risque : il en
  *    reçoit au fil des comités. Les écrire dans un pavé de texte obligeait à les séparer soi-même
  *    et rendait impossible d'en retirer un sans réécrire le reste.
- * 2. **On n'affiche pas tout.** Une fiche qui déroule six risques repousse le cycle de vie hors de
- *    l'écran. Les premiers se lisent, le reste s'estompe sous un fondu — et le compteur dit
- *    combien manquent, plutôt que de le cacher.
- * 3. **Le clic ouvre sur place.** La carte se déplie dans la fiche, sans empiler une modale
- *    par-dessus celle qu'on lit déjà.
+ * 2. **Chaque élément se corrige sur place.** Ajouter et retirer ne suffisent pas : une formulation
+ *    se précise d'un comité à l'autre, et devoir supprimer puis retaper pour changer un mot faisait
+ *    perdre le texte. Le clic ouvre la saisie — le même `ChampInline` que partout ailleurs.
+ * 3. **On n'affiche pas tout.** Une fiche qui déroule six risques repousse le cycle de vie hors de
+ *    l'écran. Ce qui dépasse s'estompe, et le compteur dit combien il y en a.
+ * 4. **Le débordement se mesure, il ne se déduit pas d'un nombre d'éléments.** La place disponible
+ *    varie — la colonne s'étire sur la hauteur de sa voisine — et un seul risque long déborde autant
+ *    que trois courts. Compter les éléments coupait une phrase en plein milieu alors que la place
+ *    restait, et laissait les deux colonnes se terminer à des hauteurs différentes.
  */
 export function ListeElements({
   valeur,
@@ -40,15 +43,23 @@ export function ListeElements({
   icone: Icone,
   couleur,
   indication,
-  apercu = 2,
   titreLectureSeule,
 }: Props): JSX.Element {
   const [saisie, setSaisie] = useState('');
   const [ouvert, setOuvert] = useState(false);
+  const [deborde, setDeborde] = useState(false);
+  const zone = useRef<HTMLDivElement>(null);
   const modifiable = onChange !== undefined;
-  const caches = Math.max(0, valeur.length - apercu);
-  // Déplié, ou trop court pour qu'il y ait quelque chose à cacher : on montre tout.
-  const visibles = ouvert || caches === 0 ? valeur : valeur.slice(0, apercu);
+
+  useEffect(() => {
+    const el = zone.current;
+    if (el === null) return undefined;
+    const mesurer = (): void => setDeborde(el.scrollHeight - el.clientHeight > 2);
+    mesurer();
+    const observateur = new ResizeObserver(mesurer);
+    observateur.observe(el);
+    return () => observateur.disconnect();
+  }, [valeur, ouvert]);
 
   const ajouter = (): void => {
     const texte = saisie.trim();
@@ -56,6 +67,15 @@ export function ListeElements({
     // Le serveur écarte les doublons de son côté ; l'écran évite d'abord de les proposer.
     if (!valeur.includes(texte)) onChange([...valeur, texte]);
     setSaisie('');
+  };
+
+  /** Correction d'un élément. Vidé, il n'est pas effacé : on retire par la croix, jamais par
+   *  accident en sélectionnant tout puis en sortant du champ. */
+  const remplacer = (index: number, texte: string): void => {
+    const propre = texte.trim();
+    if (!modifiable || propre.length < MINI || propre === valeur[index]) return;
+    if (valeur.some((el, j) => j !== index && el === propre)) return;
+    onChange(valeur.map((el, j) => (j === index ? propre : el)));
   };
 
   const touche = (e: KeyboardEvent<HTMLInputElement>): void => {
@@ -73,15 +93,28 @@ export function ListeElements({
     );
   }
 
+  // Déplié, la bascule reste offerte même si tout tient désormais : sans elle, on ne saurait plus
+  // refermer ce que l'on vient d'ouvrir.
+  const bascule = ouvert || deborde;
+
   return (
     <div className={styles.bloc}>
       {valeur.length > 0 && (
-        <div className={ouvert || caches === 0 ? styles.listeOuverte : styles.listeRepliee}>
+        <div ref={zone} className={ouvert ? styles.listeOuverte : styles.listeRepliee}>
           <ul className={styles.liste}>
-            {visibles.map((el, i) => (
+            {valeur.map((el, i) => (
               <li key={`${el}-${i}`} className={styles.element}>
                 <Icone size={14} className={styles.icone} style={{ color: couleur }} />
-                <span className={styles.texte}>{el}</span>
+                <div className={styles.texte}>
+                  <ChampInline
+                    valeur={el}
+                    multiligne
+                    onValider={(t) => remplacer(i, t)}
+                    lectureSeule={!modifiable}
+                    titreLectureSeule={titreLectureSeule}
+                    aria-label={`Modifier « ${el} »`}
+                  />
+                </div>
                 {modifiable && (
                   <button
                     type="button"
@@ -99,7 +132,7 @@ export function ListeElements({
         </div>
       )}
 
-      {caches > 0 && (
+      {bascule && (
         <button
           type="button"
           className={styles.deplier}

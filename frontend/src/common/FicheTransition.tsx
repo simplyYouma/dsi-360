@@ -645,23 +645,6 @@ export function FicheTransition({
       titre={detail ? detail.reference : 'Fiche'}
       largeur={640}
       largeurPanneau={450}
-      // Les pièces jointes quittent le fil du dossier pour une colonne à elles : il fallait
-      // auparavant faire défiler toute la fiche pour savoir si un compte rendu était joint.
-      // Elles se consultent maintenant en parallèle de ce qu'on lit.
-      panneauGauche={
-        avecDocuments && id !== null ? (
-          <PiecesJointes
-            titre="Pièces jointes"
-            explorateur
-            charger={() => api.get(`${base}/${id}/documents`)}
-            deposer={(fichier) => televerser(`${base}/${id}/documents`, fichier)}
-            telecharger={(docId) => telecharger(`${base}/${id}/documents/${docId}`)}
-            apercu={(docId) => recupererBlob(`${base}/${id}/documents/${docId}`)}
-            renommer={(docId, nom) => api.patch(`${base}/${id}/documents/${docId}`, { nom })}
-            supprimer={(docId) => api.del(`${base}/${id}/documents/${docId}`)}
-          />
-        ) : undefined
-      }
       panneau={
         <div className={styles.panneauDiscussion}>
           <div className={styles.panneauEntete}>
@@ -1005,7 +988,7 @@ export function FicheTransition({
                 raconte, il n'a pas la nature d'une fiche du registre des risques IT. */}
             {avecRisquesImpacts && (
               <>
-                <div className={styles.metaItem}>
+                <div className={cx(styles.metaItem, styles.metaListe)}>
                   <dt>
                     Risques identifiés
                     {(detail.risques ?? []).length > 0 && (
@@ -1027,7 +1010,7 @@ export function FicheTransition({
                     />
                   </dd>
                 </div>
-                <div className={styles.metaItem}>
+                <div className={cx(styles.metaItem, styles.metaListe)}>
                   <dt>
                     Impacts attendus
                     {(detail.impacts ?? []).length > 0 && (
@@ -1226,6 +1209,20 @@ export function FicheTransition({
                 creer={(libelle, url) => api.post(`${base}/${id}/liens`, { libelle, url })}
                 supprimer={(lienId) => api.del(`${base}/${id}/liens/${lienId}`)}
                 modifiable={permissions.peut_travailler}
+              />
+            </div>
+          )}
+
+          {avecDocuments && id !== null && (
+            <div className={styles.histo}>
+              <PiecesJointes
+                titre="Pièces jointes"
+                charger={() => api.get(`${base}/${id}/documents`)}
+                deposer={(fichier) => televerser(`${base}/${id}/documents`, fichier)}
+                telecharger={(docId) => telecharger(`${base}/${id}/documents/${docId}`)}
+                apercu={(docId) => recupererBlob(`${base}/${id}/documents/${docId}`)}
+                renommer={(docId, nom) => api.patch(`${base}/${id}/documents/${docId}`, { nom })}
+                supprimer={(docId) => api.del(`${base}/${id}/documents/${docId}`)}
               />
             </div>
           )}

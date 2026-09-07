@@ -63,6 +63,17 @@
 .metaLarge {
   grid-column: 1 / -1;
 }
+/* Cellule portant une liste (risques, impacts) : la rangée de grille aligne déjà les deux colonnes
+   sur la plus haute, encore faut-il que le contenu s'y étire. Sans cela, l'une se terminait bien
+   plus haut que l'autre. */
+.metaListe {
+  min-height: 0;
+}
+.metaListe dd {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .metaItem dt {
   font-size: 0.6875rem;
   text-transform: uppercase;

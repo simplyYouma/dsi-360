@@ -1,24 +1,31 @@
+/* La liste occupe toute la hauteur que sa cellule lui donne. Les deux colonnes — risques et
+   impacts — vivent dans la même rangée de grille : celle-ci s'aligne sur la plus haute, et la plus
+   courte s'étire au lieu de laisser un trou. Sans cela, l'une s'arrêtait en plein milieu quand
+   l'autre déroulait tout, et le décalage se voyait sur tout ce qui suit. */
 .bloc {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Repliée, la liste est bornée en hauteur : une fiche qui déroule six risques repousse le cycle de
-   vie hors de l'écran. Le fondu par-dessus dit qu'il y a une suite — il ne la cache pas, le bouton
-   juste en dessous la donne. */
+   vie hors de l'écran. Le fondu dit qu'il y a une suite — il ne la cache pas, le bouton juste en
+   dessous la donne. */
 .listeRepliee,
 .listeOuverte {
   position: relative;
   overflow: hidden;
-  transition: max-height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 /* Le fondu se fait sur le CONTENU, par masque — jamais par un voile de couleur posé dessus.
    Un voile doit connaître le fond sur lequel il repose : la première version dégradait vers le
    blanc alors que la grille de la fiche est grise, ce qui posait une bande franche en travers du
    texte. Le masque, lui, estompe les lettres elles-mêmes, quel que soit le fond. */
 .listeRepliee {
-  max-height: 76px;
+  max-height: 260px;
   mask-image: linear-gradient(180deg, #000 40%, rgb(0 0 0 / 12%) 100%);
   -webkit-mask-image: linear-gradient(180deg, #000 40%, rgb(0 0 0 / 12%) 100%);
 }
@@ -36,23 +43,27 @@
   list-style: none;
 }
 
+/* Le texte porte son propre rembourrage (champ éditable au clic) : la ligne n'en remet pas, sinon
+   les éléments s'écarteraient les uns des autres pour rien. Et son survol reste plus pâle que celui
+   du champ, sans quoi la zone cliquable ne se distinguerait plus de la ligne qui la porte. */
 .element {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
-  padding: 5px var(--space-2);
+  padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   line-height: 1.45;
   transition: background 0.15s ease;
 }
 .element:hover {
-  background: var(--bg-subtle);
+  background: color-mix(in srgb, var(--bg-subtle) 50%, transparent);
 }
 
+/* Alignée sur la première ligne du texte, rembourrage du champ compris. */
 .icone {
   flex: none;
-  margin-top: 2px;
+  margin-top: 8px;
 }
 
 .texte {
@@ -65,6 +76,7 @@
   flex: none;
   display: flex;
   align-items: center;
+  margin-top: 6px;
   padding: 2px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -147,11 +159,4 @@
 
 .vide {
   color: var(--text-muted);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .listeRepliee,
-  .listeOuverte {
-    transition: none;
-  }
 }

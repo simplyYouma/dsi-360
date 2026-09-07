@@ -18,12 +18,6 @@ interface ModaleProps {
   panneau?: ReactNode;
   /** Largeur de la colonne latérale en px (défaut 380). */
   largeurPanneau?: number;
-  /** Volet FLOTTANT accroché au bord gauche, hors du cadre (ex. explorateur de pièces jointes).
-   *  Il ne prend rien au dossier : il se tient à côté, et se consulte du regard sans que le
-   *  contenu ait bougé. Sur écran étroit, il repasse sous le dossier. */
-  panneauGauche?: ReactNode;
-  /** Largeur du volet flottant en px (défaut 236). */
-  largeurPanneauGauche?: number;
   /** Étiquettes flottantes collées au bord gauche, comme des stickers (ex. constats). */
   etiquettes?: ReactNode;
 }
@@ -41,8 +35,6 @@ export function Modale({
   largeur = 560,
   panneau,
   largeurPanneau = 380,
-  panneauGauche,
-  largeurPanneauGauche = 236,
   etiquettes,
 }: ModaleProps): JSX.Element | null {
   useEffect(() => {
@@ -65,8 +57,7 @@ export function Modale({
     <div className={styles.overlay} onMouseDown={onFermer}>
       <div
         className={styles.modale}
-        // Le volet gauche flotte hors du cadre : il n'entre pas dans la largeur de la modale.
-        style={{ maxWidth: largeur + (panneau !== undefined ? largeurPanneau : 0) }}
+        style={{ maxWidth: panneau !== undefined ? largeur + largeurPanneau : largeur }}
         role="dialog"
         aria-modal="true"
         aria-label={titre}
@@ -76,11 +67,6 @@ export function Modale({
           <X size={20} />
         </button>
         {etiquettes !== undefined && <div className={styles.etiquettes}>{etiquettes}</div>}
-        {panneauGauche !== undefined && (
-          <aside className={styles.voletGauche} style={{ width: largeurPanneauGauche }}>
-            {panneauGauche}
-          </aside>
-        )}
         <div className={styles.grille}>
           <div className={styles.principal}>
             <h2 className={styles.titre}>{titre}</h2>

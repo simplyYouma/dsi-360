@@ -79,24 +79,6 @@
   min-width: 0;
   min-height: 0;
 }
-/* Volet flottant accroché au bord gauche, HORS du cadre — comme les étiquettes de constat.
-   Une annexe du dossier ne doit rien lui prendre : mis dans la grille, il repoussait tout le
-   contenu vers la droite. Ici il se tient à côté, avec son propre défilement. */
-.voletGauche {
-  position: absolute;
-  top: 0;
-  left: calc(-1 * var(--space-4));
-  transform: translateX(-100%);
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-}
 .panneau {
   display: flex;
   flex-direction: column;
@@ -150,25 +132,6 @@
     padding-top: var(--space-4);
     border-left: none;
     border-top: 1px solid var(--border);
-  }
-}
-
-/* Le volet flotte HORS du cadre : il lui faut sa propre largeur à gauche de la modale, que le
-   dossier ne lui donne pas. Sous 1200 px il n'y tient plus et sortirait de l'écran — il revient
-   alors dans le flux, SOUS le dossier : mis en tête, il ferait descendre l'essentiel hors de vue.
-   Le seuil est le sien, plus large que celui des colonnes de la grille. */
-@media (max-width: 1200px) {
-  .voletGauche {
-    position: static;
-    order: 2;
-    transform: none;
-    width: auto !important;
-    max-height: 260px;
-    margin-top: var(--space-4);
-    box-shadow: none;
-  }
-  .grille {
-    order: 1;
   }
 }
 
