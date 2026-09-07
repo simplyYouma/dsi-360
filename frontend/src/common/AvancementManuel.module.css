@@ -1,82 +1,121 @@
-.bloc {
+/* Bandeau d'avancement, accroché sous l'en-tête de la fiche.
+   « Où en est-on ? » est la première question qu'on se pose en ouvrant un sujet de COPIL : il a
+   donc son propre bloc, pleine largeur, avant le détail — et non une ligne perdue dans la grille. */
+.bandeau {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  /* Une teinte de marque très diluée : le bandeau se distingue de la grille grise sans crier. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--secondary) 7%, var(--surface)),
+    var(--surface)
+  );
 }
 
-/* Dix crans, une seule ligne. Le repère chiffré vit SOUS le cran : lu de gauche à droite, on
-   suit la progression sans avoir à interpréter une graduation muette. */
+.tete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Le chiffre porte l'information : il est gros, et il est à gauche — on le lit avant la barre. */
+.chiffre {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 92px;
+  font-size: 2.25rem;
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.pourcent {
+  font-size: 1rem;
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+
+.piste {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rail {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.remplissage,
+.remplissageComplet {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--secondary) 68%, var(--surface)),
+    var(--secondary)
+  );
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.remplissageComplet {
+  background: var(--status-ok);
+}
+
+/* Dix crans sous la barre : le chiffre EST le repère, pas une graduation muette à interpréter. */
 .crans {
   display: grid;
   grid-template-columns: repeat(11, 1fr);
-  gap: 3px;
+  gap: 2px;
 }
-
 .cran,
 .cranAtteint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
+  padding: 3px 0;
   border: 0;
+  border-radius: var(--radius-sm);
   background: none;
-  cursor: pointer;
   font: inherit;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+  cursor: pointer;
   transition:
-    color 0.15s ease,
-    transform 0.15s ease;
+    background 0.15s ease,
+    color 0.15s ease;
 }
-
-/* La marque elle-même : un trait, pas une pastille. La couleur reste au sens (atteint / à venir). */
-.cran::before,
-.cranAtteint::before {
-  content: '';
-  display: block;
-  width: 100%;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--bg-subtle);
-  transition: background 0.2s ease;
+.cranAtteint {
+  color: color-mix(in srgb, var(--secondary) 80%, var(--text));
+  font-weight: var(--weight-medium);
 }
-
-.cranAtteint::before {
-  background: var(--secondary);
-}
-
 .cran:hover,
 .cranAtteint:hover {
+  background: var(--secondary-subtle);
   color: var(--text);
-  transform: translateY(-1px);
 }
-
-.cran:hover::before {
-  background: color-mix(in srgb, var(--secondary) 45%, var(--bg-subtle));
-}
-
 .cran:focus-visible,
 .cranAtteint:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: var(--radius-sm);
-}
-
-.cranValeur {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
+  outline-offset: 1px;
 }
 
 /* Sans le droit de déclarer : on dit pourquoi, on ne se contente pas de retirer les boutons. */
 .verrou {
   margin: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-muted);
   font-style: italic;
 }
 
-/* Les justifications passées : discrètes, tronquées, et entièrement lisibles au clic. */
+/* ---- Les justifications ----
+   Repliées en pastilles ; au clic, la pastille GRANDIT SUR PLACE et déploie son texte entier.
+   Pas de modale : on lit déjà une fiche modale, en empiler une seconde ferait perdre le fil. */
 .motifs {
   display: flex;
   flex-wrap: wrap;
@@ -85,52 +124,87 @@
   padding: 0;
   list-style: none;
 }
+.motifOuvert {
+  /* La pastille dépliée prend toute la ligne : c'est ce qui produit l'effet d'agrandissement. */
+  flex: 1 0 100%;
+}
 
-.motif {
+.pastille,
+.pastilleOuverte {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 260px;
-  padding: 3px var(--space-2);
+  padding: 4px var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--text-muted);
   font: inherit;
   font-size: var(--text-xs);
+  text-align: left;
   cursor: pointer;
   transition:
-    border-color 0.15s ease,
-    color 0.15s ease,
-    transform 0.15s ease;
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    padding 0.18s ease;
 }
-
-.motif:hover {
+.pastille {
+  max-width: 240px;
+}
+.pastille:hover {
   border-color: var(--secondary);
   color: var(--text);
-  /* L'agrandissement au survol annonce ce que fait le clic : ouvrir en grand. */
-  transform: scale(1.04);
+  /* Le léger agrandissement au survol annonce ce que fera le clic. */
+  transform: scale(1.03);
 }
 
-.motif:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.pastilleOuverte {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border-color: var(--secondary);
+  background: var(--secondary-subtle);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  animation: deplier 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.motifTexte {
+@keyframes deplier {
+  from {
+    transform: scale(0.98);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.guillemet {
+  flex: none;
+  color: var(--secondary);
+}
+
+.texteCoupe {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.motifOuvert {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-md);
+.texteEntier {
+  font-size: var(--text-sm);
   line-height: 1.6;
-  color: var(--text);
   white-space: pre-wrap;
 }
+.signature {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
 
+/* ---- La demande de motif ---- */
 .champ {
   display: flex;
   flex-direction: column;
@@ -138,7 +212,6 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
-
 .champ textarea {
   width: 100%;
   padding: var(--space-2) var(--space-3);
@@ -150,14 +223,20 @@
   line-height: 1.5;
   resize: vertical;
 }
-
 .champ textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
-
 .aide {
   margin: var(--space-2) 0 0;
   font-size: var(--text-xs);
   color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pastille:hover,
+  .pastilleOuverte {
+    transform: none;
+    animation: none;
+  }
 }

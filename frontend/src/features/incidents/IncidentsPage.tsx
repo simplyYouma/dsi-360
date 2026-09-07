@@ -90,7 +90,13 @@ const COLONNES: Colonne<Incident>[] = [
     cle: 'gestionnaire',
     entete: 'Gestionnaire',
     valeur: (i) => i.gestionnaire ?? '',
-    rendu: (i) => <CelluleActeur nom={i.gestionnaire} contributeur={i.contributeur} nbContributeurs={i.nb_contributeurs ?? 0} />,
+    rendu: (i) => (
+      <CelluleActeur
+        nom={i.gestionnaire}
+        contributeur={i.contributeur}
+        nbContributeurs={i.nb_contributeurs ?? 0}
+      />
+    ),
   },
   {
     cle: 'cree_le',

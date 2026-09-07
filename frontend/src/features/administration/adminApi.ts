@@ -82,7 +82,9 @@ export interface SlaRegle {
 export const adminApi = {
   /** `direction` ne garde que les profils de cette direction — plus les transverses, toujours. */
   profils: (direction?: string | null): Promise<Profil[]> =>
-    api.get(direction ? `/admin/profils?direction=${encodeURIComponent(direction)}` : '/admin/profils'),
+    api.get(
+      direction ? `/admin/profils?direction=${encodeURIComponent(direction)}` : '/admin/profils',
+    ),
   /** Le code technique est dérivé du libellé côté serveur : on nomme, on ne code pas. */
   creerProfil: (libelle: string, transverse: boolean): Promise<Profil> =>
     api.post('/admin/profils', { libelle, transverse }),

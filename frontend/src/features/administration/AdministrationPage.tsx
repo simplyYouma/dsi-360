@@ -639,6 +639,48 @@ function OngletJournal(): JSX.Element {
   return (
     <>
       <div className={filtres.barre}>
+        {/* On CADRE d'abord (vues, filtres), on CHERCHE ensuite : la recherche
+            passe outre les filtres de la liste, la mêler à eux laissait croire
+            qu'elle s'y ajoutait. Elle occupe sa propre ligne, collée au tableau. */}
+        <div className={filtres.rangeeFiltres}>
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={refs.modules.map((m) => ({ valeur: m, libelle: m }))}
+              valeur={module}
+              onChange={setModule}
+              placeholder="Tous les modules"
+              permettreVide
+              libelleVide="Tous les modules"
+            />
+          </div>
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={refs.actions.map((a) => ({ valeur: a, libelle: libelleAction(a) }))}
+              valeur={action}
+              onChange={setAction}
+              placeholder="Toutes les actions"
+              permettreVide
+              libelleVide="Toutes les actions"
+            />
+          </div>
+          {filtreActif && (
+            <button
+              type="button"
+              className={filtres.reset}
+              onClick={() => {
+                setQ('');
+                setModule(null);
+                setAction(null);
+              }}
+            >
+              <X size={14} />
+              Réinitialiser
+            </button>
+          )}
+          {/* L'export suit la vue : on emporte ce qu'on regarde, pas 30 000 lignes de plus. */}
+          <BoutonsExport base="/admin/journal" filtres={{ q, module, action }} />
+        </div>
+
         <label className={filtres.recherche}>
           <Search size={16} />
           <input
@@ -647,42 +689,6 @@ function OngletJournal(): JSX.Element {
             placeholder="Rechercher (acteur, cible, module, action)…"
           />
         </label>
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={refs.modules.map((m) => ({ valeur: m, libelle: m }))}
-            valeur={module}
-            onChange={setModule}
-            placeholder="Tous les modules"
-            permettreVide
-            libelleVide="Tous les modules"
-          />
-        </div>
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={refs.actions.map((a) => ({ valeur: a, libelle: libelleAction(a) }))}
-            valeur={action}
-            onChange={setAction}
-            placeholder="Toutes les actions"
-            permettreVide
-            libelleVide="Toutes les actions"
-          />
-        </div>
-        {filtreActif && (
-          <button
-            type="button"
-            className={filtres.reset}
-            onClick={() => {
-              setQ('');
-              setModule(null);
-              setAction(null);
-            }}
-          >
-            <X size={14} />
-            Réinitialiser
-          </button>
-        )}
-        {/* L'export suit la vue : on emporte ce qu'on regarde, pas 30 000 lignes de plus. */}
-        <BoutonsExport base="/admin/journal" filtres={{ q, module, action }} />
       </div>
       <Table
         colonnes={colonnes}
@@ -1203,11 +1209,11 @@ function OngletProfils(): JSX.Element {
   return (
     <div className={a.zone} style={{ padding: 'var(--space-4)' }}>
       <p className={styles.sous} style={{ marginBottom: 'var(--space-4)' }}>
-Profils métier de la DSI. Le code technique est dérivé du libellé et ne change jamais : il
+        Profils métier de la DSI. Le code technique est dérivé du libellé et ne change jamais : il
         est référencé par les comptes et par la matrice d’accès. Un profil porté par des comptes ne
         peut pas être supprimé. Un nouveau profil n’ouvre aucun module tant que vous ne lui en
-        donnez pas dans l’onglet Accès. Le <strong>département</strong> range le profil dans la
-        DSI : il sert à lire et à analyser, il ne restreint aucun accès — c’est le périmètre de
+        donnez pas dans l’onglet Accès. Le <strong>département</strong> range le profil dans la DSI
+        : il sert à lire et à analyser, il ne restreint aucun accès — c’est le périmètre de
         direction qui le fait.
       </p>
       <table className={a.matrice}>

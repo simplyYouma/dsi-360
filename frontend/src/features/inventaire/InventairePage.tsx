@@ -48,8 +48,14 @@ function infobulleConstat(e: Equipement): string | undefined {
 /** Couleur stable d'un type : la même étiquette garde toujours la même teinte (hash → palette
  *  catégorielle). Chaque type se repère ainsi d'un coup d'œil, sans jamais changer de couleur. */
 const _PALETTE_TYPE = [
-  'var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)',
-  'var(--cat-5)', 'var(--cat-6)', 'var(--cat-7)', 'var(--cat-8)',
+  'var(--cat-1)',
+  'var(--cat-2)',
+  'var(--cat-3)',
+  'var(--cat-4)',
+  'var(--cat-5)',
+  'var(--cat-6)',
+  'var(--cat-7)',
+  'var(--cat-8)',
 ];
 export function couleurType(libelle: string): string {
   let h = 0;
@@ -349,8 +355,13 @@ export function InventairePage(): JSX.Element {
 
   const vue = VUES.find((v) => v.actif === (f.actif ?? null))?.cle ?? 'tous';
   const filtreActif = Boolean(
-    f.q || f.type_id || f.emplacement_id || f.departement_id || f.detenteur_id ||
-      f.etat_constate || f.a_controler,
+    f.q ||
+    f.type_id ||
+    f.emplacement_id ||
+    f.departement_id ||
+    f.detenteur_id ||
+    f.etat_constate ||
+    f.a_controler,
   );
 
   return (
@@ -469,7 +480,9 @@ export function InventairePage(): JSX.Element {
             }}
             title="Jamais contrôlés, ou pas depuis plus d'un an"
           >
-            <b style={{ color: stats.a_controler > 0 ? 'var(--status-warn)' : 'var(--text-muted)' }}>
+            <b
+              style={{ color: stats.a_controler > 0 ? 'var(--status-warn)' : 'var(--text-muted)' }}
+            >
               {stats.a_controler}
             </b>
             <span>À contrôler</span>
@@ -478,6 +491,98 @@ export function InventairePage(): JSX.Element {
       )}
 
       <div className={filtres.barre}>
+        {/* On CADRE d'abord (vues, filtres), on CHERCHE ensuite : la recherche
+            passe outre les filtres de la liste, la mêler à eux laissait croire
+            qu'elle s'y ajoutait. Elle occupe sa propre ligne, collée au tableau. */}
+        <div className={filtres.rangeeFiltres}>
+          <div className={filtres.segments}>
+            {VUES.map((v) => (
+              <button
+                key={v.cle}
+                type="button"
+                className={vue === v.cle ? filtres.segmentOn : filtres.segment}
+                onClick={() => {
+                  setPage(1);
+                  setF({ ...f, actif: v.actif });
+                }}
+              >
+                {v.libelle}
+              </button>
+            ))}
+          </div>
+
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={types.map((t) => ({ valeur: t.id, libelle: t.libelle }))}
+              valeur={f.type_id ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, type_id: v });
+              }}
+              placeholder="Tous les types"
+              permettreVide
+              libelleVide="Tous les types"
+            />
+          </div>
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={emplacements.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
+              valeur={f.emplacement_id ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, emplacement_id: v });
+              }}
+              placeholder="Tous les emplacements"
+              permettreVide
+              libelleVide="Tous les emplacements"
+            />
+          </div>
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
+              valeur={f.departement_id ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, departement_id: v });
+              }}
+              placeholder="Tous les départements"
+              permettreVide
+              libelleVide="Tous les départements"
+            />
+          </div>
+          {/* « Quel matériel détient X ? » — la question qu'on pose le plus souvent au parc.
+              « Non attribué » en tête : ce sont les rattachements qui restent à faire. */}
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={[
+                { valeur: 'AUCUN', libelle: 'Non attribué', special: true },
+                ...agents.map((a) => ({ valeur: a.id, libelle: a.nom })),
+              ]}
+              valeur={f.detenteur_id ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, detenteur_id: v });
+              }}
+              placeholder="Tous les détenteurs"
+              permettreVide
+              libelleVide="Tous les détenteurs"
+            />
+          </div>
+          {filtreActif && (
+            <button
+              type="button"
+              className={filtres.reset}
+              onClick={() => {
+                setPage(1);
+                setF({ actif: f.actif ?? null });
+              }}
+            >
+              <X size={14} />
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
         <label className={filtres.recherche}>
           <Search size={16} />
           <input
@@ -489,93 +594,6 @@ export function InventairePage(): JSX.Element {
             placeholder="Rechercher (code immo, n° série, modèle, détenteur)…"
           />
         </label>
-
-        <div className={filtres.segments}>
-          {VUES.map((v) => (
-            <button
-              key={v.cle}
-              type="button"
-              className={vue === v.cle ? filtres.segmentOn : filtres.segment}
-              onClick={() => {
-                setPage(1);
-                setF({ ...f, actif: v.actif });
-              }}
-            >
-              {v.libelle}
-            </button>
-          ))}
-        </div>
-
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={types.map((t) => ({ valeur: t.id, libelle: t.libelle }))}
-            valeur={f.type_id ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, type_id: v });
-            }}
-            placeholder="Tous les types"
-            permettreVide
-            libelleVide="Tous les types"
-          />
-        </div>
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={emplacements.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
-            valeur={f.emplacement_id ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, emplacement_id: v });
-            }}
-            placeholder="Tous les emplacements"
-            permettreVide
-            libelleVide="Tous les emplacements"
-          />
-        </div>
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
-            valeur={f.departement_id ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, departement_id: v });
-            }}
-            placeholder="Tous les départements"
-            permettreVide
-            libelleVide="Tous les départements"
-          />
-        </div>
-        {/* « Quel matériel détient X ? » — la question qu'on pose le plus souvent au parc.
-            « Non attribué » en tête : ce sont les rattachements qui restent à faire. */}
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={[
-              { valeur: 'AUCUN', libelle: 'Non attribué', special: true },
-              ...agents.map((a) => ({ valeur: a.id, libelle: a.nom })),
-            ]}
-            valeur={f.detenteur_id ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, detenteur_id: v });
-            }}
-            placeholder="Tous les détenteurs"
-            permettreVide
-            libelleVide="Tous les détenteurs"
-          />
-        </div>
-        {filtreActif && (
-          <button
-            type="button"
-            className={filtres.reset}
-            onClick={() => {
-              setPage(1);
-              setF({ actif: f.actif ?? null });
-            }}
-          >
-            <X size={14} />
-            Réinitialiser
-          </button>
-        )}
       </div>
 
       <Table

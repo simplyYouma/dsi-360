@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, MessageSquareQuote, X } from 'lucide-react';
+import { Check, Quote, X } from 'lucide-react';
 import { Button, Modale } from '@/design-system/primitives';
-import { BarreAvancement } from './BarreAvancement';
 import styles from './AvancementManuel.module.css';
 
 /** Une justification déjà consignée : ce qui a bougé, et pourquoi. */
@@ -22,9 +21,9 @@ interface Props {
   raisonVerrou?: string;
 }
 
-/** Pas de curseur libre : dix crans lisibles, et un chiffre rond au bout. Un avancement se
- *  raconte en dizaines, pas au pour-cent près — et un pas trop fin invite à mentir sur la
- *  précision de ce qu'on sait. */
+/** Pas de curseur libre : dix crans lisibles, et un chiffre rond au bout. Un avancement se raconte
+ *  en dizaines, pas au pour-cent près — un pas trop fin inviterait à mentir sur la précision de ce
+ *  qu'on sait réellement. */
 const PAS = 10;
 const CRANS = Array.from({ length: 100 / PAS + 1 }, (_, i) => i * PAS);
 
@@ -39,19 +38,23 @@ function horodate(iso: string): string {
 }
 
 /**
- * Avancement **déclaré** d'un sujet de gouvernance — par opposition à celui des projets, déduit
- * des tâches terminées.
+ * Bandeau d'avancement d'un sujet de gouvernance — **déclaré**, par opposition à celui des projets
+ * qui se déduit des tâches terminées.
+ *
+ * Il s'accroche sous l'en-tête de la fiche, pleine largeur : « où en est-on ? » est la première
+ * question qu'on se pose en ouvrant un sujet de COPIL, pas une ligne de détail parmi d'autres.
  *
  * Deux règles portent tout le composant :
  *
- * 1. **Rien ne s'enregistre sans justification.** Choisir un cran n'écrit pas : il ouvre une
+ * 1. **Rien ne s'enregistre sans justification.** Choisir un cran n'écrit pas — il ouvre une
  *    demande de motif, et le bouton reste inactif tant qu'il n'y a pas de quoi relire la décision
- *    dans six mois. Le serveur refuse de son côté — l'écran ne fait que l'annoncer plus tôt.
- * 2. **Le composant ne décide de rien.** `modifiable` vient de la permission calculée par le
- *    serveur (`peut_avancer`). Le gestionnaire rend compte ; le contributeur, lui, travaille.
+ *    dans six mois. Le serveur refuse de son côté ; l'écran ne fait que l'annoncer plus tôt.
+ * 2. **Le composant ne décide de rien.** `modifiable` vient de `peut_avancer`, calculé par le
+ *    serveur : le gestionnaire rend compte, le contributeur travaille.
  *
- * Les justifications passées s'affichent en pastilles discrètes. Au clic, le texte s'ouvre en
- * grand : une note écrite pour être relue ne doit pas rester coupée à trois mots.
+ * Les justifications passées vivent en pastilles sous la barre. Au clic, la pastille **s'ouvre sur
+ * place** — elle grandit et déploie son texte entier, sans quitter la fiche ni empiler une modale
+ * par-dessus celle qu'on lit déjà.
  */
 export function AvancementManuel({
   valeur,
@@ -63,7 +66,7 @@ export function AvancementManuel({
   const [choisi, setChoisi] = useState<number | null>(null);
   const [motif, setMotif] = useState('');
   const [envoi, setEnvoi] = useState(false);
-  const [ouverte, setOuverte] = useState<JustificationAvancement | null>(null);
+  const [ouverte, setOuverte] = useState<number | null>(null);
   const champ = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -71,6 +74,8 @@ export function AvancementManuel({
   }, [choisi]);
 
   const suffisant = motif.trim().length >= 3;
+  // La plus récente d'abord : c'est celle qui explique où l'on en est aujourd'hui.
+  const recentes = [...justifications].reverse();
 
   const demander = (v: number): void => {
     if (!modifiable || v === valeur) return;
@@ -90,62 +95,84 @@ export function AvancementManuel({
   };
 
   return (
-    <div className={styles.bloc}>
-      <BarreAvancement valeur={valeur} />
+    <section className={styles.bandeau} aria-label="Avancement du sujet">
+      <div className={styles.tete}>
+        <span className={styles.chiffre}>
+          {valeur}
+          <span className={styles.pourcent}>%</span>
+        </span>
+        <div className={styles.piste}>
+          <div className={styles.rail}>
+            <div
+              className={valeur === 100 ? styles.remplissageComplet : styles.remplissage}
+              style={{ width: `${valeur}%` }}
+            />
+          </div>
 
-      {modifiable ? (
-        <div
-          className={styles.crans}
-          role="group"
-          aria-label="Déclarer l’avancement"
-          onKeyDown={(e) => {
-            // Pilotable au clavier : la charte proscrit les composants natifs, elle n'excuse
-            // pas de rendre le geste inaccessible à qui n'utilise pas la souris.
-            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              demander(Math.min(100, valeur + PAS));
-            }
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-              e.preventDefault();
-              demander(Math.max(0, valeur - PAS));
-            }
-          }}
-        >
-          {CRANS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              className={v <= valeur ? styles.cranAtteint : styles.cran}
-              onClick={() => demander(v)}
-              title={`Déclarer ${v} %`}
-              aria-label={`Déclarer ${v} %`}
-              aria-pressed={v === valeur}
+          {modifiable ? (
+            <div
+              className={styles.crans}
+              role="group"
+              aria-label="Déclarer l’avancement"
+              onKeyDown={(e) => {
+                // Pilotable au clavier : la charte proscrit les composants natifs, elle n'excuse
+                // pas de rendre le geste inaccessible à qui n'utilise pas la souris.
+                if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  demander(Math.min(100, valeur + PAS));
+                }
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  demander(Math.max(0, valeur - PAS));
+                }
+              }}
             >
-              <span className={styles.cranValeur}>{v}</span>
-            </button>
-          ))}
+              {CRANS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={v <= valeur ? styles.cranAtteint : styles.cran}
+                  onClick={() => demander(v)}
+                  title={`Déclarer ${v} %`}
+                  aria-label={`Déclarer ${v} %`}
+                  aria-pressed={v === valeur}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.verrou} title={raisonVerrou}>
+              {raisonVerrou ?? 'Seul le gestionnaire du sujet déclare son avancement.'}
+            </p>
+          )}
         </div>
-      ) : (
-        <p className={styles.verrou} title={raisonVerrou}>
-          {raisonVerrou ?? 'Seul le gestionnaire du sujet déclare son avancement.'}
-        </p>
-      )}
+      </div>
 
-      {justifications.length > 0 && (
+      {recentes.length > 0 && (
         <ul className={styles.motifs}>
-          {justifications.map((j, i) => (
-            <li key={`${j.horodatage}-${i}`}>
-              <button
-                type="button"
-                className={styles.motif}
-                onClick={() => setOuverte(j)}
-                title="Lire la justification en entier"
-              >
-                <MessageSquareQuote size={13} />
-                <span className={styles.motifTexte}>{j.texte}</span>
-              </button>
-            </li>
-          ))}
+          {recentes.map((j, i) => {
+            const active = ouverte === i;
+            return (
+              <li key={`${j.horodatage}-${i}`} className={active ? styles.motifOuvert : undefined}>
+                <button
+                  type="button"
+                  className={active ? styles.pastilleOuverte : styles.pastille}
+                  onClick={() => setOuverte(active ? null : i)}
+                  aria-expanded={active}
+                  title={active ? 'Replier' : 'Lire en entier'}
+                >
+                  <Quote size={13} className={styles.guillemet} aria-hidden="true" />
+                  <span className={active ? styles.texteEntier : styles.texteCoupe}>{j.texte}</span>
+                  {active && (
+                    <span className={styles.signature}>
+                      {j.auteur ?? 'Auteur inconnu'} · {horodate(j.horodatage)}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -183,23 +210,6 @@ export function AvancementManuel({
           journal.
         </p>
       </Modale>
-
-      {/* La justification en grand : elle a été écrite pour être lue, pas pour tenir en pastille. */}
-      <Modale
-        ouverte={ouverte !== null}
-        onFermer={() => setOuverte(null)}
-        titre="Justification"
-        pied={
-          <Button variante="secondaire" onClick={() => setOuverte(null)}>
-            Fermer
-          </Button>
-        }
-      >
-        <p className={styles.motifOuvert}>{ouverte?.texte}</p>
-        <p className={styles.aide}>
-          {ouverte?.auteur ?? 'Auteur inconnu'} · {ouverte ? horodate(ouverte.horodatage) : ''}
-        </p>
-      </Modale>
-    </div>
+    </section>
   );
 }

@@ -65,6 +65,76 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
 
   return (
     <div className={styles.barre}>
+      {/* Deux rangées, et l'ordre a un sens : on CADRE d'abord (phase, retard, statut,
+          gestionnaire), on CHERCHE ensuite. La recherche passe outre tous ces filtres — la placer
+          au milieu d'eux laissait croire qu'elle s'y ajoutait. Elle vient donc en dernier, collée
+          au tableau qu'elle va réduire. */}
+      <div className={styles.rangeeFiltres}>
+        <div className={styles.segments}>
+          {ETATS_VUE.map((v) => (
+            <button
+              key={v.cle}
+              type="button"
+              className={vue === v.cle ? styles.segmentOn : styles.segment}
+              onClick={() => onChange({ ...valeur, etat: v.cle === 'tous' ? null : v.cle })}
+            >
+              {v.libelle}
+            </button>
+          ))}
+        </div>
+
+        {/* Axe indépendant : « en retard » se croise avec la phase, il ne la remplace pas. On peut
+            donc demander « en cours et en retard », ou « terminés et en retard » (résolus hors délai). */}
+        <button
+          type="button"
+          className={valeur.retard === true ? styles.retardOn : styles.retard}
+          onClick={() => onChange({ ...valeur, retard: valeur.retard !== true })}
+          aria-pressed={valeur.retard === true}
+          title="Échéance SLA dépassée, pas encore résolu"
+        >
+          <TriangleAlert size={14} />
+          En retard
+        </button>
+
+        <div className={styles.filtre}>
+          <SelecteurListe
+            options={etats.map((e) => ({ valeur: e, libelle: e }))}
+            valeur={valeur.statut ?? null}
+            onChange={(v) => onChange({ ...valeur, statut: v })}
+            placeholder="Tous les statuts"
+            permettreVide
+            libelleVide="Tous les statuts"
+          />
+        </div>
+        <div className={styles.filtre}>
+          <SelecteurListe
+            options={optionsGest}
+            valeur={gestValeur}
+            onChange={(v) =>
+              onChange({
+                ...valeur,
+                responsable_id: v === NON_ASSIGNE || v === DBS ? null : v,
+                non_assigne: v === NON_ASSIGNE,
+                dbs: v === DBS,
+              })
+            }
+            placeholder="Tous les gestionnaires"
+            permettreVide
+            libelleVide="Tous les gestionnaires"
+          />
+        </div>
+        {actif && (
+          <button
+            type="button"
+            className={styles.reset}
+            onClick={() => onChange({ etat: valeur.etat ?? null })}
+          >
+            <X size={14} />
+            Réinitialiser
+          </button>
+        )}
+      </div>
+
       <label className={styles.recherche}>
         <Search size={16} />
         <input
@@ -73,70 +143,6 @@ export function FiltreTickets({ module, valeur, onChange }: Props): JSX.Element 
           placeholder="Rechercher (référence, objet)…"
         />
       </label>
-
-      <div className={styles.segments}>
-        {ETATS_VUE.map((v) => (
-          <button
-            key={v.cle}
-            type="button"
-            className={vue === v.cle ? styles.segmentOn : styles.segment}
-            onClick={() => onChange({ ...valeur, etat: v.cle === 'tous' ? null : v.cle })}
-          >
-            {v.libelle}
-          </button>
-        ))}
-      </div>
-
-      {/* Axe indépendant : « en retard » se croise avec la phase, il ne la remplace pas. On peut
-          donc demander « en cours et en retard », ou « terminés et en retard » (résolus hors délai). */}
-      <button
-        type="button"
-        className={valeur.retard === true ? styles.retardOn : styles.retard}
-        onClick={() => onChange({ ...valeur, retard: valeur.retard !== true })}
-        aria-pressed={valeur.retard === true}
-        title="Échéance SLA dépassée, pas encore résolu"
-      >
-        <TriangleAlert size={14} />
-        En retard
-      </button>
-
-      <div className={styles.filtre}>
-        <SelecteurListe
-          options={etats.map((e) => ({ valeur: e, libelle: e }))}
-          valeur={valeur.statut ?? null}
-          onChange={(v) => onChange({ ...valeur, statut: v })}
-          placeholder="Tous les statuts"
-          permettreVide
-          libelleVide="Tous les statuts"
-        />
-      </div>
-      <div className={styles.filtre}>
-        <SelecteurListe
-          options={optionsGest}
-          valeur={gestValeur}
-          onChange={(v) =>
-            onChange({
-              ...valeur,
-              responsable_id: v === NON_ASSIGNE || v === DBS ? null : v,
-              non_assigne: v === NON_ASSIGNE,
-              dbs: v === DBS,
-            })
-          }
-          placeholder="Tous les gestionnaires"
-          permettreVide
-          libelleVide="Tous les gestionnaires"
-        />
-      </div>
-      {actif && (
-        <button
-          type="button"
-          className={styles.reset}
-          onClick={() => onChange({ etat: valeur.etat ?? null })}
-        >
-          <X size={14} />
-          Réinitialiser
-        </button>
-      )}
     </div>
   );
 }

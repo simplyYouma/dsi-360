@@ -36,8 +36,14 @@ import {
  *  palette catégorielle). On repère ainsi ses dépendances d'un coup d'œil, sans que la couleur
  *  ne change d'une page à l'autre. */
 const _PALETTE_EDITEUR = [
-  'var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)',
-  'var(--cat-5)', 'var(--cat-6)', 'var(--cat-7)', 'var(--cat-8)',
+  'var(--cat-1)',
+  'var(--cat-2)',
+  'var(--cat-3)',
+  'var(--cat-4)',
+  'var(--cat-5)',
+  'var(--cat-6)',
+  'var(--cat-7)',
+  'var(--cat-8)',
 ];
 export function couleurEditeur(libelle: string): string {
   let h = 0;
@@ -315,8 +321,7 @@ export function ApplicationsPage(): JSX.Element {
           >
             <b
               style={{
-                color:
-                  stats.sans_administrateur > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
+                color: stats.sans_administrateur > 0 ? 'var(--status-danger)' : 'var(--text-muted)',
               }}
             >
               {stats.sans_administrateur}
@@ -324,7 +329,9 @@ export function ApplicationsPage(): JSX.Element {
             <span>Sans administrateur</span>
           </button>
           <span className={local.compteur} title="Un seul administrateur, aucun relais désigné">
-            <b style={{ color: stats.sans_secours > 0 ? 'var(--status-warn)' : 'var(--text-muted)' }}>
+            <b
+              style={{ color: stats.sans_secours > 0 ? 'var(--status-warn)' : 'var(--text-muted)' }}
+            >
               {stats.sans_secours}
             </b>
             <span>Sans relais</span>
@@ -337,6 +344,83 @@ export function ApplicationsPage(): JSX.Element {
       )}
 
       <div className={filtres.barre}>
+        {/* On CADRE d'abord (vues, filtres), on CHERCHE ensuite : la recherche
+            passe outre les filtres de la liste, la mêler à eux laissait croire
+            qu'elle s'y ajoutait. Elle occupe sa propre ligne, collée au tableau. */}
+        <div className={filtres.rangeeFiltres}>
+          <div className={filtres.segments}>
+            {VUES.map((v) => (
+              <button
+                key={v.cle}
+                type="button"
+                className={vue === v.cle ? filtres.segmentOn : filtres.segment}
+                onClick={() => {
+                  setPage(1);
+                  setF({ ...f, statut: v.statut });
+                }}
+              >
+                {v.libelle}
+              </button>
+            ))}
+          </div>
+
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={editeurs.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
+              valeur={f.editeur_id ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, editeur_id: v });
+              }}
+              placeholder="Tous les éditeurs"
+              permettreVide
+              libelleVide="Tous les éditeurs"
+            />
+          </div>
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={HEBERGEMENTS.map((h) => ({ valeur: h.valeur, libelle: h.libelle }))}
+              valeur={f.hebergement ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, hebergement: v });
+              }}
+              placeholder="Tous hébergements"
+              permettreVide
+              libelleVide="Tous hébergements"
+              couleurs={COULEUR_HEBERGEMENT}
+              icones={ICONE_HEBERGEMENT}
+            />
+          </div>
+          <div className={filtres.filtre}>
+            <SelecteurListe
+              options={INTERFACAGES.map((i) => ({ valeur: i.valeur, libelle: i.libelle }))}
+              valeur={f.interfacage ?? null}
+              onChange={(v) => {
+                setPage(1);
+                setF({ ...f, interfacage: v });
+              }}
+              placeholder="Interfaçage"
+              permettreVide
+              libelleVide="Tout interfaçage"
+              icones={ICONE_INTERFACAGE}
+            />
+          </div>
+          {filtreActif && (
+            <button
+              type="button"
+              className={filtres.reset}
+              onClick={() => {
+                setPage(1);
+                setF({ statut: f.statut ?? null });
+              }}
+            >
+              <X size={14} />
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
         <label className={filtres.recherche}>
           <Search size={16} />
           <input
@@ -348,78 +432,6 @@ export function ApplicationsPage(): JSX.Element {
             placeholder="Rechercher (nom, éditeur, métier, administrateur)…"
           />
         </label>
-
-        <div className={filtres.segments}>
-          {VUES.map((v) => (
-            <button
-              key={v.cle}
-              type="button"
-              className={vue === v.cle ? filtres.segmentOn : filtres.segment}
-              onClick={() => {
-                setPage(1);
-                setF({ ...f, statut: v.statut });
-              }}
-            >
-              {v.libelle}
-            </button>
-          ))}
-        </div>
-
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={editeurs.map((e) => ({ valeur: e.id, libelle: e.libelle }))}
-            valeur={f.editeur_id ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, editeur_id: v });
-            }}
-            placeholder="Tous les éditeurs"
-            permettreVide
-            libelleVide="Tous les éditeurs"
-          />
-        </div>
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={HEBERGEMENTS.map((h) => ({ valeur: h.valeur, libelle: h.libelle }))}
-            valeur={f.hebergement ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, hebergement: v });
-            }}
-            placeholder="Tous hébergements"
-            permettreVide
-            libelleVide="Tous hébergements"
-            couleurs={COULEUR_HEBERGEMENT}
-            icones={ICONE_HEBERGEMENT}
-          />
-        </div>
-        <div className={filtres.filtre}>
-          <SelecteurListe
-            options={INTERFACAGES.map((i) => ({ valeur: i.valeur, libelle: i.libelle }))}
-            valeur={f.interfacage ?? null}
-            onChange={(v) => {
-              setPage(1);
-              setF({ ...f, interfacage: v });
-            }}
-            placeholder="Interfaçage"
-            permettreVide
-            libelleVide="Tout interfaçage"
-            icones={ICONE_INTERFACAGE}
-          />
-        </div>
-        {filtreActif && (
-          <button
-            type="button"
-            className={filtres.reset}
-            onClick={() => {
-              setPage(1);
-              setF({ statut: f.statut ?? null });
-            }}
-          >
-            <X size={14} />
-            Réinitialiser
-          </button>
-        )}
       </div>
 
       <Table

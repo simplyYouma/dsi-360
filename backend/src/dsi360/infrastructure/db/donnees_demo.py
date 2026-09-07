@@ -450,6 +450,34 @@ MODULES_REVUE = {"cybersecurite", "gouvernance", "risque"}
 MODULES_LENTS = {"gouvernance", "risque", "audit"}
 
 
+#: Risques et impacts d'un sujet de gouvernance. Écrits comme la DSI les écrirait : une phrase
+#: qui se relit dans six mois, pas un mot-clé.
+RISQUES_GOUVERNANCE: tuple[str, ...] = (
+    "Indisponibilité du prestataire sur le dernier trimestre : la recette glisserait après la "
+    "clôture comptable.",
+    "Arbitrage budgétaire non rendu avant le COPIL : les engagements pris ne seraient pas couverts.",
+    "Dépendance à un seul agent sur le sujet : son absence arrête tout.",
+    "Adhésion des métiers non acquise : le déploiement se ferait sans les utilisateurs.",
+)
+
+IMPACTS_GOUVERNANCE: tuple[str, ...] = (
+    "Visibilité de la DG sur l'activité réelle des services, et fin du suivi manuel sous Excel.",
+    "Délais de traitement réduits pour les agences, et engagements de service enfin mesurables.",
+    "Traçabilité complète des décisions du comité, opposable en audit.",
+    "Charge de reporting divisée pour les chefs de service, au profit du terrain.",
+)
+
+#: Ce qu'on écrit en déclarant un avancement. Le motif fait foi : sans lui, le pourcentage ne se
+#: relit pas.
+MOTIFS_AVANCEMENT: tuple[str, ...] = (
+    "Cadrage validé en COPIL, périmètre arrêté avec les métiers.",
+    "Livrables reçus du prestataire, recette fonctionnelle engagée.",
+    "Arbitrage budgétaire rendu par la DG : le sujet repart.",
+    "Comité tenu, décisions consignées et responsables désignés.",
+    "Recette terminée, mise en production planifiée avec les agences.",
+)
+
+
 def _dsn() -> str:
     return get_settings().database_url.replace("+asyncpg", "")
 
@@ -1030,16 +1058,23 @@ async def _acteurs(
 ) -> None:
     autres = [u for u in utilisateurs if u != responsable_id]
     random.shuffle(autres)
+    # Deux contributeurs : depuis le 07/09/2026 ils coexistent. La boucle en désignait déjà deux,
+    # mais l'ancienne unicité par rôle n'en gardait qu'un — la démonstration montrait donc l'inverse
+    # de ce que le produit permet aujourd'hui. La clé de conflit est la clé primaire : redésigner la
+    # même personne au même titre ne double pas la ligne.
     for uid in autres[:2]:
         await conn.execute(
             "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
-            "VALUES ($1,$2,'CONTRIBUTEUR') ON CONFLICT (activite_id, role) DO NOTHING",
+            "VALUES ($1,$2,'CONTRIBUTEUR') "
+            "ON CONFLICT (activite_id, utilisateur_id, role) DO NOTHING",
             activite_id, uid,
         )
+    # Le valideur, lui, reste unique : sa décision engage.
     if len(autres) > 2:
         await conn.execute(
             "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role, decision) "
-            "VALUES ($1,$2,'VALIDEUR',$3) ON CONFLICT (activite_id, role) DO NOTHING",
+            "VALUES ($1,$2,'VALIDEUR',$3) "
+            "ON CONFLICT (activite_id, utilisateur_id, role) DO NOTHING",
             activite_id, autres[2], _decision_valideur(module, statut),
         )
 
@@ -1139,6 +1174,15 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                         "date_debut": cree_le.date().isoformat(),
                         "date_fin": (cree_le + timedelta(days=random.randint(60, 240))).date().isoformat(),
                         "avancement": 0,
+                    }
+                elif module == "gouvernance":
+                    statut = random.choice(STATUTS[module])
+                    priorite = calculer_priorite(impact, urgence)
+                    # Un sujet « À engager » n'a rien à raconter encore : lui inventer un
+                    # avancement ferait mentir la démonstration.
+                    donnees = {
+                        "risques": random.choice(RISQUES_GOUVERNANCE),
+                        "impacts": random.choice(IMPACTS_GOUVERNANCE),
                     }
                 elif module == "risque":
                     statut = random.choice(STATUTS[module])
@@ -1253,10 +1297,11 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     "(reference, module, titre, description, direction_id, categorie_id, "
                     " responsable_id, demandeur_externe_id, impact, urgence, priorite, statut, "
                     " source, source_id, sla_prise_en_charge_le, sla_resolution_le, cree_le, "
-                    " resolu_le, cloture_le, donnees, pris_en_charge_le)"
+                    " resolu_le, cloture_le, donnees, pris_en_charge_le, departement_id)"
                     " VALUES ($1,$2,$3,$4,"
                     " (SELECT id FROM core.direction WHERE code=$5),"
-                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21) "
+                    " $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21,"
+                    " (SELECT id FROM core.departement WHERE code=$22)) "
                     "RETURNING id",
                     reference, module, titre, DESCRIPTIONS.get(titre, "Donnée de démonstration."),
                     random.choice(directions),
@@ -1266,6 +1311,10 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     urgence if module != "projet" else None,
                     priorite, statut, source, source_id,
                     sla_pc, sla_res, cree_le, resolu, cloture, json.dumps(donnees), pris_en_charge,
+                    # Seule la gouvernance se range par département aujourd'hui (cf. CLAUDE.md §4).
+                    random.choice(["PRODUCTION_APPLICATIF", "RESEAU_INFRASTRUCTURE"])
+                    if module == "gouvernance"
+                    else None,
                 )
                 total += 1
 
@@ -1288,6 +1337,26 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     )
                     await _pieces_jointes(
                         conn, activite_id, EMAILS_DEMO[0], random.randint(1, 2), module
+                    )
+
+                # Gouvernance : l'avancement se DÉCLARE, il ne se déduit pas de tâches. Chaque
+                # palier laisse sa justification en note — c'est elle qui rend le chiffre relisible.
+                if module == "gouvernance" and statut != "À engager":
+                    paliers = (
+                        [20, 45, 70, 100] if statut == "Réalisé"
+                        else random.choice([[20], [20, 45], [20, 45, 70]])
+                    )
+                    motifs = random.sample(MOTIFS_AVANCEMENT, len(paliers))
+                    for rang, motif in enumerate(motifs):
+                        await conn.execute(
+                            "INSERT INTO core.note (activite_id, texte, contexte, auteur_email, "
+                            " cree_le) VALUES ($1,$2,'avancement',$3,$4)",
+                            activite_id, motif, EMAILS_DEMO[0],
+                            cree_le + timedelta(days=3 * (rang + 1)),
+                        )
+                    await conn.execute(
+                        "UPDATE core.activite SET donnees = donnees || $2::jsonb WHERE id=$1",
+                        activite_id, json.dumps({"avancement": paliers[-1]}),
                     )
 
                 # Documents sur audit / cybersécurité / gouvernance (justificatifs, rapports, CR).

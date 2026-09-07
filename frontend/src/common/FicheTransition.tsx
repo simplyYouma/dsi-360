@@ -1,14 +1,6 @@
 import type { EtatSla } from '@/common/SablierSla';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  Clock,
-  Download,
-  RefreshCw,
-  XCircle,
-} from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock, Download, RefreshCw, XCircle } from 'lucide-react';
 import { Button, Modale, Skeleton, useToast } from '@/design-system/primitives';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { ChampInline } from '@/common/ChampInline';
@@ -371,12 +363,18 @@ export function FicheTransition({
   // contributeurs de chez nous, même quand le rapport a mis DBS au gestionnaire (ADR-0005).
   const avecContributeurs = assignable || gestionnaireFige;
 
+  // Le département du dossier restreint les agents proposés : on confie un sujet à l'équipe qui en
+  // répond. Il n'est PAS une garde d'accès — les profils transverses restent proposés, et le
+  // serveur n'exige rien de tel. C'est un service rendu à la saisie, pas une règle de sécurité.
+  const departementFiltre = avecDepartement ? (detail?.departement_id ?? null) : null;
+
   useEffect(() => {
     // Seuls les agents ayant accès à ce module sont désignables : le serveur refuserait les autres.
-    if (avecContributeurs && agents.length === 0) {
-      void chargerAgents(moduleDeLaBase(base)).then(setAgents);
+    // Rechargé quand le département change, sinon la liste garderait l'équipe précédente.
+    if (avecContributeurs) {
+      void chargerAgents(moduleDeLaBase(base), departementFiltre).then(setAgents);
     }
-  }, [avecContributeurs, agents.length, base]);
+  }, [avecContributeurs, base, departementFiltre]);
 
   const assigner = async (responsableId: string | null): Promise<void> => {
     if (id === null) return;
@@ -465,7 +463,9 @@ export function FicheTransition({
     if (id === null) return;
     setErreur(null);
     try {
-      setDetail(await api.post<Detail>(`${base}/${id}/avancement`, { avancement: valeur, justification }));
+      setDetail(
+        await api.post<Detail>(`${base}/${id}/avancement`, { avancement: valeur, justification }),
+      );
       onChange();
       notifier(`Avancement : ${valeur} %`, 'succes');
     } catch (err) {
@@ -739,6 +739,24 @@ export function FicheTransition({
             ) : null}
           </div>
 
+          {/* L'avancement N'EST PAS une ligne de la fiche parmi d'autres : c'est la réponse à la
+              première question qu'on se pose en ouvrant un sujet de COPIL — où en est-on ? Il
+              s'accroche donc sous l'en-tête, en bandeau pleine largeur, avant le détail. Le
+              descendre dans la grille l'aurait noyé entre le demandeur et la périodicité. */}
+          {avecAvancementManuel && (
+            <AvancementManuel
+              valeur={detail.avancement ?? 0}
+              modifiable={permissions.peut_avancer}
+              onValider={declarerAvancement}
+              justifications={detail.justifications_avancement ?? []}
+              raisonVerrou={
+                permissions.peut_travailler
+                  ? 'Seul le gestionnaire du sujet déclare son avancement.'
+                  : TITRE_LECTURE
+              }
+            />
+          )}
+
           <dl className={styles.meta}>
             <div className={styles.metaItem}>
               <dt>Statut</dt>
@@ -776,6 +794,27 @@ export function FicheTransition({
                 <dd className={styles.valeur}>{detail.categorie ?? '—'}</dd>
               </div>
             ) : null}
+
+            {/* Où le sujet se range dans la DSI — juste après sa catégorie, parce que c'est le
+                même geste : classer. Le département n'ouvre ni ne ferme aucun accès ; qui voit la
+                fiche continue de la voir, quel que soit son propre département. */}
+            {avecDepartement && (
+              <div className={styles.metaItem}>
+                <dt>Département</dt>
+                <dd>
+                  <SelecteurListe
+                    valeur={detail.departement_id ?? null}
+                    options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
+                    onChange={(v) => void changerDepartement(v)}
+                    permettreVide
+                    libelleVide="Non rattaché"
+                    placeholder="Choisir un département"
+                    desactive={!permissions.peut_assigner}
+                    titreDesactive="Le rattachement d’un sujet revient à l’administrateur."
+                  />
+                </dd>
+              </div>
+            )}
             {detail.demandeur ? (
               <div className={styles.metaItem}>
                 <dt>Demandeur</dt>
@@ -923,6 +962,43 @@ export function FicheTransition({
                   </dd>
                 </div>
               )}
+
+            {/* Ce que le sujet pèse : à la suite de l'évaluation impact × urgence, dont c'est le
+                prolongement raconté. Deux textes et non une cotation — un sujet de COPIL se
+                raconte, il n'a pas la nature d'une fiche du registre des risques IT. */}
+            {avecRisquesImpacts && (
+              <>
+                <div className={cx(styles.metaItem, styles.metaLarge)}>
+                  <dt>Risques identifiés</dt>
+                  <dd>
+                    <ChampInline
+                      valeur={detail.risques ?? ''}
+                      onValider={(val) => void modifierChampGouvernance('risques', val)}
+                      multiligne
+                      repliable={4}
+                      indication="Ce qui peut faire dérailler le sujet, et sa probabilité."
+                      lectureSeule={!permissions.peut_completer_dossier}
+                      titreLectureSeule={TITRE_LECTURE}
+                    />
+                  </dd>
+                </div>
+                <div className={cx(styles.metaItem, styles.metaLarge)}>
+                  <dt>Impacts attendus</dt>
+                  <dd>
+                    <ChampInline
+                      valeur={detail.impacts ?? ''}
+                      onValider={(val) => void modifierChampGouvernance('impacts', val)}
+                      multiligne
+                      repliable={4}
+                      indication="Ce que le sujet change s'il aboutit : services, agents, budget."
+                      lectureSeule={!permissions.peut_completer_dossier}
+                      titreLectureSeule={TITRE_LECTURE}
+                    />
+                  </dd>
+                </div>
+              </>
+            )}
+
             {avecRevue && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt className={styles.revueTitre}>
@@ -979,10 +1055,7 @@ export function FicheTransition({
                         className={styles.boutonRevue}
                         onClick={() => void revueEffectuee()}
                         disabled={
-                          envoi ||
-                          !detail.periodicite ||
-                          !permissions.peut_travailler ||
-                          !revueDue
+                          envoi || !detail.periodicite || !permissions.peut_travailler || !revueDue
                         }
                         title={titre}
                       >
@@ -1003,83 +1076,6 @@ export function FicheTransition({
                   )}
                 </dd>
               </div>
-            )}
-
-            {/* Le département RANGE le sujet dans la DSI. Il ne restreint rien : quiconque voit
-                la fiche continue de la voir, quel que soit son propre département. */}
-            {avecDepartement && (
-              <div className={styles.ligne}>
-                <dt>Département</dt>
-                <dd>
-                  <SelecteurListe
-                    valeur={detail.departement_id ?? null}
-                    options={departements.map((d) => ({ valeur: d.id, libelle: d.libelle }))}
-                    onChange={(v) => void changerDepartement(v)}
-                    permettreVide
-                    libelleVide="Non rattaché"
-                    placeholder="Choisir un département"
-                    desactive={!permissions.peut_assigner}
-                    titreDesactive="Le rattachement d’un sujet revient à l’administrateur."
-                  />
-                </dd>
-              </div>
-            )}
-
-            {/* L'avancement DÉCLARÉ : c'est le gestionnaire qui rend compte, pas les
-                contributeurs. `peut_avancer` vient du serveur — l'écran n'en décide pas. */}
-            {avecAvancementManuel && (
-              <div className={styles.ligne}>
-                <dt>Avancement</dt>
-                <dd>
-                  <AvancementManuel
-                    valeur={detail.avancement ?? 0}
-                    modifiable={permissions.peut_avancer}
-                    onValider={declarerAvancement}
-                    justifications={detail.justifications_avancement ?? []}
-                    raisonVerrou={
-                      permissions.peut_travailler
-                        ? 'Seul le gestionnaire du sujet déclare son avancement.'
-                        : TITRE_LECTURE
-                    }
-                  />
-                </dd>
-              </div>
-            )}
-
-            {/* Risques et impacts : deux textes repliés sur quatre lignes, comme la description.
-                Un sujet de COPIL se raconte — il n'a pas la nature d'une fiche du registre des
-                risques IT, dont la cotation probabilité × impact ne conviendrait pas ici. */}
-            {avecRisquesImpacts && (
-              <>
-                <div className={styles.ligne}>
-                  <dt>Risques identifiés</dt>
-                  <dd>
-                    <ChampInline
-                      valeur={detail.risques ?? ''}
-                      onValider={(val) => void modifierChampGouvernance('risques', val)}
-                      multiligne
-                      repliable={4}
-                      indication="Ce qui peut faire dérailler le sujet, et sa probabilité."
-                      lectureSeule={!permissions.peut_completer_dossier}
-                      titreLectureSeule={TITRE_LECTURE}
-                    />
-                  </dd>
-                </div>
-                <div className={styles.ligne}>
-                  <dt>Impacts attendus</dt>
-                  <dd>
-                    <ChampInline
-                      valeur={detail.impacts ?? ''}
-                      onValider={(val) => void modifierChampGouvernance('impacts', val)}
-                      multiligne
-                      repliable={4}
-                      indication="Ce que le sujet change s'il aboutit : services, agents, budget."
-                      lectureSeule={!permissions.peut_completer_dossier}
-                      titreLectureSeule={TITRE_LECTURE}
-                    />
-                  </dd>
-                </div>
-              </>
             )}
           </dl>
 

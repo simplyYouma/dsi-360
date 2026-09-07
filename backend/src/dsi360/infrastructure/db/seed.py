@@ -8,7 +8,12 @@ import asyncio
 import asyncpg
 
 from dsi360.config import get_settings
-from dsi360.config.acces import ACCES_PAR_PROFIL_DEFAUT, PROFILS
+from dsi360.config.acces import (
+    ACCES_PAR_PROFIL_DEFAUT,
+    DEPARTEMENT_PAR_PROFIL,
+    DEPARTEMENTS,
+    PROFILS,
+)
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 # La plateforme ne sert que la DSI (ADR-0003 §2). DBS reçoit les escalades N3, hors du système.
@@ -71,11 +76,15 @@ async def seed() -> None:
     s = get_settings()
     conn = await asyncpg.connect(_dsn())
     try:
+        # Le libellé d'un profil N'EST PAS écrasé s'il existe déjà : les profils sont un
+        # paramétrage, l'administration les renomme depuis l'écran. Le seed écrasait ce libellé à
+        # chaque passage — un renommage fait à l'écran disparaissait au prochain `migrer.ps1`,
+        # sans que personne ne comprenne pourquoi. Le `transverse`, lui, reste imposé : c'est une
+        # règle de sécurité, pas un intitulé.
         for code, libelle, transverse in PROFILS:
             await conn.execute(
                 "INSERT INTO core.profil(code, libelle, transverse) VALUES ($1, $2, $3) "
-                "ON CONFLICT (code) DO UPDATE SET libelle = excluded.libelle, "
-                "transverse = excluded.transverse",
+                "ON CONFLICT (code) DO UPDATE SET transverse = excluded.transverse",
                 code,
                 libelle,
                 transverse,
@@ -86,6 +95,27 @@ async def seed() -> None:
                 "ON CONFLICT (code) DO NOTHING",
                 code,
                 libelle,
+            )
+        # Départements : une base neuve doit partir dans le même état qu'une base migrée. Sans
+        # eux, la gouvernance ne proposerait aucune équipe et la fonction serait inerte.
+        for code, libelle in DEPARTEMENTS:
+            await conn.execute(
+                "INSERT INTO core.departement(code, libelle, direction_id) "
+                "SELECT $1, $2, d.id FROM core.direction d WHERE d.code = 'DSI' "
+                "ON CONFLICT (code) DO NOTHING",
+                code,
+                libelle,
+            )
+        # Rattachement seulement si le profil n'en a pas : un choix fait à l'écran fait foi.
+        for code_profil, code_dep in DEPARTEMENT_PAR_PROFIL.items():
+            if code_dep is None:
+                continue
+            await conn.execute(
+                "UPDATE core.profil SET departement_id = "
+                "  (SELECT id FROM core.departement WHERE code = $2) "
+                "WHERE code = $1 AND departement_id IS NULL",
+                code_profil,
+                code_dep,
             )
         for module, cats in CATEGORIES.items():
             for code, libelle in cats:

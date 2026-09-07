@@ -35,10 +35,29 @@ PROFIL_ADMIN = "ADMIN"
 
 PROFILS: tuple[tuple[str, str, bool], ...] = (
     (PROFIL_ADMIN, "Administrateur", True),
-    ("SUPPORT_APP_HELPDESK", "IT Support Applicatif et HelpDesk", False),
+    ("SUPPORT_APP_HELPDESK", "Production", False),
     ("RESEAU_TELECOM", "Réseau télécom", False),
-    ("SYSTEME_RESEAU_TELECOM", "Système et Réseau télécom", False),
-    ("SUPPORT_APP", "IT Support Applicatif", False),
+    ("SYSTEME_RESEAU_TELECOM", "Infrastructure", False),
+    ("SUPPORT_APP", "Applicatif", False),
+)
+
+#: Département de rattachement, par code de profil. Le seed s'en sert pour qu'une base neuve parte
+#: dans le même état qu'une base migrée : sans cela, une installation fraîche aurait des profils
+#: orphelins et la gouvernance ne proposerait aucune équipe.
+#: `None` = transverse, n'appartient à aucun département.
+DEPARTEMENT_PAR_PROFIL: dict[str, str | None] = {
+    PROFIL_ADMIN: None,
+    "SUPPORT_APP": "PRODUCTION_APPLICATIF",
+    "SUPPORT_APP_HELPDESK": "PRODUCTION_APPLICATIF",
+    "RESEAU_TELECOM": "RESEAU_INFRASTRUCTURE",
+    "SYSTEME_RESEAU_TELECOM": "RESEAU_INFRASTRUCTURE",
+}
+
+#: Départements de la DSI (code, libellé). Posés par migration ; répétés ici pour que le seed d'une
+#: base neuve les crée aussi.
+DEPARTEMENTS: tuple[tuple[str, str], ...] = (
+    ("PRODUCTION_APPLICATIF", "Production et Applicatif"),
+    ("RESEAU_INFRASTRUCTURE", "Réseau et Infrastructure"),
 )
 
 # Tout l'opérationnel, hors administration : le socle commun des profils métier. Ils se distinguent
