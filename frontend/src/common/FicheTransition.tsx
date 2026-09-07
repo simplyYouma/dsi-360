@@ -983,58 +983,6 @@ export function FicheTransition({
               </div>
             )}
 
-            {/* Ce que le sujet pèse : à la suite de l'évaluation impact × urgence, dont c'est le
-                prolongement raconté. Deux textes et non une cotation — un sujet de COPIL se
-                raconte, il n'a pas la nature d'une fiche du registre des risques IT. */}
-            {avecRisquesImpacts && (
-              <>
-                <div className={cx(styles.metaItem, styles.metaListe)}>
-                  <dt>
-                    Risques identifiés
-                    {(detail.risques ?? []).length > 0 && (
-                      <span className={styles.compteur}>{(detail.risques ?? []).length}</span>
-                    )}
-                  </dt>
-                  <dd>
-                    <ListeElements
-                      valeur={detail.risques ?? []}
-                      onChange={
-                        permissions.peut_completer_dossier
-                          ? (v) => void modifierChampGouvernance('risques', v)
-                          : undefined
-                      }
-                      icone={ShieldAlert}
-                      couleur="var(--status-warn)"
-                      indication="Ajouter un risque, puis Entrée…"
-                      titreLectureSeule={TITRE_LECTURE}
-                    />
-                  </dd>
-                </div>
-                <div className={cx(styles.metaItem, styles.metaListe)}>
-                  <dt>
-                    Impacts attendus
-                    {(detail.impacts ?? []).length > 0 && (
-                      <span className={styles.compteur}>{(detail.impacts ?? []).length}</span>
-                    )}
-                  </dt>
-                  <dd>
-                    <ListeElements
-                      valeur={detail.impacts ?? []}
-                      onChange={
-                        permissions.peut_completer_dossier
-                          ? (v) => void modifierChampGouvernance('impacts', v)
-                          : undefined
-                      }
-                      icone={Target}
-                      couleur="var(--status-ok)"
-                      indication="Ajouter un impact, puis Entrée…"
-                      titreLectureSeule={TITRE_LECTURE}
-                    />
-                  </dd>
-                </div>
-              </>
-            )}
-
             {avecRevue && (
               <div className={cx(styles.metaItem, styles.metaLarge)}>
                 <dt className={styles.revueTitre}>
@@ -1134,6 +1082,60 @@ export function FicheTransition({
             detail.description !== '' && (
               <TexteRepliable texte={detail.description} lignes={4} classe={styles.description} />
             )
+          )}
+
+          {/* Ce que le sujet pèse, juste sous ce qu'il raconte : la description pose le sujet,
+              les risques et les impacts en tirent les conséquences. Dans la grille des métadonnées,
+              ces deux listes voisinaient des champs d'une tout autre nature — une date, un profil —
+              et s'y lisaient mal. Deux listes et non une cotation : un sujet de COPIL se raconte, il
+              n'a pas la nature d'une fiche du registre des risques IT. */}
+          {avecRisquesImpacts && (
+            <dl className={styles.meta}>
+              <div className={cx(styles.metaItem, styles.metaListe)}>
+                <dt>
+                  Risques identifiés
+                  {(detail.risques ?? []).length > 0 && (
+                    <span className={styles.compteur}>{(detail.risques ?? []).length}</span>
+                  )}
+                </dt>
+                <dd>
+                  <ListeElements
+                    valeur={detail.risques ?? []}
+                    onChange={
+                      permissions.peut_completer_dossier
+                        ? (v) => void modifierChampGouvernance('risques', v)
+                        : undefined
+                    }
+                    icone={ShieldAlert}
+                    couleur="var(--status-warn)"
+                    indication="Ajouter un risque, puis Entrée…"
+                    titreLectureSeule={TITRE_LECTURE}
+                  />
+                </dd>
+              </div>
+              <div className={cx(styles.metaItem, styles.metaListe)}>
+                <dt>
+                  Impacts attendus
+                  {(detail.impacts ?? []).length > 0 && (
+                    <span className={styles.compteur}>{(detail.impacts ?? []).length}</span>
+                  )}
+                </dt>
+                <dd>
+                  <ListeElements
+                    valeur={detail.impacts ?? []}
+                    onChange={
+                      permissions.peut_completer_dossier
+                        ? (v) => void modifierChampGouvernance('impacts', v)
+                        : undefined
+                    }
+                    icone={Target}
+                    couleur="var(--status-ok)"
+                    indication="Ajouter un impact, puis Entrée…"
+                    titreLectureSeule={TITRE_LECTURE}
+                  />
+                </dd>
+              </div>
+            </dl>
           )}
 
           <div className={styles.workflow}>
