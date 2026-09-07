@@ -482,22 +482,6 @@ export function InventairePage(): JSX.Element {
             passe outre les filtres de la liste, la mêler à eux laissait croire
             qu'elle s'y ajoutait. Elle occupe sa propre ligne, collée au tableau. */}
         <div className={filtres.rangeeFiltres}>
-          <div className={filtres.segments}>
-            {VUES.map((v) => (
-              <button
-                key={v.cle}
-                type="button"
-                className={vue === v.cle ? filtres.segmentOn : filtres.segment}
-                onClick={() => {
-                  setPage(1);
-                  setF({ ...f, actif: v.actif });
-                }}
-              >
-                {v.libelle}
-              </button>
-            ))}
-          </div>
-
           <div className={filtres.filtre}>
             <SelecteurListe
               options={types.map((t) => ({ valeur: t.id, libelle: t.libelle }))}
@@ -570,17 +554,37 @@ export function InventairePage(): JSX.Element {
           )}
         </div>
 
-        <label className={filtres.recherche}>
-          <Search size={16} />
-          <input
-            value={f.q ?? ''}
-            onChange={(e) => {
-              setPage(1);
-              setF({ ...f, q: e.target.value });
-            }}
-            placeholder="Rechercher (code immo, n° série, modèle, détenteur)…"
-          />
-        </label>
+        {/* La vue du parc voyage avec la recherche, pas avec les filtres : les listes
+            déroulantes restreignent un même ensemble, la vue décide DE QUEL PARC on parle —
+            celui qui sert aujourd'hui, ou tout ce qui a existé. */}
+        <div className={filtres.rangeeRecherche}>
+          <div className={filtres.segments}>
+            {VUES.map((v) => (
+              <button
+                key={v.cle}
+                type="button"
+                className={vue === v.cle ? filtres.segmentOn : filtres.segment}
+                onClick={() => {
+                  setPage(1);
+                  setF({ ...f, actif: v.actif });
+                }}
+              >
+                {v.libelle}
+              </button>
+            ))}
+          </div>
+          <label className={filtres.recherche}>
+            <Search size={16} />
+            <input
+              value={f.q ?? ''}
+              onChange={(e) => {
+                setPage(1);
+                setF({ ...f, q: e.target.value });
+              }}
+              placeholder="Rechercher (code immo, n° série, modèle, détenteur)…"
+            />
+          </label>
+        </div>
       </div>
 
       <Table

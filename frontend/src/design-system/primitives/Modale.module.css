@@ -145,6 +145,22 @@
     border-left: none;
     border-top: 1px solid var(--border);
   }
+  /* Empilées, les colonnes latérales passent SOUS le dossier : l'explorateur de pièces jointes
+     est une annexe, le pousser en tête ferait descendre l'essentiel hors de l'écran. */
+  .principal {
+    order: 1;
+  }
+  .panneauGauche {
+    order: 2;
+    flex-basis: auto !important;
+    padding-right: 0;
+    padding-top: var(--space-4);
+    border-right: none;
+    border-top: 1px solid var(--border);
+  }
+  .panneau {
+    order: 3;
+  }
 }
 
 /* Sur petit écran, le X revient dans le coin pour ne pas sortir de l'écran. */

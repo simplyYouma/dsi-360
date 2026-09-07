@@ -6,6 +6,18 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+/* Une rangée qui mêle un choix de vue et la recherche : la vue garde sa taille, la recherche
+   prend tout le reste. */
+.rangeeRecherche {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rangeeRecherche .recherche {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
 .rangeeFiltres {
   display: flex;
   align-items: center;
