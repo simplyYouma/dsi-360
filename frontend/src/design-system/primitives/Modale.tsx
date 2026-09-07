@@ -18,10 +18,11 @@ interface ModaleProps {
   panneau?: ReactNode;
   /** Largeur de la colonne latérale en px (défaut 380). */
   largeurPanneau?: number;
-  /** Colonne latérale fixe à GAUCHE (ex. explorateur de pièces jointes), avec son propre
-   *  défilement. Ce qui s'y trouve se consulte en parallèle du dossier, sans le faire défiler. */
+  /** Volet FLOTTANT accroché au bord gauche, hors du cadre (ex. explorateur de pièces jointes).
+   *  Il ne prend rien au dossier : il se tient à côté, et se consulte du regard sans que le
+   *  contenu ait bougé. Sur écran étroit, il repasse sous le dossier. */
   panneauGauche?: ReactNode;
-  /** Largeur de la colonne de gauche en px (défaut 250). */
+  /** Largeur du volet flottant en px (défaut 236). */
   largeurPanneauGauche?: number;
   /** Étiquettes flottantes collées au bord gauche, comme des stickers (ex. constats). */
   etiquettes?: ReactNode;
@@ -41,7 +42,7 @@ export function Modale({
   panneau,
   largeurPanneau = 380,
   panneauGauche,
-  largeurPanneauGauche = 250,
+  largeurPanneauGauche = 236,
   etiquettes,
 }: ModaleProps): JSX.Element | null {
   useEffect(() => {
@@ -64,12 +65,8 @@ export function Modale({
     <div className={styles.overlay} onMouseDown={onFermer}>
       <div
         className={styles.modale}
-        style={{
-          maxWidth:
-            largeur +
-            (panneau !== undefined ? largeurPanneau : 0) +
-            (panneauGauche !== undefined ? largeurPanneauGauche : 0),
-        }}
+        // Le volet gauche flotte hors du cadre : il n'entre pas dans la largeur de la modale.
+        style={{ maxWidth: largeur + (panneau !== undefined ? largeurPanneau : 0) }}
         role="dialog"
         aria-modal="true"
         aria-label={titre}
@@ -79,12 +76,12 @@ export function Modale({
           <X size={20} />
         </button>
         {etiquettes !== undefined && <div className={styles.etiquettes}>{etiquettes}</div>}
+        {panneauGauche !== undefined && (
+          <aside className={styles.voletGauche} style={{ width: largeurPanneauGauche }}>
+            {panneauGauche}
+          </aside>
+        )}
         <div className={styles.grille}>
-          {panneauGauche !== undefined && (
-            <aside className={styles.panneauGauche} style={{ flexBasis: largeurPanneauGauche }}>
-              {panneauGauche}
-            </aside>
-          )}
           <div className={styles.principal}>
             <h2 className={styles.titre}>{titre}</h2>
             <div className={styles.corps}>{children}</div>

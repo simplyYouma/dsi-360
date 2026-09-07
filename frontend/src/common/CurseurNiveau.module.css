@@ -74,3 +74,10 @@
     transition: none;
   }
 }
+
+/* Lecture seule : le niveau reste parfaitement lisible — c'est l'information qui compte — mais le
+   curseur ne réagit plus et n'invite plus au geste. On ne retire pas la donnée à qui n'a pas le
+   droit de la changer ; on ferme la poignée, et l'infobulle dit pourquoi. */
+.segmentsFiges {
+  cursor: default;
+}

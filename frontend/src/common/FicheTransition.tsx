@@ -965,34 +965,40 @@ export function FicheTransition({
                 </div>
               </>
             ) : null}
-            {permissions.peut_evaluer &&
-              detail.impact !== undefined &&
-              detail.priorite !== undefined && (
-                <div className={cx(styles.metaItem, styles.metaLarge)}>
-                  <dt>Évaluation</dt>
-                  <dd className={styles.evaluation}>
-                    <div className={styles.evalChamps}>
-                      <label className={styles.evalChamp}>
-                        <span className={styles.evalLabel}>Impact</span>
-                        <CurseurNiveau
-                          valeur={detail.impact ?? 3}
-                          onChange={(v) => void reevaluer('impact', v)}
-                        />
-                      </label>
-                      <span className={styles.evalOperateur} aria-hidden="true">
-                        ×
-                      </span>
-                      <label className={styles.evalChamp}>
-                        <span className={styles.evalLabel}>Urgence</span>
-                        <CurseurNiveau
-                          valeur={detail.urgence ?? 3}
-                          onChange={(v) => void reevaluer('urgence', v)}
-                        />
-                      </label>
-                    </div>
-                  </dd>
-                </div>
-              )}
+            {/* Impact × Urgence = la priorité du dossier. Le bloc se LIT pour tout le monde ;
+                seule sa modification revient à l'administrateur. Il disparaissait entièrement pour
+                les autres : le gestionnaire d'un sujet ne voyait plus sur quoi reposait sa propre
+                priorité. On grise le geste et l'on dit pourquoi — c'est la règle partout ailleurs. */}
+            {detail.impact !== undefined && detail.priorite !== undefined && (
+              <div className={cx(styles.metaItem, styles.metaLarge)}>
+                <dt>Évaluation</dt>
+                <dd className={styles.evaluation}>
+                  <div className={styles.evalChamps}>
+                    <label className={styles.evalChamp}>
+                      <span className={styles.evalLabel}>Impact</span>
+                      <CurseurNiveau
+                        valeur={detail.impact ?? 3}
+                        onChange={(v) => void reevaluer('impact', v)}
+                        desactive={!permissions.peut_evaluer}
+                        titreDesactive="La réévaluation revient à l’administrateur."
+                      />
+                    </label>
+                    <span className={styles.evalOperateur} aria-hidden="true">
+                      ×
+                    </span>
+                    <label className={styles.evalChamp}>
+                      <span className={styles.evalLabel}>Urgence</span>
+                      <CurseurNiveau
+                        valeur={detail.urgence ?? 3}
+                        onChange={(v) => void reevaluer('urgence', v)}
+                        desactive={!permissions.peut_evaluer}
+                        titreDesactive="La réévaluation revient à l’administrateur."
+                      />
+                    </label>
+                  </div>
+                </dd>
+              </div>
+            )}
 
             {/* Ce que le sujet pèse : à la suite de l'évaluation impact × urgence, dont c'est le
                 prolongement raconté. Deux textes et non une cotation — un sujet de COPIL se

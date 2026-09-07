@@ -17,14 +17,26 @@ function couleurBande(valeur: number): string {
 interface CurseurNiveauProps {
   valeur: number; // 1..5
   onChange: (n: number) => void;
+  /** Lecture seule : le niveau reste LISIBLE, seul le geste est fermé. On ne retire pas
+   *  l'information à qui n'a pas le droit de la changer — il doit savoir sur quoi repose la
+   *  priorité de son dossier. */
+  desactive?: boolean;
+  /** Pourquoi le curseur ne bouge pas (infobulle) : on n'interdit jamais sans dire pourquoi. */
+  titreDesactive?: string | undefined;
 }
 
 /** Sélecteur de niveau 1→5 : cinq segments de hauteur croissante. Maison, zéro composant natif. */
-export function CurseurNiveau({ valeur, onChange }: CurseurNiveauProps): JSX.Element {
+export function CurseurNiveau({
+  valeur,
+  onChange,
+  desactive = false,
+  titreDesactive,
+}: CurseurNiveauProps): JSX.Element {
   const piste = useRef<HTMLDivElement>(null);
   const couleur = couleurBande(valeur);
 
   const depuisX = (clientX: number): void => {
+    if (desactive) return;
     const el = piste.current;
     if (el === null) return;
     const r = el.getBoundingClientRect();
@@ -33,27 +45,30 @@ export function CurseurNiveau({ valeur, onChange }: CurseurNiveauProps): JSX.Ele
   };
 
   const surTouche = (e: KeyboardEvent): void => {
+    if (desactive) return;
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') onChange(Math.min(5, valeur + 1));
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') onChange(Math.max(1, valeur - 1));
   };
 
   const surPointe = (e: PointerEvent): void => {
+    if (desactive) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     depuisX(e.clientX);
   };
 
   return (
-    <div className={styles.bloc}>
+    <div className={styles.bloc} title={desactive ? titreDesactive : undefined}>
       <div
         ref={piste}
-        className={styles.segments}
+        className={cx(styles.segments, desactive && styles.segmentsFiges)}
         onPointerDown={surPointe}
         onPointerMove={(e) => {
           if (e.buttons === 1) depuisX(e.clientX);
         }}
         onKeyDown={surTouche}
         role="slider"
-        tabIndex={0}
+        aria-readonly={desactive}
+        tabIndex={desactive ? -1 : 0}
         aria-valuemin={1}
         aria-valuemax={5}
         aria-valuenow={valeur}

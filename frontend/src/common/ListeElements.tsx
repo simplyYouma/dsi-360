@@ -96,8 +96,6 @@ export function ListeElements({
               </li>
             ))}
           </ul>
-          {/* Le fondu ne cache pas : il annonce qu'il y a une suite, et le bouton la donne. */}
-          {caches > 0 && !ouvert && <span className={styles.fondu} aria-hidden="true" />}
         </div>
       )}
 

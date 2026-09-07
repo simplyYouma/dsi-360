@@ -13,20 +13,18 @@
   overflow: hidden;
   transition: max-height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Le fondu se fait sur le CONTENU, par masque — jamais par un voile de couleur posé dessus.
+   Un voile doit connaître le fond sur lequel il repose : la première version dégradait vers le
+   blanc alors que la grille de la fiche est grise, ce qui posait une bande franche en travers du
+   texte. Le masque, lui, estompe les lettres elles-mêmes, quel que soit le fond. */
 .listeRepliee {
   max-height: 76px;
+  mask-image: linear-gradient(180deg, #000 40%, rgb(0 0 0 / 12%) 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 40%, rgb(0 0 0 / 12%) 100%);
 }
 .listeOuverte {
   max-height: 420px;
   overflow-y: auto;
-}
-
-.fondu {
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 28px;
-  pointer-events: none;
-  background: linear-gradient(180deg, transparent, var(--surface) 92%);
 }
 
 .liste {
