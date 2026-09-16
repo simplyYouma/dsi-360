@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Check,
+  ChevronDown,
   FileDown,
   FileSpreadsheet,
   FileText,
+  MessageSquarePlus,
   Play,
   Plus,
   RotateCcw,
@@ -18,6 +20,7 @@ import { Button, Modale, StatusBadge, useToast } from '@/design-system/primitive
 import { BarreAvancement } from '@/common/BarreAvancement';
 import { ChampInline } from '@/common/ChampInline';
 import { ModaleConfirmation } from '@/common/ModaleConfirmation';
+import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi, telecharger } from '@/lib/api';
 import {
@@ -25,9 +28,13 @@ import {
   estReglee,
   grouperParSection,
   heure,
+  heureCourante,
+  heureObservation,
   jour,
   type DetailEod,
   type EtapeEod,
+  type NatureObservation,
+  type NouvelleObservation,
   type StatutEtape,
 } from './eodApi';
 import { exporterRapportEodPdf } from './rapportPdf';
@@ -51,18 +58,69 @@ const VERDICTS: { statut: StatutEtape; libelle: string; icone: typeof Check }[] 
   { statut: 'À faire', libelle: 'Remettre à faire', icone: RotateCcw },
 ];
 
-/** Amorce d'observation posée avec un verdict qui, sans explication, serait refusé.
+/** Au-delà, le journal d'une étape se replie : une étape qui a vu six agences bloquer pousserait
+ *  les suivantes hors de l'écran, et c'est le déroulé qu'on vient lire en premier. Les plus
+ *  récentes restent visibles — c'est là qu'on en est. */
+const JOURNAL_VISIBLE = 3;
+
+/** Ce que la modale d'observation est en train de consigner : sur quelle étape, et le cas échéant
+ *  le verdict qui l'a déclenchée (posé dans le même appel que l'observation). */
+interface Consigne {
+  etape: EtapeEod;
+  verdict: StatutEtape | null;
+}
+
+/** Le journal d'une étape : ce qui s'est passé, dans l'ordre, signé et horodaté.
  *
- *  Le serveur exige une justification pour « Anomalie » et « Non applicable » — à juste titre :
- *  six semaines plus tard, un verdict nu ne se relit pas. Mais renvoyer une erreur à l'opérateur
- *  pour un geste légitime, en pleine nuit, serait le punir d'avoir bien fait. On écrit donc une
- *  amorce qu'il remplace, et l'observation reste à sa main. Une note déjà écrite n'est jamais
- *  touchée. */
-function amorceNotes(statut: StatutEtape, notes: string | null): { notes?: string } {
-  if ((notes ?? '').trim() !== '') return {};
-  if (statut === 'Anomalie') return { notes: 'À préciser' };
-  if (statut === 'Non applicable') return { notes: 'Sans objet ce soir' };
-  return {};
+ * Il a remplacé le champ d'observations unique, qui s'écrasait à chaque saisie. Sur « PART 3 »,
+ * une agence bloque à 01H12, on relance ; une autre bloque à 01H40, on relance encore. L'ancienne
+ * forme ne gardait que la dernière phrase tapée : au matin, il ne restait rien à relire.
+ *
+ * Les lignes ne se corrigent pas et ne s'effacent pas — l'API n'offre pas le geste. Une erreur se
+ * rattrape par l'observation suivante, qui la date et la signe (principe n° 4). */
+function Journal({
+  etape,
+  deplie,
+  onBasculer,
+}: {
+  etape: EtapeEod;
+  deplie: boolean;
+  onBasculer: () => void;
+}): JSX.Element | null {
+  const total = etape.observations.length;
+  if (total === 0) return null;
+  const caches = deplie ? 0 : Math.max(0, total - JOURNAL_VISIBLE);
+  const visibles = etape.observations.slice(caches);
+
+  return (
+    <div className={styles.journal}>
+      {caches > 0 && (
+        <button className={styles.journalPlus} onClick={onBasculer}>
+          <ChevronDown size={12} />
+          {caches} observation{caches > 1 ? 's' : ''} plus ancienne{caches > 1 ? 's' : ''}
+        </button>
+      )}
+      <ul className={styles.journalListe}>
+        {visibles.map((o) => (
+          <li
+            key={o.id}
+            className={o.nature === 'incident' ? styles.obsIncident : styles.obs}
+            /* L'auteur en infobulle et non en ligne : sur une colonne étroite, il repousserait
+               le texte, alors qu'on ne le cherche qu'en cas de doute. */
+            title={o.auteur ?? undefined}
+          >
+            <span className={styles.obsTete}>
+              <span className={styles.obsHeure}>{heureObservation(o)}</span>
+              {o.nature === 'incident' && o.agence !== null && (
+                <span className={styles.obsAgence}>{o.agence}</span>
+              )}
+            </span>
+            <span className={styles.obsTexte}>{o.texte}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export function EodJourneePage(): JSX.Element {
@@ -81,6 +139,16 @@ export function EodJourneePage(): JSX.Element {
   const [exportOuvert, setExportOuvert] = useState(false);
   const [exportEnCours, setExportEnCours] = useState(false);
 
+  // --- Consigner une observation ---------------------------------------------------------------
+  const [consigne, setConsigne] = useState<Consigne | null>(null);
+  const [natureObs, setNatureObs] = useState<NatureObservation>('note');
+  const [agence, setAgence] = useState<string | null>(null);
+  const [relance, setRelance] = useState('');
+  const [texteObs, setTexteObs] = useState('');
+  const [agences, setAgences] = useState<string[]>([]);
+  // Étapes dont on a déplié le journal entier.
+  const [deplies, setDeplies] = useState<Set<string>>(new Set());
+
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
     try {
@@ -93,6 +161,24 @@ export function EodJourneePage(): JSX.Element {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  // Le réseau d'agences n'est chargé qu'à la première ouverture de la modale : c'est un référentiel
+  // stable, et l'écran de pointage n'en a pas besoin pour s'afficher.
+  useEffect(() => {
+    if (consigne === null || agences.length > 0) return;
+    void eodApi.agences().then(setAgences);
+  }, [consigne, agences.length]);
+
+  // L'agence choisie librement doit figurer parmi les options, sinon le champ afficherait de
+  // nouveau son indication après l'avoir enregistrée.
+  const optionsAgences = useMemo(
+    () =>
+      [...new Set(agence === null ? agences : [...agences, agence])].map((a) => ({
+        valeur: a,
+        libelle: a,
+      })),
+    [agences, agence],
+  );
 
   /** Toute écriture renvoie la soirée entière : avancement, anomalies et clôture conseillée
    *  changent à chaque geste, et les recalculer à l'écran les ferait diverger du serveur. */
@@ -135,6 +221,56 @@ export function EodJourneePage(): JSX.Element {
     void telecharger(`/eod/${id}/rapport?format=${format}`);
     setExportOuvert(false);
   };
+
+  /** Ouvre la modale d'observation. Un verdict la pré-règle en « incident » : une anomalie pendant
+   *  les PART vient presque toujours d'une agence qui bloque — et c'est d'elle que le rapport
+   *  parlera. Un clic suffit pour repasser en simple observation. */
+  const consigner = (etape: EtapeEod, verdict: StatutEtape | null): void => {
+    setConsigne({ etape, verdict });
+    setNatureObs(verdict === 'Anomalie' ? 'incident' : 'note');
+    setAgence(null);
+    setRelance(heureCourante());
+    setTexteObs('');
+  };
+
+  const fermerConsigne = (): void => setConsigne(null);
+
+  /** Pose le verdict et l'observation en un seul appel quand les deux vont ensemble. */
+  const envoyerObservation = async (): Promise<void> => {
+    if (consigne === null) return;
+    const { etape, verdict } = consigne;
+    const observation: NouvelleObservation = {
+      nature: natureObs,
+      texte: texteObs.trim(),
+      agence: natureObs === 'incident' ? agence : null,
+      relance: natureObs === 'incident' ? relance.trim() : null,
+    };
+    await agir(`observation:${etape.id}`, () =>
+      verdict === null
+        ? eodApi.observer(id, etape.id, observation)
+        : eodApi.majEtape(id, etape.id, { statut: verdict, observation }),
+    );
+    fermerConsigne();
+  };
+
+  /** Pose un verdict. Ceux qui, sans un mot, seraient refusés par le serveur passent par la modale
+   *  — mais seulement tant que l'étape n'a rien au journal : une explication déjà consignée n'a
+   *  pas à être retapée à chaque correction du verdict. */
+  const poserVerdict = (etape: EtapeEod, statut: StatutEtape): void => {
+    const aExpliquer = statut === 'Anomalie' || statut === 'Non applicable';
+    if (aExpliquer && etape.observations.length === 0) {
+      consigner(etape, statut);
+      return;
+    }
+    void agir(`statut:${etape.id}`, () => eodApi.majEtape(id, etape.id, { statut }));
+  };
+
+  const basculerJournal = (etapeId: string): void =>
+    setDeplies((anciens) => {
+      const suivants = new Set(anciens);
+      if (!suivants.delete(etapeId)) suivants.add(etapeId);
+      return suivants;
+    });
 
   const transitionner = async (vers: string): Promise<void> => {
     // Clore une nuit inachevée reste possible — une soirée peut être arrêtée pour de bonnes
@@ -210,6 +346,20 @@ export function EodJourneePage(): JSX.Element {
           </strong>
           <span className={styles.mesureDetail}>
             {soiree.anomalies > 0 ? 'à expliquer au rapport' : 'aucune anomalie relevée'}
+          </span>
+        </div>
+        {/* Distincte des anomalies, et pas déductible d'elles : une agence peut être relancée sans
+            que l'étape finisse en anomalie, et une anomalie de batch ne touche parfois aucune
+            agence. C'est le chiffre qui dit ce que nos nuits coûtent au réseau. */}
+        <div className={styles.mesure}>
+          <span className={styles.mesureTitre}>Relances d’agence</span>
+          <strong className={soiree.incidents > 0 ? styles.alerte : styles.calme}>
+            {soiree.incidents}
+          </strong>
+          <span className={styles.mesureDetail}>
+            {soiree.incidents > 0
+              ? 'agences relancées cette nuit'
+              : 'aucune agence n’a bloqué'}
           </span>
         </div>
         <div className={styles.mesure}>
@@ -339,14 +489,7 @@ export function EodJourneePage(): JSX.Element {
                               className={styles.verdict}
                               title={v.libelle}
                               disabled={occupe !== null}
-                              onClick={() =>
-                                void agir(`statut:${e.id}`, () =>
-                                  eodApi.majEtape(id, e.id, {
-                                    statut: v.statut,
-                                    ...amorceNotes(v.statut, e.notes),
-                                  }),
-                                )
-                              }
+                              onClick={() => poserVerdict(e, v.statut)}
                             >
                               <v.icone size={13} />
                             </button>
@@ -356,17 +499,23 @@ export function EodJourneePage(): JSX.Element {
                     </td>
 
                     <td>
-                      <ChampInline
-                        valeur={e.notes ?? ''}
-                        multiligne
-                        indication="Ce qu'il faut retenir de cette étape…"
-                        lectureSeule={!peutEcrire}
-                        repliable={2}
-                        onValider={(v) =>
-                          void agir(`notes:${e.id}`, () => eodApi.majEtape(id, e.id, { notes: v }))
-                        }
-                        aria-label={`Observations — ${e.libelle}`}
+                      <Journal
+                        etape={e}
+                        deplie={deplies.has(e.id)}
+                        onBasculer={() => basculerJournal(e.id)}
                       />
+                      {peutEcrire ? (
+                        <button
+                          className={styles.consigner}
+                          disabled={occupe !== null}
+                          onClick={() => consigner(e, null)}
+                        >
+                          <MessageSquarePlus size={13} />
+                          Consigner
+                        </button>
+                      ) : (
+                        e.observations.length === 0 && <span className={styles.vide}>—</span>
+                      )}
                     </td>
 
                     <td className={styles.colRetrait}>
@@ -443,6 +592,107 @@ export function EodJourneePage(): JSX.Element {
             <span className={styles.formatQuoi}>Les mêmes lignes, sans mise en forme.</span>
           </button>
         </div>
+      </Modale>
+
+      {/* Consigner : le geste qui manquait. Une observation s'ajoute au journal, elle n'écrase
+          rien — et quand c'est une agence qui a bloqué, elle porte les trois informations que la
+          hiérarchie réclame au matin : laquelle, à quelle heure on a relancé, ce qui a été fait. */}
+      <Modale
+        ouverte={consigne !== null}
+        onFermer={fermerConsigne}
+        titre={
+          consigne?.verdict === null || consigne === null
+            ? 'Consigner une observation'
+            : `« ${consigne.verdict} » — dire ce qui s’est passé`
+        }
+        pied={
+          <>
+            <Button variante="secondaire" onClick={fermerConsigne}>
+              Annuler
+            </Button>
+            <Button
+              disabled={
+                occupe !== null ||
+                texteObs.trim().length < 2 ||
+                (natureObs === 'incident' &&
+                  ((agence ?? '').trim() === '' || relance.trim() === ''))
+              }
+              onClick={() => void envoyerObservation()}
+            >
+              Consigner
+            </Button>
+          </>
+        }
+      >
+        {consigne !== null && (
+          <p className={styles.mesureDetail}>
+            {consigne.etape.section} · {consigne.etape.libelle}
+          </p>
+        )}
+        <div className={styles.natures}>
+          {(
+            [
+              { valeur: 'note', libelle: 'Observation' },
+              { valeur: 'incident', libelle: 'Incident sur une agence' },
+            ] as const
+          ).map((n) => (
+            <button
+              key={n.valeur}
+              className={natureObs === n.valeur ? styles.natureActive : styles.nature}
+              onClick={() => setNatureObs(n.valeur)}
+            >
+              {n.libelle}
+            </button>
+          ))}
+        </div>
+
+        {natureObs === 'incident' && (
+          <>
+            <div className={styles.champ}>
+              <span>Agence concernée</span>
+              <SelecteurListe
+                options={optionsAgences}
+                valeur={agence}
+                onChange={setAgence}
+                placeholder="Choisir ou saisir une agence…"
+                // La liste officielle oriente la saisie vers un nom unique par site ; le core
+                // banking nomme aussi des agences qui lui sont propres (« 000 BAM »), et une nuit
+                // ne doit pas s'arrêter faute de vocabulaire. Ce qu'on tape ici ne crée pas
+                // d'entrée au référentiel du parc : ce n'est pas le même objet.
+                onCreer={(libelle) => Promise.resolve(libelle)}
+              />
+            </div>
+            <label className={styles.champ}>
+              <span>Heure de relance</span>
+              <input
+                value={relance}
+                onChange={(e) => setRelance(e.target.value)}
+                placeholder="01H12"
+                /* Pré-remplie à l'instant : on consigne sur le moment, et l'opérateur ne tape que
+                   ce qu'il corrige. Le serveur en déduit la journée — l'EOD franchit minuit. */
+              />
+            </label>
+          </>
+        )}
+
+        <label className={styles.champ}>
+          <span>{natureObs === 'incident' ? 'Ce qui a été fait' : 'Observation'}</span>
+          <textarea
+            className={styles.note}
+            rows={3}
+            value={texteObs}
+            onChange={(e) => setTexteObs(e.target.value)}
+            placeholder={
+              natureObs === 'incident'
+                ? 'Ex. POSTEOPD3 bloqué, session purgée puis relancée — reprise OK.'
+                : 'Ex. Batch terminé sans rejet.'
+            }
+          />
+        </label>
+        <p className={styles.mesureDetail}>
+          Une fois consignée, une observation ne se corrige ni ne s’efface : elle est signée et
+          horodatée. Ce qu’il faut rectifier se dit dans la suivante.
+        </p>
       </Modale>
 
       <Modale

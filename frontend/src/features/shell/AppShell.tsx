@@ -75,12 +75,16 @@ export function AppShell(): JSX.Element | null {
 
         <nav className={styles.nav}>
           {SECTIONS.map((section) => {
-            const entrees = section.entrees.filter((e) =>
-              e.toujours
-                ? true
-                : e.transverse
-                  ? moi.transverse
-                  : moi.acces.includes(cleAcces(e.chemin)),
+            const entrees = section.entrees.filter(
+              (e) =>
+                // Un module masqué ne s'affiche pour personne, quels que soient les droits : ce
+                // n'est pas une question d'autorisation mais d'ouverture du module.
+                e.masque !== true &&
+                (e.toujours
+                  ? true
+                  : e.transverse
+                    ? moi.transverse
+                    : moi.acces.includes(cleAcces(e.chemin))),
             );
             if (entrees.length === 0) return null;
             return (

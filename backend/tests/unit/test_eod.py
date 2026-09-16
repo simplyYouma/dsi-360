@@ -26,7 +26,9 @@ from dsi360.domain.eod import (
     SECTIONS,
     avancement,
     compter_anomalies,
+    manque_a_l_incident,
     ordre_section,
+    resoudre_relance,
     reste_a_faire,
 )
 from dsi360.domain.etats import ETATS, est_etat_terminal, etat_initial, phase
@@ -124,14 +126,68 @@ class TestPointage:
 class TestJustification:
     @pytest.mark.parametrize("statut", [ANOMALIE, NON_APPLICABLE])
     def test_un_verdict_qui_sort_de_l_ordinaire_s_explique(self, statut: str) -> None:
-        """Six semaines plus tard, « Anomalie » sans un mot ne se relit pas."""
-        assert justification_manquante(statut, None)
-        assert justification_manquante(statut, "   ")
-        assert not justification_manquante(statut, "Batch resté sur la date de la veille.")
+        """Six semaines plus tard, « Anomalie » sans une ligne au journal ne se relit pas."""
+        assert justification_manquante(statut, 0)
+        assert not justification_manquante(statut, 1)
 
     @pytest.mark.parametrize("statut", [A_FAIRE, EN_COURS, COMPLETE])
     def test_le_cours_normal_des_choses_ne_se_justifie_pas(self, statut: str) -> None:
-        assert not justification_manquante(statut, None)
+        assert not justification_manquante(statut, 0)
+
+
+class TestHeureDeRelance:
+    """L'opérateur tape « 01H12 » ; le serveur en déduit la nuit. L'EOD franchit minuit."""
+
+    #: 16/09 à 01H30 : la soirée du 15 est en cours, on a passé minuit depuis une heure et demie.
+    #: Construite en heure **locale** — c'est celle que lit l'opérateur, et celle sur laquelle la
+    #: résolution raisonne. La figer en UTC ferait dépendre le test du fuseau de la machine.
+    _NUIT = datetime(2026, 9, 16, 1, 30).astimezone()
+
+    @pytest.mark.parametrize("saisie", ["01H12", "01h12", "01:12", "0112", "1:12", " 01 H 12 "])
+    def test_l_heure_se_tape_comme_elle_vient(self, saisie: str) -> None:
+        """À 1 h du matin, on ne fait pas recopier un format à l'opérateur."""
+        quand = resoudre_relance(saisie, self._NUIT)
+        assert quand is not None
+        assert (quand.hour, quand.minute) == (1, 12)
+
+    def test_une_heure_du_soir_designe_la_veille(self) -> None:
+        """À 01H30 le 16, « 23H50 » parle de la veille : c'est là que la soirée a commencé."""
+        quand = resoudre_relance("23H50", self._NUIT)
+        assert quand is not None
+        assert quand.day == 15
+        assert quand < self._NUIT
+
+    def test_une_heure_de_la_nuit_reste_sur_le_jour_courant(self) -> None:
+        quand = resoudre_relance("00H45", self._NUIT)
+        assert quand is not None
+        assert quand.day == 16
+
+    def test_une_montre_en_avance_ne_recule_pas_la_relance_d_un_jour(self) -> None:
+        """Deux minutes d'avance ne doivent pas dater la relance de vingt-quatre heures plus tôt."""
+        quand = resoudre_relance("01H32", self._NUIT)
+        assert quand is not None
+        assert quand.day == 16
+
+    @pytest.mark.parametrize("saisie", ["", "midi", "25H00", "01H75", "1H2", "abc"])
+    def test_une_heure_illisible_est_rendue_telle(self, saisie: str) -> None:
+        """Le serveur ne devine pas : une heure fausse au rapport vaut moins qu'un refus."""
+        assert resoudre_relance(saisie, self._NUIT) is None
+
+
+class TestIncidentDAgence:
+    """Ce que la hiérarchie réclame au matin : quelle agence, à quelle heure, ce qui a été fait."""
+
+    _QUAND = datetime(2026, 9, 16, 1, 12, tzinfo=UTC)
+
+    def test_un_incident_complet_ne_manque_de_rien(self) -> None:
+        assert manque_a_l_incident("Agence 11 Kayes", self._QUAND) is None
+
+    def test_un_incident_sans_agence_ne_dit_pas_qui_a_bloque(self) -> None:
+        assert manque_a_l_incident(None, self._QUAND) == "l'agence concernée"
+        assert manque_a_l_incident("   ", self._QUAND) == "l'agence concernée"
+
+    def test_un_incident_sans_heure_ne_dit_pas_combien_de_temps_on_a_attendu(self) -> None:
+        assert manque_a_l_incident("Agence 11 Kayes", None) == "l'heure de relance"
 
 
 class TestLaSoireeEstUneActiviteCommeLesAutres:

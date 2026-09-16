@@ -29,6 +29,7 @@ import {
   grouperParSection,
   heure,
   jour,
+  ligneObservation,
   type DetailEod,
   type EtapeEod,
   type StatutEtape,
@@ -149,13 +150,20 @@ function cellules(pdf: jsPDF, e: EtapeEod): Cellules {
   const largeurObs = COLONNES[4].largeur - 2 * PAD;
   // L'aide de l'étape (« Seulement les soirs de fin de mois… ») est portée par le déroulé de
   // référence, pas par la nuit : elle explique le geste, elle ne rend pas compte. Hors rapport.
+  //
+  // Le journal ENTIER, une ligne par observation : c'est lui le compte rendu de la nuit. N'en
+  // garder que la dernière — ce que faisait l'ancien champ de notes — effacerait les relances
+  // successives, c'est-à-dire précisément ce que la hiérarchie vient lire.
+  const journal = e.observations.flatMap((o) =>
+    pdf.splitTextToSize(ligneObservation(o), largeurObs),
+  );
   return {
     etape: pdf.splitTextToSize(e.libelle, largeurEtape),
     debut: e.nature === 'valeur' ? '' : heure(e.debut),
     fin: e.nature === 'valeur' ? '' : heure(e.fin),
     valeur: e.nature === 'valeur' ? (e.valeur ?? '—') : null,
     verdict: e.statut,
-    observations: pdf.splitTextToSize(e.notes ?? '', largeurObs),
+    observations: journal,
   };
 }
 
@@ -230,9 +238,19 @@ function dessinerSynthese(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: num
       valeur: s.anomalies === 0 ? 'aucune' : String(s.anomalies),
       encre: s.anomalies === 0 ? ENCRE.attenue : ENCRE.alerte,
     },
+    {
+      // Distincte des anomalies : une agence relancée reste une agence qui a attendu, même quand
+      // l'étape a fini par passer. C'est la première question posée en comité.
+      etiquette: "Relances d'agence",
+      valeur: s.incidents === 0 ? 'aucune' : String(s.incidents),
+      encre: s.incidents === 0 ? ENCRE.attenue : ENCRE.alerte,
+    },
   ];
 
-  const colonnes = 4;
+  // Le découpage qui ne laisse pas de trou en dernière rangée. Neuf valeurs sur quatre colonnes
+  // posaient « Relances d'agence » seule, suivie de trois blancs : un bandeau de synthèse qui
+  // s'arrête en plein milieu donne l'impression qu'il manque une information.
+  const colonnes = [4, 3].find((n) => cases.length % n === 0) ?? 4;
   const largeurCase = largeurUtile / colonnes;
   const hauteurCase = 11;
   const hauteur = hauteurCase * Math.ceil(cases.length / colonnes);
@@ -256,14 +274,19 @@ function dessinerSynthese(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: num
   return y + hauteur + 6;
 }
 
-/** Le relevé des anomalies, juste sous la synthèse.
+/** Le relevé de ce qui a dérapé, juste sous la synthèse.
  *
- * Elles sont déjà dans le déroulé, mais noyées : deux lignes rouges sur vingt-huit, réparties sur
- * deux pages. Un supérieur qui reçoit ce rapport cherche d'abord ce qui s'est mal passé — le lui
- * faire chercher, c'est prendre le risque qu'il ne le trouve pas. Rien n'est affiché quand la nuit
- * s'est bien passée : un encadré vide ferait douter. */
+ * C'est déjà dans le déroulé, mais noyé : deux lignes rouges sur vingt-huit, réparties sur deux
+ * pages. Un supérieur qui reçoit ce rapport cherche d'abord ce qui s'est mal passé — le lui faire
+ * chercher, c'est prendre le risque qu'il ne le trouve pas. Rien n'est affiché quand la nuit s'est
+ * bien passée : un encadré vide ferait douter.
+ *
+ * On y retient les étapes en anomalie **et** celles qui ont vu une agence bloquer : une agence
+ * relancée reste une agence qui a attendu, même quand l'étape a fini par passer. C'est la première
+ * question posée en comité — laquelle, et combien de temps. */
 function dessinerAnomalies(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: number): number {
-  const fautives = s.etapes.filter((e) => e.statut === 'Anomalie');
+  const incidents = (e: EtapeEod): boolean => e.observations.some((o) => o.nature === 'incident');
+  const fautives = s.etapes.filter((e) => e.statut === 'Anomalie' || incidents(e));
   if (fautives.length === 0) return y;
 
   const largeurTexte = largeurUtile - 10;
@@ -273,7 +296,12 @@ function dessinerAnomalies(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: nu
   const blocs = fautives.map((e) => ({
     titre: `${e.section} · ${e.libelle}`,
     quand: e.nature === 'valeur' ? '' : `${heure(e.debut)} – ${heure(e.fin)}`,
-    detail: pdf.splitTextToSize(e.notes ?? 'Sans explication consignée.', largeurTexte),
+    // Le journal entier, une ligne par observation : une nuit où trois agences ont bloqué se
+    // raconte en trois lignes, pas en une phrase de synthèse qui les confondrait.
+    detail:
+      e.observations.length === 0
+        ? pdf.splitTextToSize('Sans explication consignée.', largeurTexte)
+        : e.observations.flatMap((o) => pdf.splitTextToSize(ligneObservation(o), largeurTexte)),
   }));
 
   const hauteur = 7 + blocs.reduce((t, b) => t + 4.4 + b.detail.length * 3.4 + 2.2, 0);
@@ -283,10 +311,21 @@ function dessinerAnomalies(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: nu
   pdf.setFillColor(...ENCRE.alerte);
   pdf.rect(MARGE, y, 1.2, hauteur, 'F');
 
+  const relances = s.etapes.reduce(
+    (t, e) => t + e.observations.filter((o) => o.nature === 'incident').length,
+    0,
+  );
+  // L'intitulé dit ce que l'encadré contient vraiment : annoncer « anomalies » sur une nuit qui
+  // n'en porte aucune mais où deux agences ont été relancées ferait douter du reste du rapport.
+  const intitule =
+    relances === 0
+      ? `ANOMALIES RELEVÉES (${fautives.length})`
+      : `ANOMALIES ET RELANCES D'AGENCE (${fautives.length}) · ${relances} relance${relances > 1 ? 's' : ''}`;
+
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
   pdf.setTextColor(...ENCRE.alerte);
-  pdf.text(`ANOMALIES RELEVÉES (${fautives.length})`, MARGE + 5, y + 4.6);
+  pdf.text(intitule, MARGE + 5, y + 4.6);
 
   let curseur = y + 9.4;
   for (const b of blocs) {

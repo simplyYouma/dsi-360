@@ -298,6 +298,146 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Le journal d'une étape ---------------------------------------------------------------- */
+/*
+ * Une soirée ne se raconte pas en une phrase : sur « PART 3 », une agence bloque à 01H12, une
+ * autre à 01H40. Les observations s'empilent donc au lieu de s'écraser, chacune avec son heure et,
+ * s'il y a eu blocage, l'agence concernée. La couleur ne sert qu'à ça : distinguer l'incident
+ * d'agence de la note ordinaire. */
+
+.journal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.journalListe {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.obs,
+.obsIncident {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--border);
+  min-width: 0;
+}
+
+/* L'agence qui a bloqué se repère sans lire : c'est la ligne que l'on cherche au matin. */
+.obsIncident {
+  border-left-color: var(--status-danger);
+}
+
+.obsTete {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+}
+
+.obsHeure {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.obsAgence {
+  font-weight: 600;
+  color: var(--status-danger);
+}
+
+.obsTexte {
+  font-size: var(--text-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* Les plus anciennes se replient : une étape qui a vu six agences bloquer pousserait les suivantes
+ * hors de l'écran, et c'est le déroulé qu'on vient lire d'abord. */
+.journalPlus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.journalPlus:hover {
+  color: var(--text);
+}
+
+.consigner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.consigner:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text-muted);
+  background: var(--surface-2, var(--bg));
+}
+
+.consigner:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+/* Note ou incident d'agence : deux formes, et non une case à cocher perdue dans le formulaire.
+ * Le choix commande les champs qui suivent — il doit se voir avant de les remplir. */
+.natures {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.nature,
+.natureActive {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.nature:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.natureActive {
+  border-color: var(--text);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .piedDeroule {
   display: flex;
   align-items: center;

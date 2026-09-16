@@ -17,6 +17,8 @@ en étapes réelles à la création de chaque journée — comme les jalons d'un
 journée et se corrigent librement. Retoucher le modèle ne réécrit jamais une soirée passée.
 """
 
+import re
+from datetime import datetime, timedelta
 from typing import Final, NamedTuple
 
 MODULE: Final = "eod"
@@ -138,6 +140,64 @@ DEROULE_REFERENCE: Final[tuple[EtapeModele, ...]] = (
     EtapeModele(ADDITIONNELLES, "Bank To Wallet Activation"),
     EtapeModele(ADDITIONNELLES, "Backup After EOD"),
 )
+
+# --- Observations : ce qui s'est dit pendant l'étape ----------------------------------------------
+#
+# Une soirée ne se raconte pas en une phrase. Sur « PART 3 — EOD till Post MARKBOD for all
+# branches », une agence bloque, on relance ; une autre bloque vingt minutes plus tard, on relance
+# encore. Un champ unique réécrit à chaque fois ne garde que la dernière phrase tapée — et perd
+# l'heure, l'auteur et l'agence, c'est-à-dire tout ce qu'on vient chercher au matin.
+#
+# Deux natures, et non un simple drapeau : l'incident d'agence est une forme à part entière, que
+# le rapport présente autrement et que les compteurs additionnent. Il porte trois informations que
+# la hiérarchie réclame — quelle agence, à quelle heure on a relancé, ce qui a été fait — et la
+# base refuse qu'il en manque une.
+
+NOTE: Final = "note"
+INCIDENT: Final = "incident"
+NATURES_OBSERVATION: Final[tuple[str, ...]] = (NOTE, INCIDENT)
+
+#: « 01H12 », « 01h12 », « 01:12 », « 0112 » : l'opérateur tape l'heure comme elle lui vient.
+_HEURE = re.compile(r"^(\d{1,2})\s*[:hH]?\s*(\d{2})$")
+
+#: Marge d'avance tolérée avant de rejeter l'heure sur la veille. Une montre en avance de deux
+#: minutes ne doit pas faire dater la relance de vingt-quatre heures plus tôt.
+_AVANCE_TOLEREE: Final = timedelta(minutes=5)
+
+
+def resoudre_relance(saisie: str, maintenant: datetime) -> datetime | None:
+    """« 01H12 » → l'horodatage complet correspondant. ``None`` si l'heure est illisible.
+
+    L'EOD franchit minuit — c'est son objet même. Une heure nue ne désigne donc pas forcément
+    aujourd'hui : à 01H30 le 16, « 23H50 » parle de la veille au soir. On retient la **dernière
+    occurrence passée**, jamais la prochaine : une relance se consigne après coup.
+    """
+    trouve = _HEURE.match(saisie.strip())
+    if trouve is None:
+        return None
+    heures, minutes = int(trouve.group(1)), int(trouve.group(2))
+    if heures > 23 or minutes > 59:
+        return None
+    local = maintenant.astimezone()
+    candidat = local.replace(hour=heures, minute=minutes, second=0, microsecond=0)
+    if candidat > local + _AVANCE_TOLEREE:
+        candidat -= timedelta(days=1)
+    return candidat
+
+
+def manque_a_l_incident(agence: str | None, relance: datetime | None) -> str | None:
+    """Ce qui manque à un incident d'agence pour être un compte rendu, ou ``None`` s'il est complet.
+
+    Rendre un message plutôt qu'un booléen : « il manque quelque chose » n'aide personne à 2 h du
+    matin. La base porte la même règle (``ck_eod_observation_incident``) — ici on la dit, là-bas
+    on la garantit.
+    """
+    if not (agence or "").strip():
+        return "l'agence concernée"
+    if relance is None:
+        return "l'heure de relance"
+    return None
+
 
 # --- Lecture d'une soirée ------------------------------------------------------------------------
 

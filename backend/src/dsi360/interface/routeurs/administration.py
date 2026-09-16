@@ -861,6 +861,7 @@ _LIBELLE_CIBLE = {
     "gouvernance": "Gouvernance",
     "eod": "Soirée EOD",
     "eod_etape": "Étape EOD",
+    "eod_observation": "Observation EOD",
     "utilisateur": "Utilisateur",
     "categorie": "Catégorie",
     "acces_role": "Accès",

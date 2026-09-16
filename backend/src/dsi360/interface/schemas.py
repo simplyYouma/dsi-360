@@ -583,6 +583,38 @@ class ReferentielCreation(BaseModel):
 
 StatutEtapeEod = Literal["À faire", "En cours", "Complété", "Anomalie", "Non applicable"]
 NatureEtapeEod = Literal["horaire", "valeur"]
+NatureObservationEod = Literal["note", "incident"]
+
+
+class ObservationEodCreation(BaseModel):
+    """Une ligne à ajouter au journal d'une étape.
+
+    « incident » est la forme d'un blocage d'agence : elle **exige** l'agence et l'heure de relance
+    (le serveur les refuse absentes, et la base aussi). C'est ce que la hiérarchie demande de savoir
+    au matin — quelle agence, à quelle heure on a relancé, ce qui a été fait.
+    """
+
+    nature: NatureObservationEod = "note"
+    texte: str = Field(min_length=2, max_length=2000)
+    agence: str | None = Field(default=None, max_length=120)
+    #: L'heure telle qu'elle se lit sur l'écran du core banking : « 01H12 », « 01:12 », « 0112 ».
+    #: Le serveur en déduit la journée — l'EOD franchit minuit, et la date n'est pas à retaper.
+    #: Absente sur un incident, elle vaut l'instant de la saisie : on consigne sur le moment.
+    #: La borne est large exprès : une saisie fautive doit atteindre le serveur, qui répond « 01H12
+    #: est attendu » — bien plus utile que le « 10 caractères au plus » d'un refus de schéma.
+    relance: str | None = Field(default=None, max_length=32)
+
+
+class ObservationEod(BaseModel):
+    id: str
+    etape_id: str
+    nature: NatureObservationEod
+    agence: str | None = None
+    relance_le: datetime | None = None
+    texte: str
+    #: « Awa Touré », ou l'e-mail figé à l'écriture si le compte a disparu depuis.
+    auteur: str | None = None
+    cree_le: datetime
 
 
 class EtapeEod(BaseModel):
@@ -599,7 +631,9 @@ class EtapeEod(BaseModel):
     fin: datetime | None = None
     #: Ce qu'affichait l'écran, pour les étapes de nature « valeur » (date système relevée).
     valeur: str | None = None
-    notes: str | None = None
+    #: Le journal de l'étape, dans l'ordre où la nuit s'est vécue. Il a remplacé le champ de notes
+    #: unique, qui s'écrasait à chaque saisie : sur « PART 3 », une agence bloque, puis une autre.
+    observations: list[ObservationEod] = []
 
 
 class EtapeEodMaj(BaseModel):
@@ -607,7 +641,10 @@ class EtapeEodMaj(BaseModel):
     debut: datetime | None = None
     fin: datetime | None = None
     valeur: str | None = Field(default=None, max_length=120)
-    notes: str | None = Field(default=None, max_length=2000)
+    #: Observation posée **avec** le verdict, en un seul appel. « Anomalie » et « Non applicable »
+    #: exigent une explication : la demander dans un second temps ferait échouer le premier geste
+    #: pour une raison que l'opérateur ne découvrirait qu'après coup.
+    observation: ObservationEodCreation | None = None
     #: Efface l'horodatage au lieu de le remplacer (corriger un clic parti trop tôt).
     vider_debut: bool = False
     vider_fin: bool = False
@@ -619,7 +656,6 @@ class EtapeEodCreation(BaseModel):
     section: str = Field(min_length=2, max_length=80)
     libelle: str = Field(min_length=2, max_length=200)
     nature: NatureEtapeEod = "horaire"
-    notes: str | None = Field(default=None, max_length=2000)
 
 
 class PointageEod(BaseModel):
@@ -654,6 +690,10 @@ class EodResume(BaseModel):
     #: Étapes en anomalie. C'est le chiffre que la DSI cherche d'abord : combien de nuits ont
     #: dérapé, et lesquelles.
     anomalies: int = 0
+    #: Relances d'agence consignées au journal. Ne se déduit pas des anomalies : une agence peut
+    #: être relancée sans que l'étape finisse en anomalie, et une anomalie de batch ne touche
+    #: parfois aucune agence.
+    incidents: int = 0
     reste: int = 0
     nb_etapes: int = 0
     #: Début de la première étape pointée et fin de la dernière : la durée réelle de la soirée.

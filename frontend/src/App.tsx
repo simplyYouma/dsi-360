@@ -156,7 +156,10 @@ function Racine(): JSX.Element {
               </RequiertAcces>
             }
           />
-          {NAVIGATION.filter((e) => e.chemin !== '/').map((e) => (
+          {/* Un module masqué n'est pas routé : l'URL tapée à la main retombe sur « Module à
+              venir » (cf. `masque` dans navigation.ts). Le cacher du menu seul laisserait l'écran
+              accessible à qui connaît l'adresse — ce ne serait pas le masquer. */}
+          {NAVIGATION.filter((e) => e.chemin !== '/' && e.masque !== true).map((e) => (
             <Route
               key={e.chemin}
               path={e.chemin}

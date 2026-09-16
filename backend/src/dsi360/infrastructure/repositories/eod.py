@@ -1,9 +1,13 @@
-"""Repositories de l'EOD : le déroulé de référence (core.eod_modele_etape) et les étapes
-réellement pointées d'une soirée (core.eod_etape).
+"""Repositories de l'EOD : le déroulé de référence (core.eod_modele_etape), les étapes réellement
+pointées d'une soirée (core.eod_etape) et leur journal d'observations (core.eod_observation).
 
 Même partage qu'entre un modèle de jalons et les jalons d'un projet : le modèle décrit ce qui se
 fait tous les soirs, les étapes appartiennent à la soirée dès qu'elles sont posées. Corriger le
 modèle ne réécrit donc jamais une nuit passée — c'est la propriété qui rend le rapport opposable.
+
+Le journal, lui, ne s'écrit qu'en ajout : aucune fonction de mise à jour ni de suppression n'est
+offerte ici. Ce n'est pas un oubli — une observation qui se corrige après coup ne prouve plus rien
+(principe n° 4). L'erreur se rattrape par une observation suivante, qui la date et la signe.
 """
 
 from typing import Any, cast
@@ -11,14 +15,20 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-_CHAMPS = (
-    "id::text AS id, section, libelle, nature, aide, ordre, statut, debut, fin, valeur, notes"
-)
+_CHAMPS = "id::text AS id, section, libelle, nature, aide, ordre, statut, debut, fin, valeur"
 _CHAMPS_MODELE = "id::text AS id, section, libelle, nature, aide, ordre, actif"
 
 #: Champs qu'une mise à jour d'étape peut toucher. Tout le reste (section, libellé, nature) décrit
-#: le déroulé et ne se retouche qu'en ajoutant ou en retirant une étape.
-_MODIFIABLES = frozenset({"statut", "debut", "fin", "valeur", "notes", "ordre"})
+#: le déroulé et ne se retouche qu'en ajoutant ou en retirant une étape. Les observations n'y
+#: figurent pas : elles s'ajoutent, elles ne se réécrivent jamais.
+_MODIFIABLES = frozenset({"statut", "debut", "fin", "valeur", "ordre"})
+
+#: L'auteur est rendu tel qu'il se lit — « Awa Touré » — et retombe sur l'e-mail figé à l'écriture
+#: quand le compte a disparu : un journal dont les lignes perdent leur signataire ne prouve rien.
+_CHAMPS_OBSERVATION = (
+    "o.id::text AS id, o.etape_id::text AS etape_id, o.nature, o.agence, o.relance_le, o.texte, "
+    "coalesce(u.prenom || ' ' || u.nom, o.auteur_email) AS auteur, o.cree_le"
+)
 
 
 # --- Déroulé de référence ------------------------------------------------------------------------
@@ -100,8 +110,8 @@ async def creer(session: AsyncSession, activite_id: str, champs: dict[str, Any])
         await session.execute(
             text(
                 "INSERT INTO core.eod_etape "
-                "(activite_id, section, libelle, nature, aide, ordre, notes) "
-                "VALUES (cast(:a as uuid), :section, :libelle, :nature, :aide, :ordre, :notes) "
+                "(activite_id, section, libelle, nature, aide, ordre) "
+                "VALUES (cast(:a as uuid), :section, :libelle, :nature, :aide, :ordre) "
                 f"RETURNING {_CHAMPS}"
             ),
             {
@@ -111,7 +121,6 @@ async def creer(session: AsyncSession, activite_id: str, champs: dict[str, Any])
                 "nature": champs.get("nature", "horaire"),
                 "aide": champs.get("aide"),
                 "ordre": ordre,
-                "notes": champs.get("notes"),
             },
         )
     ).mappings().one()
@@ -155,16 +164,35 @@ async def agregats(session: AsyncSession, activite_ids: list[str]) -> dict[str, 
         ),
         {"ids": activite_ids},
     )
-    return {
+    mesures = {
         str(ligne["id"]): {
             "nb_etapes": int(ligne["total"]),
             "reste": int(ligne["total"]) - int(ligne["regles"]),
             "anomalies": int(ligne["anomalies"]),
+            "incidents": 0,
             "debut_effectif": ligne["debut"],
             "fin_effective": ligne["fin"],
         }
         for ligne in lignes.mappings().all()
     }
+    # Les relances d'agence, dans la même passe : « combien d'agences ont bloqué cette nuit » est
+    # la question qui suit immédiatement « combien d'anomalies ». Une anomalie peut tenir à un
+    # batch et ne toucher aucune agence ; l'inverse existe aussi — une agence relancée sans que
+    # l'étape finisse en anomalie. Les deux chiffres ne se déduisent pas l'un de l'autre.
+    relances = await session.execute(
+        text(
+            "SELECT activite_id::text AS id, count(*) AS incidents "
+            "FROM core.eod_observation "
+            "WHERE nature = 'incident' AND activite_id::text = ANY(:ids) "
+            "GROUP BY activite_id"
+        ),
+        {"ids": activite_ids},
+    )
+    for ligne in relances.mappings().all():
+        mesure = mesures.get(str(ligne["id"]))
+        if mesure is not None:
+            mesure["incidents"] = int(ligne["incidents"])
+    return mesures
 
 
 async def journee_existante(session: AsyncSession, journee: str) -> str | None:
@@ -181,3 +209,78 @@ async def journee_existante(session: AsyncSession, journee: str) -> str | None:
         {"j": journee},
     )
     return None if reference is None else str(reference)
+
+
+# --- Le journal d'une étape ----------------------------------------------------------------------
+#
+# Append-only : ni `maj_observation`, ni `supprimer_observation`. Une observation qui se corrige
+# après coup ne prouve plus rien — et c'est bien la preuve qu'on vient chercher au matin. Une
+# erreur se rattrape par l'observation suivante, qui la date et la signe.
+
+
+async def observations(session: AsyncSession, activite_id: str) -> list[RowMapping]:
+    """Le journal de **toute** la soirée, en une requête.
+
+    Le détail affiche les vingt-huit étapes d'un coup : interroger le journal étape par étape
+    ferait vingt-huit requêtes pour ouvrir un écran. L'appelant regroupe par `etape_id`.
+    """
+    lignes = await session.execute(
+        text(
+            f"SELECT {_CHAMPS_OBSERVATION} FROM core.eod_observation o "
+            "LEFT JOIN core.utilisateur u ON u.id = o.auteur_id "
+            "WHERE o.activite_id = cast(:a as uuid) "
+            # Par heure d'écriture : le journal raconte la nuit dans l'ordre où elle s'est vécue.
+            # Trier sur `relance_le` remonterait une relance consignée en retard au milieu du fil.
+            "ORDER BY o.cree_le, o.id"
+        ),
+        {"a": activite_id},
+    )
+    return list(lignes.mappings().all())
+
+
+async def compter_observations(session: AsyncSession, etape_id: str) -> int:
+    """Lignes au journal d'une étape : ce qui fait, ou non, la justification de son verdict."""
+    total = await session.scalar(
+        text("SELECT count(*) FROM core.eod_observation WHERE etape_id = cast(:e as uuid)"),
+        {"e": etape_id},
+    )
+    return int(total or 0)
+
+
+async def creer_observation(
+    session: AsyncSession, *, etape_id: str, activite_id: str, champs: dict[str, Any]
+) -> RowMapping:
+    """Ajoute une ligne au journal d'une étape et la rend telle qu'elle se lira."""
+    ligne = (
+        await session.execute(
+            text(
+                "WITH nouvelle AS ("
+                "  INSERT INTO core.eod_observation "
+                "  (etape_id, activite_id, nature, agence, relance_le, texte, "
+                "   auteur_id, auteur_email) "
+                "  VALUES (cast(:e as uuid), cast(:a as uuid), :nature, :agence, :relance_le, "
+                "          :texte, cast(:auteur_id as uuid), :auteur_email) "
+                "  RETURNING *"
+                ") "
+                f"SELECT {_CHAMPS_OBSERVATION} FROM nouvelle o "
+                "LEFT JOIN core.utilisateur u ON u.id = o.auteur_id"
+            ),
+            {"e": etape_id, "a": activite_id, **champs},
+        )
+    ).mappings().one()
+    return ligne
+
+
+async def agences(session: AsyncSession) -> list[str]:
+    """Le réseau d'agences de la banque, pour que la saisie d'un incident converge.
+
+    On lit `core.emplacement` — la liste officielle des sites, déjà posée pour l'inventaire —
+    plutôt que de tenir un second référentiel d'agences : deux listes du même réseau finiraient
+    par diverger, et c'est exactement le désordre que la liste officielle a été posée pour éteindre.
+    L'écran la **propose** sans l'imposer : le core banking nomme aussi des agences qui lui sont
+    propres (« 000 BAM », « 000 BHO »), et une soirée ne doit pas s'arrêter faute de vocabulaire.
+    """
+    lignes = await session.execute(
+        text("SELECT libelle FROM core.emplacement WHERE actif ORDER BY libelle")
+    )
+    return [str(ligne[0]) for ligne in lignes.all()]

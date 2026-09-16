@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, TriangleAlert } from 'lucide-react';
+import { Building2, Plus, TriangleAlert } from 'lucide-react';
 import {
   Button,
   Modale,
@@ -85,6 +85,23 @@ const COLONNES: Colonne<SoireeEod>[] = [
       s.anomalies > 0 ? (
         <StatusBadge statut="danger">
           <TriangleAlert size={12} /> {s.anomalies}
+        </StatusBadge>
+      ) : (
+        <span style={{ color: 'var(--text-muted)' }}>—</span>
+      ),
+  },
+  {
+    cle: 'incidents',
+    entete: 'Relances',
+    aligne: 'centre',
+    valeur: (s) => s.incidents,
+    // Distincte des anomalies, et pas déductible d'elles : une agence peut être relancée sans que
+    // l'étape finisse en anomalie. C'est la colonne qui répond à « quelles nuits ont coûté au
+    // réseau ». Zéro reste discret, pour la même raison qu'à côté.
+    rendu: (s) =>
+      s.incidents > 0 ? (
+        <StatusBadge couleur="var(--status-warn)">
+          <Building2 size={12} /> {s.incidents}
         </StatusBadge>
       ) : (
         <span style={{ color: 'var(--text-muted)' }}>—</span>

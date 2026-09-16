@@ -27,6 +27,14 @@ export interface EntreeNav {
   transverse?: boolean;
   /** Toujours visible (toute personne authentifiée), sans contrôle d'accès module. */
   toujours?: boolean;
+  /** Retirée du menu ET du routage, sans rien supprimer : l'écran, son API, ses données et ses
+   *  droits restent en place. Le chemin retombe alors sur la page « Module à venir », qui dit à
+   *  quelle phase il appartient — plutôt qu'un écran vide ou une erreur.
+   *
+   *  C'est un interrupteur, pas une suppression : remettre le module en service se fait en
+   *  retirant cette ligne, sans rien réécrire. L'entrée reste ici pour que le catalogue des
+   *  modules dise la vérité — le fil d'Ariane et la page d'attente y lisent encore son libellé. */
+  masque?: boolean;
 }
 
 export interface SectionNav {
@@ -70,8 +78,15 @@ export const SECTIONS: SectionNav[] = [
     titre: 'Maîtrise & conformité',
     entrees: [
       { chemin: '/audit', libelle: 'Audit & Recommandations', icone: ClipboardCheck, phase: 'P2' },
-      { chemin: '/risques', libelle: 'Risques IT', icone: ShieldAlert, phase: 'P2' },
-      { chemin: '/cybersecurite', libelle: 'Cybersécurité', icone: Lock, phase: 'P3' },
+      // Masqués : les deux écrans existent et fonctionnent, mais ne sont pas ouverts aux agents.
+      { chemin: '/risques', libelle: 'Risques IT', icone: ShieldAlert, phase: 'P2', masque: true },
+      {
+        chemin: '/cybersecurite',
+        libelle: 'Cybersécurité',
+        icone: Lock,
+        phase: 'P3',
+        masque: true,
+      },
     ],
   },
   {

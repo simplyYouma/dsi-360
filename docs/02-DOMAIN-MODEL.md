@@ -76,6 +76,16 @@ changement, projet, recommandation, risque). Socle commun à toutes :
   la seule chose qu'on y cherche — combien de nuits se sont mal passées, et lesquelles.
   Particularité : le statut de la soirée se décide à la main, mais son **avancement se déduit**
   des étapes pointées (`core.eod_etape`), jamais déclaré.
+  Chaque étape porte un **journal d'observations append-only** (`core.eod_observation`) et non un
+  champ de notes réécrit à chaque saisie : sur « PART 3 », une agence bloque à 01H12, on relance ;
+  une autre bloque à 01H40, on relance encore — un champ unique n'aurait gardé que la dernière
+  phrase tapée. Une observation de nature **`incident`** porte les trois informations que la
+  hiérarchie réclame au matin — **l'agence**, **l'heure de relance**, **ce qui a été fait** — et
+  la base refuse qu'il en manque une (`ck_eod_observation_incident`). Ni correction ni suppression :
+  une observation qui se réécrit après coup ne prouve plus rien ; l'erreur se rattrape par la
+  suivante, qui la date et la signe. Les **relances d'agence** se comptent à part des **anomalies** :
+  une agence peut être relancée sans que l'étape finisse en anomalie, et une anomalie de batch ne
+  touche parfois aucune agence — l'un ne se déduit pas de l'autre.
 
 ## 4. Référentiels paramétrables (Single Source Of Truth)
 

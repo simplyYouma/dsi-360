@@ -25,10 +25,14 @@ from dsi360.domain.eod import (
     ANOMALIE,
     COMPLETE,
     EN_COURS,
+    INCIDENT,
     MODULE,
     NON_APPLICABLE,
+    NOTE,
     avancement,
     compter_anomalies,
+    manque_a_l_incident,
+    resoudre_relance,
     reste_a_faire,
 )
 from dsi360.domain.etats import etat_initial
@@ -174,17 +178,87 @@ def cloture_conseillee(statuts: list[str]) -> str | None:
     return "Clôturé avec réserves" if compter_anomalies(statuts) > 0 else "Clôturé"
 
 
-#: Statuts d'étape qui demandent une explication. Une anomalie sans note ne se relit pas : six
-#: semaines plus tard, personne ne saura ce qui a coincé — ni si c'est reparti.
+#: Statuts d'étape qui demandent une explication. Une anomalie sans observation ne se relit pas :
+#: six semaines plus tard, personne ne saura ce qui a coincé — ni si c'est reparti.
 STATUTS_A_JUSTIFIER = frozenset({ANOMALIE, NON_APPLICABLE})
 
 
-def justification_manquante(statut: str, notes: str | None) -> bool:
-    return statut in STATUTS_A_JUSTIFIER and not (notes or "").strip()
+def justification_manquante(statut: str, observations: int) -> bool:
+    """Un verdict qui sort de l'ordinaire et pas une ligne au journal de l'étape.
+
+    On compte les observations plutôt qu'on ne relit un champ de notes : depuis que les
+    observations s'historisent, l'explication est une **ligne de journal** — signée, horodatée,
+    définitive. Une seule suffit ; c'est l'absence totale qu'on refuse.
+    """
+    return statut in STATUTS_A_JUSTIFIER and observations <= 0
+
+
+class IncidentIncomplet(Exception):
+    """Un incident d'agence auquel il manque l'agence ou l'heure de relance."""
+
+    def __init__(self, manque: str) -> None:
+        super().__init__(manque)
+        self.manque = manque
+
+
+class HeureIllisible(Exception):
+    """L'heure de relance saisie ne se lit pas (« 01H12 », « 01:12 », « 0112 » sont attendus)."""
+
+    def __init__(self, saisie: str) -> None:
+        super().__init__(saisie)
+        self.saisie = saisie
+
+
+def preparer_observation(
+    *,
+    nature: str,
+    agence: str | None,
+    relance: str | None,
+    texte: str,
+    acteur: dict[str, Any],
+    maintenant: datetime,
+) -> dict[str, Any]:
+    """Champs à écrire pour une observation, heure de relance résolue.
+
+    L'opérateur tape « 01H12 », pas un horodatage ISO : c'est ce que lui affiche l'écran du core
+    banking, et lui demander la date en plus, la nuit, serait lui faire recopier une évidence. La
+    résolution — quelle **journée** porte cette heure — appartient au serveur : elle dépend de la
+    règle « dernière occurrence passée », et une règle recopiée dans le navigateur finirait par
+    en diverger.
+
+    Une relance non saisie vaut **maintenant** quand l'observation est un incident : consigner un
+    incident, c'est le consigner sur le moment. Lever une erreur là-dessus reviendrait à exiger
+    une frappe de plus pour une information qu'on a déjà.
+    """
+    quand: datetime | None = None
+    if (relance or "").strip():
+        quand = resoudre_relance(relance or "", maintenant)
+        if quand is None:
+            raise HeureIllisible(relance or "")
+    elif nature == INCIDENT:
+        quand = maintenant
+
+    propre = (agence or "").strip() or None
+    if nature == INCIDENT:
+        manque = manque_a_l_incident(propre, quand)
+        if manque is not None:
+            raise IncidentIncomplet(manque)
+    return {
+        "nature": nature,
+        "agence": propre,
+        "relance_le": quand,
+        "texte": texte.strip(),
+        "auteur_id": acteur["id"],
+        "auteur_email": acteur["email"],
+    }
 
 
 __all__ = [
     "A_FAIRE",
+    "INCIDENT",
+    "NOTE",
+    "HeureIllisible",
+    "IncidentIncomplet",
     "JourneeDejaOuverte",
     "STATUTS_A_JUSTIFIER",
     "cloture_conseillee",
@@ -192,6 +266,7 @@ __all__ = [
     "justification_manquante",
     "ouvrir_journee",
     "pointage",
+    "preparer_observation",
     "rafraichir_avancement",
     "titre_journee",
 ]

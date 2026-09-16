@@ -8,6 +8,32 @@ export type StatutEtape = 'À faire' | 'En cours' | 'Complété' | 'Anomalie' | 
 /** « horaire » : on pointe un début et une fin. « valeur » : on relève ce qu'affiche l'écran. */
 export type NatureEtape = 'horaire' | 'valeur';
 
+/** « note » : ce qu'on relève en passant. « incident » : une agence a bloqué, on l'a relancée —
+ *  et la forme exige alors l'agence et l'heure de relance, que le serveur refuse absentes. */
+export type NatureObservation = 'note' | 'incident';
+
+/** Une ligne du journal d'une étape. Écrite une fois pour toutes : ni correction ni suppression —
+ *  une observation qui se réécrit après coup ne prouve plus rien. */
+export interface ObservationEod {
+  id: string;
+  etape_id: string;
+  nature: NatureObservation;
+  agence: string | null;
+  relance_le: string | null;
+  texte: string;
+  auteur: string | null;
+  cree_le: string;
+}
+
+export interface NouvelleObservation {
+  nature?: NatureObservation;
+  texte: string;
+  agence?: string | null;
+  /** L'heure telle qu'elle se lit sur l'écran du core banking : « 01H12 ». Le serveur en déduit
+   *  la journée — l'EOD franchit minuit, et la date n'est pas à retaper. */
+  relance?: string | null;
+}
+
 export interface EtapeEod {
   id: string;
   section: string;
@@ -19,7 +45,8 @@ export interface EtapeEod {
   debut: string | null;
   fin: string | null;
   valeur: string | null;
-  notes: string | null;
+  /** Le journal de l'étape, dans l'ordre où la nuit s'est vécue. */
+  observations: ObservationEod[];
 }
 
 export interface SoireeEod {
@@ -37,6 +64,9 @@ export interface SoireeEod {
   statut_sla: string;
   avancement: number;
   anomalies: number;
+  /** Relances d'agence consignées au journal. Ne se déduit pas des anomalies : une agence peut
+   *  être relancée sans que l'étape finisse en anomalie, et l'inverse existe aussi. */
+  incidents: number;
   reste: number;
   nb_etapes: number;
   debut_effectif: string | null;
@@ -67,7 +97,10 @@ export interface MajEtape {
   debut?: string | null;
   fin?: string | null;
   valeur?: string | null;
-  notes?: string | null;
+  /** Observation posée **avec** le verdict, en un seul appel : « Anomalie » et « Non applicable »
+   *  exigent une explication, et la demander dans un second temps ferait échouer le premier geste
+   *  pour une raison que l'opérateur ne découvrirait qu'après coup. */
+  observation?: NouvelleObservation;
   vider_debut?: boolean;
   vider_fin?: boolean;
 }
@@ -86,6 +119,11 @@ export const eodApi = {
     api.patch(`/eod/${id}/etapes/${etapeId}`, corps),
   pointer: (id: string, etapeId: string, quoi: 'debut' | 'fin'): Promise<DetailEod> =>
     api.post(`/eod/${id}/etapes/${etapeId}/pointer`, { quoi }),
+  observer: (id: string, etapeId: string, corps: NouvelleObservation): Promise<DetailEod> =>
+    api.post(`/eod/${id}/etapes/${etapeId}/observations`, corps),
+  /** Le réseau d'agences de la banque, proposé à la saisie d'un incident — pour que « Kayes »,
+   *  « AGENCE KAYES » et « Agence 11 Kayes » ne finissent pas par coexister au rapport. */
+  agences: (): Promise<string[]> => api.get('/eod/agences'),
   ajouterEtape: (
     id: string,
     corps: { section: string; libelle: string; nature?: NatureEtape },
@@ -129,4 +167,26 @@ export function jour(iso: string | null): string {
   if (iso === null) return '—';
   const [a, m, j] = iso.split('-');
   return `${j}/${m}/${a}`;
+}
+
+/** L'heure que porte une observation : celle de la relance pour un incident, celle de l'écriture
+ *  pour une note. C'est la question qu'on pose en premier — « à quelle heure ? ». */
+export function heureObservation(o: ObservationEod): string {
+  return heure(o.nature === 'incident' ? o.relance_le : o.cree_le);
+}
+
+/** Une observation telle qu'elle se lit dans la colonne « Observations » du rapport.
+ *
+ * Partagé par le PDF et par l'écran : si chacun composait sa ligne, le document remis à la
+ * hiérarchie ne dirait pas tout à fait ce que l'opérateur a lu en la consignant. */
+export function ligneObservation(o: ObservationEod): string {
+  const tete = o.nature === 'incident' ? `${heureObservation(o)} · ${o.agence ?? ''}` : heureObservation(o);
+  return `${tete} — ${o.texte}`;
+}
+
+/** Heure du moment, à la notation de la saisie (« 01H12 ») : l'incident se consigne sur l'instant,
+ *  et l'opérateur ne doit avoir à taper que ce qu'il corrige. */
+export function heureCourante(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}H${String(d.getMinutes()).padStart(2, '0')}`;
 }

@@ -25,14 +25,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
 from dsi360.application.autorisations import ACTEUR, capacites, charger_roles
 from dsi360.application.eod import (
+    HeureIllisible,
+    IncidentIncomplet,
     JourneeDejaOuverte,
     cloture_conseillee,
     justification_manquante,
     ouvrir_journee,
     pointage,
+    preparer_observation,
     rafraichir_avancement,
 )
-from dsi360.domain.eod import MODULE, ordre_section
+from dsi360.domain.eod import INCIDENT, MODULE, ordre_section
 from dsi360.domain.etats import est_etat_terminal, est_termine, transitions_possibles
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import phrase_propre
@@ -54,6 +57,7 @@ from dsi360.interface.schemas import (
     EtapeEodCreation,
     EtapeEodMaj,
     EtapeModeleEod,
+    ObservationEodCreation,
     PageEod,
     PointageEod,
     StatsListe,
@@ -83,6 +87,23 @@ def _donnees(r: RowMapping) -> dict[str, Any]:
     if isinstance(valeur, str):
         valeur = json.loads(valeur)
     return dict(valeur) if isinstance(valeur, dict) else {}
+
+
+def _heure(valeur: datetime | None) -> str:
+    """« 20H29 » — la notation du rapport de la banque, pas un horodatage ISO."""
+    return "" if valeur is None else valeur.astimezone().strftime("%HH%M")
+
+
+def _ligne_journal(o: RowMapping | dict[str, Any]) -> str:
+    """Une observation, telle qu'elle se lit dans la colonne « Observations » du rapport.
+
+    L'incident d'agence sort en tête avec l'heure de relance et l'agence — les deux questions que
+    la hiérarchie pose en premier quand une nuit a dérapé. Une note ordinaire se contente de
+    l'heure à laquelle elle a été consignée.
+    """
+    if o["nature"] == INCIDENT:
+        return f"{_heure(o['relance_le'])} · {o['agence']} — {o['texte']}"
+    return f"{_heure(o['cree_le'])} — {o['texte']}"
 
 
 def _responsable(r: RowMapping) -> dict[str, str] | None:
@@ -127,8 +148,24 @@ def _statut_sla(r: RowMapping, maintenant: datetime) -> str:
     return statut_sla(r["sla_resolution_le"], maintenant, _FENETRE_APPROCHE)
 
 
-def _etape(ligne: RowMapping) -> dict[str, Any]:
-    return dict(ligne)
+def _etape(
+    ligne: RowMapping, journal: dict[str, list[dict[str, Any]]] | None = None
+) -> dict[str, Any]:
+    etape: dict[str, Any] = dict(ligne)
+    etape["observations"] = (journal or {}).get(str(ligne["id"]), [])
+    return etape
+
+
+async def _journal(session: AsyncSession, activite_id: str) -> dict[str, list[dict[str, Any]]]:
+    """Le journal de la soirée, rangé par étape.
+
+    Une seule requête pour les vingt-huit étapes : aller chercher les observations étape par étape
+    ferait vingt-huit allers-retours pour ouvrir un écran que l'opérateur rouvre toute la nuit.
+    """
+    par_etape: dict[str, list[dict[str, Any]]] = {}
+    for o in await eod_repo.observations(session, activite_id):
+        par_etape.setdefault(str(o["etape_id"]), []).append(dict(o))
+    return par_etape
 
 
 async def _charger(session: AsyncSession, ident: str, courant: dict[str, Any]) -> RowMapping:
@@ -150,12 +187,20 @@ async def _detail_complet(
     ici, jamais rejouées côté navigateur.
     """
     maintenant = datetime.now(UTC)
-    etapes = [_etape(e) for e in await eod_repo.lister(session, str(r["id"]))]
+    journal = await _journal(session, str(r["id"]))
+    etapes = [_etape(e, journal) for e in await eod_repo.lister(session, str(r["id"]))]
     statuts = [str(e["statut"]) for e in etapes]
     agregat = await eod_repo.agregats(session, [str(r["id"])])
     mesures = agregat.get(
         str(r["id"]),
-        {"nb_etapes": 0, "reste": 0, "anomalies": 0, "debut_effectif": None, "fin_effective": None},
+        {
+            "nb_etapes": 0,
+            "reste": 0,
+            "anomalies": 0,
+            "incidents": 0,
+            "debut_effectif": None,
+            "fin_effective": None,
+        },
     )
     clos = est_etat_terminal(MODULE, r["statut"])
     return {
@@ -176,6 +221,17 @@ async def _detail_complet(
 async def lister_modele(_courant: Courant, session: Session) -> list[dict[str, Any]]:
     """Le déroulé que chaque soirée reçoit à son ouverture."""
     return [dict(m) for m in await eod_repo.lister_modele(session, actifs_seuls=False)]
+
+
+@routeur.get("/agences", response_model=list[str])
+async def lister_agences(_courant: Courant, session: Session) -> list[str]:
+    """Le réseau d'agences, proposé à la saisie d'un incident.
+
+    Servi par le module EOD et non par l'inventaire, bien que la liste soit la même : l'opérateur
+    de garde n'a pas nécessairement accès au parc, et lui refuser la liste des agences à 1 h du
+    matin pour une question de droits sur un autre module serait absurde.
+    """
+    return await eod_repo.agences(session)
 
 
 @routeur.get("/stats", response_model=StatsListe)
@@ -270,6 +326,10 @@ _COLONNES_EOD: tuple[tuple[str, str], ...] = (
     ("Journée comptable", "journee"),
     ("Étapes", "nb_etapes"),
     ("Anomalies", "anomalies"),
+    # Distincte des anomalies, et pas déductible d'elles : une agence peut être relancée sans que
+    # l'étape finisse en anomalie, et une anomalie de batch ne touche parfois aucune agence.
+    # C'est la colonne qui répond à « quelles agences nous coûtent nos nuits ».
+    ("Relances d'agence", "incidents"),
     ("Début effectif", "debut_effectif"),
     ("Fin effective", "fin_effective"),
 )
@@ -308,6 +368,7 @@ async def exporter(
             "journee": horodate_export(_donnees(r).get("journee")),
             "nb_etapes": mesure.get("nb_etapes", 0),
             "anomalies": mesure.get("anomalies", 0),
+            "incidents": mesure.get("incidents", 0),
             "debut_effectif": horodate_export(mesure.get("debut_effectif")),
             "fin_effective": horodate_export(mesure.get("fin_effective")),
         }
@@ -383,7 +444,8 @@ async def transitionner(
 @routeur.get("/{ident}/etapes", response_model=list[EtapeEod])
 async def lister_etapes(ident: str, courant: Courant, session: Session) -> list[dict[str, Any]]:
     await _charger(session, ident, courant)
-    return [_etape(e) for e in await eod_repo.lister(session, ident)]
+    journal = await _journal(session, ident)
+    return [_etape(e, journal) for e in await eod_repo.lister(session, ident)]
 
 
 @routeur.post("/{ident}/etapes", response_model=EodDetail, status_code=status.HTTP_201_CREATED)
@@ -403,7 +465,6 @@ async def ajouter_etape(
             "section": phrase_propre(corps.section) or corps.section,
             "libelle": corps.libelle.strip(),
             "nature": corps.nature,
-            "notes": corps.notes,
         },
     )
     await audit.consigner(
@@ -424,11 +485,13 @@ async def ajouter_etape(
 async def modifier_etape(
     ident: str, etape_id: str, corps: EtapeEodMaj, courant: Acteur, session: Session
 ) -> dict[str, Any]:
-    """Corrige une étape : son verdict, ses heures, ce qu'on y a lu, ce qu'on en dit.
+    """Corrige une étape : son verdict, ses heures, ce qu'on y a lu.
 
     Une anomalie ou un « non applicable » sans explication est refusé : six semaines plus tard,
     personne ne saura ce qui a coincé ce soir-là — et c'est précisément ce qu'on vient chercher
-    dans l'historique.
+    dans l'historique. L'explication est une **observation** — une ligne de journal signée et
+    horodatée — et elle peut venir dans le même appel que le verdict : la demander dans un second
+    temps ferait échouer le premier geste pour une raison découverte après coup.
     """
     await _charger(session, ident, courant)
     avant = await eod_repo.par_id(session, etape_id, ident)
@@ -436,20 +499,24 @@ async def modifier_etape(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Étape introuvable.")
 
     champs = corps.model_dump(exclude_unset=True)
-    champs.pop("vider_debut", None)
-    champs.pop("vider_fin", None)
+    for hors_colonne in ("vider_debut", "vider_fin", "observation"):
+        champs.pop(hors_colonne, None)
     if corps.vider_debut:
         champs["debut"] = None
     if corps.vider_fin:
         champs["fin"] = None
 
+    # On vérifie AVANT d'écrire : refuser le verdict après avoir consigné l'observation laisserait
+    # au journal une ligne qui explique une décision qui n'a pas eu lieu.
     statut = champs.get("statut", avant["statut"])
-    notes = champs["notes"] if "notes" in champs else avant["notes"]
-    if justification_manquante(str(statut), notes):
+    au_journal = await eod_repo.compter_observations(session, etape_id)
+    if justification_manquante(str(statut), au_journal + (1 if corps.observation else 0)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"« {statut} » demande une explication : renseignez les observations.",
+            detail=f"« {statut} » demande une explication : consignez une observation.",
         )
+    if corps.observation is not None:
+        await _consigner(session, ident, etape_id, corps.observation, courant)
     if not champs:
         return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
@@ -462,10 +529,100 @@ async def modifier_etape(
         module=MODULE,
         cible_type="eod_etape",
         cible_id=etape_id,
-        ancienne={"statut": avant["statut"], "notes": avant["notes"]},
+        ancienne={"statut": avant["statut"]},
         nouvelle={k: str(v) for k, v in champs.items()},
     )
     await rafraichir_avancement(session, ident)
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
+
+
+# --- Le journal d'une étape -------------------------------------------------------------------
+#
+# Append-only, sans route de modification ni de suppression. Une observation qui se corrige après
+# coup ne prouve plus rien — et c'est bien une preuve qu'on vient chercher au matin. L'erreur se
+# rattrape par l'observation suivante, qui la date et la signe (principe n° 4).
+
+
+async def _consigner(
+    session: AsyncSession,
+    ident: str,
+    etape_id: str,
+    corps: ObservationEodCreation,
+    acteur: dict[str, Any],
+) -> dict[str, Any]:
+    """Écrit une ligne au journal d'une étape, heure de relance résolue, et la journalise.
+
+    Les deux refus possibles disent ce qui manque plutôt que « requête invalide » : à 1 h du matin,
+    un message qui n'indique pas le champ fautif coûte un appel au support.
+    """
+    try:
+        champs = preparer_observation(
+            nature=corps.nature,
+            agence=corps.agence,
+            relance=corps.relance,
+            texte=corps.texte,
+            acteur=acteur,
+            maintenant=datetime.now(UTC),
+        )
+    except HeureIllisible as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"L'heure de relance « {exc.saisie} » ne se lit pas. "
+                "Attendu : 01H12, 01:12 ou 0112."
+            ),
+        ) from exc
+    except IncidentIncomplet as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Un incident d'agence doit préciser {exc.manque}.",
+        ) from exc
+
+    ligne = await eod_repo.creer_observation(
+        session, etape_id=etape_id, activite_id=ident, champs=champs
+    )
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=acteur["id"],
+        acteur_email=acteur["email"],
+        module=MODULE,
+        cible_type="eod_observation",
+        cible_id=str(ligne["id"]),
+        nouvelle={
+            "etape": etape_id,
+            "nature": str(ligne["nature"]),
+            "agence": ligne["agence"] or "",
+            "relance": _heure(ligne["relance_le"]),
+            "texte": str(ligne["texte"]),
+        },
+    )
+    return dict(ligne)
+
+
+@routeur.post(
+    "/{ident}/etapes/{etape_id}/observations",
+    response_model=EodDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def ajouter_observation(
+    ident: str,
+    etape_id: str,
+    corps: ObservationEodCreation,
+    courant: Acteur,
+    session: Session,
+) -> dict[str, Any]:
+    """Consigne ce qui vient de se passer sur une étape, et sur quelle agence s'il y a incident.
+
+    C'est le geste qui manquait. Sur « PART 3 — EOD till Post MARKBOD for all branches », une
+    agence bloque à 01H12, on relance ; une autre bloque à 01H40, on relance encore. Chaque relance
+    est une ligne : l'agence, l'heure, ce qui a été fait. Le champ unique d'avant gardait la
+    dernière phrase tapée et effaçait les précédentes — au matin, il ne restait rien à relire.
+    """
+    await _charger(session, ident, courant)
+    if await eod_repo.par_id(session, etape_id, ident) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Étape introuvable.")
+    await _consigner(session, ident, etape_id, corps, courant)
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 
@@ -527,11 +684,6 @@ async def supprimer_etape(
 _ENTETES_RAPPORT = ["Section", "Étape", "Début", "Fin", "Observations"]
 
 
-def _heure(valeur: datetime | None) -> str:
-    """« 20H29 » — la notation du rapport de la banque, pas un horodatage ISO."""
-    return "" if valeur is None else valeur.astimezone().strftime("%HH%M")
-
-
 @routeur.get("/{ident}/rapport")
 async def rapport(
     ident: str,
@@ -547,13 +699,18 @@ async def rapport(
     """
     r = await _charger(session, ident, courant)
     etapes = await eod_repo.lister(session, ident)
+    journal = await _journal(session, ident)
     lignes: list[list[Any]] = []
     for e in sorted(etapes, key=lambda x: (ordre_section(str(x["section"])), int(x["ordre"]))):
         if e["nature"] == "valeur":
             debut, fin = (e["valeur"] or ""), ""
         else:
             debut, fin = _heure(e["debut"]), _heure(e["fin"])
-        observations = e["notes"] or ("" if e["statut"] == "À faire" else str(e["statut"]))
+        # Le journal entier, une ligne par observation : c'est lui le compte rendu de la nuit.
+        # N'en garder que la dernière — ce que faisait l'ancien champ de notes — effacerait les
+        # relances successives, c'est-à-dire précisément ce que la hiérarchie vient lire.
+        consigne = "\n".join(_ligne_journal(o) for o in journal.get(str(e["id"]), []))
+        observations = consigne or ("" if e["statut"] == "À faire" else str(e["statut"]))
         lignes.append([e["section"], e["libelle"], debut, fin, observations])
 
     d = _donnees(r)
@@ -568,7 +725,9 @@ async def rapport(
             headers={"Content-Disposition": f"attachment; filename={nom}.csv"},
         )
     return Response(
-        content=vers_xlsx(_ENTETES_RAPPORT, lignes, onglet),
+        # `retour_ligne` : une étape qui a vu trois agences bloquer porte trois lignes dans sa
+        # cellule. Sans habillage, Excel les afficherait bout à bout, tronquées à la première.
+        content=vers_xlsx(_ENTETES_RAPPORT, lignes, onglet, retour_ligne=True),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={nom}.xlsx"},
     )

@@ -169,7 +169,10 @@ async def test_le_non_applicable_compte_comme_regle(
     r = await client.patch(
         f"/eod/{ident}/etapes/{etape['id']}",
         headers=entetes(operateur),
-        json={"statut": "Non applicable", "notes": "Pas une fin de mois."},
+        json={
+            "statut": "Non applicable",
+            "observation": {"texte": "Pas une fin de mois."},
+        },
     )
     assert r.status_code == 200, r.text
     assert r.json()["reste"] == 27
@@ -195,16 +198,29 @@ async def test_une_anomalie_sans_explication_est_refusee(
     )
     assert r.status_code == 400, r.text
 
+    # Verdict et explication dans le MÊME appel : demander l'observation dans un second temps
+    # ferait échouer le premier geste pour une raison découverte après coup.
     r = await client.patch(
         f"/eod/{ident}/etapes/{etape['id']}",
         headers=entetes(operateur),
         json={
             "statut": "Anomalie",
-            "notes": "Jobs démarrés mais la date reste au 15/09 au lieu du 16/09.",
+            "observation": {
+                "texte": "Jobs démarrés mais la date reste au 15/09 au lieu du 16/09.",
+            },
         },
     )
     assert r.status_code == 200, r.text
     assert r.json()["anomalies"] == 1
+    assert len(_etape(r.json(), "Batch Check : EMS_IN, EMS_OUT, EMS_OUT_PM")["observations"]) == 1
+
+    # Une observation déjà au journal suffit : le verdict se corrige ensuite sans réécrire un mot.
+    r = await client.patch(
+        f"/eod/{ident}/etapes/{etape['id']}",
+        headers=entetes(operateur),
+        json={"statut": "Non applicable"},
+    )
+    assert r.status_code == 200, r.text
 
 
 async def test_un_agent_sans_role_sur_la_soiree_ne_la_pointe_pas(
@@ -250,7 +266,10 @@ async def test_la_cloture_conseillee_suit_l_etat_reel_du_deroule(
     r = await client.patch(
         f"/eod/{ident}/etapes/{etapes[-1]['id']}",
         headers=entetes(operateur),
-        json={"statut": "Anomalie", "notes": "Sauvegarde post-EOD relancée à la main."},
+        json={
+            "statut": "Anomalie",
+            "observation": {"texte": "Sauvegarde post-EOD relancée à la main."},
+        },
     )
     assert r.status_code == 200, r.text
     assert r.json()["cloture_conseillee"] == "Clôturé avec réserves"
@@ -301,6 +320,157 @@ async def test_la_note_de_cloture_rejoint_le_journal_de_bord(
     assert texte == "Maintenance éditeur : pas d'EOD ce soir."
 
 
+# --- Le journal d'une étape ---------------------------------------------------------------------
+#
+# C'est la raison d'être des observations : sur « PART 3 », une agence bloque, on relance ; une
+# autre bloque vingt minutes plus tard, on relance encore. Le champ unique d'avant gardait la
+# dernière phrase tapée et effaçait les précédentes — au matin, il ne restait rien à relire.
+
+
+async def test_les_relances_d_agence_s_empilent_au_lieu_de_s_ecraser(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    operateur = await creer_utilisateur(session, email="eod.relances@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-09-01")
+    etape = _etape(
+        await _detail(client, operateur, ident), "EOD till Post MARKBOD for all branches"
+    )
+
+    for agence, quand, quoi in (
+        ("Agence 11 Kayes", "01H12", "POSTEOPD3 relancé, reprise OK."),
+        ("Agence 15 Segou", "01H40", "Session bloquée, relancée après purge."),
+    ):
+        r = await client.post(
+            f"/eod/{ident}/etapes/{etape['id']}/observations",
+            headers=entetes(operateur),
+            json={"nature": "incident", "agence": agence, "relance": quand, "texte": quoi},
+        )
+        assert r.status_code == 201, r.text
+
+    detail = r.json()
+    journal = _etape(detail, "EOD till Post MARKBOD for all branches")["observations"]
+    assert [o["agence"] for o in journal] == ["Agence 11 Kayes", "Agence 15 Segou"]
+    assert all(o["relance_le"] is not None for o in journal)
+    # L'auteur est figé à l'écriture : un journal dont les lignes perdent leur signataire ne
+    # prouve rien.
+    assert all(o["auteur"] is not None for o in journal)
+    # Deux agences relancées, et l'étape n'est pas pour autant en anomalie : les deux comptes ne
+    # se déduisent pas l'un de l'autre.
+    assert detail["incidents"] == 2
+    assert detail["anomalies"] == 0
+
+
+async def test_un_incident_d_agence_doit_dire_quelle_agence(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Sans l'agence, l'incident ne répond pas à la première question qu'on lui pose."""
+    operateur = await creer_utilisateur(session, email="eod.sansagence@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-31")
+    detail = await _detail(client, operateur, ident)
+    etape = _etape(detail, "Post EOFI_1 for all branch including 000 BAM")
+
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(operateur),
+        json={"nature": "incident", "texte": "Bloqué, relancé."},
+    )
+    assert r.status_code == 400, r.text
+    assert "agence" in r.json()["detail"]
+
+
+async def test_un_incident_sans_heure_saisie_est_consigne_a_l_instant(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Consigner un incident, c'est le consigner sur le moment : pas une frappe de plus à 2 h."""
+    operateur = await creer_utilisateur(session, email="eod.heureauto@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-30")
+    detail = await _detail(client, operateur, ident)
+    etape = _etape(detail, "EOD till Post EOFI_3 for branch 000 BHO")
+
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(operateur),
+        json={"nature": "incident", "agence": "000 BHO", "texte": "Relancé."},
+    )
+    assert r.status_code == 201, r.text
+    journal = _etape(r.json(), "EOD till Post EOFI_3 for branch 000 BHO")["observations"]
+    assert journal[0]["relance_le"] is not None
+
+
+async def test_une_heure_de_relance_illisible_est_refusee_en_le_disant(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le serveur ne devine pas : une heure fausse au rapport vaut moins qu'un refus expliqué."""
+    operateur = await creer_utilisateur(session, email="eod.heurefausse@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-29")
+    etape = _etape(await _detail(client, operateur, ident), "EODM")
+
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(operateur),
+        json={
+            "nature": "incident",
+            "agence": "Agence 17 Sikasso",
+            "relance": "vers minuit",
+            "texte": "Relancé.",
+        },
+    )
+    assert r.status_code == 400, r.text
+    assert "01H12" in r.json()["detail"], "le refus doit montrer ce qui est attendu"
+
+
+async def test_une_observation_ne_se_reecrit_ni_ne_s_efface(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Append-only : une observation corrigée après coup ne prouverait plus rien (principe n° 4)."""
+    operateur = await creer_utilisateur(session, email="eod.appendonly@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-28")
+    etape = _etape(await _detail(client, operateur, ident), "Date Check")
+
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(operateur),
+        json={"texte": "Date du jour conforme."},
+    )
+    assert r.status_code == 201, r.text
+    observation = _etape(r.json(), "Date Check")["observations"][0]
+
+    # Aucune route ne sert la correction ni la suppression d'une observation : l'API n'offre pas
+    # le geste, et ce n'est pas un oubli. L'erreur se rattrape par l'observation suivante.
+    chemin = f"/eod/{ident}/etapes/{etape['id']}/observations/{observation['id']}"
+    assert (await client.patch(chemin, headers=entetes(operateur), json={})).status_code in (
+        404,
+        405,
+    )
+    assert (await client.delete(chemin, headers=entetes(operateur))).status_code in (404, 405)
+
+
+async def test_un_passant_ne_consigne_rien_sur_la_nuit_d_un_autre(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    operateur = await creer_utilisateur(session, email="eod.journal.titulaire@afgbank.ml")
+    passant = await creer_utilisateur(session, email="eod.journal.passant@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-27")
+    etape = _etape(await _detail(client, operateur, ident), "Date Check")
+
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(passant),
+        json={"texte": "Vu de loin."},
+    )
+    assert r.status_code == 403, r.text
+
+
+async def test_le_reseau_d_agences_est_propose_a_la_saisie(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Proposer la liste officielle évite « Kayes », « AGENCE KAYES » et « Agence 11 Kayes »."""
+    operateur = await creer_utilisateur(session, email="eod.agences@afgbank.ml")
+    r = await client.get("/eod/agences", headers=entetes(operateur))
+    assert r.status_code == 200, r.text
+    assert isinstance(r.json(), list)
+
+
 # --- Le rapport du soir -------------------------------------------------------------------------
 
 
@@ -318,6 +488,34 @@ async def test_le_rapport_du_soir_s_exporte(client: AsyncClient, session: AsyncS
     r = await client.get(f"/eod/{ident}/rapport", headers=entetes(operateur))
     assert r.status_code == 200
     assert "spreadsheet" in r.headers["content-type"]
+
+
+async def test_le_rapport_porte_les_relances_d_agence(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """L'heure, l'agence et ce qui a été fait : ce que la hiérarchie cherche si la nuit dérape."""
+    operateur = await creer_utilisateur(session, email="eod.rapport.relance@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-26")
+    etape = _etape(
+        await _detail(client, operateur, ident), "EOD till last stage for all branches POSTEOPD3"
+    )
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(operateur),
+        json={
+            "nature": "incident",
+            "agence": "Agence 11 Kayes",
+            "relance": "01H12",
+            "texte": "POSTEOPD3 relancé, reprise OK.",
+        },
+    )
+    assert r.status_code == 201, r.text
+
+    r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
+    corps = r.content.decode("utf-8-sig", errors="replace")
+    assert "01H12" in corps
+    assert "Agence 11 Kayes" in corps
+    assert "POSTEOPD3 relancé, reprise OK." in corps
 
 
 async def test_la_liste_resume_chaque_nuit(client: AsyncClient, session: AsyncSession) -> None:
