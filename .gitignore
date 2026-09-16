@@ -8,6 +8,11 @@ __pycache__/
 # Build
 dist/
 build/
+# Builds de préparation et de repli : la mise en ligne compile à côté (`dist-maj`) pendant que
+# l'API sert encore `dist`, puis échange les deux en conservant l'ancien (`dist-old-<horodatage>`).
+# Sans cette ligne, chacun de ces répertoires apparaît en « fichier non suivi » et fait échouer
+# l'avant-vol de METTRE-A-JOUR-DSI360.bat — qui propose alors un `git clean -fd`.
+dist-*/
 # Cache incrémental de tsc : change à chaque compilation, ne dit rien du code
 *.tsbuildinfo
 
