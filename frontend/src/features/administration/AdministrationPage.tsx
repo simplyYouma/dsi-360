@@ -44,6 +44,7 @@ const MODULE_LABEL: Record<string, string> = {
   risques: 'Risques',
   cybersecurite: 'Cybersécurité',
   gouvernance: 'Gouvernance',
+  eod: 'EOD — Fin de journée',
   inventaire: 'Inventaire',
   administration: 'Administration',
 };
@@ -722,6 +723,7 @@ const LIBELLES_MODULE_SLA: Record<string, string> = {
   cybersecurite: 'Cybersécurité',
   gouvernance: 'Gouvernance',
   audit: 'Audit & recommandations',
+  eod: 'EOD — Fin de journée',
 };
 
 function OngletSla(): JSX.Element {
@@ -867,6 +869,7 @@ const MODULES_CATEGORIE: { code: string; libelle: string }[] = [
   { code: 'risque', libelle: 'Risques' },
   { code: 'cybersecurite', libelle: 'Cybersécurité' },
   { code: 'gouvernance', libelle: 'Gouvernance' },
+  { code: 'eod', libelle: 'EOD — Fin de journée' },
 ];
 
 function OngletCategories(): JSX.Element {

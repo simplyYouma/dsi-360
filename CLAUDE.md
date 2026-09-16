@@ -29,7 +29,7 @@ ni un ITSM générique du marché. C'est l'**outil de pilotage et de gouvernance
 
 ## 3. Périmètre fonctionnel (cahier des charges)
 
-Neuf modules, livrés par phases (cf. §7) :
+Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumés signalés plus bas :
 
 1. **Tableau de bord exécutif** — vue globale, KPI temps réel, alertes, activités en retard, SLA, vue DG.
 2. **Incidents** — classification, priorisation, gestionnaire, niveau de support, historique, pièces jointes, clôture.
@@ -48,6 +48,18 @@ Neuf modules, livrés par phases (cf. §7) :
    sujet se range dans un **département** de la DSI, porte ses **risques** et ses **impacts** en
    clair, et affiche un **avancement déclaré** par son gestionnaire — justification obligatoire à
    chaque mise à jour.
+
+> **Hors cahier, ajout assumé — EOD (fin de journée).** La soirée de clôture du core banking :
+> intégration du fichier CARTHAGO, sauvegardes, arrêt des canaux, bascule de la date système,
+> traitements par agence (PART 1 à 4), contrôles de batchs, réactivation. Elle se pointait dans un
+> tableau recopié chaque nuit puis envoyé par courriel — rien ne s'en conservait d'exploitable.
+> C'est une **activité** au sens plein (référence, statut, SLA, discussion, journal, indicateurs),
+> à ceci près qu'elle ne se rédige pas : elle se **pointe**. Chaque soirée reçoit à son ouverture
+> le **déroulé de référence** (`core.eod_modele_etape`, 28 étapes) recopié en étapes réelles
+> (`core.eod_etape`) ; l'avancement s'en déduit, il ne se déclare pas. Deux fins distinctes —
+> « Clôturé » et « Clôturé avec réserves » — pour que les nuits qui ont dérapé restent comptables.
+> Le rapport du soir s'exporte dans la forme exacte où la hiérarchie le lit depuis toujours.
+> Une seule soirée par journée comptable (index unique sur `donnees->>'journee'`).
 
 > **Hors cahier, ajouts assumés** — deux modules de patrimoine, tracés ici comme tels :
 > **Inventaire** (parc matériel, immobilisations IT) et **Applications** (inventaire applicatif :

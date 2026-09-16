@@ -16,6 +16,8 @@ import { ProjetPage } from '@/features/projets/ProjetPage';
 import { ChangementsPage } from '@/features/changements/ChangementsPage';
 import { ChangementPage } from '@/features/changements/ChangementPage';
 import { AuditPage } from '@/features/audit/AuditPage';
+import { EodPage } from '@/features/eod/EodPage';
+import { EodJourneePage } from '@/features/eod/EodJourneePage';
 import { InventairePage } from '@/features/inventaire/InventairePage';
 import { ApplicationsPage } from '@/features/applications/ApplicationsPage';
 import { RisquesPage } from '@/features/risques/RisquesPage';
@@ -34,6 +36,7 @@ const PAGES: Record<string, JSX.Element> = {
   '/projets': <ProjetsPage />,
   '/changements': <ChangementsPage />,
   '/audit': <AuditPage />,
+  '/eod': <EodPage />,
   '/risques': <RisquesPage />,
   '/inventaire': <InventairePage />,
   '/applications': <ApplicationsPage />,
@@ -125,6 +128,15 @@ function Racine(): JSX.Element {
             element={
               <RequiertAcces cle="projets">
                 <ProjetPage />
+              </RequiertAcces>
+            }
+          />
+          {/* Soirée EOD : page dédiée (le déroulé pointé), hors NAVIGATION, même accès. */}
+          <Route
+            path="/eod/:id"
+            element={
+              <RequiertAcces cle="eod">
+                <EodJourneePage />
               </RequiertAcces>
             }
           />

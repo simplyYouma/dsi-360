@@ -1,0 +1,197 @@
+"""Cas d'usage de l'EOD : ouvrir la soirée, pointer les étapes, en tirer l'état de la nuit.
+
+Une soirée EOD n'est pas un dossier qu'on rédige mais un déroulé qu'on pointe. Deux conséquences
+sur ce qui vit ici :
+
+* **La soirée s'ouvre en un geste.** L'opérateur donne la date de la journée comptable à clore, le
+  reste est déduit — le titre, la référence, les vingt-huit étapes du déroulé de référence. Lui
+  demander de saisir un titre et un impact avant de pouvoir pointer sa première étape reviendrait
+  à lui faire remplir un formulaire pendant que le core banking attend.
+
+* **L'avancement se déduit, il ne se déclare pas.** Il est la part des étapes réglées. Le laisser
+  saisir à la main créerait une seconde source pour un chiffre que les étapes disent déjà, et les
+  deux divergeraient (c'est la raison pour laquelle la gouvernance, elle, n'a pas de tâches).
+"""
+
+import json
+from datetime import UTC, date, datetime
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dsi360.domain.activite import calculer_priorite
+from dsi360.domain.eod import (
+    A_FAIRE,
+    ANOMALIE,
+    COMPLETE,
+    EN_COURS,
+    MODULE,
+    NON_APPLICABLE,
+    avancement,
+    compter_anomalies,
+    reste_a_faire,
+)
+from dsi360.domain.etats import etat_initial
+from dsi360.domain.sla import echeances
+from dsi360.infrastructure import audit
+from dsi360.infrastructure.repositories import activite as repo
+from dsi360.infrastructure.repositories import eod as eod_repo
+from dsi360.infrastructure.repositories import sla as sla_repo
+
+#: Priorité par défaut d'une soirée ordinaire. Impact et urgence restent réévaluables : un arrêté
+#: de fin d'exercice ne se pilote pas au même rythme qu'un mardi de novembre.
+_IMPACT_DEFAUT = 4
+_URGENCE_DEFAUT = 4
+
+
+class JourneeDejaOuverte(Exception):
+    """Une soirée couvre déjà cette date. Porte la référence pour pouvoir la nommer."""
+
+    def __init__(self, reference: str) -> None:
+        super().__init__(reference)
+        self.reference = reference
+
+
+def titre_journee(journee: date) -> str:
+    """« EOD du 15/09/2026 » — lisible dans les listes mêlées, où le module n'est pas affiché."""
+    return f"EOD du {journee.strftime('%d/%m/%Y')}"
+
+
+async def ouvrir_journee(
+    session: AsyncSession,
+    *,
+    journee: date,
+    categorie_id: str | None,
+    direction_id: str | None,
+    responsable_id: str | None,
+    impact: int | None,
+    urgence: int | None,
+    acteur: dict[str, Any],
+) -> tuple[str, str, int]:
+    """Ouvre la soirée d'une date et y pose le déroulé. Renvoie (id, référence, nb d'étapes).
+
+    Lève ``JourneeDejaOuverte`` si une soirée couvre déjà cette nuit : deux rapports pour la même
+    date seraient une faute de saisie, jamais une intention (l'index unique le garantit aussi en
+    base, mais son message ne dirait pas laquelle des deux existe déjà).
+    """
+    jour = journee.isoformat()
+    existante = await eod_repo.journee_existante(session, jour)
+    if existante is not None:
+        raise JourneeDejaOuverte(existante)
+
+    maintenant = datetime.now(UTC)
+    impact_retenu = impact or _IMPACT_DEFAUT
+    urgence_retenue = urgence or _URGENCE_DEFAUT
+    priorite = calculer_priorite(impact_retenu, urgence_retenue)
+    ech = echeances(priorite, maintenant, await sla_repo.charger_matrice(session, MODULE))
+    reference = await repo.prochaine_reference(session, MODULE, journee.year)
+    statut = etat_initial(MODULE)
+
+    identifiant = await repo.creer(
+        session,
+        {
+            "reference": reference,
+            "module": MODULE,
+            "titre": titre_journee(journee),
+            "description": None,
+            "direction_id": direction_id,
+            "categorie_id": categorie_id,
+            "demandeur_id": acteur["id"],
+            "responsable_id": responsable_id,
+            "impact": impact_retenu,
+            "urgence": urgence_retenue,
+            "priorite": priorite,
+            "statut": statut,
+            "sla_prise_en_charge_le": ech.prise_en_charge_le,
+            "sla_resolution_le": ech.resolution_le,
+            # `journee` porte la date comptable close, et non la date de saisie : une soirée
+            # commencée le 15 au soir se termine le 16 au matin. C'est elle qui fait l'unicité.
+            "donnees": json.dumps({"journee": jour, "avancement": 0}),
+        },
+    )
+    poses = await eod_repo.poser_le_deroule(session, identifiant)
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=acteur["id"],
+        acteur_email=acteur["email"],
+        module=MODULE,
+        cible_type=MODULE,
+        cible_id=reference,
+        nouvelle={"reference": reference, "journee": jour, "statut": statut, "etapes": poses},
+    )
+    return identifiant, reference, poses
+
+
+def pointage(quoi: str, etape: dict[str, Any], maintenant: datetime) -> dict[str, Any]:
+    """Champs à écrire quand l'opérateur clique « Démarrer » ou « Terminer » sur une étape.
+
+    Le geste fait deux choses à la fois, et c'est voulu : il horodate **et** il fait avancer le
+    statut. Demander les deux séparément, à 21 h, sur vingt-huit lignes, c'est garantir des étapes
+    horodatées restées « À faire » — le défaut exact du tableau qu'on remplace.
+
+    Terminer une étape jamais démarrée lui pose aussi son heure de début : l'opérateur qui
+    rattrape une ligne oubliée ne doit pas avoir à mentir sur l'heure ni à laisser un trou.
+    """
+    if quoi == "debut":
+        return {"debut": maintenant, "statut": EN_COURS}
+    fixes: dict[str, Any] = {"fin": maintenant, "statut": COMPLETE}
+    if etape.get("debut") is None:
+        fixes["debut"] = maintenant
+    return fixes
+
+
+def etat_de_la_nuit(statuts: list[str]) -> dict[str, int]:
+    """Ce que les étapes disent de la soirée : avancement, reste à faire, anomalies."""
+    return {
+        "avancement": avancement(statuts),
+        "reste": reste_a_faire(statuts),
+        "anomalies": compter_anomalies(statuts),
+        "etapes": len(statuts),
+    }
+
+
+async def rafraichir_avancement(session: AsyncSession, activite_id: str) -> dict[str, int]:
+    """Recalcule l'avancement d'après les étapes et le range dans `donnees`.
+
+    Stocké et non recalculé à chaque lecture : la liste des soirées affiche l'avancement de
+    quinze nuits, et aller compter les étapes de chacune ferait quinze requêtes pour un chiffre.
+    """
+    etat = etat_de_la_nuit(await eod_repo.statuts(session, activite_id))
+    await repo.maj_donnees(session, activite_id, {"avancement": etat["avancement"]})
+    return etat
+
+
+def cloture_conseillee(statuts: list[str]) -> str | None:
+    """Statut de clôture que les étapes justifient, ou ``None`` si la soirée n'est pas finissable.
+
+    Le serveur *conseille*, il ne décide pas : l'opérateur reste maître du verdict — une anomalie
+    peut avoir été rattrapée hors du système, et lui seul le sait. Mais proposer « Clôturé » sur
+    une nuit qui porte une anomalie serait l'inviter à effacer ce qu'il vient de constater.
+    """
+    if reste_a_faire(statuts) > 0:
+        return None
+    return "Clôturé avec réserves" if compter_anomalies(statuts) > 0 else "Clôturé"
+
+
+#: Statuts d'étape qui demandent une explication. Une anomalie sans note ne se relit pas : six
+#: semaines plus tard, personne ne saura ce qui a coincé — ni si c'est reparti.
+STATUTS_A_JUSTIFIER = frozenset({ANOMALIE, NON_APPLICABLE})
+
+
+def justification_manquante(statut: str, notes: str | None) -> bool:
+    return statut in STATUTS_A_JUSTIFIER and not (notes or "").strip()
+
+
+__all__ = [
+    "A_FAIRE",
+    "JourneeDejaOuverte",
+    "STATUTS_A_JUSTIFIER",
+    "cloture_conseillee",
+    "etat_de_la_nuit",
+    "justification_manquante",
+    "ouvrir_journee",
+    "pointage",
+    "rafraichir_avancement",
+    "titre_journee",
+]

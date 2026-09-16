@@ -35,6 +35,8 @@ MODULES_SLA: tuple[str, ...] = (
     "cybersecurite",
     "gouvernance",
     "audit",
+    # La soirée EOD : la banque doit rouvrir avant l'ouverture des agences.
+    "eod",
 )
 
 

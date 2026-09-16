@@ -576,6 +576,124 @@ class ReferentielCreation(BaseModel):
     libelle: str = Field(min_length=1, max_length=120)
 
 
+# --- EOD : la soirée de fin de journée du core banking ---
+#
+# Le déroulé est la fiche : l'écran n'affiche pas un formulaire mais le tableau que l'opérateur
+# pointait jusqu'ici dans un document Word, colonne pour colonne.
+
+StatutEtapeEod = Literal["À faire", "En cours", "Complété", "Anomalie", "Non applicable"]
+NatureEtapeEod = Literal["horaire", "valeur"]
+
+
+class EtapeEod(BaseModel):
+    id: str
+    section: str
+    libelle: str
+    nature: NatureEtapeEod
+    #: Ce qu'il faut vérifier, quand le libellé du core banking ne suffit pas à le dire.
+    aide: str | None = None
+    ordre: int
+    statut: StatutEtapeEod
+    #: Horodatages complets et non de simples heures : la soirée franchit minuit.
+    debut: datetime | None = None
+    fin: datetime | None = None
+    #: Ce qu'affichait l'écran, pour les étapes de nature « valeur » (date système relevée).
+    valeur: str | None = None
+    notes: str | None = None
+
+
+class EtapeEodMaj(BaseModel):
+    statut: StatutEtapeEod | None = None
+    debut: datetime | None = None
+    fin: datetime | None = None
+    valeur: str | None = Field(default=None, max_length=120)
+    notes: str | None = Field(default=None, max_length=2000)
+    #: Efface l'horodatage au lieu de le remplacer (corriger un clic parti trop tôt).
+    vider_debut: bool = False
+    vider_fin: bool = False
+
+
+class EtapeEodCreation(BaseModel):
+    """Étape ajoutée à la main : une vérification exceptionnelle, un rattrapage."""
+
+    section: str = Field(min_length=2, max_length=80)
+    libelle: str = Field(min_length=2, max_length=200)
+    nature: NatureEtapeEod = "horaire"
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class PointageEod(BaseModel):
+    """Un clic sur « Démarrer » ou « Terminer » : la plateforme pose l'heure, pas l'opérateur."""
+
+    quoi: Literal["debut", "fin"]
+
+
+class EodCreation(BaseModel):
+    #: Date de la journée comptable close — pas celle de la saisie : une soirée commencée le 15
+    #: au soir se termine le 16 au matin, et c'est bien le 15 qu'elle clôt.
+    journee: date
+    categorie_id: str | None = None
+    responsable_id: str | None = None
+    impact: int | None = Field(default=None, ge=1, le=5)
+    urgence: int | None = Field(default=None, ge=1, le=5)
+
+
+class EodResume(BaseModel):
+    id: str
+    reference: str
+    titre: str
+    journee: date | None
+    statut: str
+    categorie: str | None
+    responsable: ResponsableBref | None
+    responsable_id: str | None
+    priorite: int | None
+    sla_resolution_le: datetime | None
+    statut_sla: str
+    avancement: int
+    #: Étapes en anomalie. C'est le chiffre que la DSI cherche d'abord : combien de nuits ont
+    #: dérapé, et lesquelles.
+    anomalies: int = 0
+    reste: int = 0
+    nb_etapes: int = 0
+    #: Début de la première étape pointée et fin de la dernière : la durée réelle de la soirée.
+    debut_effectif: datetime | None = None
+    fin_effective: datetime | None = None
+    cree_le: datetime
+    nb_commentaires: int = 0
+    nb_non_vus: int = 0
+
+
+class EodDetail(EodResume):
+    description: str | None = None
+    categorie_id: str | None = None
+    etapes: list[EtapeEod] = []
+    transitions_possibles: list[str] = []
+    #: Clôture que les étapes justifient (« Clôturé », « Clôturé avec réserves ») ou `None` tant
+    #: qu'il reste des étapes à régler. Le serveur conseille ; l'opérateur tranche.
+    cloture_conseillee: str | None = None
+    permissions: PermissionsActivite = PermissionsActivite()
+
+
+class PageEod(BaseModel):
+    elements: list[EodResume]
+    total: int
+    page: int
+    taille: int
+
+
+class EtapeModeleEod(BaseModel):
+    """Une étape du déroulé de référence — ce qui se fait tous les soirs."""
+
+    id: str
+    section: str
+    libelle: str
+    nature: NatureEtapeEod
+    aide: str | None = None
+    ordre: int
+    actif: bool
+
+
 class StatsListe(BaseModel):
     """Comptes par phase pour l'en-tête d'une liste, plus le retard (qui traverse les phases)."""
 

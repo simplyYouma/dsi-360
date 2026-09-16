@@ -69,6 +69,13 @@ changement, projet, recommandation, risque). Socle commun à toutes :
   Permanent, Risques, Commissaires aux comptes.
 - **Risque IT** : `Identifié` → `Évalué` (**Probabilité × Impact = Criticité**) → `Traitement` →
   `Maîtrisé` / `Accepté` → `Revue périodique`.
+- **EOD (fin de journée)** : `Préparé` → `En cours` → `Clôturé` / `Clôturé avec réserves`.
+  Transverse : `Annulé` (la soirée n'a pas eu lieu — maintenance, arrêt décidé : elle ne compte
+  dans aucun taux). Les **deux clôtures** sont volontairement distinctes : « avec réserves » dit
+  qu'une étape a laissé une anomalie derrière elle. Les fondre ferait disparaître des statistiques
+  la seule chose qu'on y cherche — combien de nuits se sont mal passées, et lesquelles.
+  Particularité : le statut de la soirée se décide à la main, mais son **avancement se déduit**
+  des étapes pointées (`core.eod_etape`), jamais déclaré.
 
 ## 4. Référentiels paramétrables (Single Source Of Truth)
 
@@ -81,6 +88,9 @@ Aucune de ces valeurs n'est codée en dur : on les édite depuis l'administratio
 - **Statuts** et transitions par module.
 - **Profils & permissions** (RBAC, §5) ; le **niveau de support** est porté par le compte agent.
 - **Sources d'audit**, **types de changement**, **directions / services**.
+- **Déroulé de référence de l'EOD** (`core.eod_modele_etape`) : les étapes que reçoit chaque
+  soirée à son ouverture. Recopiées, donc modifiables soirée par soirée — retoucher le modèle
+  ne réécrit jamais une nuit passée.
 
 ## 5. Acteurs & droits (RBAC — profils métier paramétrables)
 

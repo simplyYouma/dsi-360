@@ -132,6 +132,22 @@ ETATS: dict[str, dict[str, Etat]] = {
         "Reporté": Etat(("En cours",), EN_COURS, RECUL),
         "Réalisé": Etat((), TERMINE, SUCCES),
     },
+    # EOD : la soirée de production. Cycle court — on prépare le déroulé, on le pointe, on clôt.
+    #
+    # Deux façons d'aboutir, et c'est volontaire : « Clôturé » dit que la banque a rouvert *et*
+    # que rien n'a dérapé ; « Clôturé avec réserves » dit qu'elle a rouvert mais qu'une étape a
+    # laissé une anomalie derrière elle (un batch resté sur la veille, une bascule à vérifier).
+    # Les fondre en un seul statut ferait disparaître des statistiques la seule chose que la DSI
+    # cherche à y lire : combien de nuits se sont mal passées, et lesquelles.
+    "eod": {
+        "Préparé": Etat(("En cours", "Annulé"), EN_COURS, NOUVEAU),
+        "En cours": Etat(("Clôturé", "Clôturé avec réserves", "Annulé"), EN_COURS, ACTIF),
+        "Clôturé": Etat((), TERMINE, SUCCES),
+        # Ton « attente » et non « succès » : la soirée est finie, les réserves ne le sont pas.
+        "Clôturé avec réserves": Etat((), TERMINE, ATTENTE),
+        # La soirée n'a pas eu lieu (maintenance, arrêt décidé) : elle ne compte dans aucun taux.
+        "Annulé": Etat((), ABANDONNE, ECHEC),
+    },
 }
 
 

@@ -14,6 +14,9 @@ MODULES: tuple[str, ...] = (
     "risque",
     "cybersecurite",
     "gouvernance",
+    # L'EOD n'est pas un module du cahier des charges : c'est la production quotidienne, et
+    # elle se pilote comme le reste (fiche, discussion, journal, indicateurs). Cf. domain/eod.py.
+    "eod",
 )
 
 # Préfixe de référence lisible par module (ex. INC-2026-00042).
@@ -26,6 +29,7 @@ PREFIXE_REFERENCE: dict[str, str] = {
     "risque": "RSQ",
     "cybersecurite": "CYB",
     "gouvernance": "GOV",
+    "eod": "EOD",
 }
 
 #: Modules alimentés par le rapport quotidien SysAid (ADR-0005), et **numérotés dans la même
@@ -54,12 +58,14 @@ CHEMIN_MODULE: dict[str, str] = {
     "risque": "/risques",
     "cybersecurite": "/cybersecurite",
     "gouvernance": "/gouvernance",
+    "eod": "/eod",
 }
 
-# Projets et changements ont leur page dédiée (/projets/{id}) ; les autres modules ouvrent une
+# Projets, changements et EOD ont leur page dédiée (/projets/{id}) ; les autres modules ouvrent une
 # fiche par-dessus leur liste (/incidents?fiche={id}). Le lien doit mener AU dossier : un e-mail
 # qui dépose sur le tableau de bord oblige à chercher, et la notification perd tout son intérêt.
-_PAGE_DEDIEE: frozenset[str] = frozenset({"projet", "changement"})
+# L'EOD y figure aussi : son déroulé de vingt-huit étapes ne tient pas dans une fiche modale.
+_PAGE_DEDIEE: frozenset[str] = frozenset({"projet", "changement", "eod"})
 
 
 def lien_activite(url_app: str, module: str, activite_id: str) -> str | None:

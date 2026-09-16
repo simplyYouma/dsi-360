@@ -31,6 +31,7 @@ const MODULE_COULEUR: Record<string, string> = {
   audit: 'var(--cat-5)',
   cybersecurite: 'var(--cat-4)',
   gouvernance: 'var(--cat-6)',
+  eod: 'var(--cat-7)',
 };
 
 function couleurTaux(taux: number): string {

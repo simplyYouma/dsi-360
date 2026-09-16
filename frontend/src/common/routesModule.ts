@@ -9,6 +9,7 @@ export const ROUTE_MODULE: Record<string, string> = {
   risque: '/risques',
   cybersecurite: '/cybersecurite',
   gouvernance: '/gouvernance',
+  eod: '/eod',
 };
 
 export const LIBELLE_MODULE: Record<string, string> = {
@@ -20,11 +21,12 @@ export const LIBELLE_MODULE: Record<string, string> = {
   risque: 'Risque',
   cybersecurite: 'Cybersécurité',
   gouvernance: 'Gouvernance',
+  eod: 'EOD',
 };
 
 /** Modules dont le détail est une page dédiée complète (tâches, jalons, RFC…) plutôt qu'une fiche
  *  modale : ouvrir un tel ticket doit renvoyer vers `/{route}/{id}`, pas vers la modale partielle. */
-export const MODULES_PAGE_DEDIEE = new Set<string>(['projet', 'changement']);
+export const MODULES_PAGE_DEDIEE = new Set<string>(['projet', 'changement', 'eod']);
 
 /** Capacités de la fiche par module (miroir des flags `creer_routeur` côté backend).
  *  Source unique : garantit que la fiche ouverte depuis « Mes tickets » (multi-modules) expose
@@ -66,6 +68,9 @@ export const CAPACITES_MODULE: Record<string, CapacitesModule> = {
     avecRisquesImpacts: true,
   },
   projet: { avecDocuments: true },
+  // La soirée EOD a sa page dédiée : la fiche modale ne montrerait pas le déroulé pointé,
+  // qui est tout l'objet du module.
+  eod: { avecDocuments: true, moduleCategorie: 'eod', labelCategorie: 'Type' },
 };
 
 /** Lien profond vers la fiche d'une activité (ouvre la fiche à l'arrivée). */

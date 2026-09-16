@@ -17,6 +17,9 @@ MODULES: tuple[str, ...] = (
     "risques",
     "cybersecurite",
     "gouvernance",
+    # Soirées EOD : le traitement de fin de journée du core banking. Hors des neuf modules du
+    # cahier — c'est la production quotidienne, et elle se pilote comme le reste.
+    "eod",
     # Parc matériel (immobilisations IT). Hors des neuf modules du cahier : ajout assumé.
     "inventaire",
     # Patrimoine logiciel : quelle application tourne, chez qui, administrée par qui. Hors des

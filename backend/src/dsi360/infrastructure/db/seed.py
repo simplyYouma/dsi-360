@@ -14,6 +14,7 @@ from dsi360.config.acces import (
     DEPARTEMENTS,
     PROFILS,
 )
+from dsi360.domain.eod import DEROULE_REFERENCE
 from dsi360.infrastructure.securite import hacher_mot_de_passe
 
 # La plateforme ne sert que la DSI (ADR-0003 §2). DBS reçoit les escalades N3, hors du système.
@@ -57,6 +58,12 @@ CATEGORIES: dict[str, list[tuple[str, str]]] = {
         ("CORRECTIF", "Correctif"),
         ("MFA", "MFA"),
         ("IAM", "Contrôle IAM"),
+    ],
+    # L'EOD de fin de mois embarque des traitements que les autres soirs ne voient pas
+    # (arrêté, sauvegarde EOM) : le distinguer permet de ne pas comparer des soirées différentes.
+    "eod": [
+        ("QUOTIDIEN", "EOD quotidien"),
+        ("FIN_DE_MOIS", "EOD de fin de mois"),
     ],
     "gouvernance": [
         ("COPIL", "COPIL"),
@@ -126,6 +133,19 @@ async def seed() -> None:
                     code,
                     libelle,
                 )
+        # Déroulé de référence de l'EOD. La migration le pose déjà ; on le répète ici pour qu'une
+        # base neuve parte dans le même état qu'une base migrée — sans lui, la première soirée
+        # créée n'aurait aucune étape à pointer, et l'écran serait vide sans dire pourquoi.
+        for rang, etape in enumerate(DEROULE_REFERENCE, start=1):
+            await conn.execute(
+                "INSERT INTO core.eod_modele_etape(section, libelle, nature, aide, ordre) "
+                "VALUES ($1, $2, $3, $4, $5) ON CONFLICT (section, libelle) DO NOTHING",
+                etape.section,
+                etape.libelle,
+                etape.nature,
+                etape.aide,
+                rang,
+            )
         for profil, modules in ACCES_PAR_PROFIL_DEFAUT.items():
             for acces in modules:
                 await conn.execute(

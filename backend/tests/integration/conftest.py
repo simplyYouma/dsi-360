@@ -211,6 +211,7 @@ STATUT_INITIAL: dict[str, str] = {
     "audit": "Ouverte",
     "cybersecurite": "Ouvert",
     "gouvernance": "À engager",
+    "eod": "Préparé",
 }
 
 

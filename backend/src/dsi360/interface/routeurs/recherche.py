@@ -29,6 +29,7 @@ ACCES_MODULE = {
     "risque": "risques",
     "cybersecurite": "cybersecurite",
     "gouvernance": "gouvernance",
+    "eod": "eod",
 }
 
 _REQUETE = (

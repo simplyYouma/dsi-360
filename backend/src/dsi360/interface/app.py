@@ -34,6 +34,7 @@ from dsi360.interface.routeurs import (
     cybersecurite,
     demandes,
     demandeurs,
+    eod,
     gouvernance,
     incidents,
     ingestion,
@@ -224,6 +225,7 @@ def creer_app() -> FastAPI:
     v1.include_router(risques.routeur)
     v1.include_router(cybersecurite.routeur)
     v1.include_router(gouvernance.routeur)
+    v1.include_router(eod.routeur)
     v1.include_router(projets.routeur)
     v1.include_router(inventaire.routeur)
     v1.include_router(applications.routeur)

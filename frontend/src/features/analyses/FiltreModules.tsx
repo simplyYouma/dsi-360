@@ -11,6 +11,7 @@ export const MODULES_ANALYSE: { cle: string; libelle: string }[] = [
   { cle: 'risque', libelle: 'Risques' },
   { cle: 'cybersecurite', libelle: 'Cybersécurité' },
   { cle: 'gouvernance', libelle: 'Gouvernance' },
+  { cle: 'eod', libelle: 'EOD' },
 ];
 
 interface Props {

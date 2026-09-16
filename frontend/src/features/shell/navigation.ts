@@ -8,6 +8,7 @@ import {
   Inbox,
   Landmark,
   LayoutDashboard,
+  MoonStar,
   ListChecks,
   Lock,
   Settings,
@@ -61,6 +62,8 @@ export const SECTIONS: SectionNav[] = [
       { chemin: '/demandes', libelle: 'Demandes', icone: Inbox, phase: 'P1' },
       { chemin: '/projets', libelle: 'Projets', icone: FolderKanban, phase: 'P1' },
       { chemin: '/changements', libelle: 'Changements', icone: GitPullRequestArrow, phase: 'P2' },
+      // La production quotidienne : la soirée de clôture du core banking.
+      { chemin: '/eod', libelle: 'EOD — Fin de journée', icone: MoonStar, phase: 'P1' },
     ],
   },
   {

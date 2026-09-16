@@ -43,6 +43,7 @@ _MODULE_LABEL = {
     "risque": "Risques",
     "cybersecurite": "Cybersecurite",
     "gouvernance": "Gouvernance",
+    "eod": "EOD",
 }
 
 _JOINTURE = "FROM core.activite a LEFT JOIN core.direction d ON d.id = a.direction_id"

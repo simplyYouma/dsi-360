@@ -96,7 +96,9 @@ async def _bloc_agent(
 
 # Toute l'activité qu'un agent peut porter — projets compris, au même titre que les changements.
 # (Les risques ont leur analyse dédiée, la matrice de criticité ; ils n'entrent pas dans la file.)
-_MODULES = "('incident','demande','projet','changement','audit','cybersecurite','gouvernance')"
+_MODULES = (
+    "('incident','demande','projet','changement','audit','cybersecurite','gouvernance','eod')"
+)
 _MODULES_LISTE = (
     "incident",
     "demande",
@@ -105,6 +107,7 @@ _MODULES_LISTE = (
     "audit",
     "cybersecurite",
     "gouvernance",
+    "eod",
 )
 # « Terminé sans suite » : états sans transition possible (rejeté/annulé/réalisé/clôturé selon le
 # module). Complète la clôture (cloture_le) pour sortir aussi les cartes mortes de la file active.
