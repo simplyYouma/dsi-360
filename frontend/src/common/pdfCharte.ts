@@ -77,6 +77,15 @@ export async function dessinerEnteteMarque(
     bas = MARGE + 6;
   }
 
+  // L'émetteur, en face du logo : un document qui circule doit dire d'où il sort, pas seulement
+  // au nom de qui. Le pied de page nomme l'outil ; l'en-tête nomme la direction.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...ENCRE.attenue);
+  pdf.text("DIRECTION DES SYSTÈMES D'INFORMATION", largeurPage - MARGE, MARGE + 6.5, {
+    align: 'right',
+  });
+
   pdf.setTextColor(...ENCRE.texte);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(15);

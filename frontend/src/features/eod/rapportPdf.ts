@@ -9,6 +9,11 @@
  * Le document est donc dessiné en texte : sélectionnable, cherchable, net à toute échelle, et
  * léger. Il reprend la charte de la plateforme (`common/pdfCharte`) — logo AFG Bank Mali, pied de
  * page paginé — pour qu'un rapport archivé se reconnaisse au premier coup d'œil.
+ *
+ * Il circule entre plusieurs lecteurs, souvent imprimé et désolidarisé. D'où trois partis pris :
+ * une synthèse en tête, que l'on puisse ne lire qu'elle ; le relevé des anomalies juste après,
+ * parce que c'est ce qu'un supérieur cherche en premier ; et un rappel d'identité en haut de
+ * chaque page suivante, pour qu'une feuille détachée dise encore de quelle nuit elle parle.
  */
 import { jsPDF } from 'jspdf';
 import {
@@ -42,6 +47,8 @@ const COLONNES = [
 const PAD = 1.6; // mm — respiration intérieure d'une cellule
 const LIGNE = 3.5; // mm — interligne à 8 pt
 const CORPS = 8; // pt
+const H_ENTETE_TABLEAU = 6; // mm
+const H_BANDE_SECTION = 7; // mm
 
 type Encre = readonly [number, number, number];
 
@@ -63,12 +70,27 @@ function abscisses(): number[] {
   return xs;
 }
 
-/** Ligne d'en-tête du tableau, redessinée en haut de chaque page : un tableau qui continue sans
- *  ses titres oblige le lecteur à remonter d'une page pour savoir ce qu'il lit. */
+/** « 7 h 02 » — la durée de la soirée, telle qu'on la commente en comité. */
+function duree(debut: string | null, fin: string | null): string {
+  if (debut === null || fin === null) return '—';
+  const minutes = Math.round((new Date(fin).getTime() - new Date(debut).getTime()) / 60000);
+  if (!Number.isFinite(minutes) || minutes < 0) return '—';
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/** La plage, sans flèche : « → » n'appartient pas à l'encodage des polices standard du PDF et
+ *  sortait à l'impression en « !' ». Un tiret demi-cadratin dit la même chose et existe, lui. */
+function plage(s: DetailEod): string {
+  const debut = s.debut_effectif === null ? '—' : heure(s.debut_effectif);
+  const fin = s.fin_effective === null ? 'en cours' : heure(s.fin_effective);
+  return `${debut} – ${fin}`;
+}
+
+/** Ligne d'en-tête du tableau, reposée en haut de chaque page : un tableau qui continue sans ses
+ *  titres oblige le lecteur à remonter d'une page pour savoir ce qu'il lit. */
 function dessinerEnteteTableau(pdf: jsPDF, y: number, largeurUtile: number): number {
-  const hauteur = 6;
   pdf.setFillColor(248, 249, 251);
-  pdf.rect(MARGE, y, largeurUtile, hauteur, 'F');
+  pdf.rect(MARGE, y, largeurUtile, H_ENTETE_TABLEAU, 'F');
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
   pdf.setTextColor(...ENCRE.attenue);
@@ -77,8 +99,35 @@ function dessinerEnteteTableau(pdf: jsPDF, y: number, largeurUtile: number): num
     pdf.text(c.titre.toUpperCase(), (xs[i] ?? MARGE) + PAD, y + 4);
   });
   pdf.setDrawColor(...ENCRE.filet);
-  pdf.line(MARGE, y + hauteur, MARGE + largeurUtile, y + hauteur);
-  return y + hauteur;
+  pdf.line(MARGE, y + H_ENTETE_TABLEAU, MARGE + largeurUtile, y + H_ENTETE_TABLEAU);
+  return y + H_ENTETE_TABLEAU;
+}
+
+/** Le titre de section vit DANS le tableau, en bande.
+ *
+ * Il ouvrait auparavant un tableau par section, en-tête compris : quatre des cinq sections du
+ * déroulé ne portent qu'une étape, et le document passait plus de place à se présenter qu'à
+ * rendre compte. */
+function dessinerBandeSection(
+  pdf: jsPDF,
+  titre: string,
+  reglees: number,
+  total: number,
+  y: number,
+  largeurUtile: number,
+): number {
+  pdf.setFillColor(241, 243, 246);
+  pdf.rect(MARGE, y, largeurUtile, H_BANDE_SECTION, 'F');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...ENCRE.texte);
+  pdf.text(titre.toUpperCase(), MARGE + PAD, y + 4.8);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(...ENCRE.attenue);
+  pdf.text(`${reglees} / ${total} réglées`, MARGE + largeurUtile - PAD, y + 4.8, {
+    align: 'right',
+  });
+  return y + H_BANDE_SECTION;
 }
 
 interface Cellules {
@@ -91,6 +140,11 @@ interface Cellules {
 }
 
 function cellules(pdf: jsPDF, e: EtapeEod): Cellules {
+  // `splitTextToSize` mesure avec la police COURANTE. Sans ce réglage, le découpage héritait des
+  // 7 pt de la bande de section ou de l'en-tête : plus de caractères tenaient par ligne qu'à
+  // 8 pt, et les observations débordaient du cadre à l'impression.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(CORPS);
   const largeurEtape = COLONNES[0].largeur - 2 * PAD;
   const largeurObs = COLONNES[4].largeur - 2 * PAD;
   // L'aide de l'étape (« Seulement les soirs de fin de mois… ») est portée par le déroulé de
@@ -161,13 +215,9 @@ function dessinerSynthese(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: num
       valeur: s.responsable === null ? '—' : `${s.responsable.prenom} ${s.responsable.nom}`,
       encre: ENCRE.texte,
     },
-    {
-      etiquette: 'Plage',
-      valeur: `${s.debut_effectif === null ? '—' : heure(s.debut_effectif)} → ${
-        s.fin_effective === null ? '…' : heure(s.fin_effective)
-      }`,
-      encre: ENCRE.texte,
-    },
+    { etiquette: 'Nature', valeur: s.categorie ?? '—', encre: ENCRE.texte },
+    { etiquette: 'Plage', valeur: plage(s), encre: ENCRE.texte },
+    { etiquette: 'Durée', valeur: duree(s.debut_effectif, s.fin_effective), encre: ENCRE.texte },
     {
       etiquette: 'Étapes réglées',
       valeur: `${s.nb_etapes - s.reste} / ${s.nb_etapes}`,
@@ -182,7 +232,7 @@ function dessinerSynthese(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: num
     },
   ];
 
-  const colonnes = 3;
+  const colonnes = 4;
   const largeurCase = largeurUtile / colonnes;
   const hauteurCase = 11;
   const hauteur = hauteurCase * Math.ceil(cases.length / colonnes);
@@ -198,12 +248,80 @@ function dessinerSynthese(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: num
     pdf.setTextColor(...ENCRE.attenue);
     pdf.text(c.etiquette.toUpperCase(), x + 3, haut + 4.2);
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(9.5);
+    pdf.setFontSize(9);
     pdf.setTextColor(...c.encre);
-    pdf.text(c.valeur, x + 3, haut + 8.8);
+    pdf.text(pdf.splitTextToSize(c.valeur, largeurCase - 6)[0] ?? '', x + 3, haut + 8.8);
   });
 
-  return y + hauteur + 7;
+  return y + hauteur + 6;
+}
+
+/** Le relevé des anomalies, juste sous la synthèse.
+ *
+ * Elles sont déjà dans le déroulé, mais noyées : deux lignes rouges sur vingt-huit, réparties sur
+ * deux pages. Un supérieur qui reçoit ce rapport cherche d'abord ce qui s'est mal passé — le lui
+ * faire chercher, c'est prendre le risque qu'il ne le trouve pas. Rien n'est affiché quand la nuit
+ * s'est bien passée : un encadré vide ferait douter. */
+function dessinerAnomalies(pdf: jsPDF, s: DetailEod, y: number, largeurUtile: number): number {
+  const fautives = s.etapes.filter((e) => e.statut === 'Anomalie');
+  if (fautives.length === 0) return y;
+
+  const largeurTexte = largeurUtile - 10;
+  // Même précaution que dans `cellules` : on découpe dans la police qui servira à tracer.
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  const blocs = fautives.map((e) => ({
+    titre: `${e.section} · ${e.libelle}`,
+    quand: e.nature === 'valeur' ? '' : `${heure(e.debut)} – ${heure(e.fin)}`,
+    detail: pdf.splitTextToSize(e.notes ?? 'Sans explication consignée.', largeurTexte),
+  }));
+
+  const hauteur = 7 + blocs.reduce((t, b) => t + 4.4 + b.detail.length * 3.4 + 2.2, 0);
+
+  pdf.setFillColor(252, 245, 245);
+  pdf.rect(MARGE, y, largeurUtile, hauteur, 'F');
+  pdf.setFillColor(...ENCRE.alerte);
+  pdf.rect(MARGE, y, 1.2, hauteur, 'F');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7);
+  pdf.setTextColor(...ENCRE.alerte);
+  pdf.text(`ANOMALIES RELEVÉES (${fautives.length})`, MARGE + 5, y + 4.6);
+
+  let curseur = y + 9.4;
+  for (const b of blocs) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...ENCRE.texte);
+    pdf.text(pdf.splitTextToSize(b.titre, largeurTexte - 22)[0] ?? '', MARGE + 5, curseur);
+    if (b.quand !== '') {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(...ENCRE.attenue);
+      pdf.text(b.quand, MARGE + largeurUtile - 4, curseur, { align: 'right' });
+    }
+    curseur += 4.4;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...ENCRE.attenue);
+    pdf.text(b.detail, MARGE + 5, curseur);
+    curseur += b.detail.length * 3.4 + 2.2;
+  }
+
+  return y + hauteur + 6;
+}
+
+/** Rappel d'identité en haut des pages suivantes : une feuille détachée doit encore dire de quelle
+ *  nuit elle parle, et de quel document elle vient. */
+function dessinerRappel(pdf: jsPDF, s: DetailEod, largeurPage: number): number {
+  const y = MARGE;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...ENCRE.attenue);
+  pdf.text(`Rapport de fin de journée · ${jour(s.journee)}`, MARGE, y);
+  pdf.text(s.reference, largeurPage - MARGE, y, { align: 'right' });
+  pdf.setDrawColor(...ENCRE.filet);
+  pdf.line(MARGE, y + 2, largeurPage - MARGE, y + 2);
+  return y + 6;
 }
 
 /** Deux visas en bas du document. Un rapport de nuit se rend et se contrôle : sans emplacement
@@ -235,7 +353,7 @@ export async function exporterRapportEodPdf(soiree: DetailEod): Promise<void> {
   const largeurPage = pdf.internal.pageSize.getWidth();
   const hauteurPage = pdf.internal.pageSize.getHeight();
   const largeurUtile = largeurPage - 2 * MARGE;
-  const basUtile = hauteurPage - PIED_H;
+  const basUtile = hauteurPage - PIED_H - 3; // 3 mm : une ligne ne doit pas toucher le filet du pied
 
   let y = await dessinerEnteteMarque(
     pdf,
@@ -245,44 +363,57 @@ export async function exporterRapportEodPdf(soiree: DetailEod): Promise<void> {
   );
 
   y = dessinerSynthese(pdf, soiree, y, largeurUtile);
+  y = dessinerAnomalies(pdf, soiree, y, largeurUtile);
 
-  /** Ouvre une page et y repose l'en-tête du tableau. */
+  /** Ouvre une page, y rappelle l'identité du document puis repose l'en-tête du tableau. */
   const pageSuivante = (): void => {
     pdf.addPage();
-    y = dessinerEnteteTableau(pdf, MARGE, largeurUtile);
+    y = dessinerRappel(pdf, soiree, largeurPage);
+    y = dessinerEnteteTableau(pdf, y, largeurUtile);
   };
+
+  y = dessinerEnteteTableau(pdf, y, largeurUtile);
 
   for (const groupe of grouperParSection(soiree.etapes)) {
     const reglees = groupe.etapes.filter(estReglee).length;
+    const premiere = groupe.etapes[0];
 
-    // Un titre de section seul en bas de page annonce un tableau qui commence ailleurs.
-    if (y + 7 + 6 + 8 > basUtile) pageSuivante();
+    // Une bande de section seule en bas de page annonce des étapes qui commencent ailleurs : on
+    // mesure la première ligne pour n'ouvrir la page qu'une fois, et au bon moment.
+    const hPremiere = premiere === undefined ? 0 : hauteurLigne(cellules(pdf, premiere));
+    if (y + H_BANDE_SECTION + hPremiere > basUtile) pageSuivante();
 
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(8);
-    pdf.setTextColor(...ENCRE.texte);
-    pdf.text(groupe.titre.toUpperCase(), MARGE, y + 4);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(...ENCRE.attenue);
-    pdf.text(`${reglees} / ${groupe.etapes.length} réglées`, MARGE + largeurUtile, y + 4, {
-      align: 'right',
-    });
-    y += 7;
-
-    y = dessinerEnteteTableau(pdf, y, largeurUtile);
+    y = dessinerBandeSection(pdf, groupe.titre, reglees, groupe.etapes.length, y, largeurUtile);
 
     for (const e of groupe.etapes) {
       const c = cellules(pdf, e);
       const h = hauteurLigne(c);
-      if (y + h > basUtile) pageSuivante();
+      if (y + h > basUtile) {
+        pageSuivante();
+        // Une section coupée redit son nom : sans cela, le lecteur de la page suivante voit des
+        // étapes sans savoir à quelle phase de la nuit elles appartiennent — et ce document se
+        // lit page par page, souvent imprimé et désolidarisé.
+        y = dessinerBandeSection(
+          pdf,
+          `${groupe.titre} (suite)`,
+          reglees,
+          groupe.etapes.length,
+          y,
+          largeurUtile,
+        );
+      }
       dessinerLigne(pdf, e, c, y, largeurUtile);
       y += h;
     }
-    y += 6;
   }
 
-  if (y + 20 > basUtile) pageSuivante();
-  dessinerVisas(pdf, y + 4, largeurUtile);
+  // Page nue si les visas ne tiennent pas : `pageSuivante` y poserait un en-tête de tableau qui
+  // n'annoncerait aucune ligne.
+  if (y + 22 > basUtile) {
+    pdf.addPage();
+    y = dessinerRappel(pdf, soiree, largeurPage);
+  }
+  dessinerVisas(pdf, y + 10, largeurUtile);
 
   dessinerPieds(pdf, largeurPage, hauteurPage);
   pdf.save(`${nomDeFichier(`rapport eod ${jour(soiree.journee)}`)}.pdf`);
