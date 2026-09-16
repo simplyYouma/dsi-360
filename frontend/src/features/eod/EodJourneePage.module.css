@@ -132,6 +132,13 @@
   gap: var(--space-2);
 }
 
+.sectionEntete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .sectionTitre {
   margin: 0;
   font-size: var(--text-sm);
@@ -139,6 +146,21 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.sectionCompte {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* Une section entièrement réglée se signale. Sur cinq sections et vingt-huit lignes, savoir ce
+ * qu'on a derrière soi vaut autant que savoir ce qui reste — et c'est la seule information de
+ * progression que l'œil trouve sans compter. */
+.sectionFaite {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--status-ok);
 }
 
 .tableau {
@@ -302,6 +324,61 @@
   background: var(--surface);
   color: var(--text);
   font: inherit;
+}
+
+/* --- Choisir la forme du rapport ----------------------------------------------------------- */
+
+.formats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* Trois formats, trois usages distincts — et le nom seul ne dit pas lequel prendre. Chaque option
+ * porte donc ce à quoi elle sert : on choisit en lisant, pas en essayant. */
+.format {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  grid-template-areas:
+    'icone nom'
+    '.     quoi';
+  gap: 2px var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.format:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  background: var(--surface-2, var(--bg));
+}
+
+.format:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.format > svg {
+  grid-area: icone;
+  align-self: center;
+  color: var(--text-muted);
+}
+
+.formatNom {
+  grid-area: nom;
+  font-weight: 600;
+}
+
+.formatQuoi {
+  grid-area: quoi;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
 .note {

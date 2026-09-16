@@ -96,6 +96,27 @@ export const eodApi = {
     api.get('/referentiels/categories?module=eod'),
 };
 
+/** Le déroulé, coupé en sections dans l'ordre où le serveur l'a rendu.
+ *
+ * Partagé par l'écran et par le rapport PDF : si les deux groupaient à leur façon, une étape
+ * ajoutée en cours de soirée pourrait se ranger ici et là différemment — et le document remis à
+ * la hiérarchie ne montrerait plus la nuit telle qu'elle s'est pointée. */
+export function grouperParSection(etapes: EtapeEod[]): { titre: string; etapes: EtapeEod[] }[] {
+  const groupes: { titre: string; etapes: EtapeEod[] }[] = [];
+  for (const e of etapes) {
+    const dernier = groupes[groupes.length - 1];
+    if (dernier !== undefined && dernier.titre === e.section) dernier.etapes.push(e);
+    else groupes.push({ titre: e.section, etapes: [e] });
+  }
+  return groupes;
+}
+
+/** Une étape est « réglée » dès qu'elle porte un verdict — y compris « Non applicable », qui est
+ *  une décision et non un oubli. C'est le compte affiché à l'écran comme au rapport. */
+export function estReglee(e: EtapeEod): boolean {
+  return e.statut !== 'À faire' && e.statut !== 'En cours';
+}
+
 /** « 20H29 » — la notation du rapport de la banque, et non un horodatage ISO. */
 export function heure(iso: string | null): string {
   if (iso === null) return '';

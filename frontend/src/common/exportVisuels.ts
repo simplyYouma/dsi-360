@@ -3,10 +3,8 @@ import { jsPDF } from 'jspdf';
 // oklch — que html2canvas 1.4.1 refuse (« unsupported color function »), ce qui faisait échouer
 // l'export dès qu'un visuel touchait la charte (fonds en color-mix partout).
 import html2canvas from 'html2canvas-pro';
-import logoUrl from '@/assets/brand/logo1.png';
+import { MARGE, PIED_H, dessinerEnteteMarque, dessinerPieds, nomDeFichier } from './pdfCharte';
 
-const MARGE = 14; // mm
-const PIED_H = 12; // mm réservés au pied de page
 const ESPACE = 6; // mm entre deux visuels
 
 /** Capture un seul visuel, en mode clair forcé, sans les boutons d'export. */
@@ -22,16 +20,6 @@ async function capturer(element: HTMLElement, echelle: number): Promise<HTMLCanv
   });
 }
 
-function nomDeFichier(nom: string): string {
-  const slug = nom
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  return `dsi360-${slug || 'visuel'}`;
-}
-
 /** Exporte un visuel en PNG haute définition (3×), tel qu'il est à l'écran. */
 export async function exporterVisuelPng(element: HTMLElement, nom: string): Promise<void> {
   const canvas = await capturer(element, 3);
@@ -41,69 +29,15 @@ export async function exporterVisuelPng(element: HTMLElement, nom: string): Prom
   lien.click();
 }
 
-function chargerImage(url: string): Promise<HTMLImageElement> {
-  return new Promise((resoudre, rejeter) => {
-    const img = new Image();
-    img.onload = () => resoudre(img);
-    img.onerror = rejeter;
-    img.src = url;
-  });
-}
-
-/** En-tête de la première page : logo, titre, horodatage, filet. Retourne le y disponible. */
-async function dessinerEntete(pdf: jsPDF, titre: string, largeurPage: number): Promise<number> {
-  let bas = MARGE;
-  try {
-    const logo = await chargerImage(logoUrl);
-    const h = 9;
-    pdf.addImage(logo, 'PNG', MARGE, MARGE, (logo.width / logo.height) * h, h);
-    bas = MARGE + h;
-  } catch {
-    bas = MARGE + 6;
-  }
-  pdf.setTextColor(22, 24, 29);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(15);
-  pdf.text(titre, MARGE, bas + 8);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(9);
-  pdf.setTextColor(120, 128, 140);
-  const date = new Date().toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  pdf.text(`Édité le ${date}`, MARGE, bas + 13);
-  const y = bas + 17;
-  pdf.setDrawColor(224, 227, 231);
-  pdf.line(MARGE, y, largeurPage - MARGE, y);
-  return y + ESPACE;
-}
-
-/** Pied de chaque page : la plateforme à gauche, la pagination à droite. */
-function dessinerPieds(pdf: jsPDF, largeurPage: number, hauteurPage: number): void {
-  const total = pdf.getNumberOfPages();
-  for (let n = 1; n <= total; n += 1) {
-    pdf.setPage(n);
-    const y = hauteurPage - 8;
-    pdf.setDrawColor(224, 227, 231);
-    pdf.line(MARGE, y - 4, largeurPage - MARGE, y - 4);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(8);
-    pdf.setTextColor(120, 128, 140);
-    pdf.text('DSI 360 — Plateforme de pilotage de la DSI · AFG Bank Mali', MARGE, y);
-    pdf.text(`Page ${n} / ${total}`, largeurPage - MARGE, y, { align: 'right' });
-  }
-}
-
 /**
  * Exporte les visuels d'une page dans un document A4 structuré.
  *
  * Chaque bloc `[data-visuel]` est capturé séparément, dans son état à l'écran, puis posé entier :
  * un visuel qui ne tient pas dans la page en ouvre une nouvelle — jamais de coupure au milieu.
  * Un visuel plus haut qu'une page est réduit pour y tenir.
+ *
+ * À réserver aux graphiques : ce qui sort d'ici est une IMAGE. Pour un tableau destiné à être lu,
+ * cité ou recherché, composer le document en texte (cf. features/eod/rapportPdf).
  */
 export async function exporterVisuelsPdf(
   conteneur: HTMLElement,
@@ -121,7 +55,7 @@ export async function exporterVisuelsPdf(
   const largeur = largeurPage - 2 * MARGE;
   const basUtile = hauteurPage - PIED_H;
 
-  let y = await dessinerEntete(pdf, titre, largeurPage);
+  let y = await dessinerEnteteMarque(pdf, titre, null, largeurPage);
 
   for (const bloc of blocs) {
     // Capture à 3× : à la largeur d'une page A4, 2× rendait le texte flou (résolution trop basse

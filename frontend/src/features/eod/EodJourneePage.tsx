@@ -3,11 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Check,
+  FileDown,
   FileSpreadsheet,
+  FileText,
   Play,
   Plus,
   RotateCcw,
   SlashSquare,
+  Table2,
   TriangleAlert,
   X,
 } from 'lucide-react';
@@ -17,7 +20,17 @@ import { ChampInline } from '@/common/ChampInline';
 import { ModaleConfirmation } from '@/common/ModaleConfirmation';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi, telecharger } from '@/lib/api';
-import { eodApi, heure, jour, type DetailEod, type EtapeEod, type StatutEtape } from './eodApi';
+import {
+  eodApi,
+  estReglee,
+  grouperParSection,
+  heure,
+  jour,
+  type DetailEod,
+  type EtapeEod,
+  type StatutEtape,
+} from './eodApi';
+import { exporterRapportEodPdf } from './rapportPdf';
 import styles from './EodJourneePage.module.css';
 
 /** Couleur d'un verdict d'étape. Le vert est réservé à ce qui a abouti ; le gris à ce qui ne
@@ -52,16 +65,6 @@ function amorceNotes(statut: StatutEtape, notes: string | null): { notes?: strin
   return {};
 }
 
-function sections(etapes: EtapeEod[]): { titre: string; etapes: EtapeEod[] }[] {
-  const groupes: { titre: string; etapes: EtapeEod[] }[] = [];
-  for (const e of etapes) {
-    const dernier = groupes[groupes.length - 1];
-    if (dernier !== undefined && dernier.titre === e.section) dernier.etapes.push(e);
-    else groupes.push({ titre: e.section, etapes: [e] });
-  }
-  return groupes;
-}
-
 export function EodJourneePage(): JSX.Element {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -75,6 +78,8 @@ export function EodJourneePage(): JSX.Element {
   const [aSupprimer, setASupprimer] = useState<EtapeEod | null>(null);
   const [transitionVisee, setTransitionVisee] = useState<string | null>(null);
   const [noteTransition, setNoteTransition] = useState('');
+  const [exportOuvert, setExportOuvert] = useState(false);
+  const [exportEnCours, setExportEnCours] = useState(false);
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -112,6 +117,25 @@ export function EodJourneePage(): JSX.Element {
   const peutEcrire = soiree.permissions.peut_travailler;
   const pointee = soiree.nb_etapes - soiree.reste;
 
+  /** Le PDF se compose dans le navigateur, à partir de la soirée déjà chargée : aucun aller-retour
+   *  serveur, et le document sort même si le réseau vient de lâcher — la nuit, ça compte. */
+  const exporterPdf = async (): Promise<void> => {
+    setExportEnCours(true);
+    try {
+      await exporterRapportEodPdf(soiree);
+      setExportOuvert(false);
+    } catch {
+      notifier("Le rapport n'a pas pu être composé.", 'erreur');
+    } finally {
+      setExportEnCours(false);
+    }
+  };
+
+  const telechargerTableur = (format: 'xlsx' | 'csv'): void => {
+    void telecharger(`/eod/${id}/rapport?format=${format}`);
+    setExportOuvert(false);
+  };
+
   const transitionner = async (vers: string): Promise<void> => {
     // Clore une nuit inachevée reste possible — une soirée peut être arrêtée pour de bonnes
     // raisons — mais le serveur exige alors une note. On la demande avant d'envoyer, plutôt que
@@ -147,11 +171,14 @@ export function EodJourneePage(): JSX.Element {
           </div>
         </div>
         <div className={styles.actions}>
+          {/* Une fois la soirée close, il ne reste qu'un geste : rendre compte. Le bouton passe
+              alors au premier plan — tant qu'il y a des étapes à pointer, il ne doit pas
+              concurrencer la clôture. */}
           <Button
-            variante="secondaire"
-            onClick={() => void telecharger(`/eod/${id}/rapport?format=xlsx`)}
+            variante={soiree.transitions_possibles.length === 0 ? 'primaire' : 'secondaire'}
+            onClick={() => setExportOuvert(true)}
           >
-            <FileSpreadsheet size={16} />
+            <FileDown size={16} />
             Rapport du soir
           </Button>
           {peutEcrire &&
@@ -207,146 +234,160 @@ export function EodJourneePage(): JSX.Element {
         </p>
       )}
 
-      {sections(soiree.etapes).map((groupe) => (
-        <section key={groupe.titre} className={styles.section}>
-          <h2 className={styles.sectionTitre}>{groupe.titre}</h2>
-          <table className={styles.tableau}>
-            <thead>
-              <tr>
-                <th>Étape</th>
-                <th className={styles.colHeure}>Début</th>
-                <th className={styles.colHeure}>Fin</th>
-                <th className={styles.colStatut}>Verdict</th>
-                <th>Observations</th>
-                <th className={styles.colRetrait} aria-label="Retirer" />
-              </tr>
-            </thead>
-            <tbody>
-              {groupe.etapes.map((e) => (
-                <tr key={e.id} className={e.statut === 'Anomalie' ? styles.ligneAnomalie : ''}>
-                  <td>
-                    <span className={styles.libelle} title={e.aide ?? undefined}>
-                      {e.libelle}
-                    </span>
-                    {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
-                  </td>
+      {grouperParSection(soiree.etapes).map((groupe) => {
+        // Le compte par section, et non le seul total : à 2 h du matin, « où en suis-je » se
+        // répond par « PART 3 à moitié faite », pas par « 19 étapes sur 28 ».
+        const reglees = groupe.etapes.filter(estReglee).length;
+        return (
+          <section key={groupe.titre} className={styles.section}>
+            <div className={styles.sectionEntete}>
+              <h2 className={styles.sectionTitre}>{groupe.titre}</h2>
+              <span
+                className={
+                  reglees === groupe.etapes.length ? styles.sectionFaite : styles.sectionCompte
+                }
+              >
+                {reglees}/{groupe.etapes.length} réglées
+              </span>
+            </div>
+            <table className={styles.tableau}>
+              <thead>
+                <tr>
+                  <th>Étape</th>
+                  <th className={styles.colHeure}>Début</th>
+                  <th className={styles.colHeure}>Fin</th>
+                  <th className={styles.colStatut}>Verdict</th>
+                  <th>Observations</th>
+                  <th className={styles.colRetrait} aria-label="Retirer" />
+                </tr>
+              </thead>
+              <tbody>
+                {groupe.etapes.map((e) => (
+                  <tr key={e.id} className={e.statut === 'Anomalie' ? styles.ligneAnomalie : ''}>
+                    <td>
+                      <span className={styles.libelle} title={e.aide ?? undefined}>
+                        {e.libelle}
+                      </span>
+                      {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
+                    </td>
 
-                  {e.nature === 'valeur' ? (
-                    // « System Date » : ce qui compte n'est pas quand on a regardé, mais ce qu'on
-                    // a lu. Une seule cellule, sur les deux colonnes d'heures.
-                    <td colSpan={2} className={styles.valeur}>
+                    {e.nature === 'valeur' ? (
+                      // « System Date » : ce qui compte n'est pas quand on a regardé, mais ce qu'on
+                      // a lu. Une seule cellule, sur les deux colonnes d'heures.
+                      <td colSpan={2} className={styles.valeur}>
+                        <ChampInline
+                          valeur={e.valeur ?? ''}
+                          indication="jj/mm/aaaa"
+                          lectureSeule={!peutEcrire}
+                          onValider={(v) =>
+                            void agir(`valeur:${e.id}`, () =>
+                              eodApi.majEtape(id, e.id, {
+                                valeur: v,
+                                statut: v.trim() === '' ? 'À faire' : 'Complété',
+                              }),
+                            )
+                          }
+                          aria-label={`Valeur relevée — ${e.libelle}`}
+                        />
+                      </td>
+                    ) : (
+                      <>
+                        <td className={styles.colHeure}>
+                          {e.debut !== null ? (
+                            <span className={styles.horodate}>{heure(e.debut)}</span>
+                          ) : peutEcrire ? (
+                            <button
+                              className={styles.pointer}
+                              disabled={occupe !== null}
+                              onClick={() =>
+                                void agir(`debut:${e.id}`, () => eodApi.pointer(id, e.id, 'debut'))
+                              }
+                            >
+                              <Play size={13} /> Démarrer
+                            </button>
+                          ) : (
+                            <span className={styles.vide}>—</span>
+                          )}
+                        </td>
+                        <td className={styles.colHeure}>
+                          {e.fin !== null ? (
+                            <span className={styles.horodate}>{heure(e.fin)}</span>
+                          ) : peutEcrire ? (
+                            <button
+                              className={styles.pointer}
+                              disabled={occupe !== null}
+                              onClick={() =>
+                                void agir(`fin:${e.id}`, () => eodApi.pointer(id, e.id, 'fin'))
+                              }
+                            >
+                              <Check size={13} /> Terminer
+                            </button>
+                          ) : (
+                            <span className={styles.vide}>—</span>
+                          )}
+                        </td>
+                      </>
+                    )}
+
+                    <td className={styles.colStatut}>
+                      <StatusBadge couleur={COULEUR_STATUT[e.statut]}>{e.statut}</StatusBadge>
+                      {peutEcrire && (
+                        <div className={styles.verdicts}>
+                          {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => (
+                            <button
+                              key={v.statut}
+                              className={styles.verdict}
+                              title={v.libelle}
+                              disabled={occupe !== null}
+                              onClick={() =>
+                                void agir(`statut:${e.id}`, () =>
+                                  eodApi.majEtape(id, e.id, {
+                                    statut: v.statut,
+                                    ...amorceNotes(v.statut, e.notes),
+                                  }),
+                                )
+                              }
+                            >
+                              <v.icone size={13} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+
+                    <td>
                       <ChampInline
-                        valeur={e.valeur ?? ''}
-                        indication="jj/mm/aaaa"
+                        valeur={e.notes ?? ''}
+                        multiligne
+                        indication="Ce qu'il faut retenir de cette étape…"
                         lectureSeule={!peutEcrire}
+                        repliable={2}
                         onValider={(v) =>
-                          void agir(`valeur:${e.id}`, () =>
-                            eodApi.majEtape(id, e.id, {
-                              valeur: v,
-                              statut: v.trim() === '' ? 'À faire' : 'Complété',
-                            }),
-                          )
+                          void agir(`notes:${e.id}`, () => eodApi.majEtape(id, e.id, { notes: v }))
                         }
-                        aria-label={`Valeur relevée — ${e.libelle}`}
+                        aria-label={`Observations — ${e.libelle}`}
                       />
                     </td>
-                  ) : (
-                    <>
-                      <td className={styles.colHeure}>
-                        {e.debut !== null ? (
-                          <span className={styles.horodate}>{heure(e.debut)}</span>
-                        ) : peutEcrire ? (
-                          <button
-                            className={styles.pointer}
-                            disabled={occupe !== null}
-                            onClick={() =>
-                              void agir(`debut:${e.id}`, () => eodApi.pointer(id, e.id, 'debut'))
-                            }
-                          >
-                            <Play size={13} /> Démarrer
-                          </button>
-                        ) : (
-                          <span className={styles.vide}>—</span>
-                        )}
-                      </td>
-                      <td className={styles.colHeure}>
-                        {e.fin !== null ? (
-                          <span className={styles.horodate}>{heure(e.fin)}</span>
-                        ) : peutEcrire ? (
-                          <button
-                            className={styles.pointer}
-                            disabled={occupe !== null}
-                            onClick={() =>
-                              void agir(`fin:${e.id}`, () => eodApi.pointer(id, e.id, 'fin'))
-                            }
-                          >
-                            <Check size={13} /> Terminer
-                          </button>
-                        ) : (
-                          <span className={styles.vide}>—</span>
-                        )}
-                      </td>
-                    </>
-                  )}
 
-                  <td className={styles.colStatut}>
-                    <StatusBadge couleur={COULEUR_STATUT[e.statut]}>{e.statut}</StatusBadge>
-                    {peutEcrire && (
-                      <div className={styles.verdicts}>
-                        {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => (
-                          <button
-                            key={v.statut}
-                            className={styles.verdict}
-                            title={v.libelle}
-                            disabled={occupe !== null}
-                            onClick={() =>
-                              void agir(`statut:${e.id}`, () =>
-                                eodApi.majEtape(id, e.id, {
-                                  statut: v.statut,
-                                  ...amorceNotes(v.statut, e.notes),
-                                }),
-                              )
-                            }
-                          >
-                            <v.icone size={13} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-
-                  <td>
-                    <ChampInline
-                      valeur={e.notes ?? ''}
-                      multiligne
-                      indication="Ce qu'il faut retenir de cette étape…"
-                      lectureSeule={!peutEcrire}
-                      repliable={2}
-                      onValider={(v) =>
-                        void agir(`notes:${e.id}`, () => eodApi.majEtape(id, e.id, { notes: v }))
-                      }
-                      aria-label={`Observations — ${e.libelle}`}
-                    />
-                  </td>
-
-                  <td className={styles.colRetrait}>
-                    {peutEcrire && (
-                      <button
-                        className={styles.retrait}
-                        title="Retirer cette étape de la soirée"
-                        disabled={occupe !== null}
-                        onClick={() => setASupprimer(e)}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ))}
+                    <td className={styles.colRetrait}>
+                      {peutEcrire && (
+                        <button
+                          className={styles.retrait}
+                          title="Retirer cette étape de la soirée"
+                          disabled={occupe !== null}
+                          onClick={() => setASupprimer(e)}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        );
+      })}
 
       {peutEcrire && (
         <div className={styles.piedDeroule}>
@@ -360,6 +401,49 @@ export function EodJourneePage(): JSX.Element {
           </span>
         </div>
       )}
+
+      <Modale
+        ouverte={exportOuvert}
+        onFermer={() => setExportOuvert(false)}
+        titre="Rapport du soir"
+        pied={
+          <Button variante="secondaire" onClick={() => setExportOuvert(false)}>
+            Fermer
+          </Button>
+        }
+      >
+        <p className={styles.mesureDetail}>
+          {soiree.reste > 0
+            ? `${soiree.reste} étape(s) ne sont pas encore réglées : le rapport les montrera « À faire ».`
+            : 'Toutes les étapes sont réglées : le rapport rend compte de la nuit entière.'}
+        </p>
+        <div className={styles.formats}>
+          <button
+            className={styles.format}
+            disabled={exportEnCours}
+            onClick={() => void exporterPdf()}
+          >
+            <FileText size={18} />
+            <span className={styles.formatNom}>{exportEnCours ? 'Composition…' : 'PDF'}</span>
+            <span className={styles.formatQuoi}>
+              Le document qui se remet et s’archive : en-tête AFG Bank Mali, synthèse de la nuit,
+              déroulé complet et emplacements de visa.
+            </span>
+          </button>
+          <button className={styles.format} onClick={() => telechargerTableur('xlsx')}>
+            <FileSpreadsheet size={18} />
+            <span className={styles.formatNom}>Excel</span>
+            <span className={styles.formatQuoi}>
+              Le tableau tel que la Production le lit depuis toujours, pour retraiter les heures.
+            </span>
+          </button>
+          <button className={styles.format} onClick={() => telechargerTableur('csv')}>
+            <Table2 size={18} />
+            <span className={styles.formatNom}>CSV</span>
+            <span className={styles.formatQuoi}>Les mêmes lignes, sans mise en forme.</span>
+          </button>
+        </div>
+      </Modale>
 
       <Modale
         ouverte={ajout}
