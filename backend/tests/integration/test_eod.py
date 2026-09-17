@@ -619,7 +619,9 @@ async def test_le_rapport_porte_les_relances_d_agence(
 
     r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
     corps = r.content.decode("utf-8-sig", errors="replace")
-    assert "01H12" in corps
+    # L'heure de relance n'est plus dans l'observation : c'est la ligne RELANCE, une fois
+    # demarree par l'operateur, qui la porte. Ici elle est encore « A faire » : pas d'heure.
+    assert "RELANCE · Agence 11 Kayes" in corps
     assert "Agence 11 Kayes" in corps
     assert "POSTEOPD3 relancé, reprise OK." in corps
 
@@ -648,19 +650,26 @@ async def test_un_incident_pose_une_etape_relance_sous_l_etape_qui_a_bloque(
     assert r.status_code == 201, r.text
     etapes = r.json()["etapes"]
 
-    # Juste sous le parent, même section, En cours depuis l'heure de relance, l'agence en clair.
+    # Juste sous le parent, même section, l'agence en clair — et « À faire », sans heure : c'est
+    # l'opérateur qui la démarre, comme toute étape.
     rang = next(i for i, e in enumerate(etapes) if e["id"] == parent["id"])
     relance = etapes[rang + 1]
     assert relance["relance_de"] == parent["id"]
     assert relance["libelle"] == "RELANCE · 018"
     assert relance["section"] == parent["section"]
     assert relance["agence"] == "018"
-    assert relance["statut"] == "En cours"
-    assert relance["debut"] is not None and relance["debut"].endswith("T20:15:00Z")
+    assert relance["statut"] == "À faire"
+    assert relance["debut"] is None
     # Une étape de plus dans la nuit : l'avancement la compte, comme le rapport la compte.
     assert r.json()["nb_etapes"] == 29
 
-    # Elle se termine comme n'importe quelle étape.
+    # Elle se démarre et se termine comme n'importe quelle étape.
+    r = await client.post(
+        f"/eod/{ident}/etapes/{relance['id']}/pointer",
+        headers=entetes(operateur),
+        json={"quoi": "debut"},
+    )
+    assert r.status_code == 200, r.text
     r = await client.post(
         f"/eod/{ident}/etapes/{relance['id']}/pointer",
         headers=entetes(operateur),
@@ -676,7 +685,6 @@ async def test_un_incident_pose_une_etape_relance_sous_l_etape_qui_a_bloque(
     r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
     corps = r.content.decode("utf-8-sig", errors="replace")
     assert "RELANCE · 018" in corps
-    assert "20H15" in corps
 
 
 async def test_terminer_une_etape_en_anomalie_garde_l_anomalie(
@@ -757,6 +765,39 @@ async def test_une_anomalie_se_consigne_sans_changer_le_verdict_de_l_etape(
     corps = r.content.decode("utf-8-sig", errors="replace")
     # Tel que tapé : ni heure ni mot devant — les colonnes d'heures et de verdict sont à côté.
     assert "Error code AE-VALS-053 sur 018." in corps
+
+
+async def test_la_capture_de_la_nuit_se_depose_et_sort_en_pied_du_rapport(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le rapport de la Production se terminait par la capture du core banking : la preuve de ce
+    qui est pointé au-dessus. Elle se dépose sur la soirée et le classeur la porte en pied."""
+    import io
+
+    from openpyxl import load_workbook
+    from PIL import Image
+
+    operateur = await creer_utilisateur(session, email="eod.capture@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-20")
+
+    tampon = io.BytesIO()
+    Image.new("RGB", (640, 120), (230, 240, 217)).save(tampon, format="PNG")
+    r = await client.post(
+        f"/eod/{ident}/documents",
+        headers=entetes(operateur),
+        files={"fichier": ("capture-eod.png", tampon.getvalue(), "image/png")},
+    )
+    assert r.status_code in (200, 201), r.text
+
+    r = await client.get(f"/eod/{ident}/documents", headers=entetes(operateur))
+    assert r.status_code == 200, r.text
+    assert [d["nom"] for d in r.json()] == ["capture-eod.png"]
+
+    r = await client.get(f"/eod/{ident}/rapport", headers=entetes(operateur))
+    assert r.status_code == 200, r.text
+    feuille = load_workbook(io.BytesIO(r.content)).active
+    assert feuille is not None
+    assert len(feuille._images) == 1, "la capture doit être dans le classeur"  # noqa: SLF001
 
 
 async def test_une_simple_note_ne_pose_aucune_relance(

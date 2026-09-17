@@ -1087,15 +1087,6 @@
   color: var(--text-muted);
 }
 
-/* L'incident d'agence : l'agence et l'heure sur une même ligne — l'heure n'a pas besoin de
-   toute la largeur, cinq caractères la remplissent, et les deux se lisent ensemble. */
-.rangeeIncident {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px;
-  gap: var(--space-3);
-  align-items: start;
-}
-
 /* Une nature d'alerte choisie (anomalie, incident) se dit en rouge — c'est ce qu'on consigne. */
 .natureAlerte {
   border-color: color-mix(in srgb, var(--status-danger) 55%, var(--border));

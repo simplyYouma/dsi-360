@@ -16,7 +16,6 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Play,
-  Plus,
   RotateCcw,
   SlashSquare,
   Table2,
@@ -36,10 +35,8 @@ import {
   eodApi,
   estAnomalie,
   estReglee,
-  formatHeure,
   grouperParSection,
   heure,
-  heureCourante,
   heureObservation,
   jour,
   resoudreHeure,
@@ -51,6 +48,7 @@ import {
 } from './eodApi';
 import { EVENEMENT_EOD } from './evenements';
 import { exporterRapportEodPdf } from './rapportPdf';
+import { DepotImagesEod } from './DepotImagesEod';
 import { SelecteurHeureEod } from './SelecteurHeureEod';
 import styles from './EodJourneePage.module.css';
 
@@ -173,17 +171,6 @@ function dateAttendue(journee: string | null, section: string): string | null {
   return null;
 }
 
-/** « 01H12 » → { h: 1, m: 12 }, ou `null` si la saisie ne se lit pas (le champ démarre alors sur
- *  l'instant présent, comme avant). Lecture seule : la résolution de la journée reste au serveur
- *  (`resoudre_relance`), ceci ne sert qu'à préremplir le sélecteur sur ce qui est déjà écrit. */
-function heureSaisie(valeur: string): { h: number; m: number } | null {
-  const trouve = /^(\d{1,2})\s*[:hH]?\s*(\d{2})$/.exec(valeur.trim());
-  if (trouve === null) return null;
-  const h = Number(trouve[1]);
-  const m = Number(trouve[2]);
-  return h <= 23 && m <= 59 ? { h, m } : null;
-}
-
 /** Le temps écoulé depuis le démarrage — « 04:21 », « 1:12:40 ».
  *
  * « 09H01 » ne répond pas à « ça fait combien de temps que ça tourne ? », qui est LA question de
@@ -276,9 +263,6 @@ export function EodJourneePage(): JSX.Element {
   const [soiree, setSoiree] = useState<DetailEod | null>(null);
   const [chargement, setChargement] = useState(true);
   const [occupe, setOccupe] = useState<string | null>(null);
-  const [ajout, setAjout] = useState(false);
-  const [libelleNouveau, setLibelleNouveau] = useState('');
-  const [sectionNouvelle, setSectionNouvelle] = useState('Tâches additionnelles');
   const [aSupprimer, setASupprimer] = useState<EtapeEod | null>(null);
   const [transitionVisee, setTransitionVisee] = useState<string | null>(null);
   const [noteTransition, setNoteTransition] = useState('');
@@ -289,7 +273,6 @@ export function EodJourneePage(): JSX.Element {
   const [consigne, setConsigne] = useState<Consigne | null>(null);
   const [natureObs, setNatureObs] = useState<NatureObservation>('note');
   const [agence, setAgence] = useState<string | null>(null);
-  const [relance, setRelance] = useState('');
   const [texteObs, setTexteObs] = useState('');
   const [agences, setAgences] = useState<string[]>([]);
   // L'étape dont on s'apprête à reprendre le pointage. Le geste efface une heure : il se confirme.
@@ -417,7 +400,6 @@ export function EodJourneePage(): JSX.Element {
     setConsigne({ etape, verdict });
     setNatureObs(verdict === 'Anomalie' ? 'incident' : 'note');
     setAgence(null);
-    setRelance(heureCourante());
     setTexteObs('');
   };
 
@@ -438,7 +420,6 @@ export function EodJourneePage(): JSX.Element {
       nature: natureObs,
       texte,
       agence: natureObs === 'incident' ? agence : null,
-      relance: natureObs === 'incident' ? relance.trim() : null,
     };
     await agir(`observation:${etape.id}`, () =>
       verdict === null
@@ -492,8 +473,7 @@ export function EodJourneePage(): JSX.Element {
   const texteVide = texteObs.trim().length === 0;
   const verdictSeul = consigne?.verdict != null && texteVide;
   const observationComplete =
-    texteObs.trim().length >= 2 &&
-    (natureObs !== 'incident' || ((agence ?? '').trim() !== '' && relance.trim() !== ''));
+    texteObs.trim().length >= 2 && (natureObs !== 'incident' || (agence ?? '').trim() !== '');
   const posePossible = verdictSeul ? expliqueDeja : observationComplete;
   // « Sans objet » ne se raconte pas comme un incident d'agence : le choix de nature n'aurait ici
   // qu'une réponse. On ne montre pas un aiguillage à une seule voie.
@@ -1025,18 +1005,10 @@ export function EodJourneePage(): JSX.Element {
             </section>
           ))}
 
-          {peutEcrire && (
-            <div className={styles.piedDeroule}>
-              <Button variante="secondaire" onClick={() => setAjout(true)}>
-                <Plus size={16} />
-                Ajouter une étape
-              </Button>
-              <span className={styles.aparte}>
-                Une vérification exceptionnelle, un rattrapage : elle n’entre pas dans le déroulé de
-                référence.
-              </span>
-            </div>
-          )}
+          {/* La capture de la nuit, sous le déroulé — le pied du rapport. À la place de « Ajouter
+              une étape » : une étape exceptionnelle se rattrape en la consignant ; la capture, elle,
+              se dépose chaque nuit. */}
+          <DepotImagesEod soireeId={id} peutEcrire={peutEcrire} />
         </div>
       </div>
 
@@ -1187,7 +1159,7 @@ export function EodJourneePage(): JSX.Element {
         )}
 
         {natureObs === 'incident' && (
-          <div className={styles.rangeeIncident}>
+          <div>
             <div className={styles.champ}>
               <span>Agence concernée</span>
               <SelecteurListe
@@ -1200,22 +1172,6 @@ export function EodJourneePage(): JSX.Element {
                 // ne doit pas s'arrêter faute de vocabulaire. Ce qu'on tape ici ne crée pas
                 // d'entrée au référentiel du parc : ce n'est pas le même objet.
                 onCreer={(libelle) => Promise.resolve(libelle)}
-              />
-            </div>
-            <div className={styles.champ}>
-              <span>Heure de relance</span>
-              <SelecteurHeureEod
-                heures={heureSaisie(relance)?.h ?? null}
-                minutes={heureSaisie(relance)?.m ?? null}
-                onChoisir={(hh, mm) => setRelance(formatHeure(hh, mm))}
-                trigger={({ onClick, ref }) => (
-                  <button ref={ref} type="button" className={styles.champHeure} onClick={onClick}>
-                    <Clock size={15} className={styles.champHeureIcone} />
-                    <span className={relance === '' ? styles.vide : undefined}>
-                      {relance || '01H12'}
-                    </span>
-                  </button>
-                )}
               />
             </div>
           </div>
@@ -1271,60 +1227,6 @@ export function EodJourneePage(): JSX.Element {
           Une fois consignée, une observation ne se corrige ni ne s’efface : elle est signée et
           horodatée. Ce qu’il faut rectifier se dit dans la suivante.
         </p>
-      </Modale>
-
-      <Modale
-        ouverte={ajout}
-        onFermer={() => setAjout(false)}
-        titre="Ajouter une étape"
-        pied={
-          <>
-            <Button variante="secondaire" onClick={() => setAjout(false)}>
-              Annuler
-            </Button>
-            <Button
-              disabled={libelleNouveau.trim().length < 2}
-              onClick={() => {
-                void agir('ajout', () =>
-                  eodApi.ajouterEtape(id, {
-                    section: sectionNouvelle,
-                    libelle: libelleNouveau.trim(),
-                  }),
-                ).then(() => {
-                  setAjout(false);
-                  setLibelleNouveau('');
-                });
-              }}
-            >
-              Ajouter
-            </Button>
-          </>
-        }
-      >
-        <div className={styles.contexte}>
-          <Plus size={18} className={styles.contexteIcone} />
-          <div className={styles.contexteCorps}>
-            <span className={styles.contexteQuoi}>Une étape pour cette soirée seulement.</span>
-            <span className={styles.contexteOu}>
-              Le déroulé de référence n’est pas touché : les nuits suivantes ne la verront pas.
-            </span>
-          </div>
-        </div>
-        <label className={styles.champ}>
-          <span>Section</span>
-          <input value={sectionNouvelle} onChange={(e) => setSectionNouvelle(e.target.value)} />
-          <span className={styles.indice}>
-            Une section inconnue se range en fin de déroulé, jamais au milieu.
-          </span>
-        </label>
-        <label className={styles.champ}>
-          <span>Intitulé</span>
-          <input
-            value={libelleNouveau}
-            onChange={(e) => setLibelleNouveau(e.target.value)}
-            placeholder="Ex. Relance du batch EMS_OUT"
-          />
-        </label>
       </Modale>
 
       <Modale

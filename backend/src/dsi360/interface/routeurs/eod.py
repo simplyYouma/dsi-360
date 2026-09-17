@@ -55,6 +55,7 @@ from dsi360.interface.routeurs.activites_communs import (
     horodate_export,
     valeurs_export,
 )
+from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.schemas import (
     CreationReponse,
     EodCreation,
@@ -786,6 +787,22 @@ async def rapport(
     etapes = await eod_repo.lister(session, ident)
     journal = await _journal(session, ident)
     lignes, bandeaux = _lignes_rapport(etapes, journal)
+    # Les captures de la nuit, en pied du classeur : le rapport de la Production se terminait par
+    # la capture du core banking — la preuve de ce qui est pointé au-dessus. Ce sont les pièces
+    # jointes ordinaires de la soirée, dont on ne prend que les images.
+    captures = [
+        bytes(c[0])
+        for c in (
+            await session.execute(
+                text(
+                    "SELECT contenu FROM core.document "
+                    "WHERE activite_id = cast(:a as uuid) AND tache_id IS NULL "
+                    "  AND type_mime LIKE 'image/%' ORDER BY depose_le"
+                ),
+                {"a": ident},
+            )
+        ).all()
+    ]
 
     d = _donnees(r)
     nom = f"eod-{d.get('journee') or r['reference']}"
@@ -801,7 +818,27 @@ async def rapport(
     return Response(
         # `retour_ligne` : une étape qui a vu trois agences bloquer porte trois lignes dans sa
         # cellule. Sans habillage, Excel les afficherait bout à bout, tronquées à la première.
-        content=vers_xlsx(_ENTETES_RAPPORT, lignes, onglet, retour_ligne=True, bandeaux=bandeaux),
+        content=vers_xlsx(
+            _ENTETES_RAPPORT,
+            lignes,
+            onglet,
+            retour_ligne=True,
+            bandeaux=bandeaux,
+            images=captures,
+        ),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={nom}.xlsx"},
     )
+
+
+# Les pièces jointes de la soirée — les mêmes routes que les autres modules. La page n'en montre
+# que les images, sous le déroulé : la capture du core banking, preuve de la nuit, qui sort en
+# pied du rapport. Pas de tâches sur une soirée : pas de routes vers elles.
+enregistrer_documents(
+    routeur,
+    module=MODULE,
+    charger=_charger,
+    Courant=Courant,
+    CourantEcriture=Acteur,
+    avec_taches=False,
+)

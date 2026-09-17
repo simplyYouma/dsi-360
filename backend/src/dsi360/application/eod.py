@@ -159,9 +159,9 @@ def preparer_relance(parent: dict[str, Any], observation: dict[str, Any]) -> dic
     sa fin et son verdict. Une relance n'est donc pas une note en marge — c'est une étape qu'on
     pointe avec les mêmes gestes, comptée dans le même avancement, exportée sur la même ligne.
 
-    Elle naît **En cours, depuis l'heure de relance** : consigner « relancée à 20H15 » dit que le
-    traitement tourne depuis 20H15. L'opérateur la termine quand elle aboutit — ou la passe en
-    anomalie si l'agence bloque encore, ce qui posera une seconde relance sous la première.
+    Elle naît **« À faire », sans heure** : c'est l'opérateur qui la démarre, comme toute étape —
+    un clic sur « Démarrer », puis « Maintenant » ou l'heure qu'il donne. La démarrer d'office à
+    l'heure de l'observation posait deux heures pour un même geste, et la mauvaise l'emportait.
     """
     agence = str(observation.get("agence") or "").strip()
     return {
@@ -172,8 +172,8 @@ def preparer_relance(parent: dict[str, Any], observation: dict[str, Any]) -> dic
         "ordre": parent["ordre"],
         "relance_de": parent["id"],
         "agence": agence or None,
-        "debut": observation.get("relance_le"),
-        "statut": EN_COURS,
+        "debut": None,
+        "statut": A_FAIRE,
     }
 
 

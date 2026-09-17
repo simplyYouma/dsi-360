@@ -100,11 +100,8 @@ DEROULE_REFERENCE: Final[tuple[EtapeModele, ...]] = (
     EtapeModele(PREPARATION, "Intégration fichier CARTHAGO"),
     EtapeModele(PREPARATION, "Check Pending Transactions"),
     EtapeModele(PREPARATION, "Backup before EOD"),
-    EtapeModele(
-        PREPARATION,
-        "Backup before EOM",
-        aide="Seulement les soirs de fin de mois — « Non applicable » les autres jours.",
-    ),
+    # Sans aide : un soir ordinaire, la marque « Non applicable » dit déjà tout.
+    EtapeModele(PREPARATION, "Backup before EOM"),
     EtapeModele(PREPARATION, "Stop Bank To Wallet"),
     EtapeModele(PREPARATION, "Date Check"),
     EtapeModele(

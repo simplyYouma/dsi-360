@@ -5,6 +5,7 @@ import io
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.drawing.image import Image as ImageClasseur
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -25,6 +26,7 @@ def vers_xlsx(
     *,
     retour_ligne: bool = False,
     bandeaux: set[int] | None = None,
+    images: list[bytes] | None = None,
 ) -> bytes:
     """Classeur d'une seule feuille.
 
@@ -37,6 +39,10 @@ def vers_xlsx(
     ``bandeaux`` : rangs (dans ``lignes``) qui sont des titres de section et non des données —
     « PART 1 », « PART 2 » du rapport EOD. Ils sont fusionnés sur toute la largeur et teintés,
     comme dans le document que la Production remettait déjà à la main.
+
+    ``images`` : des captures (PNG/JPEG) posées SOUS le tableau, l'une après l'autre, à sa
+    largeur — le rapport de la Production se terminait par la capture du core banking, preuve de
+    ce qui est pointé au-dessus, et la hiérarchie la lit après le tableau.
     """
     classeur = Workbook()
     feuille = classeur.active
@@ -84,6 +90,24 @@ def vers_xlsx(
         # lettres invalides. lignes ragged : on ne lit la cellule que si elle existe.
         largeurs = [len(entete)] + [_largeur(lg[i - 1]) for lg in lignes if len(lg) >= i]
         feuille.column_dimensions[get_column_letter(i)].width = min(max(largeurs) + 2, 50)
+
+    if images:
+        # La largeur du tableau en pixels — Excel compte ses colonnes en caractères, ~7 px chacun.
+        largeur_px = sum(
+            int(feuille.column_dimensions[get_column_letter(i)].width * 7) + 5
+            for i in range(1, len(entetes) + 1)
+        )
+        rang = feuille.max_row + 2
+        for contenu in images:
+            image = ImageClasseur(io.BytesIO(contenu))
+            if image.width > 0:
+                rapport = largeur_px / image.width
+                image.width = largeur_px
+                image.height = int(image.height * rapport)
+            feuille.add_image(image, f"A{rang}")
+            # Une ligne Excel fait 20 px par défaut : on saute autant de lignes que l'image en
+            # couvre, plus une, pour que la suivante ne la chevauche pas.
+            rang += int(image.height / 20) + 2
 
     tampon = io.BytesIO()
     classeur.save(tampon)
