@@ -190,17 +190,19 @@ def resoudre_relance(saisie: str, maintenant: datetime) -> datetime | None:
     return candidat
 
 
-def manque_a_l_incident(agence: str | None, relance: datetime | None) -> str | None:
+def manque_a_l_incident(agence: str | None) -> str | None:
     """Ce qui manque à un incident d'agence pour être un compte rendu, ou ``None`` s'il est complet.
 
     Rendre un message plutôt qu'un booléen : « il manque quelque chose » n'aide personne à 2 h du
     matin. La base porte la même règle (``ck_eod_observation_incident``) — ici on la dit, là-bas
     on la garantit.
+
+    L'heure n'en fait plus partie : l'observation dit l'agence et ce qui a été fait, la ligne
+    RELANCE — que l'opérateur démarre lui-même — dit quand. Poser une heure d'office à la saisie
+    faisait lire un démarrage automatique là où il n'y en avait pas.
     """
     if not (agence or "").strip():
         return "l'agence concernée"
-    if relance is None:
-        return "l'heure de relance"
     return None
 
 

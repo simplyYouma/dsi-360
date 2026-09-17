@@ -66,10 +66,10 @@ Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumé
 > une autre bloque à 01H40, on relance encore — au matin, il ne restait rien à relire. Chaque
 > observation est donc une ligne de journal (`core.eod_observation`), signée, horodatée,
 > **définitive** : ni correction ni suppression, l'erreur se rattrape par la suivante. Une
-> observation de nature **`incident`** porte les trois informations que la hiérarchie réclame —
-> **l'agence**, **l'heure de relance**, **ce qui a été fait** — et la base refuse qu'il en manque
-> une. L'heure se tape comme elle se lit (« 01H12 ») ; le serveur en déduit la journée, car l'EOD
-> franchit minuit. Les **relances d'agence** se comptent à part des **anomalies** : l'une ne se
+> observation de nature **`incident`** porte ce que la hiérarchie réclame — **l'agence** et **ce
+> qui a été fait** — et la base refuse que l'agence manque. **Pas d'heure dans l'observation** :
+> posée d'office à la saisie, elle se lisait comme un démarrage automatique de la relance ; c'est
+> la ligne RELANCE, que l'opérateur démarre lui-même, qui dit quand. Les **relances d'agence** se comptent à part des **anomalies** : l'une ne se
 > déduit pas de l'autre. **Et une relance est une étape, pas une note.** Le rapport réel l'écrit
 > ainsi : sous l'étape en anomalie, « RELANCE | 20H15 | 20H20 | Complete » — un début, une fin, un
 > verdict. Consigner un incident d'agence pose donc une ligne `RELANCE · <agence>` juste sous

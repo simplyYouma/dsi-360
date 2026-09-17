@@ -233,7 +233,9 @@ function Journal({ etape }: { etape: EtapeEod }): JSX.Element | null {
             ) : (
               <MessageSquare size={11} />
             )}
-            {heureObservation(o)}
+            {/* Pas d'heure sur un incident : elle se lirait comme le démarrage de la relance,
+                qui n'a lieu que quand l'opérateur clique « Démarrer » sur la ligne RELANCE. */}
+            {o.nature !== 'incident' && heureObservation(o)}
             {o.nature === 'incident' && o.agence !== null && (
               <span className={styles.jetonAgence}>{o.agence}</span>
             )}

@@ -261,21 +261,19 @@ def preparer_observation(
     règle « dernière occurrence passée », et une règle recopiée dans le navigateur finirait par
     en diverger.
 
-    Une relance non saisie vaut **maintenant** quand l'observation est un incident : consigner un
-    incident, c'est le consigner sur le moment. Lever une erreur là-dessus reviendrait à exiger
-    une frappe de plus pour une information qu'on a déjà.
+    Une relance non saisie reste vide — même pour un incident. L'heure n'est plus à
+    l'observation : c'est la ligne RELANCE, que l'opérateur démarre lui-même, qui la porte. Poser
+    l'instant de la saisie d'office faisait lire un démarrage automatique là où il n'y en avait pas.
     """
     quand: datetime | None = None
     if (relance or "").strip():
         quand = resoudre_relance(relance or "", maintenant)
         if quand is None:
             raise HeureIllisible(relance or "")
-    elif nature == INCIDENT:
-        quand = maintenant
 
     propre = (agence or "").strip() or None
     if nature == INCIDENT:
-        manque = manque_a_l_incident(propre, quand)
+        manque = manque_a_l_incident(propre)
         if manque is not None:
             raise IncidentIncomplet(manque)
     return {

@@ -384,6 +384,8 @@ async def test_les_relances_d_agence_s_empilent_au_lieu_de_s_ecraser(
     detail = r.json()
     journal = _etape(detail, "EOD till Post MARKBOD for all branches")["observations"]
     assert [o["agence"] for o in journal] == ["Agence 11 Kayes", "Agence 15 Segou"]
+    # L'heure donnée reste lisible sur l'observation ; celle qu'on ne donne pas reste vide —
+    # c'est la ligne RELANCE qui la portera, quand l'opérateur la démarrera.
     assert all(o["relance_le"] is not None for o in journal)
     # L'auteur est figé à l'écriture : un journal dont les lignes perdent leur signataire ne
     # prouve rien.
@@ -414,10 +416,12 @@ async def test_un_incident_d_agence_doit_dire_quelle_agence(
     assert "agence" in r.json()["detail"]
 
 
-async def test_un_incident_sans_heure_saisie_est_consigne_a_l_instant(
+async def test_un_incident_sans_heure_saisie_n_en_invente_pas(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """Consigner un incident, c'est le consigner sur le moment : pas une frappe de plus à 2 h."""
+    """L'heure n'est pas dans l'observation : posée d'office à la saisie, elle se lisait comme un
+    démarrage automatique de la relance. C'est la ligne RELANCE, que l'opérateur démarre
+    lui-même, qui dira quand — et elle naît sans heure, elle aussi."""
     operateur = await creer_utilisateur(session, email="eod.heureauto@afgbank.ml")
     ident = await _ouvrir(client, operateur, "2026-08-30")
     detail = await _detail(client, operateur, ident)
@@ -430,7 +434,9 @@ async def test_un_incident_sans_heure_saisie_est_consigne_a_l_instant(
     )
     assert r.status_code == 201, r.text
     journal = _etape(r.json(), "EOD till Post EOFI_3 for branch 000 BHO")["observations"]
-    assert journal[0]["relance_le"] is not None
+    assert journal[0]["relance_le"] is None
+    relance = next(e for e in r.json()["etapes"] if e["relance_de"] == etape["id"])
+    assert relance["statut"] == "À faire" and relance["debut"] is None
 
 
 async def test_une_heure_de_relance_illisible_est_refusee_en_le_disant(

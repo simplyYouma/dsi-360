@@ -185,19 +185,15 @@ class TestHeureDeRelance:
 
 
 class TestIncidentDAgence:
-    """Ce que la hiérarchie réclame au matin : quelle agence, à quelle heure, ce qui a été fait."""
-
-    _QUAND = datetime(2026, 9, 16, 1, 12, tzinfo=UTC)
+    """Ce que la hiérarchie réclame au matin : quelle agence, et ce qui a été fait. L'heure, elle,
+    est sur la ligne RELANCE que l'opérateur démarre lui-même — pas dans l'observation."""
 
     def test_un_incident_complet_ne_manque_de_rien(self) -> None:
-        assert manque_a_l_incident("Agence 11 Kayes", self._QUAND) is None
+        assert manque_a_l_incident("Agence 11 Kayes") is None
 
     def test_un_incident_sans_agence_ne_dit_pas_qui_a_bloque(self) -> None:
-        assert manque_a_l_incident(None, self._QUAND) == "l'agence concernée"
-        assert manque_a_l_incident("   ", self._QUAND) == "l'agence concernée"
-
-    def test_un_incident_sans_heure_ne_dit_pas_combien_de_temps_on_a_attendu(self) -> None:
-        assert manque_a_l_incident("Agence 11 Kayes", None) == "l'heure de relance"
+        assert manque_a_l_incident(None) == "l'agence concernée"
+        assert manque_a_l_incident("   ") == "l'agence concernée"
 
 
 class TestLaSoireeEstUneActiviteCommeLesAutres:
