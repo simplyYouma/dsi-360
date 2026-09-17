@@ -783,7 +783,10 @@
   padding: var(--space-2) var(--space-3);
   border-left: 2px solid var(--border);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--bg-subtle);
+  /* Exactement la teinte du survol de l'étape, et non le gris plein : deux gris différents à
+     quelques pixels l'un de l'autre se lisent comme deux zones étrangères, alors que
+     l'observation appartient à la ligne qui la porte. */
+  background: color-mix(in srgb, var(--bg-subtle) 55%, transparent);
   animation: deroule 0.16s ease;
 }
 .traceCarteIncident {
@@ -978,6 +981,40 @@
   margin: var(--space-3) 0 0;
   font-size: var(--text-xs);
   color: var(--text-muted);
+}
+
+/* Les motifs d'un « sans objet » : quatre mots d'un clic, parce que ce sont toujours les mêmes
+   quatre raisons. Ils remplissent le champ, ils ne le remplacent pas — il reste libre. */
+.motifs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.motif {
+  padding: 4px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.motif:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+.motifChoisi {
+  border-color: var(--secondary);
+  background: var(--secondary-subtle);
+  color: var(--text);
 }
 
 /* Trois formats, trois usages distincts — et le nom seul ne dit pas lequel prendre. Chaque option

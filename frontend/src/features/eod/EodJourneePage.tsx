@@ -100,6 +100,21 @@ const ANNONCE: Record<string, { titre: string; quoi: string }> = {
  *  c'est le moment où, dans la vraie nuit, on relance l'agence. */
 const ETAPE_LONGUE_MS = 45 * 60_000;
 
+/** Pourquoi une étape ne s'applique pas ce soir. Quatre raisons couvrent la quasi-totalité des
+ *  cas, et ce sont toujours les mêmes mots : les retaper chaque nuit produisait « pas EOM », « pas
+ *  de fin de mois », « EOM non » — trois formulations pour un seul fait, qu'aucun compte ne peut
+ *  plus rapprocher. On les propose donc, sans les imposer : le champ reste libre, une soirée ne
+ *  doit pas s'arrêter faute de vocabulaire. */
+const MOTIFS_SANS_OBJET = [
+  { court: 'EOM', texte: 'Pas une fin de mois (EOM) : la sauvegarde EOM est sans objet ce soir.' },
+  { court: 'EOY', texte: 'Pas une fin d’année (EOY) : le traitement annuel ne s’applique pas.' },
+  {
+    court: 'EOQ',
+    texte: 'Pas une fin de trimestre (EOQ) : le traitement trimestriel est sans objet.',
+  },
+  { court: 'Hors EOD', texte: 'Traitement déjà exécuté hors de la soirée EOD.' },
+];
+
 /** Pourquoi un champ ne s'ouvre pas : on n'interdit jamais sans le dire. */
 const TITRE_LECTURE = 'Le pointage revient aux acteurs de la soirée.';
 
@@ -732,7 +747,11 @@ export function EodJourneePage(): JSX.Element {
                           <span className={styles.colDebut}>
                             {e.debut !== null ? (
                               <span className={styles.horodate}>{heure(e.debut)}</span>
-                            ) : peutEcrire ? (
+                            ) : /* Une étape réglée ne se démarre pas : « Non applicable » gardait
+                                   un « Démarrer » qui invitait à pointer ce qu'on venait de
+                                   déclarer sans objet. Pour la rouvrir, on la reprend — c'est le
+                                   geste prévu pour ça, et il se confirme. */
+                            peutEcrire && !estReglee(e) ? (
                               <button
                                 type="button"
                                 className={styles.pointer}
@@ -756,7 +775,10 @@ export function EodJourneePage(): JSX.Element {
                                 <ArrowRight size={12} className={styles.fleche} />
                                 {heure(e.fin)}
                               </span>
-                            ) : e.debut !== null && peutEcrire ? (
+                            ) : /* « Terminer » reste offert même sur une étape réglée qui a
+                                   démarré : ce qu'on a commencé doit pouvoir se clore, et une
+                                   anomalie constatée en cours de route n'y change rien. */
+                            e.debut !== null && peutEcrire ? (
                               <button
                                 type="button"
                                 className={styles.pointer}
@@ -1046,6 +1068,24 @@ export function EodJourneePage(): JSX.Element {
           </>
         )}
 
+        {/* « Sans objet » se dit presque toujours de la même façon : on propose ces mots-là, d'un
+            clic, plutôt que de les faire retaper chaque nuit sous une forme nouvelle. */}
+        {consigne?.verdict === 'Non applicable' && (
+          <div className={styles.motifs}>
+            {MOTIFS_SANS_OBJET.map((m) => (
+              <button
+                type="button"
+                key={m.court}
+                className={cx(styles.motif, texteObs === m.texte && styles.motifChoisi)}
+                aria-pressed={texteObs === m.texte}
+                onClick={() => setTexteObs(texteObs === m.texte ? '' : m.texte)}
+                title={m.texte}
+              >
+                {m.court}
+              </button>
+            ))}
+          </div>
+        )}
         <label className={styles.champ}>
           <span>
             {natureObs === 'incident' ? 'Ce qui a été fait' : 'Observation'}
