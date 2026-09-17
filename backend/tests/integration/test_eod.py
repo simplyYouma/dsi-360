@@ -490,6 +490,42 @@ async def test_le_rapport_du_soir_s_exporte(client: AsyncClient, session: AsyncS
     assert "spreadsheet" in r.headers["content-type"]
 
 
+async def test_la_liste_s_exporte_avec_ses_colonnes(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """L'export de la LISTE (et non d'une soirée) : comparer les nuits entre elles.
+
+    Il porte le socle commun — référence, statut, responsable, SLA — plus ce qui ne se lit que
+    sur une soirée : la journée comptable close, le nombre d'étapes, les anomalies, les relances
+    d'agence et la plage réellement tenue. Sans ces cinq-là, le fichier ne répondrait à aucune des
+    questions pour lesquelles on l'ouvre.
+    """
+    operateur = await creer_utilisateur(session, email="eod.export.liste@afgbank.ml")
+    await _ouvrir(client, operateur, "2026-07-15")
+
+    r = await client.get("/eod/export?format=csv", headers=entetes(operateur))
+    assert r.status_code == 200, r.text
+    corps = r.content.decode("utf-8-sig", errors="replace")
+    entete = corps.splitlines()[0]
+    for colonne in (
+        "Référence",
+        "Statut",
+        "Avancement",
+        "Journée comptable",
+        "Étapes",
+        "Anomalies",
+        "Relances d'agence",
+        "Début effectif",
+        "Fin effective",
+    ):
+        assert colonne in entete, entete
+    assert "15/07/2026" in corps
+
+    r = await client.get("/eod/export?format=xlsx", headers=entetes(operateur))
+    assert r.status_code == 200
+    assert "spreadsheet" in r.headers["content-type"]
+
+
 async def test_le_rapport_porte_les_relances_d_agence(
     client: AsyncClient, session: AsyncSession
 ) -> None:
