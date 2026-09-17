@@ -117,11 +117,6 @@
   overflow-wrap: anywhere;
 }
 
-.attente {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
 /* Le compteur : la seule chose qui bouge ici, et la raison d'être de la veilleuse. */
 .chrono {
   display: inline-flex;

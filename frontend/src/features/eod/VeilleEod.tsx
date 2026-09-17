@@ -123,6 +123,11 @@ export function VeilleEod(): JSX.Element | null {
   }, [compte]);
 
   if (!autorise || soiree === null || soiree.id === ecartee) return null;
+  // Aucune étape ne tourne : la veilleuse n'a plus rien à veiller, elle s'efface. Elle ne sert pas
+  // à rappeler qu'une soirée existe — la liste EOD le dit — mais à garder un COMPTEUR sous les
+  // yeux. Sans compteur, elle ne serait qu'un bandeau de plus. Elle reviendra d'elle-même au
+  // prochain « Démarrer », aussitôt : la page la prévient à chaque écriture.
+  if (compte === 0) return null;
   // Elle s'efface sur la fiche de la soirée qu'elle suit — y répéter l'écran serait du bruit — mais
   // reste sur la LISTE des soirées, qui ne dit ni quelle étape tourne ni depuis quand. La faire
   // disparaître dès l'URL « /eod » la rendait insaisissable.
@@ -139,11 +144,7 @@ export function VeilleEod(): JSX.Element | null {
     navigate(`/eod/${soiree.id}`);
   };
 
-  // Plus rien ne tourne : la veilleuse se tait. Elle ne DISPARAÎT pas pour autant — entre deux
-  // étapes, la soirée reste ouverte et l'on veut pouvoir y revenir — mais elle se replie en
-  // pastille, compteur arrêté. Un panneau qui s'efface puis revient vingt-huit fois dans la nuit
-  // serait plus fatigant que le silence.
-  if (replie || compte === 0) {
+  if (replie) {
     return (
       <button
         type="button"
@@ -187,33 +188,25 @@ export function VeilleEod(): JSX.Element | null {
       </header>
 
       <button type="button" className={styles.corps} onClick={ouvrir}>
-        {compte === 0 ? (
-          <span className={styles.attente}>
-            {soiree.reste === 0
-              ? 'Toutes les étapes sont réglées — la soirée attend sa clôture.'
-              : 'Aucune étape démarrée pour le moment.'}
-          </span>
-        ) : (
-          enCours.slice(0, MONTREES).map((e) => {
-            const depart = new Date(e.debut ?? '').getTime();
-            const aVenir = depart > instant;
-            return (
-              <span key={e.id} className={styles.ligne}>
-                <span className={styles.section}>{e.section}</span>
-                <span className={styles.etape}>{e.libelle}</span>
-                <span className={cx(styles.chrono, compte > 1 && styles.chronoSerre)}>
-                  <Timer size={13} className={styles.pouls} aria-hidden="true" />
-                  {/* Un départ situé dans le futur — une soirée préparée d'avance — ne se compte
+        {enCours.slice(0, MONTREES).map((e) => {
+          const depart = new Date(e.debut ?? '').getTime();
+          const aVenir = depart > instant;
+          return (
+            <span key={e.id} className={styles.ligne}>
+              <span className={styles.section}>{e.section}</span>
+              <span className={styles.etape}>{e.libelle}</span>
+              <span className={cx(styles.chrono, compte > 1 && styles.chronoSerre)}>
+                <Timer size={13} className={styles.pouls} aria-hidden="true" />
+                {/* Un départ situé dans le futur — une soirée préparée d'avance — ne se compte
                       pas : afficher « 00:00 » laisserait croire qu'elle vient de démarrer. */}
-                  {aVenir ? '—' : ecoule(e.debut ?? '', instant)}
-                  <span className={styles.depuis}>
-                    {aVenir ? `prévue ${heure(e.debut)}` : `depuis ${heure(e.debut)}`}
-                  </span>
+                {aVenir ? '—' : ecoule(e.debut ?? '', instant)}
+                <span className={styles.depuis}>
+                  {aVenir ? `prévue ${heure(e.debut)}` : `depuis ${heure(e.debut)}`}
                 </span>
               </span>
-            );
-          })
-        )}
+            </span>
+          );
+        })}
         {compte > MONTREES && (
           <span className={styles.autres}>+ {compte - MONTREES} autre(s) en cours</span>
         )}
