@@ -10,10 +10,13 @@
 }
 
 /* L'avancement se compare d'une ligne à l'autre : la barre prend toute la cellule, sans chiffre
-   à lire à côté. Le détail reste en infobulle. */
+   à lire à côté. Le détail reste en infobulle.
+   `display: block` et non `flex` : la barre est ELLE-MÊME un flex dont le rail vaut `flex: 1`.
+   Posée en enfant d'un flex, elle se dimensionnait sur son contenu — le pourcentage — et son rail,
+   n'ayant plus rien à prendre, tombait à zéro : on ne voyait que « 64 % ». */
 .deroule {
-  display: flex;
-  align-items: center;
+  display: block;
+  width: 100%;
   min-width: 120px;
 }
 

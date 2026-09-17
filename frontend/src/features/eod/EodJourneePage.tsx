@@ -45,6 +45,7 @@ import {
   type NouvelleObservation,
   type StatutEtape,
 } from './eodApi';
+import { EVENEMENT_EOD } from './evenements';
 import { exporterRapportEodPdf } from './rapportPdf';
 import styles from './EodJourneePage.module.css';
 
@@ -333,6 +334,11 @@ export function EodJourneePage(): JSX.Element {
     setOccupe(cle);
     try {
       setSoiree(await action());
+      // La veilleuse vit dans le shell, hors de cet arbre : sans un mot d'elle à elle, elle
+      // gardait son compteur en marche jusqu'à son prochain rafraîchissement — quarante-cinq
+      // secondes à afficher une étape qu'on vient de clore. Un évènement de fenêtre plutôt qu'un
+      // état global : deux écrans qui ne se connaissent pas n'ont pas à partager un magasin.
+      window.dispatchEvent(new Event(EVENEMENT_EOD));
     } catch (e) {
       notifier(e instanceof ErreurApi ? e.message : 'Action impossible.', 'erreur');
     } finally {

@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { cleAcces } from '@/features/shell/navigation';
 import { cx } from '@/common/cx';
 import { eodApi, heure, jour, type DetailEod, type EtapeEod } from './eodApi';
+import { EVENEMENT_EOD } from './evenements';
 import styles from './VeilleEod.module.css';
 
 /** Toutes les 45 s : une soirée se pointe à la main, rien n'y bouge à la seconde. Assez souvent
@@ -101,8 +102,16 @@ export function VeilleEod(): JSX.Element | null {
     if (!autorise) return undefined;
     void rafraichir();
     const minuterie = window.setInterval(() => void rafraichir(), RAFRAICHISSEMENT_MS);
-    return () => window.clearInterval(minuterie);
-  }, [autorise, rafraichir]);
+    // Le pointage se fait ailleurs dans l'application : on se met à jour dès qu'il crie, sans
+    // attendre le tour de l'horloge. On se rafraîchit aussi en changeant de page — c'est le moment
+    // où l'on quitte l'écran de pointage, donc celui où la veilleuse redevient utile.
+    const surEcriture = (): void => void rafraichir();
+    window.addEventListener(EVENEMENT_EOD, surEcriture);
+    return () => {
+      window.clearInterval(minuterie);
+      window.removeEventListener(EVENEMENT_EOD, surEcriture);
+    };
+  }, [autorise, rafraichir, pathname]);
 
   const enCours = soiree === null ? [] : etapesEnCours(soiree);
   const compte = enCours.length;
@@ -130,7 +139,11 @@ export function VeilleEod(): JSX.Element | null {
     navigate(`/eod/${soiree.id}`);
   };
 
-  if (replie) {
+  // Plus rien ne tourne : la veilleuse se tait. Elle ne DISPARAÎT pas pour autant — entre deux
+  // étapes, la soirée reste ouverte et l'on veut pouvoir y revenir — mais elle se replie en
+  // pastille, compteur arrêté. Un panneau qui s'efface puis revient vingt-huit fois dans la nuit
+  // serait plus fatigant que le silence.
+  if (replie || compte === 0) {
     return (
       <button
         type="button"
