@@ -64,11 +64,7 @@ export function BoutonsExport({
       disabled={enCours !== null}
       title={enCours === format ? 'Préparation du fichier…' : `Exporter en ${libelle}`}
     >
-      {enCours === format ? (
-        <Loader2 size={16} className={styles.tourne} />
-      ) : (
-        <Icone size={16} />
-      )}
+      {enCours === format ? <Loader2 size={16} className={styles.tourne} /> : <Icone size={16} />}
       {enCours === format ? 'Préparation…' : libelle}
     </Button>
   );

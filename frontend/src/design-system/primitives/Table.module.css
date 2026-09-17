@@ -222,3 +222,58 @@
   text-align: center;
   color: var(--text-muted);
 }
+
+/* --- Supprimer une ligne --------------------------------------------------------------------- */
+/*
+ * Le geste le plus destructeur de l'application, et donc le plus discret : invisible tant qu'on
+ * parcourt, il n'apparaît qu'au survol de SA ligne — et se donne franchement, en rouge, dès qu'on
+ * l'approche. Toujours en fin de ligne, à la même place dans les neuf listes.
+ *
+ * Au doigt, où il n'y a pas de survol, il est visible en permanence : autrement il serait
+ * introuvable.
+ */
+.supprCol {
+  width: 46px;
+  text-align: center;
+  padding-left: 0;
+  padding-right: var(--space-2);
+}
+
+.supprimer {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+tr:hover .supprimer,
+.supprimer:focus-visible {
+  opacity: 1;
+}
+.supprimer:hover {
+  color: var(--status-danger);
+  border-color: color-mix(in srgb, var(--status-danger) 40%, transparent);
+  background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+}
+
+@media (hover: none) {
+  .supprimer {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .supprimer {
+    transition: none;
+  }
+}

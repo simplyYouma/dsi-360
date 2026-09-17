@@ -61,7 +61,6 @@ function majDuree(duree: number | null, tauxActuel: number | null): MajEquipemen
   return { duree_annees: duree, taux: Math.round((100 / duree) * 1000) / 1000 };
 }
 
-
 const LIBELLE_ACTION: Record<string, string> = {
   CREATION: 'Création',
   MODIFICATION: 'Modification',
@@ -351,10 +350,7 @@ export function FicheEquipement({
                 {/* Un pourcentage seul ne dit rien : on l'écrit aussi en francs. */}
                 <span className={local.amortiTexte}>
                   <b>{detail.amorti_pct} % amorti</b>
-                  <em>
-                    {' '}
-                    — {montant(detail.amortissement_cumule)} déjà passés en charges
-                  </em>
+                  <em> — {montant(detail.amortissement_cumule)} déjà passés en charges</em>
                 </span>
               </div>
             )}
@@ -530,15 +526,12 @@ export function FicheEquipement({
                     <span className={local.histoActeur}>{h.acteur ?? '—'}</span>
                     <span className={local.histoDate}>{horodatage(h.horodatage)}</span>
                     {/* L'acheminement du matériel : ce qui a changé, en clair. */}
-                    {h.detail !== null && (
-                      <span className={local.histoDetail}>{h.detail}</span>
-                    )}
+                    {h.detail !== null && <span className={local.histoDetail}>{h.detail}</span>}
                   </li>
                 ))}
               </ul>
             </section>
           )}
-
         </div>
       )}
     </Modale>

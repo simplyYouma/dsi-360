@@ -8,8 +8,11 @@ Le contrôle est **côté serveur**. Masquer le bouton ne suffirait pas — et a
 quel agent pouvait se désigner valideur, puis approuver.
 """
 
+import json
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.integration.conftest import creer_activite, creer_utilisateur, designer, entetes
@@ -494,3 +497,56 @@ async def test_une_decision_fige_la_liste_des_valideurs(
     assert len(valideurs) == 1
     assert valideurs[0]["email"] == "premier.reval@afgbank.ml"
     assert valideurs[0]["decision"] == "APPROUVE"
+
+
+# --- Supprimer un dossier -------------------------------------------------------------------------
+#
+# Le seul geste de la plateforme qui fasse disparaître une activité. Il n'existe que pour effacer
+# ce qui n'aurait pas dû être créé — une saisie fautive, un doublon fait à la main. Dire qu'un
+# dossier s'arrête sans aboutir, c'est « Annulé » ou « Rejeté » : l'historique reste.
+
+
+@pytest.mark.parametrize("role", NON_ADMINS)
+async def test_seul_l_admin_supprime_un_dossier(
+    client: AsyncClient, session: AsyncSession, role: str
+) -> None:
+    """Responsable, contributeur, valideur, simple lecteur : aucun n'efface un dossier."""
+    activite, gens = await _incident_dote(session, f"suppr-{role}")
+
+    r = await client.delete(f"/changements/{activite}", headers=entetes(gens[role]))
+    assert r.status_code == 403, r.text
+
+    # Et le dossier est toujours là : un refus ne laisse jamais la moitié du geste derrière lui.
+    r = await client.get(f"/changements/{activite}", headers=entetes(gens[role]))
+    assert r.status_code == 200
+
+
+async def test_l_admin_supprime_et_le_journal_garde_la_fiche(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """La ligne disparaît, sa trace reste — sans quoi la suppression serait silencieuse."""
+    activite, gens = await _incident_dote(session, "suppr-admin")
+
+    r = await client.delete(f"/changements/{activite}", headers=entetes(gens["admin"]))
+    assert r.status_code == 204, r.text
+
+    r = await client.get(f"/changements/{activite}", headers=entetes(gens["admin"]))
+    assert r.status_code == 404
+
+    # Le journal ne référence l'activité que par du texte : il survit à la ligne qu'il décrit, là
+    # où une clé étrangère l'aurait emportée avec elle. On le lit en base — l'écran d'audit n'en
+    # affiche que l'en-tête, la valeur d'avant s'y consulte fiche par fiche.
+    trace = (
+        await session.execute(
+            text(
+                "SELECT acteur_email, ancienne_valeur FROM audit.journal "
+                "WHERE action = 'SUPPRESSION' AND cible_id = 'CHG-ADM-suppr-admin'"
+            )
+        )
+    ).mappings().all()
+    assert len(trace) == 1, trace
+    ancienne = trace[0]["ancienne_valeur"]
+    if isinstance(ancienne, str):
+        ancienne = json.loads(ancienne)
+    assert ancienne["reference"] == "CHG-ADM-suppr-admin"
+    assert ancienne["statut"]

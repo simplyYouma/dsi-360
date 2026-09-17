@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { SablierSla } from '@/common/SablierSla';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { auditApi, type Categorie, type Recommandation } from './auditApi';
 
 function formaterDate(iso: string): string {
@@ -138,6 +139,17 @@ export function AuditPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Recommandation>({
+    base: '/audit',
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'cette recommandation',
+    consequence: 'Ses justificatifs et son plan d’action partent avec elle.',
+    onSupprime: () => void charger(page),
+  });
+
   const { moi } = useAuth();
   const gerable = moi?.acces.includes('administration') ?? false;
 
@@ -208,6 +220,7 @@ export function AuditPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={items}
+        suppression={suppression}
         cleLigne={(r) => r.id}
         chargement={chargement}
         vide="Aucune recommandation pour le moment."
@@ -293,6 +306,7 @@ export function AuditPage(): JSX.Element {
         </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
+      {modaleSuppression}
     </div>
   );
 }

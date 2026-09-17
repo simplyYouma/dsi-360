@@ -186,12 +186,7 @@ export const inventaireApi = {
   analyses: (): Promise<AnalysesParc> => api.get('/inventaire/analyses'),
   /** Consigner ce qu'on a vu du matériel. Ouvert à tout agent du module, contrairement au
    *  reste de la fiche : contrôler le parc est un travail de terrain. */
-  constater: (
-    id: string,
-    etat: EtatConstat,
-    justification: string,
-  ): Promise<EquipementDetail> =>
+  constater: (id: string, etat: EtatConstat, justification: string): Promise<EquipementDetail> =>
     api.put(`/inventaire/${id}/constat`, { etat, justification }),
-  retirerConstat: (id: string): Promise<EquipementDetail> =>
-    api.del(`/inventaire/${id}/constat`),
+  retirerConstat: (id: string): Promise<EquipementDetail> => api.del(`/inventaire/${id}/constat`),
 };

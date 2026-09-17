@@ -223,8 +223,7 @@ export function ListeTaches({
                 icones={ICONE_STATUT_TACHE}
                 desactive={(!peutTravailler && t.assigne_id !== moiId) || manqueTache(t) !== null}
                 titreDesactive={
-                  manqueTache(t) ??
-                  'Seul l’assigné de cette tâche en change le statut.'
+                  manqueTache(t) ?? 'Seul l’assigné de cette tâche en change le statut.'
                 }
               />
             </div>
@@ -237,9 +236,7 @@ export function ListeTaches({
                 permettreVide
                 libelleVide="Non assigné"
                 desactive={!peutTravailler || t.statut === 'Terminée'}
-                titreDesactive={
-                  t.statut === 'Terminée' ? TITRE_TACHE_CLOSE : RESERVE_AUX_ACTEURS
-                }
+                titreDesactive={t.statut === 'Terminée' ? TITRE_TACHE_CLOSE : RESERVE_AUX_ACTEURS}
                 indiceReaffectation="Réassigner"
               />
             </div>
@@ -251,9 +248,7 @@ export function ListeTaches({
                 remplissageEcheance={t.statut !== 'Terminée'}
                 verdict={verdictEcheance(t)}
                 desactive={!peutTravailler || t.statut === 'Terminée'}
-                titreDesactive={
-                  t.statut === 'Terminée' ? TITRE_TACHE_CLOSE : RESERVE_AUX_ACTEURS
-                }
+                titreDesactive={t.statut === 'Terminée' ? TITRE_TACHE_CLOSE : RESERVE_AUX_ACTEURS}
               />
             </div>
           </div>

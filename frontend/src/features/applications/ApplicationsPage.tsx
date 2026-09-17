@@ -11,6 +11,7 @@ import filtres from '@/common/FiltreTickets.module.css';
 import local from '@/features/inventaire/Inventaire.module.css';
 import propre from './Applications.module.css';
 import { FicheApplication } from './FicheApplication';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { ModaleApplication } from './ModaleApplication';
 import {
   applicationsApi,
@@ -138,6 +139,16 @@ export function ApplicationsPage(): JSX.Element {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  // Supprimer une application du parc applicatif : l'administrateur seul.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Application>({
+    base: '/applications',
+    id: (a) => a.id,
+    libelle: (a) => a.nom,
+    nature: 'cette application',
+    consequence: 'Ses responsables désignés et son historique partent avec elle.',
+    onSupprime: () => void charger(),
+  });
   useEffect(() => chargerStats(), [chargerStats, total]);
   useEffect(() => chargerEditeurs(), [chargerEditeurs]);
 
@@ -437,6 +448,7 @@ export function ApplicationsPage(): JSX.Element {
       <Table
         colonnes={colonnes}
         lignes={items}
+        suppression={suppression}
         cleLigne={(a) => a.id}
         chargement={chargement}
         vide="Aucune application pour le moment."
@@ -471,6 +483,7 @@ export function ApplicationsPage(): JSX.Element {
           notifier(e instanceof ErreurApi ? e.message : 'Création impossible.', 'erreur')
         }
       />
+      {modaleSuppression}
     </div>
   );
 }

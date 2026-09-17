@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
-import { ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Trash2,
+} from 'lucide-react';
 import { cx } from '@/common/cx';
 import { Skeleton } from './Skeleton';
 import styles from './Table.module.css';
@@ -43,6 +50,20 @@ export interface Colonne<T> {
   tronque?: boolean;
 }
 
+/** Suppression d'une ligne, offerte par le tableau lui-même.
+ *
+ * Elle vit ici et non dans chaque page : le geste le plus destructeur de l'application doit avoir
+ * partout la même place, la même discrétion et le même poids visuel. Neuf listes qui le dessinent
+ * chacune à sa façon, c'est neuf occasions de le confondre avec autre chose.
+ *
+ * Le tableau ne décide de rien : la page dit S'IL est offert (l'administrateur seul, en pratique),
+ * et confirme avant d'agir. */
+export interface SuppressionTable<T> {
+  onSupprimer: (ligne: T) => void;
+  /** Ce que l'infobulle annonce — nommer la ligne évite d'effacer la voisine. */
+  titre?: (ligne: T) => string;
+}
+
 export interface Pagination {
   page: number;
   total: number;
@@ -61,6 +82,9 @@ interface TableProps<T> {
   selection?: SelectionTable;
   /** Classe CSS additionnelle par ligne (ex. mise en évidence d'un SLA dépassé). */
   classeLigne?: (ligne: T) => string | undefined;
+  /** Colonne de suppression en fin de ligne. Non fournie — ou `undefined` pour qui n'administre
+   *  pas : aucune colonne, aucune place perdue. */
+  suppression?: SuppressionTable<T> | undefined;
 }
 
 // Largeur exacte de la colonne de sélection (cf. Table.module.css) : décalage de la colonne figée.
@@ -91,6 +115,7 @@ export function Table<T>({
   pagination,
   selection,
   classeLigne,
+  suppression,
 }: TableProps<T>): JSX.Element {
   const [tri, setTri] = useState<{ cle: string; sens: 1 | -1 } | null>(null);
 
@@ -123,7 +148,7 @@ export function Table<T>({
     selection !== undefined &&
     idsPage.length > 0 &&
     idsPage.every((id) => selection.selectionnes.has(id));
-  const nbColonnes = colonnes.length + (selection ? 1 : 0);
+  const nbColonnes = colonnes.length + (selection ? 1 : 0) + (suppression ? 1 : 0);
 
   return (
     <div className={styles.cadre}>
@@ -170,6 +195,7 @@ export function Table<T>({
                   </th>
                 );
               })}
+              {suppression && <th className={styles.supprCol} aria-label="Supprimer" />}
             </tr>
           </thead>
           <tbody>
@@ -181,6 +207,7 @@ export function Table<T>({
                       <Skeleton largeur="68%" />
                     </td>
                   ))}
+                  {suppression && <td className={styles.supprCol} />}
                 </tr>
               ))
             ) : lignesTriees.length === 0 ? (
@@ -233,6 +260,23 @@ export function Table<T>({
                         </td>
                       );
                     })}
+                    {suppression && (
+                      <td className={styles.supprCol}>
+                        <button
+                          type="button"
+                          className={styles.supprimer}
+                          title={suppression.titre?.(ligne) ?? 'Supprimer'}
+                          aria-label={suppression.titre?.(ligne) ?? 'Supprimer'}
+                          onClick={(e) => {
+                            // Sans cela, effacer une ligne ouvrirait d'abord sa fiche.
+                            e.stopPropagation();
+                            suppression.onSupprimer(ligne);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })

@@ -13,6 +13,7 @@ import { BadgeStatut } from '@/common/statuts';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { type FiltresListe } from '@/features/incidents/incidentsApi';
 import { demandesApi, type Demande } from './demandesApi';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { useRafraichissement } from '@/common/useRafraichissement';
 
 function formaterDate(iso: string): string {
@@ -124,6 +125,18 @@ export function DemandesPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Demande>({
+    base: '/demandes',
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'cette demande',
+    consequence:
+      'Le prochain import quotidien la recréera si elle existe encore dans SysAid — sans ses commentaires ni ses pièces jointes.',
+    onSupprime: () => void charger(page),
+  });
+
   // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
   // en pause quand l'onglet est masqué.
   useRafraichissement(() => void charger(page, true));
@@ -154,6 +167,7 @@ export function DemandesPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={demandes}
+        suppression={suppression}
         cleLigne={(d) => d.id}
         chargement={chargement}
         vide="Aucune demande pour le moment."
@@ -180,6 +194,7 @@ export function DemandesPage(): JSX.Element {
           setDemandes((liste) => liste.map((d) => (d.id === aid ? { ...d, nb_non_vus: 0 } : d)))
         }
       />
+      {modaleSuppression}
     </div>
   );
 }

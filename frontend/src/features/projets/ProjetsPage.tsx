@@ -12,6 +12,7 @@ import { CelluleActeur } from '@/common/CelluleActeur';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { projetsApi, type Projet } from './projetsApi';
 
 function formaterDate(iso: string): string {
@@ -121,6 +122,17 @@ export function ProjetsPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Projet>({
+    base: '/projets',
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'ce projet',
+    consequence: 'Ses tâches, ses jalons, ses documents et sa discussion partent avec lui.',
+    onSupprime: () => void charger(page),
+  });
+
   return (
     <div className={styles.page}>
       <header className={styles.entete}>
@@ -151,12 +163,14 @@ export function ProjetsPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={projets}
+        suppression={suppression}
         cleLigne={(p) => p.id}
         chargement={chargement}
         vide="Aucun projet pour le moment."
         onLigne={(p) => navigate(`/projets/${p.id}`)}
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
+      {modaleSuppression}
     </div>
   );
 }

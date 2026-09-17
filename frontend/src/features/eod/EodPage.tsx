@@ -15,6 +15,7 @@ import { BarreAvancement } from '@/common/BarreAvancement';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { cx } from '@/common/cx';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
@@ -185,6 +186,17 @@ export function EodPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une soirée : l'administrateur seul. Une nuit ouverte sur la mauvaise date bloque la
+  // bonne — l'unicité porte sur la journée comptable — et cette date ne se corrige pas.
+  const { suppression, modaleSuppression } = useSuppressionLigne<SoireeEod>({
+    base: '/eod',
+    id: (s) => s.id,
+    libelle: (s) => s.reference,
+    nature: 'cette soirée',
+    consequence: 'Son déroulé pointé, ses observations et ses relances d’agence partent avec elle.',
+    onSupprime: () => void charger(page),
+  });
+
   useEffect(() => {
     if (!modale) return;
     void eodApi.categories().then(setCategories);
@@ -248,6 +260,7 @@ export function EodPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={soirees}
+        suppression={suppression}
         cleLigne={(s) => s.id}
         chargement={chargement}
         vide="Aucune soirée EOD enregistrée."
@@ -319,6 +332,7 @@ export function EodPage(): JSX.Element {
           </div>
         )}
       </Modale>
+      {modaleSuppression}
     </div>
   );
 }

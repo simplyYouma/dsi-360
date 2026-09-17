@@ -23,6 +23,7 @@ import { chaineFiltres, type FiltresListe, type Incident } from '@/features/inci
 import type { Categorie } from '@/features/demandes/demandesApi';
 import { useRafraichissement } from '@/common/useRafraichissement';
 import { BandeauStats } from '@/common/BandeauStats';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { SaisieLiens, persisterLiens, type LienSaisi } from '@/common/SaisieLiens';
 
 interface Props {
@@ -189,6 +190,17 @@ export function PageActiviteCategorie({
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Incident>({
+    base: base,
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'ce dossier',
+    consequence: 'Ses documents, ses liens et sa discussion partent avec lui.',
+    onSupprime: () => void charger(page),
+  });
+
   // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
   // en pause quand l'onglet est masqué.
   useRafraichissement(() => void charger(page, true));
@@ -270,6 +282,7 @@ export function PageActiviteCategorie({
       <Table
         colonnes={colonnes}
         lignes={items}
+        suppression={suppression}
         cleLigne={(a) => a.id}
         chargement={chargement}
         vide="Aucun élément pour le moment."
@@ -406,6 +419,7 @@ export function PageActiviteCategorie({
         </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
+      {modaleSuppression}
     </div>
   );
 }

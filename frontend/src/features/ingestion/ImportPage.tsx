@@ -78,7 +78,11 @@ function tuilesDe(r: RapportFichier): { libelle: string; valeur: number; couleur
   ];
   // Les croix bon/rebut/casse du fichier ne deviennent des constats que si une campagne est ouverte.
   if (r.constats_enregistres > 0) {
-    tuiles.push({ libelle: 'Constats de campagne', valeur: r.constats_enregistres, couleur: '#1f9d55' });
+    tuiles.push({
+      libelle: 'Constats de campagne',
+      valeur: r.constats_enregistres,
+      couleur: '#1f9d55',
+    });
   }
   return tuiles;
 }
@@ -289,9 +293,10 @@ export function ImportPage(): JSX.Element {
               <p className={styles.erreur}>
                 <AlertTriangle size={15} />
                 {rapport.doublons_restants} numéro
-                {rapport.doublons_restants > 1 ? 's' : ''} de ticket {rapport.doublons_restants > 1 ? 'sont portés' : 'est porté'}{' '}
-                par deux fiches que ce rapport ne contenait pas : impossible de savoir lequel des
-                deux modules est le bon. À trancher à la source, puis relancer un import.
+                {rapport.doublons_restants > 1 ? 's' : ''} de ticket{' '}
+                {rapport.doublons_restants > 1 ? 'sont portés' : 'est porté'} par deux fiches que ce
+                rapport ne contenait pas : impossible de savoir lequel des deux modules est le bon.
+                À trancher à la source, puis relancer un import.
               </p>
             )}
             {rapport.nature === 'tickets' && rapport.statuts_non_reconnus.length > 0 && (

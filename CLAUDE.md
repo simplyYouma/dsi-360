@@ -177,6 +177,21 @@ Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumé
   (« risque ajouté : … », « risque retiré : … ») et non la liste entière recopiée : un journal qui
   répète l'état complet ne se relit pas. Et l'écran n'affiche que les premiers éléments, le reste
   sous un fondu — une fiche qui déroule six risques repousse le cycle de vie hors de l'écran.
+- **Supprimer est un geste d'administrateur, et jamais un geste silencieux.** Chaque liste offre
+  la suppression d'une ligne — activités des neuf modules, EOD, inventaire, applications — derrière
+  la même icône discrète en fin de ligne, invisible tant qu'on parcourt, rouge dès qu'on l'approche.
+  Elle n'existe que pour effacer **ce qui n'aurait pas dû être créé** : une saisie fautive, un
+  doublon fait à la main. Dire qu'un dossier s'arrête sans aboutir, c'est « Annulé » ou « Rejeté » —
+  l'historique reste et les statistiques le comptent pour ce qu'il a été. Trois garanties, dans cet
+  ordre : le **serveur** refuse (403) à quiconque n'est pas `ADMIN`, l'écran se contentant de ne pas
+  proposer ce qui serait rejeté ; la **confirmation nomme la fiche** (« Supprimer INC-2026-00042 »,
+  jamais « cet élément ») et annonce ce qui part avec elle ; et le **journal d'audit reçoit la fiche
+  entière avant l'effacement**. C'est ce dernier point qui rend le geste acceptable au regard du
+  principe n° 4 : le journal est append-only et ne référence l'activité que par sa **référence**, en
+  texte — il survit donc à la ligne qu'il décrit, là où une clé étrangère l'aurait emportée avec
+  elle. Six mois plus tard, on sait encore quel dossier a disparu, quand, par qui, et ce qu'il
+  disait. Réserve à connaître : sur les modules alimentés par l'import quotidien, supprimer une
+  fiche ne la retire pas de la source — le lendemain, le rapport la recrée sans ses commentaires.
 - **Une panne doit se voir, et une sauvegarde doit se prouver.** La tâche du service abandonne
   après trois relances Windows, définitivement et sans prévenir : `DSI360-Surveillance` reprend la
   main toutes les 5 min. Elle **relance** quand `/healthz` est muet (le processus est mort), mais

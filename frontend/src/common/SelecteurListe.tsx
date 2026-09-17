@@ -289,58 +289,58 @@ export function SelecteurListe({
               {optionsFiltrees.map((o, i) => {
                 const Icone = icones?.[o.valeur];
                 return (
-                <li key={o.valeur} className={styles.ligne}>
-                  <button
-                    type="button"
-                    className={cx(
-                      styles.option,
-                      o.special === true && styles.optionSpeciale,
-                      // Trait sous la dernière option spéciale : les vues d'un côté, la liste de l'autre.
-                      o.special === true &&
-                        optionsFiltrees[i + 1]?.special !== true &&
-                        styles.finSpeciales,
-                      o.valeur === valeur && styles.optionActive,
-                    )}
-                    onClick={() => choisir(o.valeur)}
-                  >
-                    <span className={styles.optionLibelle}>
-                      {/* L'icône prime sur la pastille : elle porte le sens, la couleur l'appuie. */}
-                      {Icone !== undefined ? (
-                        <Icone
-                          size={15}
-                          className={styles.icone}
-                          style={{ color: couleurs?.[o.valeur] }}
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        couleurs?.[o.valeur] && (
-                          <span
-                            className={styles.pastille}
-                            style={{ background: couleurs[o.valeur] }}
-                            aria-hidden="true"
-                          />
-                        )
-                      )}
-                      {o.libelle}
-                    </span>
-                    {o.valeur === valeur && <Check size={15} />}
-                  </button>
-                  {onSupprimer !== undefined && o.supprimable === true && (
+                  <li key={o.valeur} className={styles.ligne}>
                     <button
                       type="button"
-                      className={styles.retirer}
-                      title={`Retirer « ${o.libelle} » de la liste`}
-                      aria-label={`Retirer ${o.libelle}`}
-                      disabled={occupe}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void supprimer(o.valeur);
-                      }}
+                      className={cx(
+                        styles.option,
+                        o.special === true && styles.optionSpeciale,
+                        // Trait sous la dernière option spéciale : les vues d'un côté, la liste de l'autre.
+                        o.special === true &&
+                          optionsFiltrees[i + 1]?.special !== true &&
+                          styles.finSpeciales,
+                        o.valeur === valeur && styles.optionActive,
+                      )}
+                      onClick={() => choisir(o.valeur)}
                     >
-                      <Trash2 size={13} />
+                      <span className={styles.optionLibelle}>
+                        {/* L'icône prime sur la pastille : elle porte le sens, la couleur l'appuie. */}
+                        {Icone !== undefined ? (
+                          <Icone
+                            size={15}
+                            className={styles.icone}
+                            style={{ color: couleurs?.[o.valeur] }}
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          couleurs?.[o.valeur] && (
+                            <span
+                              className={styles.pastille}
+                              style={{ background: couleurs[o.valeur] }}
+                              aria-hidden="true"
+                            />
+                          )
+                        )}
+                        {o.libelle}
+                      </span>
+                      {o.valeur === valeur && <Check size={15} />}
                     </button>
-                  )}
-                </li>
+                    {onSupprimer !== undefined && o.supprimable === true && (
+                      <button
+                        type="button"
+                        className={styles.retirer}
+                        title={`Retirer « ${o.libelle} » de la liste`}
+                        aria-label={`Retirer ${o.libelle}`}
+                        disabled={occupe}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void supprimer(o.valeur);
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </li>
                 );
               })}
               {optionsFiltrees.length === 0 && !inedit && (

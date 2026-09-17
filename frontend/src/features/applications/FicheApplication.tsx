@@ -173,8 +173,8 @@ export function FicheApplication({
           {detail.administrateurs_secours.length === 0 && (
             <p className={local.avertissement}>
               <TriangleAlert size={15} />
-              Aucun administrateur de secours : la continuité de cette application tient à une
-              seule personne.
+              Aucun administrateur de secours : la continuité de cette application tient à une seule
+              personne.
             </p>
           )}
 
@@ -222,9 +222,7 @@ export function FicheApplication({
               <div className={local.valeur}>
                 <span>Comptes actifs</span>
                 <ChampInline
-                  valeur={
-                    detail.nb_comptes_actifs === null ? '' : String(detail.nb_comptes_actifs)
-                  }
+                  valeur={detail.nb_comptes_actifs === null ? '' : String(detail.nb_comptes_actifs)}
                   onValider={(v) => void patch({ nb_comptes_actifs: versEntier(v) })}
                   placeholder="—"
                   inputMode="numeric"
@@ -469,9 +467,7 @@ export function FicheApplication({
                     </span>
                     <span className={local.histoActeur}>{h.acteur ?? '—'}</span>
                     <span className={local.histoDate}>{horodatage(h.horodatage)}</span>
-                    {h.detail !== null && (
-                      <span className={local.histoDetail}>{h.detail}</span>
-                    )}
+                    {h.detail !== null && <span className={local.histoDetail}>{h.detail}</span>}
                   </li>
                 ))}
               </ul>

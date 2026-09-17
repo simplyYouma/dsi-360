@@ -76,7 +76,9 @@ export function ParcOnglet(): JSX.Element {
           <b>{montantCourt(parc.valeur_nette)}</b>
           <span>Valeur nette comptable (FCFA)</span>
         </span>
-        <span className={parc.totalement_amortis > 0 ? compteurs.compteurAlerte : compteurs.compteur}>
+        <span
+          className={parc.totalement_amortis > 0 ? compteurs.compteurAlerte : compteurs.compteur}
+        >
           <b>{parc.totalement_amortis}</b>
           <span>Totalement amortis</span>
         </span>
@@ -180,8 +182,8 @@ export function ParcOnglet(): JSX.Element {
           <BoutonExportPng nom="Âge du parc" />
           <h2 className={styles.chartTitre}>Âge du parc</h2>
           <p className={styles.chartSous}>
-            Plus un matériel vieillit, plus il approche de la fin d'amortissement — c'est la
-            carte de l'obsolescence.
+            Plus un matériel vieillit, plus il approche de la fin d'amortissement — c'est la carte
+            de l'obsolescence.
           </p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={parc.par_age} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>

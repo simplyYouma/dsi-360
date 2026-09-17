@@ -12,6 +12,7 @@ import { BadgeStatut } from '@/common/statuts';
 import { incidentsApi, type Incident, type FiltresListe } from './incidentsApi';
 import styles from './IncidentsPage.module.css';
 import { useRafraichissement } from '@/common/useRafraichissement';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { BandeauStats } from '@/common/BandeauStats';
 
 const PRIORITE_COULEUR: Record<number, string> = {
@@ -134,6 +135,18 @@ export function IncidentsPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Incident>({
+    base: '/incidents',
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'cet incident',
+    consequence:
+      'Le prochain import quotidien le recréera s’il existe encore dans SysAid — sans ses commentaires ni ses pièces jointes.',
+    onSupprime: () => void charger(page),
+  });
+
   // L'icône de discussion apparaît sans recharger la page : la liste se relit seule,
   // en pause quand l'onglet est masqué.
   useRafraichissement(() => void charger(page, true));
@@ -162,6 +175,7 @@ export function IncidentsPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={incidents}
+        suppression={suppression}
         cleLigne={(i) => i.id}
         chargement={chargement}
         vide="Aucun incident pour le moment."
@@ -189,6 +203,7 @@ export function IncidentsPage(): JSX.Element {
           setIncidents((liste) => liste.map((i) => (i.id === aid ? { ...i, nb_non_vus: 0 } : i)))
         }
       />
+      {modaleSuppression}
     </div>
   );
 }

@@ -25,6 +25,7 @@ from dsi360.application.activites import (
     appliquer_decisions,
     creer_activite,
     reevaluer,
+    supprimer_activite,
     transition,
 )
 from dsi360.application.autorisations import ACTEUR, ADMIN, capacites, charger_roles
@@ -1124,6 +1125,20 @@ def creer_routeur(
             )
             await session.commit()
             return {"assignes": assignes}
+
+    @routeur.delete("/{ident}", status_code=status.HTTP_204_NO_CONTENT)
+    async def supprimer_activite_route(ident: str, courant: Courant, session: Session) -> None:
+        """Suppression définitive d'un dossier, réservée à l'administrateur.
+
+        Le geste n'existe que pour effacer ce qui n'aurait pas dû être créé. Pour dire qu'un
+        dossier s'arrête sans aboutir, on le passe à « Annulé » ou « Rejeté » : l'historique reste,
+        et les statistiques le comptent comme ce qu'il a été. Ce que la suppression emporte, le
+        journal d'audit le garde (`supprimer_activite`).
+        """
+        exiger_admin(courant)
+        r = await charger_visible(session, ident, courant)
+        await supprimer_activite(session, dict(r), module, courant)
+        await session.commit()
 
     @routeur.get("/{ident}", response_model=ActiviteDetail)
     async def detail(ident: str, courant: Courant, session: Session) -> dict[str, Any]:

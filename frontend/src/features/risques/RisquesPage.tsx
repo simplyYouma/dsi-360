@@ -16,6 +16,7 @@ import { ErreurApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { FiltresListe, CategorieRef } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { risquesApi, type Risque } from './risquesApi';
 
 function formaterDate(iso: string): string {
@@ -134,6 +135,17 @@ export function RisquesPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Risque>({
+    base: '/risques',
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'ce risque',
+    consequence: 'Son plan de traitement et ses revues partent avec lui.',
+    onSupprime: () => void charger(page),
+  });
+
   const creer = async (): Promise<void> => {
     setErreur(null);
     setEnvoi(true);
@@ -196,6 +208,7 @@ export function RisquesPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={items}
+        suppression={suppression}
         cleLigne={(r) => r.id}
         chargement={chargement}
         vide="Aucun risque pour le moment."
@@ -283,6 +296,7 @@ export function RisquesPage(): JSX.Element {
         </div>
         {erreur !== null && <p className={styles.erreur}>{erreur}</p>}
       </Modale>
+      {modaleSuppression}
     </div>
   );
 }

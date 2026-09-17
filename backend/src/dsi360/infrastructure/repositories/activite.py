@@ -90,6 +90,19 @@ async def creer(session: AsyncSession, champs: dict[str, Any]) -> str:
     return str(identifiant)
 
 
+async def supprimer(session: AsyncSession, identifiant: str) -> None:
+    """Efface une activité et tout ce qui lui est rattaché.
+
+    La cascade fait le reste — tâches, jalons, documents, commentaires, notes, liens, acteurs,
+    étapes EOD, rappels. Les pièces jointes vivent en base (bytea) : rien ne survit sur un disque.
+    Le journal d'audit, lui, ne référence l'activité que par du texte : il reste, et c'est tout
+    l'intérêt (cf. `application/activites.supprimer_activite`).
+    """
+    await session.execute(
+        text("DELETE FROM core.activite WHERE id = cast(:id as uuid)"), {"id": identifiant}
+    )
+
+
 async def par_id(
     session: AsyncSession, module: str, identifiant: str, *, moi: str | None = None
 ) -> RowMapping | None:

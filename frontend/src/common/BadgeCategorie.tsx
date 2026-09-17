@@ -20,7 +20,8 @@ const TEINTES = [
  *  à décorer. Ici deux projets du même type se repèrent d'un coup d'œil dans la liste. */
 export function teinteCategorie(libelle: string): string {
   let somme = 0;
-  for (let i = 0; i < libelle.length; i += 1) somme = (somme * 31 + libelle.charCodeAt(i)) % 100_003;
+  for (let i = 0; i < libelle.length; i += 1)
+    somme = (somme * 31 + libelle.charCodeAt(i)) % 100_003;
   return TEINTES[somme % TEINTES.length] as string;
 }
 

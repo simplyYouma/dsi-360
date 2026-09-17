@@ -139,6 +139,54 @@ async def creer_activite(
     return identifiant
 
 
+async def supprimer_activite(
+    session: AsyncSession, avant: dict[str, Any], module: str, acteur: dict[str, Any]
+) -> None:
+    """Efface définitivement une activité — après avoir gravé ce qu'elle contenait.
+
+    C'est le seul geste de la plateforme qui fasse disparaître un dossier, et il est réservé à
+    l'administrateur (la garde est posée par la route). Il existe parce qu'une saisie fautive, un
+    doublon créé à la main ou un essai n'ont pas à encombrer les listes et les statistiques pour
+    toujours — les états d'abandon (« Annulé », « Rejeté ») disent qu'un dossier n'a pas abouti,
+    pas qu'il n'aurait jamais dû exister.
+
+    Rien ne se perd pour autant, et c'est ce qui rend le geste acceptable : l'entrée de journal
+    écrite juste avant porte la fiche telle qu'elle était. Le journal est append-only et ne
+    référence l'activité que par sa RÉFÉRENCE, en texte — il survit donc à la ligne qu'il décrit,
+    là où une clé étrangère l'aurait emportée avec elle. Six mois plus tard, on peut encore dire
+    quel dossier a disparu, quand, par qui, et ce qu'il disait.
+
+    À savoir avant de s'en servir : sur les modules alimentés par l'import quotidien (incidents,
+    demandes), supprimer une fiche ne la fait pas disparaître de la source — le prochain rapport
+    la recrée, sans ses commentaires ni ses pièces jointes. Là-bas, la suppression ne vaut que
+    pour une fiche qui n'existe plus chez SysAid.
+    """
+    await audit.consigner(
+        session,
+        action="SUPPRESSION",
+        acteur_id=acteur["id"],
+        acteur_email=acteur["email"],
+        module=module,
+        cible_type=module,
+        cible_id=str(avant["reference"]),
+        # La fiche entière, et non son seul intitulé : c'est la dernière trace qu'il en restera.
+        ancienne={
+            "reference": avant.get("reference"),
+            "titre": avant.get("titre"),
+            "statut": avant.get("statut"),
+            "priorite": avant.get("priorite"),
+            "categorie": avant.get("categorie"),
+            "direction": avant.get("direction"),
+            "responsable": avant.get("resp_email"),
+            "description": avant.get("description"),
+            "cree_le": avant.get("cree_le"),
+            "resolu_le": avant.get("resolu_le"),
+            "cloture_le": avant.get("cloture_le"),
+        },
+    )
+    await repo.supprimer(session, str(avant["id"]))
+
+
 async def reevaluer(
     session: AsyncSession,
     module: str,

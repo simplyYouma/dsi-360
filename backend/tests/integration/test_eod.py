@@ -471,6 +471,37 @@ async def test_le_reseau_d_agences_est_propose_a_la_saisie(
     assert isinstance(r.json(), list)
 
 
+# --- Supprimer une soirée -----------------------------------------------------------------------
+
+
+async def test_seul_l_admin_supprime_une_soiree(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Une nuit ouverte sur la mauvaise date bloque la bonne : l'unicité porte sur la journée.
+
+    La corriger est impossible — c'est elle qui fait l'identité de la soirée — donc il faut
+    pouvoir l'effacer. Mais l'effacer reste le geste de l'administrateur, et la journée libérée
+    doit pouvoir se rouvrir juste après.
+    """
+    operateur = await creer_utilisateur(session, email="eod.suppr.operateur@afgbank.ml")
+    admin = await creer_utilisateur(session, email="eod.suppr.admin@afgbank.ml", profil="ADMIN")
+    ident = await _ouvrir(client, operateur, "2026-06-10")
+
+    r = await client.delete(f"/eod/{ident}", headers=entetes(operateur))
+    assert r.status_code == 403, r.text
+
+    r = await client.delete(f"/eod/{ident}", headers=entetes(admin))
+    assert r.status_code == 204, r.text
+    r = await client.get(f"/eod/{ident}", headers=entetes(admin))
+    assert r.status_code == 404
+
+    # La journée comptable est libre : c'est tout l'objet de la suppression.
+    r = await client.post(
+        "/eod", json={"journee": "2026-06-10"}, headers=entetes(operateur)
+    )
+    assert r.status_code in (200, 201), r.text
+
+
 # --- Le rapport du soir -------------------------------------------------------------------------
 
 

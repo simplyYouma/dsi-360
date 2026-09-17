@@ -22,7 +22,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dsi360.application.activites import ActiviteIntrouvable, TransitionInterdite, transition
+from dsi360.application.activites import (
+    ActiviteIntrouvable,
+    TransitionInterdite,
+    supprimer_activite,
+    transition,
+)
 from dsi360.application.autorisations import ACTEUR, capacites, charger_roles
 from dsi360.application.eod import (
     HeureIllisible,
@@ -389,6 +394,21 @@ async def exporter(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=eod-export.csv"},
     )
+
+
+@routeur.delete("/{ident}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_soiree(ident: str, courant: Courant, session: Session) -> None:
+    """Suppression définitive d'une soirée, réservée à l'administrateur.
+
+    Une nuit ouverte sur la mauvaise date bloque la bonne — l'unicité porte sur la journée
+    comptable — et la corriger n'est pas possible : c'est elle qui fait l'identité de la soirée.
+    Sans ce geste, il fallait vivre avec une soirée fantôme dans les statistiques. Ce qu'elle
+    contenait passe au journal d'audit avant de disparaître.
+    """
+    exiger_admin(courant)
+    r = await _charger(session, ident, courant)
+    await supprimer_activite(session, dict(r), MODULE, courant)
+    await session.commit()
 
 
 @routeur.get("/{ident}", response_model=EodDetail)

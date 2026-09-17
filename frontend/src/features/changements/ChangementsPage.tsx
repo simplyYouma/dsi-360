@@ -10,6 +10,7 @@ import { BadgeStatut } from '@/common/statuts';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { SablierSla } from '@/common/SablierSla';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 import { changementsApi, type Changement } from './changementsApi';
 
 const PRIORITE_COULEUR: Record<number, string> = {
@@ -120,6 +121,17 @@ export function ChangementsPage(): JSX.Element {
     void charger(page);
   }, [charger, page]);
 
+  // Supprimer une ligne : l'administrateur seul, et le serveur le garantit (403 pour les autres).
+  // La confirmation nomme la fiche, et le journal d'audit en garde le contenu.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Changement>({
+    base: '/changements',
+    id: (r) => r.id,
+    libelle: (r) => r.reference,
+    nature: 'ce changement',
+    consequence: 'Son dossier RFC, ses tâches et les décisions du comité partent avec lui.',
+    onSupprime: () => void charger(page),
+  });
+
   return (
     <div className={styles.page}>
       <header className={styles.entete}>
@@ -152,12 +164,14 @@ export function ChangementsPage(): JSX.Element {
       <Table
         colonnes={COLONNES}
         lignes={changements}
+        suppression={suppression}
         cleLigne={(c) => c.id}
         chargement={chargement}
         vide="Aucun changement pour le moment."
         onLigne={(c) => navigate(`/changements/${c.id}`)}
         pagination={{ page, total, taille: 15, onPage: setPage }}
       />
+      {modaleSuppression}
     </div>
   );
 }

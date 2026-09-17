@@ -24,6 +24,7 @@ import {
   type StatsInventaire,
 } from './inventaireApi';
 import { api } from '@/lib/api';
+import { useSuppressionLigne } from '@/common/useSuppressionLigne';
 
 /** Date courte, pour une colonne de liste : « 12/03/2024 ». Le mois en toutes lettres tient sur
  *  une fiche, pas dans un tableau où il pousserait les colonnes suivantes hors de l'écran. */
@@ -199,6 +200,17 @@ export function InventairePage(): JSX.Element {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  // Supprimer un équipement : l'administrateur seul. Pour sortir un matériel du parc sans perdre
+  // son histoire, on le passe plutôt « hors service » — c'est ce que dit la confirmation.
+  const { suppression, modaleSuppression } = useSuppressionLigne<Equipement>({
+    base: '/inventaire',
+    id: (e) => e.id,
+    libelle: (e) => e.code_immo ?? e.designation,
+    nature: 'ce matériel',
+    consequence: 'Son historique, ses constats et ses pièces jointes partent avec lui.',
+    onSupprime: () => void charger(),
+  });
   useEffect(() => chargerStats(), [chargerStats, total]);
   const chargerReferentiels = useCallback((): void => {
     void inventaireApi.referentiel('types').then(setTypes);
@@ -590,6 +602,7 @@ export function InventairePage(): JSX.Element {
       <Table
         colonnes={colonnes}
         lignes={items}
+        suppression={suppression}
         cleLigne={(e) => e.id}
         chargement={chargement}
         vide="Aucun équipement pour le moment."
@@ -676,6 +689,7 @@ export function InventairePage(): JSX.Element {
       </Modale>
 
       <ModaleConfirmation demande={confirmation} onFermer={() => setConfirmation(null)} />
+      {modaleSuppression}
     </div>
   );
 }
