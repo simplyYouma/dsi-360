@@ -691,7 +691,7 @@ export function EodJourneePage(): JSX.Element {
                       {e.nature === 'valeur' ? (
                         // « System Date » : ce qui compte n'est pas quand on a regardé, mais ce
                         // qu'on a lu.
-                        <span className={styles.valeur}>
+                        <span className={styles.colValeur}>
                           <ChampInline
                             valeur={e.valeur ?? ''}
                             indication="jj/mm/aaaa"
@@ -707,56 +707,70 @@ export function EodJourneePage(): JSX.Element {
                             aria-label={`Valeur relevée — ${e.libelle}`}
                           />
                         </span>
-                      ) : e.debut === null ? (
-                        peutEcrire ? (
-                          <button
-                            type="button"
-                            className={styles.pointer}
-                            disabled={occupe !== null}
-                            onClick={() =>
-                              void agir(`debut:${e.id}`, () => eodApi.pointer(id, e.id, 'debut'))
-                            }
-                          >
-                            <Play size={12} /> Démarrer
-                          </button>
-                        ) : (
-                          <span className={styles.vide}>—</span>
-                        )
-                      ) : e.fin === null ? (
-                        <>
-                          <span className={styles.horodate}>{heure(e.debut)}</span>
-                          <span
-                            className={cx(
-                              styles.chrono,
-                              instant - new Date(e.debut).getTime() > ETAPE_LONGUE_MS &&
-                                styles.chronoLong,
-                            )}
-                            title="Temps écoulé depuis le démarrage"
-                          >
-                            <Timer size={12} className={styles.pouls} aria-hidden="true" />
-                            {chrono(e.debut, instant)}
-                          </span>
-                          {peutEcrire && (
-                            <button
-                              type="button"
-                              className={styles.pointer}
-                              disabled={occupe !== null}
-                              onClick={() =>
-                                void agir(`fin:${e.id}`, () => eodApi.pointer(id, e.id, 'fin'))
-                              }
-                            >
-                              <Check size={12} /> Terminer
-                            </button>
-                          )}
-                        </>
                       ) : (
                         <>
-                          <span className={styles.horodate}>
-                            {heure(e.debut)}
-                            <ArrowRight size={12} className={styles.fleche} />
-                            {heure(e.fin)}
+                          <span className={styles.colDebut}>
+                            {e.debut !== null ? (
+                              <span className={styles.horodate}>{heure(e.debut)}</span>
+                            ) : peutEcrire ? (
+                              <button
+                                type="button"
+                                className={styles.pointer}
+                                disabled={occupe !== null}
+                                onClick={() =>
+                                  void agir(`debut:${e.id}`, () =>
+                                    eodApi.pointer(id, e.id, 'debut'),
+                                  )
+                                }
+                              >
+                                <Play size={12} /> Démarrer
+                              </button>
+                            ) : (
+                              <span className={styles.vide}>—</span>
+                            )}
                           </span>
-                          <span className={styles.duree}>{duree(e.debut, e.fin)}</span>
+
+                          <span className={styles.colFin}>
+                            {e.fin !== null ? (
+                              <span className={styles.horodate}>
+                                <ArrowRight size={12} className={styles.fleche} />
+                                {heure(e.fin)}
+                              </span>
+                            ) : e.debut !== null && peutEcrire ? (
+                              <button
+                                type="button"
+                                className={styles.pointer}
+                                disabled={occupe !== null}
+                                onClick={() =>
+                                  void agir(`fin:${e.id}`, () => eodApi.pointer(id, e.id, 'fin'))
+                                }
+                              >
+                                <Check size={12} /> Terminer
+                              </button>
+                            ) : (
+                              <span className={styles.vide}>—</span>
+                            )}
+                          </span>
+
+                          {/* La même colonne répond toujours à « combien de temps » : le temps
+                              écoulé tant que ça tourne, la durée une fois l'étape close. */}
+                          <span className={styles.colDuree}>
+                            {e.debut !== null && e.fin !== null ? (
+                              <span className={styles.duree}>{duree(e.debut, e.fin)}</span>
+                            ) : e.debut !== null ? (
+                              <span
+                                className={cx(
+                                  styles.chrono,
+                                  instant - new Date(e.debut).getTime() > ETAPE_LONGUE_MS &&
+                                    styles.chronoLong,
+                                )}
+                                title="Temps écoulé depuis le démarrage"
+                              >
+                                <Timer size={12} className={styles.pouls} aria-hidden="true" />
+                                {chrono(e.debut, instant)}
+                              </span>
+                            ) : null}
+                          </span>
                         </>
                       )}
 

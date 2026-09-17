@@ -457,12 +457,37 @@
   color: var(--text-muted);
 }
 
-/* Le pointage : heures relevées, ou le geste qui les pose. */
+/* Le pointage : heures relevées, ou le geste qui les pose.
+ *
+ * Des COLONNES FIXES, et non un alignement à droite : au fil des lignes, une étape montrait
+ * « Démarrer », la suivante « 09H01 → 09H05 · 4 min », la troisième un champ de date — chacune
+ * d'une largeur différente, donc chaque heure à une abscisse différente. L'œil qui descend le
+ * déroulé ne trouvait plus rien où il l'attendait, et la fiche paraissait brouillonne alors que
+ * tout y était. Début, fin et durée ont désormais leur colonne, quoi qu'elles contiennent. */
 .pointage {
-  display: flex;
+  display: grid;
+  grid-template-columns: 104px 104px 88px auto;
   align-items: center;
   gap: var(--space-2);
   justify-self: end;
+}
+
+.colDebut,
+.colFin,
+.colDuree {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* « System Date » relève une valeur au lieu de deux heures : son champ prend les deux colonnes
+   d'heures, et s'arrête là où la durée commence. */
+.colValeur {
+  grid-column: 1 / 4;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .horodate {
@@ -534,7 +559,13 @@
    vient justement agir. Au doigt, où il n'y a pas de survol, ils sont visibles en permanence. */
 .verdicts {
   display: flex;
+  justify-content: flex-end;
   gap: 4px;
+  /* Largeur FIXE, et non dictée par le nombre de commandes : « Reprendre » n'apparaît que sur
+     certaines lignes, et sans cela sa présence décalait toute la rangée d'heures — l'alignement
+     qu'on vient d'établir aurait sauté d'une ligne à l'autre. Cinq boutons, leurs écarts, et le
+     retrait tenu à distance. */
+  width: 154px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -653,6 +684,18 @@
 .chronoLong {
   background: color-mix(in srgb, var(--status-warn) 12%, transparent);
   color: var(--status-warn);
+}
+
+/* Ce qui court sous l'étape — la bande de la nuit. Aligné sur le libellé, jamais sous la
+   pastille : sans cette règle, le bloc retombait dans la colonne de 24 px de la pastille et son
+   texte s'y écrivait une lettre par ligne. */
+.dessous {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  min-width: 0;
 }
 
 /* --- La bande de la nuit : le journal d'une étape ------------------------------------------- */
@@ -1039,7 +1082,7 @@
 
 /* Le sommet se déplie : l'avancement d'abord, les compteurs dessous, sans filet vertical qui
    n'aurait plus rien à séparer. */
-@container (max-width: 720px) {
+@container (max-width: 900px) {
   .sommet {
     grid-template-columns: 1fr;
     gap: var(--space-4);
@@ -1048,12 +1091,16 @@
     padding-left: 0;
     border-left: 0;
   }
+  /* Les colonnes fixes ne tiennent plus à côté du libellé : le pointage passe dessous, sur sa
+     propre ligne, en gardant ses colonnes — c'est l'alignement d'une ligne à l'autre qui compte,
+     pas sa position. */
   .etape {
     grid-template-columns: 24px minmax(0, 1fr);
   }
   .pointage {
     grid-column: 2;
     justify-self: start;
+    grid-template-columns: 96px 96px 80px auto;
     margin-top: var(--space-2);
   }
   .dessous {
