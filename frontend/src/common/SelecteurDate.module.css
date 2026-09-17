@@ -34,6 +34,23 @@
   color: var(--text-muted);
 }
 
+/* Date acquise : le relevé est fait. Vert — la couleur de ce qui a abouti — et seulement là où
+   choisir la date EST le travail. Sur une échéance, une date renseignée n'est pas un succès. */
+.champAcquis {
+  border-color: color-mix(in srgb, var(--status-ok) 45%, var(--border));
+  background: color-mix(in srgb, var(--status-ok) 7%, var(--surface));
+}
+.champAcquis:hover {
+  border-color: var(--status-ok);
+}
+.champAcquis .icone {
+  color: var(--status-ok);
+}
+.valeurAcquise {
+  color: var(--status-ok);
+  font-weight: var(--weight-medium);
+}
+
 /* Jauge d'urgence : remplissage rouge qui progresse avec le temps consommé avant l'échéance. */
 .champJauge {
   position: relative;

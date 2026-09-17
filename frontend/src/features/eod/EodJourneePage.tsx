@@ -759,6 +759,10 @@ export function EodJourneePage(): JSX.Element {
                             placeholder="jj/mm/aaaa"
                             desactive={!peutEcrire}
                             titreDesactive={TITRE_LECTURE}
+                            /* Ici, choisir la date EST le travail : une fois relevée, le champ
+                               passe au vert comme une étape complétée — on voit d'un coup d'œil,
+                               en descendant le déroulé, si la bascule a bien été constatée. */
+                            acquise
                           />
                         </span>
                       ) : (

@@ -84,13 +84,16 @@ const COLONNES: Colonne<SoireeEod>[] = [
     entete: 'Déroulé',
     valeur: (s) => s.avancement,
     largeur: '190px',
-    // Le pourcentage seul ne dit pas si la nuit est longue : « 24/28 » situe l'étape où l'on est.
+    // Une BARRE, et non deux nombres. Une liste de quinze nuits se parcourt du regard : « 61 % »
+    // et « 17/28 » demandent d'être lus l'un après l'autre, là où une longueur se compare d'un
+    // coup d'œil d'une ligne à la suivante. Le détail chiffré reste, en infobulle, pour qui veut
+    // le nombre exact d'étapes.
     rendu: (s) => (
-      <div className={propres.deroule}>
+      <div
+        className={propres.deroule}
+        title={`${s.avancement}% — ${s.nb_etapes - s.reste} étapes réglées sur ${s.nb_etapes}`}
+      >
         <BarreAvancement valeur={s.avancement} compact />
-        <span className={propres.etapes}>
-          {s.nb_etapes - s.reste}/{s.nb_etapes}
-        </span>
       </div>
     ),
   },
@@ -280,7 +283,7 @@ export function EodPage(): JSX.Element {
 
         <label className={styles.champ}>
           <span>Journée comptable à clore</span>
-          <SelecteurDate valeur={journee} onChange={setJournee} placeholder="jj/mm/aaaa" />
+          <SelecteurDate valeur={journee} onChange={setJournee} placeholder="jj/mm/aaaa" acquise />
           <span className={propres.indice}>
             La date de la journée qu’on <strong>clôt</strong>, et non celle de la saisie : une
             soirée commencée le 15 au soir se termine le 16 au matin.

@@ -19,6 +19,10 @@ interface Props {
   /** Verdict figé d'une échéance close : « tenue » (vert) ou « depassee » (rouge).
    *  Le décompte s'arrête, le résultat reste — prime sur `remplissageEcheance`. */
   verdict?: 'tenue' | 'depassee' | null;
+  /** Une date POSÉE vaut relevé fait : le champ passe au vert. Réservé aux écrans où choisir la
+   *  date EST le travail (le relevé d'une date système, l'ouverture d'une soirée) — ailleurs, une
+   *  échéance renseignée n'est pas un succès, et la couleur mentirait. */
+  acquise?: boolean;
 }
 
 /** Proportion 0→1 de « temps consommé » avant l'échéance (1 = atteinte ou dépassée). */
@@ -76,6 +80,7 @@ export function SelecteurDate({
   depuis,
   desactive = false,
   titreDesactive,
+  acquise = false,
   verdict = null,
 }: Props): JSX.Element {
   const [ouvert, setOuvert] = useState(false);
@@ -144,7 +149,11 @@ export function SelecteurDate({
       <button
         ref={declencheur}
         type="button"
-        className={cx(styles.champ, jauge !== null && styles.champJauge)}
+        className={cx(
+          styles.champ,
+          jauge !== null && styles.champJauge,
+          acquise && valeur !== null && valeur !== '' && styles.champAcquis,
+        )}
         onClick={basculer}
         disabled={desactive}
         title={desactive ? titreDesactive : undefined}
@@ -160,7 +169,13 @@ export function SelecteurDate({
           />
         )}
         <Calendar size={16} className={styles.icone} />
-        <span className={cx(styles.contenu, valeur ? styles.valeur : styles.placeholder)}>
+        <span
+          className={cx(
+            styles.contenu,
+            valeur ? styles.valeur : styles.placeholder,
+            acquise && valeur ? styles.valeurAcquise : undefined,
+          )}
+        >
           {valeur ? formatFr(valeur) : placeholder}
         </span>
       </button>
