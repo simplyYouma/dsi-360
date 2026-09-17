@@ -13,6 +13,7 @@ sans un mot ne se relit pas six semaines plus tard, et c'est précisément ce qu
 dans l'historique d'une nuit.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 from httpx import AsyncClient
@@ -132,6 +133,34 @@ async def test_pointer_horodate_et_fait_avancer_l_etape(
     fini = _etape(r.json(), "EODM")
     assert fini["statut"] == "Complété"
     assert fini["fin"] is not None
+
+
+async def test_demarrer_sur_une_heure_choisie_rattrape_une_ligne_oubliee(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« Démarrer » pose l'instant présent ; rattraper une ligne oubliée pose l'heure qu'on donne.
+
+    L'écran s'appuie sur le PATCH générique (celui de « Reprendre ») plutôt que sur une route
+    dédiée : il n'existe qu'un seul chemin pour écrire une heure de début, jamais deux qui
+    pourraient diverger.
+    """
+    operateur = await creer_utilisateur(session, email="eod.demarrer.heure@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-09-09")
+    etape = _etape(await _detail(client, operateur, ident), "EODM")
+
+    heure_choisie = datetime(2026, 9, 9, 21, 5, tzinfo=UTC)
+    r = await client.patch(
+        f"/eod/{ident}/etapes/{etape['id']}",
+        headers=entetes(operateur),
+        json={"statut": "En cours", "debut": heure_choisie.isoformat()},
+    )
+    assert r.status_code == 200, r.text
+    apres = _etape(r.json(), "EODM")
+    assert apres["statut"] == "En cours"
+    # Comparé en instant, pas en chaîne : le serveur peut rendre « Z » là où on a envoyé
+    # « +00:00 », deux écritures du même instant.
+    assert datetime.fromisoformat(apres["debut"]) == heure_choisie
+    # Aucune explication à fournir : ce n'est pas un verdict d'échec, seulement un rattrapage.
 
 
 async def test_l_avancement_se_deduit_des_etapes_reglees(

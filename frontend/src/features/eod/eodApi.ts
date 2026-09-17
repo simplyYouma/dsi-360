@@ -163,11 +163,34 @@ export function estReglee(e: EtapeEod): boolean {
   return e.statut !== 'À faire' && e.statut !== 'En cours';
 }
 
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** « 01H12 » — la notation du rapport de la banque, celle que l'opérateur lit sur son écran. */
+export function formatHeure(heures: number, minutes: number): string {
+  return `${pad2(heures)}H${pad2(minutes)}`;
+}
+
+/** Une heure et une minute choisies à l'écran, ramenées à l'instant qu'elles désignent.
+ *
+ * Miroir exact de `domain.eod.resoudre_relance` côté serveur : l'EOD franchit minuit, une heure
+ * nue ne désigne donc pas forcément aujourd'hui — à 01H30 le 16, « 23H50 » parle de la veille au
+ * soir. On retient la DERNIÈRE occurrence PASSÉE, jamais la suivante (une marge de 5 min tolère
+ * une pendule un peu en avance), parce qu'on consigne toujours un geste après coup. */
+export function resoudreHeure(heures: number, minutes: number, maintenant = new Date()): Date {
+  const candidat = new Date(maintenant);
+  candidat.setHours(heures, minutes, 0, 0);
+  const AVANCE_TOLEREE_MS = 5 * 60_000;
+  if (candidat.getTime() > maintenant.getTime() + AVANCE_TOLEREE_MS) {
+    candidat.setDate(candidat.getDate() - 1);
+  }
+  return candidat;
+}
+
 /** « 20H29 » — la notation du rapport de la banque, et non un horodatage ISO. */
 export function heure(iso: string | null): string {
   if (iso === null) return '';
   const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}H${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatHeure(d.getHours(), d.getMinutes());
 }
 
 /** « 15/09/2026 » à partir d'une date ISO (journée comptable). */
@@ -197,5 +220,5 @@ export function ligneObservation(o: ObservationEod): string {
  *  et l'opérateur ne doit avoir à taper que ce qu'il corrige. */
 export function heureCourante(): string {
   const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}H${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatHeure(d.getHours(), d.getMinutes());
 }

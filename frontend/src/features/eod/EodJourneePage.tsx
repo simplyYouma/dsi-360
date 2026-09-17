@@ -34,11 +34,13 @@ import { ErreurApi, telecharger } from '@/lib/api';
 import {
   eodApi,
   estReglee,
+  formatHeure,
   grouperParSection,
   heure,
   heureCourante,
   heureObservation,
   jour,
+  resoudreHeure,
   type DetailEod,
   type EtapeEod,
   type NatureObservation,
@@ -47,6 +49,7 @@ import {
 } from './eodApi';
 import { EVENEMENT_EOD } from './evenements';
 import { exporterRapportEodPdf } from './rapportPdf';
+import { SelecteurHeureEod } from './SelecteurHeureEod';
 import styles from './EodJourneePage.module.css';
 
 /** Verdict d'une étape : une couleur ET une forme. Le vert est réservé à ce qui a abouti, le gris
@@ -153,6 +156,17 @@ function isoDepuisValeur(valeur: string | null): string | null {
   const fr = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(texte);
   if (fr !== null) return `${fr[3]}-${fr[2]}-${fr[1]}`;
   return /^\d{4}-\d{2}-\d{2}$/.test(texte) ? texte : null;
+}
+
+/** « 01H12 » → { h: 1, m: 12 }, ou `null` si la saisie ne se lit pas (le champ démarre alors sur
+ *  l'instant présent, comme avant). Lecture seule : la résolution de la journée reste au serveur
+ *  (`resoudre_relance`), ceci ne sert qu'à préremplir le sélecteur sur ce qui est déjà écrit. */
+function heureSaisie(valeur: string): { h: number; m: number } | null {
+  const trouve = /^(\d{1,2})\s*[:hH]?\s*(\d{2})$/.exec(valeur.trim());
+  if (trouve === null) return null;
+  const h = Number(trouve[1]);
+  const m = Number(trouve[2]);
+  return h <= 23 && m <= 59 ? { h, m } : null;
 }
 
 /** Le temps écoulé depuis le démarrage — « 04:21 », « 1:12:40 ».
@@ -781,18 +795,33 @@ export function EodJourneePage(): JSX.Element {
                                    déclarer sans objet. Pour la rouvrir, on la reprend — c'est le
                                    geste prévu pour ça, et il se confirme. */
                             peutEcrire && !estReglee(e) ? (
-                              <button
-                                type="button"
-                                className={styles.pointer}
-                                disabled={occupe !== null}
-                                onClick={() =>
+                              <SelecteurHeureEod
+                                desactive={occupe !== null}
+                                onChoisir={(hh, mm) => {
+                                  const debut = resoudreHeure(hh, mm);
                                   void agir(`debut:${e.id}`, () =>
-                                    eodApi.pointer(id, e.id, 'debut'),
-                                  )
-                                }
-                              >
-                                <Play size={12} /> Démarrer
-                              </button>
+                                    // « Maintenant » retombe pile sur le geste d'avant (un clic,
+                                    // l'instant présent) ; choisir une heure passe par le même
+                                    // PATCH que « Reprendre », pour rattraper une ligne oubliée
+                                    // sans redémarrer l'étape de zéro.
+                                    eodApi.majEtape(id, e.id, {
+                                      statut: 'En cours',
+                                      debut: debut.toISOString(),
+                                    }),
+                                  );
+                                }}
+                                trigger={({ onClick, ref }) => (
+                                  <button
+                                    ref={ref}
+                                    type="button"
+                                    className={styles.pointer}
+                                    disabled={occupe !== null}
+                                    onClick={onClick}
+                                  >
+                                    <Play size={12} /> Démarrer
+                                  </button>
+                                )}
+                              />
                             ) : (
                               <span className={styles.vide}>—</span>
                             )}
@@ -845,63 +874,90 @@ export function EodJourneePage(): JSX.Element {
                         </>
                       )}
 
-                      {peutEcrire && (
-                        <div className={styles.verdicts}>
-                          {/* Reprendre : seulement là où il y a quelque chose à reprendre — une
-                              étape qui n'a jamais démarré n'a pas de pointage à défaire. */}
-                          {(estReglee(e) || e.debut !== null) && (
-                            <button
-                              type="button"
-                              className={cx(styles.verdict, styles.verdictReprise)}
-                              title={
-                                e.debut !== null && e.fin === null
-                                  ? 'Annuler le démarrage'
-                                  : 'Reprendre l’étape (le pointage repart)'
-                              }
-                              aria-label={`Reprendre l’étape « ${e.libelle} »`}
-                              disabled={occupe !== null}
-                              onClick={() => setAReprendre(e)}
-                            >
-                              <RotateCcw size={13} />
-                            </button>
-                          )}
-                          {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => (
-                            <button
-                              type="button"
-                              key={v.statut}
-                              className={cx(styles.verdict, v.classe)}
-                              title={v.libelle}
-                              aria-label={`${v.libelle} — ${e.libelle}`}
-                              disabled={occupe !== null}
-                              onClick={() => poserVerdict(e, v.statut)}
-                            >
-                              <v.icone size={13} />
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className={cx(styles.verdict, styles.verdictObservation)}
-                            title="Consigner une observation"
-                            aria-label={`Consigner une observation — ${e.libelle}`}
-                            disabled={occupe !== null}
-                            onClick={() => consigner(e, null)}
-                          >
-                            <MessageSquarePlus size={13} />
-                          </button>
-                          {/* Retirer l'étape : le geste le plus destructeur de la ligne, donc le
-                              dernier, séparé des verdicts et confirmé avant d'agir. */}
-                          <button
-                            type="button"
-                            className={cx(styles.verdict, styles.verdictRetrait, styles.retrait)}
-                            title="Retirer cette étape de la soirée"
-                            aria-label={`Retirer l’étape « ${e.libelle} »`}
-                            disabled={occupe !== null}
-                            onClick={() => setASupprimer(e)}
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      )}
+                      {peutEcrire &&
+                        (() => {
+                          // Signaler une anomalie ou consigner une observation suppose que
+                          // quelque chose s'est passé — donc que l'étape a démarré. « Sans objet »
+                          // fait exception : décider qu'une étape ne s'applique pas ce soir-là ne
+                          // demande pas de l'avoir pointée d'abord (« Backup before EOM » un soir
+                          // ordinaire, par exemple). Les étapes « à valeur » (System Date) n'ont
+                          // pas de démarrage : la règle ne les concerne pas.
+                          const nonDemarree = e.nature === 'horaire' && e.debut === null;
+                          const raisonGel = 'Démarrez l’étape avant d’agir sur elle.';
+                          return (
+                            <div className={styles.verdicts}>
+                              {/* Reprendre : seulement là où il y a quelque chose à reprendre —
+                                  une étape qui n'a jamais démarré n'a pas de pointage à défaire. */}
+                              {(estReglee(e) || e.debut !== null) && (
+                                <button
+                                  type="button"
+                                  className={cx(styles.verdict, styles.verdictReprise)}
+                                  title={
+                                    e.debut !== null && e.fin === null
+                                      ? 'Annuler le démarrage'
+                                      : 'Reprendre l’étape (le pointage repart)'
+                                  }
+                                  aria-label={`Reprendre l’étape « ${e.libelle} »`}
+                                  disabled={occupe !== null}
+                                  onClick={() => setAReprendre(e)}
+                                >
+                                  <RotateCcw size={13} />
+                                </button>
+                              )}
+                              {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => {
+                                const gele = nonDemarree && v.statut === 'Anomalie';
+                                return (
+                                  <button
+                                    type="button"
+                                    key={v.statut}
+                                    className={cx(
+                                      styles.verdict,
+                                      v.classe,
+                                      gele && styles.verdictGele,
+                                    )}
+                                    title={gele ? raisonGel : v.libelle}
+                                    aria-label={`${v.libelle} — ${e.libelle}`}
+                                    disabled={occupe !== null || gele}
+                                    onClick={() => poserVerdict(e, v.statut)}
+                                  >
+                                    <v.icone size={13} />
+                                  </button>
+                                );
+                              })}
+                              <button
+                                type="button"
+                                className={cx(
+                                  styles.verdict,
+                                  styles.verdictObservation,
+                                  nonDemarree && styles.verdictGele,
+                                )}
+                                title={nonDemarree ? raisonGel : 'Consigner une observation'}
+                                aria-label={`Consigner une observation — ${e.libelle}`}
+                                disabled={occupe !== null || nonDemarree}
+                                onClick={() => consigner(e, null)}
+                              >
+                                <MessageSquarePlus size={13} />
+                              </button>
+                              {/* Retirer l'étape : le geste le plus destructeur de la ligne, donc
+                                  le dernier, séparé des verdicts et confirmé avant d'agir. Ni
+                                  progression ni observation : jamais gelé par le démarrage. */}
+                              <button
+                                type="button"
+                                className={cx(
+                                  styles.verdict,
+                                  styles.verdictRetrait,
+                                  styles.retrait,
+                                )}
+                                title="Retirer cette étape de la soirée"
+                                aria-label={`Retirer l’étape « ${e.libelle} »`}
+                                disabled={occupe !== null}
+                                onClick={() => setASupprimer(e)}
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          );
+                        })()}
                     </div>
 
                     {e.observations.length > 0 && (
@@ -1080,20 +1136,26 @@ export function EodJourneePage(): JSX.Element {
                 onCreer={(libelle) => Promise.resolve(libelle)}
               />
             </div>
-            <label className={styles.champ}>
+            <div className={styles.champ}>
               <span>Heure de relance</span>
-              <input
-                value={relance}
-                onChange={(e) => setRelance(e.target.value)}
-                placeholder="01H12"
-                /* Pré-remplie à l'instant : on consigne sur le moment, et l'opérateur ne tape que
-                   ce qu'il corrige. Le serveur en déduit la journée — l'EOD franchit minuit. */
+              <SelecteurHeureEod
+                heures={heureSaisie(relance)?.h ?? null}
+                minutes={heureSaisie(relance)?.m ?? null}
+                onChoisir={(hh, mm) => setRelance(formatHeure(hh, mm))}
+                trigger={({ onClick, ref }) => (
+                  <button ref={ref} type="button" className={styles.champHeure} onClick={onClick}>
+                    <Clock size={15} className={styles.champHeureIcone} />
+                    <span className={relance === '' ? styles.vide : undefined}>
+                      {relance || '01H12'}
+                    </span>
+                  </button>
+                )}
               />
               <span className={styles.indice}>
-                Telle qu’elle se lit sur l’écran — « 01H12 ». La date se déduit : l’EOD franchit
-                minuit.
+                Préremplie sur l’instant : on consigne sur le moment, et l’opérateur ne corrige que
+                ce qui compte. La date se déduit — l’EOD franchit minuit.
               </span>
-            </label>
+            </div>
           </>
         )}
 

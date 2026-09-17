@@ -71,6 +71,17 @@ Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumé
 > une. L'heure se tape comme elle se lit (« 01H12 ») ; le serveur en déduit la journée, car l'EOD
 > franchit minuit. Les **relances d'agence** se comptent à part des **anomalies** : l'une ne se
 > déduit pas de l'autre.
+>
+> **« Démarrer » pose l'instant présent — et laisse rattraper une ligne oubliée.** L'écran ne
+> demande la date à l'opérateur qu'en dernier recours : un clic sur « Démarrer » suffit, l'instant
+> présent est écrit sans qu'on le tape. Mais une nuit ne se pointe pas toujours en direct, et une
+> heure oubliée ne doit pas se perdre pour autant — le même bouton ouvre donc un choix discret
+> (« Maintenant », gros et en tête ; une heure précise, en dessous). Choisir une heure passe par le
+> **même PATCH que « Reprendre »** (`debut` explicite, jamais une seconde route) : un seul chemin
+> pour écrire une heure de début, jamais deux qui pourraient diverger. **Les gestes qui exigent une
+> explication restent gelés tant que l'étape n'a pas démarré** — signaler une anomalie, consigner
+> une observation supposent que quelque chose s'est passé. « Non applicable » fait seule exception :
+> décider qu'une étape ne s'applique pas ce soir-là ne demande pas de l'avoir pointée d'abord.
 
 > **Hors cahier, ajouts assumés** — deux modules de patrimoine, tracés ici comme tels :
 > **Inventaire** (parc matériel, immobilisations IT) et **Applications** (inventaire applicatif :
