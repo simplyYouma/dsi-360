@@ -519,6 +519,9 @@ async def test_la_liste_s_exporte_avec_ses_colonnes(
         "Fin effective",
     ):
         assert colonne in entete, entete
+    # Et pas de colonne « Commentaires » : une soirée ne se commente pas, elle se pointe — la
+    # colonne vaudrait 0 sur toutes les lignes.
+    assert "Commentaires" not in entete
     assert "15/07/2026" in corps
 
     r = await client.get("/eod/export?format=xlsx", headers=entetes(operateur))

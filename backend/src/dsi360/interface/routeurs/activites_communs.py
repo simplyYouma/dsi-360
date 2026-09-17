@@ -528,8 +528,12 @@ _COLONNES_BASE: tuple[tuple[str, str], ...] = (
     ("Résolu le", "resolu_le"),
     ("Clôturé le", "cloture_le"),
     ("Délai de traitement (jours)", "duree_jours"),
-    ("Commentaires", "nb_commentaires"),
 )
+
+#: Le compte de la discussion interne. Tous les modules n'en ont pas : l'EOD se pointe, il ne se
+#: commente pas, et sa fiche n'ouvre aucun fil. Une colonne qui vaudrait 0 sur toutes les lignes
+#: n'est pas de l'exhaustivité, c'est du bruit — la règle vaut ici comme ailleurs.
+_COLONNES_DISCUSSION: tuple[tuple[str, str], ...] = (("Commentaires", "nb_commentaires"),)
 
 #: Colonnes des modules alimentés par l'import quotidien (incidents, demandes) : le gestionnaire
 #: tel que le fichier le nomme, et le niveau qui s'en déduit (ADR-0005).
@@ -672,6 +676,7 @@ def colonnes_export(
     avec_revue: bool,
     avec_departement: bool = False,
     avec_avancement_manuel: bool = False,
+    avec_discussion: bool = True,
 ) -> tuple[tuple[str, str], ...]:
     """Colonnes de l'export d'un module : le socle, plus ce que ce module porte réellement.
 
@@ -679,6 +684,10 @@ def colonnes_export(
     n'est pas de l'exhaustivité, c'est du bruit.
     """
     colonnes = list(_COLONNES_BASE)
+    # À sa place d'origine, juste après le socle : la déplacer en fin de liste décalerait toutes
+    # les colonnes des classeurs déjà construits sur cet export.
+    if avec_discussion:
+        colonnes += list(_COLONNES_DISCUSSION)
     if avec_departement:
         colonnes += list(_COLONNES_DEPARTEMENT)
     if import_uniquement:

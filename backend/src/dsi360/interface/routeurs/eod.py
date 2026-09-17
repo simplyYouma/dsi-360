@@ -354,8 +354,13 @@ async def exporter(
     mesures = await eod_repo.agregats(session, [str(r["id"]) for r in lignes])
     colonnes = [
         *colonnes_export(
-            MODULE, import_uniquement=False, avec_taches=False, avec_revue=False,
+            MODULE,
+            import_uniquement=False,
+            avec_taches=False,
+            avec_revue=False,
             avec_avancement_manuel=True,
+            # Une soirée ne se commente pas : la colonne vaudrait 0 sur toutes les lignes.
+            avec_discussion=False,
         ),
         *_COLONNES_EOD,
     ]
