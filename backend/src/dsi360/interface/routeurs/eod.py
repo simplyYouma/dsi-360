@@ -697,7 +697,9 @@ async def pointer_etape(
         cible_type="eod_etape",
         cible_id=etape_id,
         ancienne={"statut": avant["statut"]},
-        nouvelle={"pointage": corps.quoi, "statut": fixes["statut"]},
+        # Terminer une étape en anomalie ne touche pas à son verdict : `fixes` ne porte alors pas
+        # de statut, et c'est celui d'avant qui reste vrai.
+        nouvelle={"pointage": corps.quoi, "statut": fixes.get("statut", avant["statut"])},
     )
     await rafraichir_avancement(session, ident)
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
@@ -728,7 +730,40 @@ async def supprimer_etape(
 
 # --- Le rapport du soir -----------------------------------------------------------------------
 
-_ENTETES_RAPPORT = ["Section", "Étape", "Début", "Fin", "Observations"]
+#: Les quatre colonnes de leur tableau — et pas une de plus. La section n'est pas une colonne :
+#: c'est un bandeau qui coupe la liste (cf. `_lignes_rapport`).
+_ENTETES_RAPPORT = ["Étape", "Début", "Fin", "Statut / Observations"]
+
+
+def _lignes_rapport(
+    etapes: list[RowMapping], journal: dict[str, list[dict[str, Any]]]
+) -> tuple[list[list[Any]], set[int]]:
+    """Les lignes du rapport dans la forme où la hiérarchie le lit depuis toujours.
+
+    Un bandeau par section (PART 1, PART 2…) sur toute la largeur, puis ses étapes. La dernière
+    colonne dit le verdict — ou, quand il y a quelque chose à dire, le journal à la place : sur
+    « Post EOFI_1 », c'est « Branch 018 Error code:AE-VALS-053 » qu'on lit, pas « Anomalie ».
+    Rend aussi les rangs des bandeaux, pour que le classeur les fusionne et les teinte.
+    """
+    lignes: list[list[Any]] = []
+    bandeaux: set[int] = set()
+    section_courante: str | None = None
+    for e in sorted(etapes, key=lambda x: (ordre_section(str(x["section"])), int(x["ordre"]))):
+        if e["section"] != section_courante:
+            section_courante = str(e["section"])
+            bandeaux.add(len(lignes))
+            lignes.append([section_courante, "", "", ""])
+        if e["nature"] == "valeur":
+            debut, fin = (e["valeur"] or ""), ""
+        else:
+            debut, fin = _heure(e["debut"]), _heure(e["fin"])
+        # Le journal entier, une ligne par observation : c'est lui le compte rendu de la nuit.
+        # N'en garder que la dernière — ce que faisait l'ancien champ de notes — effacerait les
+        # relances successives, c'est-à-dire précisément ce que la hiérarchie vient lire.
+        consigne = "\n".join(_ligne_journal(o) for o in journal.get(str(e["id"]), []))
+        verdict = "" if e["statut"] == "À faire" else str(e["statut"])
+        lignes.append([e["libelle"], debut, fin, consigne or verdict])
+    return lignes, bandeaux
 
 
 @routeur.get("/{ident}/rapport")
@@ -747,18 +782,7 @@ async def rapport(
     r = await _charger(session, ident, courant)
     etapes = await eod_repo.lister(session, ident)
     journal = await _journal(session, ident)
-    lignes: list[list[Any]] = []
-    for e in sorted(etapes, key=lambda x: (ordre_section(str(x["section"])), int(x["ordre"]))):
-        if e["nature"] == "valeur":
-            debut, fin = (e["valeur"] or ""), ""
-        else:
-            debut, fin = _heure(e["debut"]), _heure(e["fin"])
-        # Le journal entier, une ligne par observation : c'est lui le compte rendu de la nuit.
-        # N'en garder que la dernière — ce que faisait l'ancien champ de notes — effacerait les
-        # relances successives, c'est-à-dire précisément ce que la hiérarchie vient lire.
-        consigne = "\n".join(_ligne_journal(o) for o in journal.get(str(e["id"]), []))
-        observations = consigne or ("" if e["statut"] == "À faire" else str(e["statut"]))
-        lignes.append([e["section"], e["libelle"], debut, fin, observations])
+    lignes, bandeaux = _lignes_rapport(etapes, journal)
 
     d = _donnees(r)
     nom = f"eod-{d.get('journee') or r['reference']}"
@@ -774,7 +798,7 @@ async def rapport(
     return Response(
         # `retour_ligne` : une étape qui a vu trois agences bloquer porte trois lignes dans sa
         # cellule. Sans habillage, Excel les afficherait bout à bout, tronquées à la première.
-        content=vers_xlsx(_ENTETES_RAPPORT, lignes, onglet, retour_ligne=True),
+        content=vers_xlsx(_ENTETES_RAPPORT, lignes, onglet, retour_ligne=True, bandeaux=bandeaux),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={nom}.xlsx"},
     )

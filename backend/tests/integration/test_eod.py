@@ -672,6 +672,50 @@ async def test_un_incident_pose_une_etape_relance_sous_l_etape_qui_a_bloque(
     assert "20H15" in corps
 
 
+async def test_terminer_une_etape_en_anomalie_garde_l_anomalie(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« Post EOFI_1 » : 19H53 → 20H08 ET « Branch 018 Error ». L'étape a fini, pour toutes les
+    agences sauf une — la fin clôt son temps, pas son verdict."""
+    operateur = await creer_utilisateur(session, email="eod.fin.anomalie@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-23")
+    etape = _etape(await _detail(client, operateur, ident), "EODM")
+    chemin = f"/eod/{ident}/etapes/{etape['id']}"
+
+    await client.post(f"{chemin}/pointer", headers=entetes(operateur), json={"quoi": "debut"})
+    r = await client.patch(
+        chemin,
+        headers=entetes(operateur),
+        json={
+            "statut": "Anomalie",
+            "observation": {"nature": "note", "texte": "Error code AE-VALS-053 sur 018."},
+        },
+    )
+    assert r.status_code == 200, r.text
+
+    r = await client.post(f"{chemin}/pointer", headers=entetes(operateur), json={"quoi": "fin"})
+    assert r.status_code == 200, r.text
+    apres = _etape(r.json(), "EODM")
+    assert apres["fin"] is not None
+    assert apres["statut"] == "Anomalie", "terminer ne répare pas ce qu'on vient de constater"
+
+
+async def test_le_rapport_a_la_forme_du_document_de_la_production(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Leur tableau : quatre colonnes, les sections en bandeaux, le verdict ou le commentaire."""
+    operateur = await creer_utilisateur(session, email="eod.rapport.forme@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-22")
+
+    r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
+    lignes = r.content.decode("utf-8-sig", errors="replace").splitlines()
+    assert lignes[0] == "Étape;Début;Fin;Statut / Observations"
+    # Un bandeau : la section seule sur sa ligne, avant ses étapes — pas une colonne de plus.
+    assert "PART 1;;;" in lignes
+    assert lignes.index("PART 1;;;") < lignes.index("PART 2;;;")
+    assert not any(ligne.startswith("Préparation;Intégration") for ligne in lignes)
+
+
 async def test_une_simple_note_ne_pose_aucune_relance(
     client: AsyncClient, session: AsyncSession
 ) -> None:

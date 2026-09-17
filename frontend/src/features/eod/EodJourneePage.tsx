@@ -157,6 +157,25 @@ function isoDepuisValeur(valeur: string | null): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(texte) ? texte : null;
 }
 
+/** Ce que « System Date » doit afficher : la journée comptable qu'on clôt AVANT la bascule
+ *  (section Préparation), le lendemain APRÈS (Tâches additionnelles). `null` hors de ces deux
+ *  sections — une étape à valeur ajoutée à la main n'a pas de valeur attendue connue. */
+function dateAttendue(journee: string | null, section: string): string | null {
+  if (journee === null) return null;
+  if (section === 'Préparation') return jour(journee);
+  if (section === 'Tâches additionnelles') {
+    const [a, m, j] = journee.split('-').map(Number);
+    if (a === undefined || m === undefined || j === undefined) return null;
+    const lendemain = new Date(a, m - 1, j + 1);
+    return jour(
+      `${lendemain.getFullYear()}-${String(lendemain.getMonth() + 1).padStart(2, '0')}-${String(
+        lendemain.getDate(),
+      ).padStart(2, '0')}`,
+    );
+  }
+  return null;
+}
+
 /** « 01H12 » → { h: 1, m: 12 }, ou `null` si la saisie ne se lit pas (le champ démarre alors sur
  *  l'instant présent, comme avant). Lecture seule : la résolution de la journée reste au serveur
  *  (`resoudre_relance`), ceci ne sert qu'à préremplir le sélecteur sur ce qui est déjà écrit. */
@@ -759,6 +778,26 @@ export function EodJourneePage(): JSX.Element {
                         <span className={cx(styles.marque, marque)}>{verdict.mot}</span>
                       )}
                       {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
+                      {/* La plateforme SAIT ce que « System Date » doit lire : la journée qu'on
+                          clôt avant la bascule, le lendemain après. Le rapport réel montre
+                          l'anomalie la plus courante de la nuit — « the date is still 09/09
+                          instead of 10/09 » — notée en aval, sur un contrôle de batch, parce que
+                          rien ne l'avait signalée là où elle se lisait. Ici, un relevé qui ne
+                          colle pas se voit sur place, en rouge, avec la valeur attendue. */}
+                      {e.nature === 'valeur' &&
+                        (() => {
+                          const attendu = dateAttendue(soiree.journee, e.section);
+                          if (attendu === null) return null;
+                          const releve = e.valeur?.trim() ?? '';
+                          if (releve === '') {
+                            return <span className={styles.aide}>Attendu : {attendu}</span>;
+                          }
+                          return releve === attendu ? null : (
+                            <span className={cx(styles.marque, styles.marqueAnomalie)}>
+                              Attendu {attendu} — la date n’a pas basculé
+                            </span>
+                          );
+                        })()}
                     </div>
 
                     <div className={styles.pointage}>
@@ -848,9 +887,11 @@ export function EodJourneePage(): JSX.Element {
                                   void agir(`fin:${e.id}`, () =>
                                     // Même chemin que le rattrapage d'un début : le PATCH
                                     // générique, jamais une seconde route pour la même heure.
+                                    // Une étape en anomalie garde son verdict : la fin clôt son
+                                    // temps, pas ce qu'on y a constaté (règle serveur identique).
                                     eodApi.majEtape(id, e.id, {
-                                      statut: 'Complété',
                                       fin: fin.toISOString(),
+                                      ...(e.statut === 'Anomalie' ? {} : { statut: 'Complété' }),
                                     }),
                                   );
                                 }}

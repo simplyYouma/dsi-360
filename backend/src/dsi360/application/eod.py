@@ -140,7 +140,13 @@ def pointage(quoi: str, etape: dict[str, Any], maintenant: datetime) -> dict[str
     """
     if quoi == "debut":
         return {"debut": maintenant, "statut": EN_COURS}
-    fixes: dict[str, Any] = {"fin": maintenant, "statut": COMPLETE}
+    # « Terminer » clôt le temps de l'étape, pas son verdict. Sur « Post EOFI_1 », le rapport
+    # dit 19H53 → 20H08 ET « Branch 018 Error » : l'étape a fini — pour toutes les agences sauf
+    # une — et reste en anomalie. Poser « Complété » ici effacerait ce que l'opérateur venait de
+    # constater. L'anomalie est le seul verdict qu'une fin d'étape ne remplace pas.
+    fixes: dict[str, Any] = {"fin": maintenant}
+    if etape.get("statut") != ANOMALIE:
+        fixes["statut"] = COMPLETE
     if etape.get("debut") is None:
         fixes["debut"] = maintenant
     return fixes

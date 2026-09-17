@@ -19,7 +19,12 @@ def vers_csv(entetes: list[str], lignes: list[list[Any]]) -> bytes:
 
 
 def vers_xlsx(
-    entetes: list[str], lignes: list[list[Any]], titre: str, *, retour_ligne: bool = False
+    entetes: list[str],
+    lignes: list[list[Any]],
+    titre: str,
+    *,
+    retour_ligne: bool = False,
+    bandeaux: set[int] | None = None,
 ) -> bytes:
     """Classeur d'une seule feuille.
 
@@ -28,6 +33,10 @@ def vers_xlsx(
     largeur de colonne se calcule sur la chaîne entière : deux défauts qui rendent la colonne
     illisible. Il reste optionnel pour ne rien changer aux exports dont les cellules tiennent
     naturellement sur une ligne.
+
+    ``bandeaux`` : rangs (dans ``lignes``) qui sont des titres de section et non des données —
+    « PART 1 », « PART 2 » du rapport EOD. Ils sont fusionnés sur toute la largeur et teintés,
+    comme dans le document que la Production remettait déjà à la main.
     """
     classeur = Workbook()
     feuille = classeur.active
@@ -43,6 +52,18 @@ def vers_xlsx(
 
     for ligne in lignes:
         feuille.append(ligne)
+
+    if bandeaux:
+        vert_pale = PatternFill("solid", fgColor="E2F0D9")
+        for rang in sorted(bandeaux):
+            numero = rang + 2  # +1 pour l'en-tête, +1 car Excel compte à partir de 1
+            feuille.merge_cells(
+                start_row=numero, start_column=1, end_row=numero, end_column=len(entetes)
+            )
+            cellule = feuille.cell(row=numero, column=1)
+            cellule.font = Font(bold=True)
+            cellule.fill = vert_pale
+            cellule.alignment = Alignment(horizontal="center")
 
     if retour_ligne:
         habillage = Alignment(wrap_text=True, vertical="top")
