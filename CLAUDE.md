@@ -84,10 +84,20 @@ Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumé
 > heure oubliée ne doit pas se perdre pour autant — le même bouton ouvre donc un choix discret
 > (« Maintenant », gros et en tête ; une heure précise, en dessous). Choisir une heure passe par le
 > **même PATCH que « Reprendre »** (`debut` explicite, jamais une seconde route) : un seul chemin
-> pour écrire une heure de début, jamais deux qui pourraient diverger. **Les gestes qui exigent une
-> explication restent gelés tant que l'étape n'a pas démarré** — signaler une anomalie, consigner
-> une observation supposent que quelque chose s'est passé. « Non applicable » fait seule exception :
-> décider qu'une étape ne s'applique pas ce soir-là ne demande pas de l'avoir pointée d'abord.
+> pour écrire une heure de début, jamais deux qui pourraient diverger. **Consigner reste gelé
+> tant que l'étape n'a pas démarré** — une observation, une anomalie, un incident supposent que
+> quelque chose s'est passé. « Non applicable » fait seule exception : décider qu'une étape ne
+> s'applique pas ce soir-là ne demande pas de l'avoir pointée d'abord.
+>
+> **L'anomalie est une ligne du journal, pas le verdict de l'étape.** Le rapport réel : « Post
+> EOFI_1 | 19H53 | 20H08 | Completed For All Branch Expected Branch 018 Error » — l'étape a **fini**
+> ET porte l'erreur. En faire le verdict de l'étape forçait à choisir entre les deux, alors que
+> les deux sont vrais, et souvent plusieurs fois sur la même étape. L'anomalie est donc une
+> **nature d'observation** (`note` · `anomalie` · `incident`) : on en ajoute autant qu'il en
+> survient, l'étape garde son pointage, la ligne les porte en rouge et les compte. Les anomalies
+> de la nuit se comptent **au journal** — l'incident d'agence en est une, avec une agence et une
+> relance en plus — et c'est ce compte qui fait « Clôturé avec réserves ». Terminer une étape ne
+> répare rien non plus : la fin clôt son temps, jamais un verdict d'anomalie déjà posé.
 
 > **Hors cahier, ajouts assumés** — deux modules de patrimoine, tracés ici comme tels :
 > **Inventaire** (parc matériel, immobilisations IT) et **Applications** (inventaire applicatif :

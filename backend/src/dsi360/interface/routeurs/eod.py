@@ -41,7 +41,7 @@ from dsi360.application.eod import (
     preparer_relance,
     rafraichir_avancement,
 )
-from dsi360.domain.eod import INCIDENT, MODULE, ordre_section
+from dsi360.domain.eod import ANOMALIE_OBS, INCIDENT, MODULE, ordre_section
 from dsi360.domain.etats import est_etat_terminal, est_termine, transitions_possibles
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import phrase_propre
@@ -107,6 +107,9 @@ def _ligne_journal(o: RowMapping | dict[str, Any]) -> str:
     """
     if o["nature"] == INCIDENT:
         return f"{_heure(o['relance_le'])} · {o['agence']} — {o['texte']}"
+    if o["nature"] == ANOMALIE_OBS:
+        # Le mot en tête : dans une colonne qui mêle notes et anomalies, c'est lui qu'on cherche.
+        return f"{_heure(o['cree_le'])} · ANOMALIE — {o['texte']}"
     return f"{_heure(o['cree_le'])} — {o['texte']}"
 
 
@@ -213,7 +216,7 @@ async def _detail_complet(
         "description": r["description"],
         "etapes": etapes,
         "transitions_possibles": transitions_possibles(MODULE, r["statut"]),
-        "cloture_conseillee": cloture_conseillee(statuts),
+        "cloture_conseillee": cloture_conseillee(statuts, int(mesures["anomalies"])),
         "permissions": capacites(await charger_roles(session, r, courant), clos=clos),
     }
 
@@ -427,7 +430,8 @@ async def transitionner(
     """
     await _charger(session, ident, courant)
     statuts = await eod_repo.statuts(session, ident)
-    inachevee = cloture_conseillee(statuts) is None
+    anomalies = int((await eod_repo.agregats(session, [ident])).get(ident, {}).get("anomalies", 0))
+    inachevee = cloture_conseillee(statuts, anomalies) is None
     cloture = corps.vers in {"Clôturé", "Clôturé avec réserves", "Annulé"}
     if cloture and inachevee and not (corps.note or "").strip():
         raise HTTPException(

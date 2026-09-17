@@ -10,7 +10,14 @@ export type NatureEtape = 'horaire' | 'valeur';
 
 /** « note » : ce qu'on relève en passant. « incident » : une agence a bloqué, on l'a relancée —
  *  et la forme exige alors l'agence et l'heure de relance, que le serveur refuse absentes. */
-export type NatureObservation = 'note' | 'incident';
+/** « anomalie » : quelque chose a coincé — l'étape n'en est pas moins finie, elle porte ses
+ *  anomalies. « incident » : une agence a bloqué, on l'a relancée. */
+export type NatureObservation = 'note' | 'anomalie' | 'incident';
+
+/** Ce qui compte comme anomalie dans la nuit : l'anomalie, et l'incident d'agence qui en est une. */
+export function estAnomalie(o: ObservationEod): boolean {
+  return o.nature === 'anomalie' || o.nature === 'incident';
+}
 
 /** Une ligne du journal d'une étape. Écrite une fois pour toutes : ni correction ni suppression —
  *  une observation qui se réécrit après coup ne prouve plus rien. */

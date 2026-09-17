@@ -583,7 +583,9 @@ class ReferentielCreation(BaseModel):
 
 StatutEtapeEod = Literal["À faire", "En cours", "Complété", "Anomalie", "Non applicable"]
 NatureEtapeEod = Literal["horaire", "valeur"]
-NatureObservationEod = Literal["note", "incident"]
+#: « anomalie » : quelque chose a coincé, l'étape n'en est pas moins finie — elle porte ses
+#: anomalies, autant qu'il en survient. « incident » : une agence a bloqué, on l'a relancée.
+NatureObservationEod = Literal["note", "anomalie", "incident"]
 
 
 class ObservationEodCreation(BaseModel):

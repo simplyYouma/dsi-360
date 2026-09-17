@@ -1042,81 +1042,11 @@
   box-shadow: 0 0 0 3px var(--secondary-subtle);
 }
 
-/* La bascule « l'étape finit en anomalie » : une ligne entière qui se coche, pas une case perdue
-   en bout de champ. Rouge quand elle est prise — c'est un verdict qu'on s'apprête à poser. */
-.bascule {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  margin-bottom: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--text-muted);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    color 0.15s ease;
-}
-.bascule:hover {
-  border-color: var(--text-muted);
-}
-.basculeTexte {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 1px;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--text);
-}
-.basculeSens {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-regular);
-  color: var(--text-muted);
-}
-.basculeCase {
-  flex: none;
-  width: 34px;
-  height: 20px;
-  border-radius: var(--radius-pill);
-  background: var(--border);
-  position: relative;
-  transition: background 0.15s ease;
-}
-.basculeCase::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  transition: transform 0.15s ease;
-}
-.basculeActive {
-  border-color: color-mix(in srgb, var(--status-danger) 45%, var(--border));
-  background: color-mix(in srgb, var(--status-danger) 7%, transparent);
-  color: var(--status-danger);
-}
-.basculeActive .basculeCase {
-  background: var(--status-danger);
-}
-.basculeActive .basculeCase::after {
-  transform: translateX(14px);
-}
-
 /* Note ou incident d'agence : deux formes, et non une case à cocher perdue dans le formulaire.
    Le choix commande les champs qui suivent — il doit se voir avant de les remplir. */
 .natures {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-2);
   margin: var(--space-3) 0 var(--space-4);
 }
@@ -1155,6 +1085,23 @@
   margin: var(--space-3) 0 0;
   font-size: var(--text-xs);
   color: var(--text-muted);
+}
+
+/* L'incident d'agence : l'agence et l'heure sur une même ligne — l'heure n'a pas besoin de
+   toute la largeur, cinq caractères la remplissent, et les deux se lisent ensemble. */
+.rangeeIncident {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* Une nature d'alerte choisie (anomalie, incident) se dit en rouge — c'est ce qu'on consigne. */
+.natureAlerte {
+  border-color: color-mix(in srgb, var(--status-danger) 55%, var(--border));
+  background: color-mix(in srgb, var(--status-danger) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--status-danger) 55%, transparent);
+  color: var(--status-danger);
 }
 
 /* Les motifs d'un « sans objet » : quatre mots d'un clic, parce que ce sont toujours les mêmes

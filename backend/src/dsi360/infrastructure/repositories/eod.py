@@ -173,7 +173,6 @@ async def agregats(session: AsyncSession, activite_ids: list[str]) -> dict[str, 
             "SELECT activite_id::text AS id, count(*) AS total, "
             "  count(*) FILTER (WHERE statut IN ('Complété', 'Anomalie', 'Non applicable')) "
             "    AS regles, "
-            "  count(*) FILTER (WHERE statut = 'Anomalie') AS anomalies, "
             "  min(debut) AS debut, max(fin) AS fin "
             "FROM core.eod_etape WHERE activite_id::text = ANY(:ids) "
             "GROUP BY activite_id"
@@ -184,7 +183,7 @@ async def agregats(session: AsyncSession, activite_ids: list[str]) -> dict[str, 
         str(ligne["id"]): {
             "nb_etapes": int(ligne["total"]),
             "reste": int(ligne["total"]) - int(ligne["regles"]),
-            "anomalies": int(ligne["anomalies"]),
+            "anomalies": 0,
             "incidents": 0,
             "debut_effectif": ligne["debut"],
             "fin_effective": ligne["fin"],
@@ -195,18 +194,24 @@ async def agregats(session: AsyncSession, activite_ids: list[str]) -> dict[str, 
     # la question qui suit immédiatement « combien d'anomalies ». Une anomalie peut tenir à un
     # batch et ne toucher aucune agence ; l'inverse existe aussi — une agence relancée sans que
     # l'étape finisse en anomalie. Les deux chiffres ne se déduisent pas l'un de l'autre.
-    relances = await session.execute(
+    #
+    # Les anomalies se comptent AU JOURNAL, pas sur le verdict des étapes : une étape finit, et
+    # porte ses anomalies — parfois plusieurs. L'incident d'agence en est une, avec une agence et
+    # une relance en plus ; il compte donc des deux côtés, à dessein.
+    journal = await session.execute(
         text(
-            "SELECT activite_id::text AS id, count(*) AS incidents "
-            "FROM core.eod_observation "
-            "WHERE nature = 'incident' AND activite_id::text = ANY(:ids) "
+            "SELECT activite_id::text AS id, "
+            "  count(*) FILTER (WHERE nature IN ('anomalie', 'incident')) AS anomalies, "
+            "  count(*) FILTER (WHERE nature = 'incident') AS incidents "
+            "FROM core.eod_observation WHERE activite_id::text = ANY(:ids) "
             "GROUP BY activite_id"
         ),
         {"ids": activite_ids},
     )
-    for ligne in relances.mappings().all():
+    for ligne in journal.mappings().all():
         mesure = mesures.get(str(ligne["id"]))
         if mesure is not None:
+            mesure["anomalies"] = int(ligne["anomalies"])
             mesure["incidents"] = int(ligne["incidents"])
     return mesures
 

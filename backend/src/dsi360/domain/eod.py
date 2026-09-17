@@ -154,8 +154,16 @@ DEROULE_REFERENCE: Final[tuple[EtapeModele, ...]] = (
 # base refuse qu'il en manque une.
 
 NOTE: Final = "note"
+#: Quelque chose a coincé sur l'étape — sans que l'étape n'en soit moins finie. Le rapport réel :
+#: « Completed For All Branch Expected Branch 018 Error » — elle a fini ET elle porte l'erreur.
+#: L'anomalie est donc une ligne du journal, pas un verdict : on en ajoute autant qu'il en
+#: survient, l'étape garde son pointage.
+ANOMALIE_OBS: Final = "anomalie"
 INCIDENT: Final = "incident"
-NATURES_OBSERVATION: Final[tuple[str, ...]] = (NOTE, INCIDENT)
+NATURES_OBSERVATION: Final[tuple[str, ...]] = (NOTE, ANOMALIE_OBS, INCIDENT)
+#: Les natures qui comptent comme anomalies de la nuit : l'incident d'agence en est une — avec
+#: une agence et une relance en plus.
+NATURES_ANOMALIE: Final = frozenset({ANOMALIE_OBS, INCIDENT})
 
 #: « 01H12 », « 01h12 », « 01:12 », « 0112 » : l'opérateur tape l'heure comme elle lui vient.
 _HEURE = re.compile(r"^(\d{1,2})\s*[:hH]?\s*(\d{2})$")

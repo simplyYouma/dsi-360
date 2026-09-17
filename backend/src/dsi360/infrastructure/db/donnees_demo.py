@@ -28,7 +28,6 @@ from dsi360.domain.activite import PREFIXE_REFERENCE, calculer_criticite, calcul
 from dsi360.domain.eod import (
     A_FAIRE,
     ADDITIONNELLES,
-    ANOMALIE,
     COMPLETE,
     NON_APPLICABLE,
     PART_3,
@@ -1286,7 +1285,9 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
             elif e["libelle"] == "Backup before EOM" and not fin_de_mois:
                 fixe["statut"] = NON_APPLICABLE
             else:
-                fixe["statut"] = ANOMALIE if i in anomalies else COMPLETE
+                # Une anomalie ne change pas le verdict : l'étape finit, et la porte au journal.
+                fixe["statut"] = COMPLETE
+                fixe["_anomalie"] = i in anomalies
                 fixe["debut"] = curseur
                 curseur = curseur + timedelta(minutes=_duree_etape(str(e["section"])))
                 fixe["fin"] = curseur
@@ -1370,9 +1371,9 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
 
             # Un verdict défavorable s'explique, toujours : le serveur le refuse autrement
             # (STATUTS_A_JUSTIFIER), et une démonstration qui montrerait l'inverse mentirait.
-            if e["statut"] == ANOMALIE:
+            if e.get("_anomalie"):
                 await _observation_eod(
-                    conn, nature="note", texte=random.choice(ANOMALIES_EOD), moment=quand,
+                    conn, nature="anomalie", texte=random.choice(ANOMALIES_EOD), moment=quand,
                     **signature,
                 )
             elif e["statut"] == NON_APPLICABLE:

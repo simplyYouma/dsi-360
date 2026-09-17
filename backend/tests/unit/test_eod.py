@@ -94,14 +94,18 @@ class TestEtatDeLaNuit:
 
 class TestClotureConseillee:
     def test_rien_n_est_conseille_tant_qu_une_etape_traine(self) -> None:
-        assert cloture_conseillee([COMPLETE, A_FAIRE]) is None
+        assert cloture_conseillee([COMPLETE, A_FAIRE], anomalies=0) is None
 
     def test_une_nuit_sans_accroc_se_clot_simplement(self) -> None:
-        assert cloture_conseillee([COMPLETE, NON_APPLICABLE]) == "Clôturé"
+        assert cloture_conseillee([COMPLETE, NON_APPLICABLE], anomalies=0) == "Clôturé"
 
     def test_une_anomalie_impose_la_mention_des_reserves(self) -> None:
-        """Proposer « Clôturé » sur une nuit qui porte une anomalie inviterait à l'effacer."""
-        assert cloture_conseillee([COMPLETE, ANOMALIE]) == "Clôturé avec réserves"
+        """Proposer « Clôturé » sur une nuit qui porte une anomalie inviterait à l'effacer.
+
+        L'anomalie est une ligne du journal, pas un verdict d'étape : toutes les étapes sont
+        « Complété », et la nuit porte pourtant des réserves.
+        """
+        assert cloture_conseillee([COMPLETE, COMPLETE], anomalies=1) == "Clôturé avec réserves"
 
 
 class TestPointage:
@@ -115,6 +119,12 @@ class TestPointage:
     def test_terminer_pose_la_fin_et_complete_l_etape(self) -> None:
         fixes = pointage("fin", {"debut": self._MAINTENANT, "statut": EN_COURS}, self._MAINTENANT)
         assert fixes == {"fin": self._MAINTENANT, "statut": COMPLETE}
+
+    def test_terminer_une_etape_en_anomalie_garde_l_anomalie(self) -> None:
+        """La fin clôt le temps de l'étape, pas son verdict : « Post EOFI_1 » a fini à 20H08 ET
+        porte « Branch 018 Error ». Poser « Complété » effacerait ce qu'on vient de constater."""
+        fixes = pointage("fin", {"debut": self._MAINTENANT, "statut": ANOMALIE}, self._MAINTENANT)
+        assert fixes == {"fin": self._MAINTENANT}
 
     def test_terminer_une_etape_jamais_demarree_ne_laisse_pas_de_trou(self) -> None:
         """L'opérateur qui rattrape une ligne oubliée ne doit pas avoir à inventer une heure."""

@@ -235,11 +235,13 @@ async def test_une_anomalie_sans_explication_est_refusee(
         json={
             "statut": "Anomalie",
             "observation": {
+                "nature": "anomalie",
                 "texte": "Jobs démarrés mais la date reste au 15/09 au lieu du 16/09.",
             },
         },
     )
     assert r.status_code == 200, r.text
+    # Comptée au journal, pas sur le verdict : c'est l'observation d'anomalie qui fait le chiffre.
     assert r.json()["anomalies"] == 1
     assert len(_etape(r.json(), "Batch Check : EMS_IN, EMS_OUT, EMS_OUT_PM")["observations"]) == 1
 
@@ -297,7 +299,10 @@ async def test_la_cloture_conseillee_suit_l_etat_reel_du_deroule(
         headers=entetes(operateur),
         json={
             "statut": "Anomalie",
-            "observation": {"texte": "Sauvegarde post-EOD relancée à la main."},
+            "observation": {
+                "nature": "anomalie",
+                "texte": "Sauvegarde post-EOD relancée à la main.",
+            },
         },
     )
     assert r.status_code == 200, r.text
@@ -386,7 +391,9 @@ async def test_les_relances_d_agence_s_empilent_au_lieu_de_s_ecraser(
     # Deux agences relancées, et l'étape n'est pas pour autant en anomalie : les deux comptes ne
     # se déduisent pas l'un de l'autre.
     assert detail["incidents"] == 2
-    assert detail["anomalies"] == 0
+    # Un incident d'agence EST une anomalie de la nuit — avec une agence et une relance en plus.
+    # Les deux compteurs se lisent ensemble : « deux anomalies, dont deux relances d'agence ».
+    assert detail["anomalies"] == 2
 
 
 async def test_un_incident_d_agence_doit_dire_quelle_agence(
@@ -714,6 +721,41 @@ async def test_le_rapport_a_la_forme_du_document_de_la_production(
     assert "PART 1;;;" in lignes
     assert lignes.index("PART 1;;;") < lignes.index("PART 2;;;")
     assert not any(ligne.startswith("Préparation;Intégration") for ligne in lignes)
+
+
+async def test_une_anomalie_se_consigne_sans_changer_le_verdict_de_l_etape(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« Completed For All Branch Expected Branch 018 Error » : l'étape a fini ET porte l'erreur.
+
+    L'anomalie est une ligne du journal — on en ajoute autant qu'il en survient — et l'étape garde
+    son pointage. La nuit, elle, les compte, et sa clôture conseillée s'en souvient.
+    """
+    operateur = await creer_utilisateur(session, email="eod.anomalie.journal@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-21")
+    etape = _etape(await _detail(client, operateur, ident), "EODM")
+    chemin = f"/eod/{ident}/etapes/{etape['id']}"
+
+    await client.post(f"{chemin}/pointer", headers=entetes(operateur), json={"quoi": "debut"})
+    await client.post(f"{chemin}/pointer", headers=entetes(operateur), json={"quoi": "fin"})
+    for texte in ("Error code AE-VALS-053 sur 018.", "Error code AE-VALS-053 sur 021."):
+        r = await client.post(
+            f"{chemin}/observations",
+            headers=entetes(operateur),
+            json={"nature": "anomalie", "texte": texte},
+        )
+        assert r.status_code == 201, r.text
+
+    apres = _etape(r.json(), "EODM")
+    assert apres["statut"] == "Complété", "l'étape a fini : deux anomalies n'y changent rien"
+    assert [o["nature"] for o in apres["observations"]] == ["anomalie", "anomalie"]
+    assert r.json()["anomalies"] == 2
+    assert r.json()["incidents"] == 0
+
+    # Et le rapport dit l'anomalie à sa place — sur la ligne de l'étape, en clair.
+    r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
+    corps = r.content.decode("utf-8-sig", errors="replace")
+    assert "ANOMALIE — Error code AE-VALS-053 sur 018." in corps
 
 
 async def test_une_simple_note_ne_pose_aucune_relance(

@@ -34,6 +34,7 @@ import { cx } from '@/common/cx';
 import { ErreurApi, telecharger } from '@/lib/api';
 import {
   eodApi,
+  estAnomalie,
   estReglee,
   formatHeure,
   grouperParSection,
@@ -89,10 +90,6 @@ const VERDICTS: {
 /** Ce que la modale annonce, selon le geste qui l'a ouverte. Sans cela, « Anomalie » et
  *  « Consigner » ouvraient le même écran : on ne savait plus lequel des deux on avait déclenché. */
 const ANNONCE: Record<string, { titre: string; quoi: string }> = {
-  Anomalie: {
-    titre: 'Signaler une anomalie',
-    quoi: 'L’étape passe en « Anomalie » — dites ce qui a coincé.',
-  },
   'Non applicable': {
     titre: 'Marquer l’étape sans objet',
     quoi: 'L’étape ne s’applique pas ce soir — dites pourquoi.',
@@ -235,14 +232,20 @@ function Journal({ etape }: { etape: EtapeEod }): JSX.Element | null {
             key={o.id}
             className={cx(
               styles.jeton,
-              o.nature === 'incident' && styles.jetonIncident,
+              estAnomalie(o) && styles.jetonIncident,
               o.id === ouverte && styles.jetonOuvert,
             )}
             onClick={() => setOuverte(o.id === ouverte ? null : o.id)}
             aria-expanded={o.id === ouverte}
             title={o.texte}
           >
-            {o.nature === 'incident' ? <Building2 size={11} /> : <MessageSquare size={11} />}
+            {o.nature === 'incident' ? (
+              <Building2 size={11} />
+            ) : o.nature === 'anomalie' ? (
+              <TriangleAlert size={11} />
+            ) : (
+              <MessageSquare size={11} />
+            )}
             {heureObservation(o)}
             {o.nature === 'incident' && o.agence !== null && (
               <span className={styles.jetonAgence}>{o.agence}</span>
@@ -347,7 +350,7 @@ export function EodJourneePage(): JSX.Element {
       ...groupe,
       ancre: `eod-section-${rang}`,
       reglees: groupe.etapes.filter(estReglee).length,
-      anomalie: groupe.etapes.some((e) => e.statut === 'Anomalie'),
+      anomalie: groupe.etapes.some((e) => e.observations.some(estAnomalie)),
       // La section où le travail se joue : celle qui porte l'étape en cours, à défaut la première
       // qui n'est pas finie.
       active:
@@ -495,12 +498,7 @@ export function EodJourneePage(): JSX.Element {
   // « Sans objet » ne se raconte pas comme un incident d'agence : le choix de nature n'aurait ici
   // qu'une réponse. On ne montre pas un aiguillage à une seule voie.
   const naturesOffertes = consigne?.verdict !== 'Non applicable';
-  const IconeAnnonce =
-    consigne?.verdict === 'Anomalie'
-      ? TriangleAlert
-      : consigne?.verdict === 'Non applicable'
-        ? SlashSquare
-        : MessageSquarePlus;
+  const IconeAnnonce = consigne?.verdict === 'Non applicable' ? SlashSquare : MessageSquarePlus;
 
   const allerA = (ancre: string): void =>
     document.getElementById(ancre)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -737,13 +735,16 @@ export function EodJourneePage(): JSX.Element {
                 const verdict = VERDICT[e.statut];
                 const Pastille = verdict.icone;
                 const marque = MARQUES[e.statut];
+                // Les anomalies de l'étape : au journal, pas au verdict. La ligne les porte en
+                // rouge et les compte — « Completed » et « Branch 018 Error » à la fois.
+                const anomalies = e.observations.filter(estAnomalie).length;
                 return (
                   <div
                     key={e.id}
                     className={cx(
                       styles.etape,
                       e.statut === 'En cours' && styles.etapeActive,
-                      e.statut === 'Anomalie' && styles.etapeAnomalie,
+                      (e.statut === 'Anomalie' || anomalies > 0) && styles.etapeAnomalie,
                       e.statut === 'Non applicable' && styles.etapeSansObjet,
                       // Une relance se range sous l'étape qu'elle rejoue, en retrait : on lit
                       // d'un coup d'œil qu'elle n'est pas une étape du déroulé mais sa reprise.
@@ -776,6 +777,12 @@ export function EodJourneePage(): JSX.Element {
                       </span>
                       {marque !== undefined && (
                         <span className={cx(styles.marque, marque)}>{verdict.mot}</span>
+                      )}
+                      {anomalies > 0 && (
+                        <span className={cx(styles.marque, styles.marqueAnomalie)}>
+                          <TriangleAlert size={11} />
+                          {anomalies === 1 ? 'Anomalie' : `${anomalies} anomalies`}
+                        </span>
                       )}
                       {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
                       {/* La plateforme SAIT ce que « System Date » doit lire : la journée qu'on
@@ -1155,43 +1162,26 @@ export function EodJourneePage(): JSX.Element {
             </div>
           </div>
         )}
-        {/* L'anomalie se décide ICI, d'une bascule : c'est le même écran que l'observation, et
-            deux icônes pour y entrer faisaient croire à deux gestes. La bascule teinte la bannière
-            au-dessus — on voit ce qu'on s'apprête à poser avant de l'avoir posé. */}
-        {consigne !== null && consigne.verdict !== 'Non applicable' && (
-          <button
-            type="button"
-            className={cx(styles.bascule, consigne.verdict === 'Anomalie' && styles.basculeActive)}
-            aria-pressed={consigne.verdict === 'Anomalie'}
-            onClick={() =>
-              setConsigne({
-                ...consigne,
-                verdict: consigne.verdict === 'Anomalie' ? null : 'Anomalie',
-              })
-            }
-          >
-            <TriangleAlert size={14} />
-            <span className={styles.basculeTexte}>
-              L’étape finit en anomalie
-              <span className={styles.basculeSens}>
-                Son verdict passe à « Anomalie » — ce qui s’écrit ici l’explique.
-              </span>
-            </span>
-            <span className={styles.basculeCase} aria-hidden="true" />
-          </button>
-        )}
+        {/* Trois natures, et non un verdict à basculer : une anomalie ne change pas ce que
+            l'étape a fait — elle a fini, ET quelque chose a coincé, parfois plusieurs fois. On
+            en ajoute autant qu'il en survient ; l'incident d'agence est une anomalie qui, en
+            plus, relance quelqu'un. */}
         {naturesOffertes && (
           <div className={styles.natures}>
             {(
               [
                 { valeur: 'note', libelle: 'Observation', icone: MessageSquarePlus },
-                { valeur: 'incident', libelle: 'Incident sur une agence', icone: Building2 },
+                { valeur: 'anomalie', libelle: 'Anomalie', icone: TriangleAlert },
+                { valeur: 'incident', libelle: 'Incident d’agence', icone: Building2 },
               ] as const
             ).map((n) => (
               <button
                 type="button"
                 key={n.valeur}
-                className={natureObs === n.valeur ? styles.natureActive : styles.nature}
+                className={cx(
+                  natureObs === n.valeur ? styles.natureActive : styles.nature,
+                  n.valeur !== 'note' && natureObs === n.valeur && styles.natureAlerte,
+                )}
                 aria-pressed={natureObs === n.valeur}
                 onClick={() => setNatureObs(n.valeur)}
               >
@@ -1203,7 +1193,7 @@ export function EodJourneePage(): JSX.Element {
         )}
 
         {natureObs === 'incident' && (
-          <>
+          <div className={styles.rangeeIncident}>
             <div className={styles.champ}>
               <span>Agence concernée</span>
               <SelecteurListe
@@ -1233,12 +1223,9 @@ export function EodJourneePage(): JSX.Element {
                   </button>
                 )}
               />
-              <span className={styles.indice}>
-                Préremplie sur l’instant : on consigne sur le moment, et l’opérateur ne corrige que
-                ce qui compte. La date se déduit — l’EOD franchit minuit.
-              </span>
+              <span className={styles.indice}>L’instant, sauf correction.</span>
             </div>
-          </>
+          </div>
         )}
 
         {/* « Sans objet » se dit presque toujours de la même façon : on propose ces mots-là, d'un
@@ -1261,7 +1248,11 @@ export function EodJourneePage(): JSX.Element {
         )}
         <label className={styles.champ}>
           <span>
-            {natureObs === 'incident' ? 'Ce qui a été fait' : 'Observation'}
+            {natureObs === 'incident'
+              ? 'Ce qui a été fait'
+              : natureObs === 'anomalie'
+                ? 'Ce qui a coincé'
+                : 'Observation'}
             {expliqueDeja && consigne?.verdict != null && (
               <span className={styles.facultatif}> — facultatif, l’étape est déjà expliquée</span>
             )}
@@ -1276,7 +1267,9 @@ export function EodJourneePage(): JSX.Element {
                 ? // Ce que les vrais rapports contiennent : un code d'erreur, un nom de batch,
                   // collés tels quels depuis l'écran du core banking — pas une phrase racontée.
                   'Ex. Error code AE-VALS-053 sur POSTEOPD3 — batch relancé, reprise OK.'
-                : 'Ex. The jobs are started but the date is still 09/09/2026.'
+                : natureObs === 'anomalie'
+                  ? 'Ex. Completed for all branch expected 018 — Error code AE-VALS-053.'
+                  : 'Ex. The jobs are started but the date is still 09/09/2026.'
             }
           />
         </label>

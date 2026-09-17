@@ -198,16 +198,19 @@ async def rafraichir_avancement(session: AsyncSession, activite_id: str) -> dict
     return etat
 
 
-def cloture_conseillee(statuts: list[str]) -> str | None:
-    """Statut de clôture que les étapes justifient, ou ``None`` si la soirée n'est pas finissable.
+def cloture_conseillee(statuts: list[str], anomalies: int) -> str | None:
+    """Statut de clôture que la nuit justifie, ou ``None`` si la soirée n'est pas finissable.
 
     Le serveur *conseille*, il ne décide pas : l'opérateur reste maître du verdict — une anomalie
     peut avoir été rattrapée hors du système, et lui seul le sait. Mais proposer « Clôturé » sur
     une nuit qui porte une anomalie serait l'inviter à effacer ce qu'il vient de constater.
+
+    ``anomalies`` : celles du JOURNAL (observations d'anomalie et incidents d'agence), pas des
+    verdicts d'étape — une étape finit, et porte ses anomalies.
     """
     if reste_a_faire(statuts) > 0:
         return None
-    return "Clôturé avec réserves" if compter_anomalies(statuts) > 0 else "Clôturé"
+    return "Clôturé avec réserves" if anomalies > 0 else "Clôturé"
 
 
 #: Statuts d'étape qui demandent une explication. Une anomalie sans observation ne se relit pas :
