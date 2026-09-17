@@ -1,0 +1,40 @@
+/* La liste des soirées. Elle emprunte sa page et son en-tête à la liste des incidents — c'est la
+   même forme d'écran, et deux mises en page pour un même objet finiraient par diverger. Ne vivent
+   ici que les cellules propres à l'EOD, qui étaient jusqu'ici écrites en styles inline : illisibles
+   à la relecture, impossibles à reprendre d'un thème à l'autre. */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Le pourcentage seul ne dit pas si la nuit est longue : « 24/28 » situe l'étape où l'on en est. */
+.deroule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.etapes {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.plage {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Un zéro ne se signale pas : une nuit normale reste discrète pour que celles qui ne le sont pas
+   se voient. */
+.muet {
+  color: var(--text-muted);
+}
+
+.aparte {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

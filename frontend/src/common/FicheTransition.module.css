@@ -542,7 +542,7 @@
   padding: 0 4px;
   border-radius: var(--radius-pill);
   background: var(--bg-subtle);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;

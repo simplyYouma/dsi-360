@@ -21,6 +21,7 @@ import { ErreurApi } from '@/lib/api';
 import type { CategorieRef, FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { eodApi, heure, jour, type SoireeEod } from './eodApi';
+import propres from './EodPage.module.css';
 
 /** La veille : une soirée ouverte le 16 au matin clôt la journée du 15. */
 function journeeParDefaut(): string {
@@ -66,9 +67,9 @@ const COLONNES: Colonne<SoireeEod>[] = [
     largeur: '190px',
     // Le pourcentage seul ne dit pas si la nuit est longue : « 24/28 » situe l'étape où l'on est.
     rendu: (s) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+      <div className={propres.deroule}>
         <BarreAvancement valeur={s.avancement} compact />
-        <span style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+        <span className={propres.etapes}>
           {s.nb_etapes - s.reste}/{s.nb_etapes}
         </span>
       </div>
@@ -87,7 +88,7 @@ const COLONNES: Colonne<SoireeEod>[] = [
           <TriangleAlert size={12} /> {s.anomalies}
         </StatusBadge>
       ) : (
-        <span style={{ color: 'var(--text-muted)' }}>—</span>
+        <span className={propres.muet}>—</span>
       ),
   },
   {
@@ -104,7 +105,7 @@ const COLONNES: Colonne<SoireeEod>[] = [
           <Building2 size={12} /> {s.incidents}
         </StatusBadge>
       ) : (
-        <span style={{ color: 'var(--text-muted)' }}>—</span>
+        <span className={propres.muet}>—</span>
       ),
   },
   {
@@ -114,9 +115,9 @@ const COLONNES: Colonne<SoireeEod>[] = [
     largeur: '150px',
     rendu: (s) =>
       s.debut_effectif === null ? (
-        <span style={{ color: 'var(--text-muted)' }}>—</span>
+        <span className={propres.muet}>—</span>
       ) : (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+        <span className={propres.plage}>
           {heure(s.debut_effectif)} → {s.fin_effective === null ? '…' : heure(s.fin_effective)}
         </span>
       ),
@@ -193,7 +194,7 @@ export function EodPage(): JSX.Element {
             du soir.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+        <div className={propres.actions}>
           <BoutonsExport base="/eod" />
           <Button onClick={() => setModale(true)}>
             <Plus size={16} />
@@ -242,7 +243,7 @@ export function EodPage(): JSX.Element {
           <span>Journée comptable à clore</span>
           <SelecteurDate valeur={journee} onChange={setJournee} placeholder="jj/mm/aaaa" />
         </label>
-        <p style={{ color: 'var(--text-muted)', marginTop: 0 }}>
+        <p className={propres.aparte}>
           La date de la journée qu’on clôt — pas celle de la saisie : une soirée commencée le 15 au
           soir se termine le 16 au matin.
         </p>
@@ -257,7 +258,7 @@ export function EodPage(): JSX.Element {
             />
           </div>
         )}
-        <p style={{ color: 'var(--text-muted)' }}>
+        <p className={propres.aparte}>
           Le déroulé de référence est posé d’emblée : il n’y a rien d’autre à saisir avant de
           pointer la première étape.
         </p>

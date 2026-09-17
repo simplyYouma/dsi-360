@@ -2,8 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  ArrowRight,
+  Building2,
   Check,
+  CheckCircle2,
   ChevronDown,
+  Circle,
+  CircleDot,
+  Clock,
   FileDown,
   FileSpreadsheet,
   FileText,
@@ -15,13 +21,14 @@ import {
   Table2,
   TriangleAlert,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button, Modale, StatusBadge, useToast } from '@/design-system/primitives';
-import { BarreAvancement } from '@/common/BarreAvancement';
 import { ChampInline } from '@/common/ChampInline';
 import { ModaleConfirmation } from '@/common/ModaleConfirmation';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgeStatut } from '@/common/statuts';
+import { cx } from '@/common/cx';
 import { ErreurApi, telecharger } from '@/lib/api';
 import {
   eodApi,
@@ -40,23 +47,31 @@ import {
 import { exporterRapportEodPdf } from './rapportPdf';
 import styles from './EodJourneePage.module.css';
 
-/** Couleur d'un verdict d'étape. Le vert est réservé à ce qui a abouti ; le gris à ce qui ne
- *  s'appliquait pas ce soir-là — les confondre reviendrait à faire passer une étape sautée pour
- *  une étape faite. */
-const COULEUR_STATUT: Record<StatutEtape, string> = {
-  'À faire': 'var(--text-muted)',
-  'En cours': 'var(--cat-1)',
-  Complété: 'var(--status-ok)',
-  Anomalie: 'var(--status-danger)',
-  'Non applicable': 'var(--text-muted)',
+/** Verdict d'une étape : une couleur ET une forme. Le vert est réservé à ce qui a abouti, le gris
+ *  à ce qui ne s'appliquait pas ce soir-là — les confondre ferait passer une étape sautée pour une
+ *  étape faite. L'icône dit la même chose sans la couleur : vingt-huit pastilles se parcourent du
+ *  regard, et tout le monde ne distingue pas le rouge du vert. */
+const VERDICT: Record<StatutEtape, { couleur: string; icone: LucideIcon; mot: string }> = {
+  'À faire': { couleur: 'var(--text-muted)', icone: Circle, mot: 'À faire' },
+  'En cours': { couleur: 'var(--cat-1)', icone: CircleDot, mot: 'En cours' },
+  Complété: { couleur: 'var(--status-ok)', icone: Check, mot: 'Complété' },
+  Anomalie: { couleur: 'var(--status-danger)', icone: TriangleAlert, mot: 'Anomalie' },
+  'Non applicable': { couleur: 'var(--text-muted)', icone: SlashSquare, mot: 'Non applicable' },
 };
 
 /** Verdicts qu'on peut poser à la main, hors pointage. */
-const VERDICTS: { statut: StatutEtape; libelle: string; icone: typeof Check }[] = [
-  { statut: 'Anomalie', libelle: 'Anomalie', icone: TriangleAlert },
-  { statut: 'Non applicable', libelle: 'Non applicable', icone: SlashSquare },
+const VERDICTS: { statut: StatutEtape; libelle: string; icone: LucideIcon; danger?: boolean }[] = [
+  { statut: 'Anomalie', libelle: 'Signaler une anomalie', icone: TriangleAlert, danger: true },
+  { statut: 'Non applicable', libelle: 'Sans objet ce soir', icone: SlashSquare },
   { statut: 'À faire', libelle: 'Remettre à faire', icone: RotateCcw },
 ];
+
+/** Les trois verdicts qui ne vont pas de soi portent leur mot en clair, à côté du libellé. */
+const MARQUES: Record<string, string | undefined> = {
+  Anomalie: styles.marqueAnomalie,
+  'Non applicable': styles.marqueSansObjet,
+  'En cours': styles.marqueEnCours,
+};
 
 /** Au-delà, le journal d'une étape se replie : une étape qui a vu six agences bloquer pousserait
  *  les suivantes hors de l'écran, et c'est le déroulé qu'on vient lire en premier. Les plus
@@ -68,6 +83,17 @@ const JOURNAL_VISIBLE = 3;
 interface Consigne {
   etape: EtapeEod;
   verdict: StatutEtape | null;
+}
+
+/** Combien de temps l'étape a duré — « 12 min », « 1 h 05 ».
+ *
+ * C'est ce que la DSI relit pour savoir quelle étape retarde les autres ; le rapport papier ne le
+ * donnait qu'en soustrayant deux heures de tête, la nuit, ce que personne ne faisait. */
+function duree(debut: string, fin: string): string {
+  const minutes = Math.round((new Date(fin).getTime() - new Date(debut).getTime()) / 60_000);
+  if (minutes < 0) return '';
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
 }
 
 /** Le journal d'une étape : ce qui s'est passé, dans l'ordre, signé et horodaté.
@@ -93,9 +119,9 @@ function Journal({
   const visibles = etape.observations.slice(caches);
 
   return (
-    <div className={styles.journal}>
+    <>
       {caches > 0 && (
-        <button className={styles.journalPlus} onClick={onBasculer}>
+        <button type="button" className={styles.journalPlus} onClick={onBasculer}>
           <ChevronDown size={12} />
           {caches} observation{caches > 1 ? 's' : ''} plus ancienne{caches > 1 ? 's' : ''}
         </button>
@@ -105,21 +131,22 @@ function Journal({
           <li
             key={o.id}
             className={o.nature === 'incident' ? styles.obsIncident : styles.obs}
-            /* L'auteur en infobulle et non en ligne : sur une colonne étroite, il repousserait
-               le texte, alors qu'on ne le cherche qu'en cas de doute. */
+            /* L'auteur en infobulle et non en ligne : on ne le cherche qu'en cas de doute, et il
+               repousserait le texte qu'on vient lire. */
             title={o.auteur ?? undefined}
           >
-            <span className={styles.obsTete}>
-              <span className={styles.obsHeure}>{heureObservation(o)}</span>
-              {o.nature === 'incident' && o.agence !== null && (
-                <span className={styles.obsAgence}>{o.agence}</span>
-              )}
-            </span>
+            <span className={styles.obsHeure}>{heureObservation(o)}</span>
+            {o.nature === 'incident' && o.agence !== null && (
+              <span className={styles.obsAgence}>
+                <Building2 size={11} />
+                {o.agence}
+              </span>
+            )}
             <span className={styles.obsTexte}>{o.texte}</span>
           </li>
         ))}
       </ul>
-    </div>
+    </>
   );
 }
 
@@ -180,6 +207,28 @@ export function EodJourneePage(): JSX.Element {
     [agences, agence],
   );
 
+  /** Le déroulé par section, avec de quoi nourrir le sommaire : combien d'étapes sont réglées, et
+   *  si la section porte une anomalie. C'est la vue d'ensemble que vingt-huit lignes ne donnent
+   *  pas — à 2 h du matin, « où en suis-je » se répond par « PART 3 à moitié faite ». */
+  const sections = useMemo(() => {
+    if (soiree === null) return [];
+    return grouperParSection(soiree.etapes).map((groupe, rang) => ({
+      ...groupe,
+      ancre: `eod-section-${rang}`,
+      reglees: groupe.etapes.filter(estReglee).length,
+      anomalie: groupe.etapes.some((e) => e.statut === 'Anomalie'),
+      // La section où le travail se joue : celle qui porte l'étape en cours, à défaut la première
+      // qui n'est pas finie.
+      active:
+        groupe.etapes.some((e) => e.statut === 'En cours') ||
+        groupe.etapes.some((e) => !estReglee(e)),
+    }));
+  }, [soiree]);
+
+  /** Une seule section porte la marque « ici » : la première inachevée. Les marquer toutes ferait
+   *  du repère un décor. */
+  const sectionCourante = sections.find((s) => s.active)?.ancre ?? null;
+
   /** Toute écriture renvoie la soirée entière : avancement, anomalies et clôture conseillée
    *  changent à chaque geste, et les recalculer à l'écran les ferait diverger du serveur. */
   const agir = async (cle: string, action: () => Promise<DetailEod>): Promise<void> => {
@@ -194,10 +243,10 @@ export function EodJourneePage(): JSX.Element {
   };
 
   if (chargement && soiree === null) {
-    return <div className={styles.page}>Chargement…</div>;
+    return <div className={styles.etatVide}>Chargement…</div>;
   }
   if (soiree === null) {
-    return <div className={styles.page}>Soirée introuvable.</div>;
+    return <div className={styles.etatVide}>Soirée introuvable.</div>;
   }
 
   const peutEcrire = soiree.permissions.peut_travailler;
@@ -272,6 +321,9 @@ export function EodJourneePage(): JSX.Element {
       return suivants;
     });
 
+  const allerA = (ancre: string): void =>
+    document.getElementById(ancre)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   const transitionner = async (vers: string): Promise<void> => {
     // Clore une nuit inachevée reste possible — une soirée peut être arrêtée pour de bonnes
     // raisons — mais le serveur exige alors une note. On la demande avant d'envoyer, plutôt que
@@ -292,7 +344,12 @@ export function EodJourneePage(): JSX.Element {
     <div className={styles.page}>
       <header className={styles.entete}>
         <div className={styles.identite}>
-          <button className={styles.retour} onClick={() => navigate('/eod')} aria-label="Retour">
+          <button
+            type="button"
+            className={styles.retour}
+            onClick={() => navigate('/eod')}
+            aria-label="Retour à la liste des soirées"
+          >
             <ArrowLeft size={18} />
           </button>
           <div>
@@ -331,225 +388,330 @@ export function EodJourneePage(): JSX.Element {
         </div>
       </header>
 
-      <section className={styles.mesures}>
-        <div className={styles.mesure}>
-          <span className={styles.mesureTitre}>Déroulé</span>
-          <BarreAvancement valeur={soiree.avancement} />
-          <span className={styles.mesureDetail}>
-            {pointee}/{soiree.nb_etapes} étapes réglées
-          </span>
+      {/* La nuit en un regard. L'avancement tient la place d'honneur : c'est la question qu'on pose
+          en entrant. Les trois compteurs suivent — en quatre cartes de même poids, aucun des quatre
+          chiffres ne primait, et l'on cherchait le sien à chaque fois. */}
+      <section className={styles.sommet}>
+        <div className={styles.progression}>
+          <div className={styles.progressionTete}>
+            <span className={cx(styles.pourcent, soiree.avancement === 100 && styles.pourcentFini)}>
+              {soiree.avancement}%
+            </span>
+            <span className={styles.progressionQuoi}>
+              {pointee}/{soiree.nb_etapes} étapes réglées
+            </span>
+          </div>
+          <div
+            className={styles.rail}
+            role="progressbar"
+            aria-valuenow={soiree.avancement}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Avancement du déroulé"
+          >
+            <div
+              className={cx(styles.railRempli, soiree.avancement === 100 && styles.railComplet)}
+              style={{ width: `${soiree.avancement}%` }}
+            />
+          </div>
+          <div className={styles.plage}>
+            <Clock size={14} />
+            <span className={styles.plageHeures}>
+              {soiree.debut_effectif === null ? '—' : heure(soiree.debut_effectif)}
+              {' → '}
+              {soiree.fin_effective === null ? '…' : heure(soiree.fin_effective)}
+            </span>
+            <span>
+              {soiree.responsable === null
+                ? 'aucun opérateur désigné'
+                : `${soiree.responsable.prenom} ${soiree.responsable.nom}`}
+            </span>
+          </div>
         </div>
-        <div className={styles.mesure}>
-          <span className={styles.mesureTitre}>Anomalies</span>
-          <strong className={soiree.anomalies > 0 ? styles.alerte : styles.calme}>
-            {soiree.anomalies}
-          </strong>
-          <span className={styles.mesureDetail}>
-            {soiree.anomalies > 0 ? 'à expliquer au rapport' : 'aucune anomalie relevée'}
-          </span>
-        </div>
-        {/* Distincte des anomalies, et pas déductible d'elles : une agence peut être relancée sans
-            que l'étape finisse en anomalie, et une anomalie de batch ne touche parfois aucune
-            agence. C'est le chiffre qui dit ce que nos nuits coûtent au réseau. */}
-        <div className={styles.mesure}>
-          <span className={styles.mesureTitre}>Relances d’agence</span>
-          <strong className={soiree.incidents > 0 ? styles.alerte : styles.calme}>
-            {soiree.incidents}
-          </strong>
-          <span className={styles.mesureDetail}>
-            {soiree.incidents > 0
-              ? 'agences relancées cette nuit'
-              : 'aucune agence n’a bloqué'}
-          </span>
-        </div>
-        <div className={styles.mesure}>
-          <span className={styles.mesureTitre}>Plage</span>
-          <strong className={styles.plage}>
-            {soiree.debut_effectif === null ? '—' : heure(soiree.debut_effectif)}
-            {' → '}
-            {soiree.fin_effective === null ? '…' : heure(soiree.fin_effective)}
-          </strong>
-          <span className={styles.mesureDetail}>
-            {soiree.responsable === null
-              ? 'aucun opérateur désigné'
-              : `${soiree.responsable.prenom} ${soiree.responsable.nom}`}
-          </span>
+
+        <div className={styles.compteurs}>
+          <div className={styles.compteur}>
+            <span className={styles.compteurTitre}>
+              <TriangleAlert size={12} />
+              Anomalies
+            </span>
+            <strong
+              className={cx(
+                styles.compteurValeur,
+                soiree.anomalies > 0 ? styles.compteurAlerte : styles.compteurCalme,
+              )}
+            >
+              {soiree.anomalies}
+            </strong>
+            <span className={styles.compteurQuoi}>
+              {soiree.anomalies > 0 ? 'à expliquer au rapport' : 'aucune anomalie relevée'}
+            </span>
+          </div>
+
+          {/* Distincte des anomalies, et pas déductible d'elles : une agence peut être relancée
+              sans que l'étape finisse en anomalie, et une anomalie de batch ne touche parfois
+              aucune agence. C'est le chiffre qui dit ce que nos nuits coûtent au réseau. */}
+          <div className={styles.compteur}>
+            <span className={styles.compteurTitre}>
+              <Building2 size={12} />
+              Relances d’agence
+            </span>
+            <strong
+              className={cx(
+                styles.compteurValeur,
+                soiree.incidents > 0 ? styles.compteurAttention : styles.compteurCalme,
+              )}
+            >
+              {soiree.incidents}
+            </strong>
+            <span className={styles.compteurQuoi}>
+              {soiree.incidents > 0 ? 'agences relancées cette nuit' : 'aucune agence n’a bloqué'}
+            </span>
+          </div>
+
+          <div className={styles.compteur}>
+            <span className={styles.compteurTitre}>
+              <Circle size={12} />
+              Reste à pointer
+            </span>
+            <strong
+              className={cx(styles.compteurValeur, soiree.reste === 0 && styles.compteurCalme)}
+            >
+              {soiree.reste}
+            </strong>
+            <span className={styles.compteurQuoi}>
+              {soiree.reste === 0 ? 'le déroulé est complet' : 'étapes sans verdict'}
+            </span>
+          </div>
         </div>
       </section>
 
       {soiree.cloture_conseillee !== null && soiree.transitions_possibles.length > 0 && (
         <p className={styles.conseil}>
+          <CheckCircle2 size={16} className={styles.conseilIcone} />
           Toutes les étapes sont réglées : la soirée peut être close en «&nbsp;
           {soiree.cloture_conseillee}&nbsp;».
         </p>
       )}
 
-      {grouperParSection(soiree.etapes).map((groupe) => {
-        // Le compte par section, et non le seul total : à 2 h du matin, « où en suis-je » se
-        // répond par « PART 3 à moitié faite », pas par « 19 étapes sur 28 ».
-        const reglees = groupe.etapes.filter(estReglee).length;
-        return (
-          <section key={groupe.titre} className={styles.section}>
-            <div className={styles.sectionEntete}>
-              <h2 className={styles.sectionTitre}>{groupe.titre}</h2>
+      <div className={styles.corps}>
+        {/* Le sommaire : la vue d'ensemble que vingt-huit lignes ne donnent pas, et la navigation
+            qui évite de faire défiler pour retrouver une section. */}
+        <nav className={styles.sommaire} aria-label="Sections du déroulé">
+          <span className={styles.sommaireTitre}>Déroulé</span>
+          {sections.map((s) => (
+            <button
+              type="button"
+              key={s.ancre}
+              className={cx(styles.lien, s.ancre === sectionCourante && styles.lienCourant)}
+              onClick={() => allerA(s.ancre)}
+              aria-current={s.ancre === sectionCourante ? 'true' : undefined}
+            >
+              <span className={styles.lienNom}>{s.titre}</span>
               <span
-                className={
-                  reglees === groupe.etapes.length ? styles.sectionFaite : styles.sectionCompte
-                }
+                className={cx(
+                  styles.lienCompte,
+                  s.reglees === s.etapes.length && !s.anomalie && styles.lienFait,
+                )}
               >
-                {reglees}/{groupe.etapes.length} réglées
+                {s.reglees}/{s.etapes.length}
               </span>
-            </div>
-            <table className={styles.tableau}>
-              <thead>
-                <tr>
-                  <th>Étape</th>
-                  <th className={styles.colHeure}>Début</th>
-                  <th className={styles.colHeure}>Fin</th>
-                  <th className={styles.colStatut}>Verdict</th>
-                  <th>Observations</th>
-                  <th className={styles.colRetrait} aria-label="Retirer" />
-                </tr>
-              </thead>
-              <tbody>
-                {groupe.etapes.map((e) => (
-                  <tr key={e.id} className={e.statut === 'Anomalie' ? styles.ligneAnomalie : ''}>
-                    <td>
-                      <span className={styles.libelle} title={e.aide ?? undefined}>
-                        {e.libelle}
-                      </span>
-                      {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
-                    </td>
+              <span className={styles.lienRail}>
+                <span
+                  className={cx(styles.lienRailRempli, s.anomalie && styles.lienRailAnomalie)}
+                  style={{ width: `${(s.reglees / s.etapes.length) * 100}%` }}
+                />
+              </span>
+            </button>
+          ))}
+        </nav>
 
-                    {e.nature === 'valeur' ? (
-                      // « System Date » : ce qui compte n'est pas quand on a regardé, mais ce qu'on
-                      // a lu. Une seule cellule, sur les deux colonnes d'heures.
-                      <td colSpan={2} className={styles.valeur}>
-                        <ChampInline
-                          valeur={e.valeur ?? ''}
-                          indication="jj/mm/aaaa"
-                          lectureSeule={!peutEcrire}
-                          onValider={(v) =>
-                            void agir(`valeur:${e.id}`, () =>
-                              eodApi.majEtape(id, e.id, {
-                                valeur: v,
-                                statut: v.trim() === '' ? 'À faire' : 'Complété',
-                              }),
-                            )
-                          }
-                          aria-label={`Valeur relevée — ${e.libelle}`}
-                        />
-                      </td>
-                    ) : (
-                      <>
-                        <td className={styles.colHeure}>
-                          {e.debut !== null ? (
-                            <span className={styles.horodate}>{heure(e.debut)}</span>
-                          ) : peutEcrire ? (
+        <div className={styles.deroule}>
+          {sections.map((groupe) => (
+            <section key={groupe.ancre} id={groupe.ancre} className={styles.section}>
+              <div className={styles.sectionEntete}>
+                <h2 className={styles.sectionTitre}>{groupe.titre}</h2>
+                <span
+                  className={cx(
+                    styles.sectionCompte,
+                    groupe.reglees === groupe.etapes.length && styles.sectionFaite,
+                  )}
+                >
+                  {groupe.reglees === groupe.etapes.length && <Check size={12} />}
+                  {groupe.reglees}/{groupe.etapes.length} réglées
+                </span>
+              </div>
+
+              {groupe.etapes.map((e) => {
+                const verdict = VERDICT[e.statut];
+                const Pastille = verdict.icone;
+                const marque = MARQUES[e.statut];
+                return (
+                  <div
+                    key={e.id}
+                    className={cx(
+                      styles.etape,
+                      e.statut === 'En cours' && styles.etapeActive,
+                      e.statut === 'Anomalie' && styles.etapeAnomalie,
+                      e.statut === 'Non applicable' && styles.etapeSansObjet,
+                    )}
+                  >
+                    <span
+                      className={cx(styles.pastille, estReglee(e) && styles.pastilleReglee)}
+                      style={{ color: verdict.couleur }}
+                      title={verdict.mot}
+                      /* `role="img"` et non un simple aria-label : sur un span neutre, le nom
+                         accessible serait ignoré, et la pastille ne dirait rien au lecteur
+                         d'écran — elle porte pourtant le verdict de l'étape. */
+                      role="img"
+                      aria-label={`Verdict : ${verdict.mot}`}
+                    >
+                      <Pastille size={12} />
+                    </span>
+
+                    <div className={styles.intitule}>
+                      <span className={styles.libelle}>{e.libelle}</span>
+                      {marque !== undefined && (
+                        <span className={cx(styles.marque, marque)}>{verdict.mot}</span>
+                      )}
+                      {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
+                    </div>
+
+                    <div className={styles.pointage}>
+                      {e.nature === 'valeur' ? (
+                        // « System Date » : ce qui compte n'est pas quand on a regardé, mais ce
+                        // qu'on a lu.
+                        <span className={styles.valeur}>
+                          <ChampInline
+                            valeur={e.valeur ?? ''}
+                            indication="jj/mm/aaaa"
+                            lectureSeule={!peutEcrire}
+                            onValider={(v) =>
+                              void agir(`valeur:${e.id}`, () =>
+                                eodApi.majEtape(id, e.id, {
+                                  valeur: v,
+                                  statut: v.trim() === '' ? 'À faire' : 'Complété',
+                                }),
+                              )
+                            }
+                            aria-label={`Valeur relevée — ${e.libelle}`}
+                          />
+                        </span>
+                      ) : e.debut === null ? (
+                        peutEcrire ? (
+                          <button
+                            type="button"
+                            className={styles.pointer}
+                            disabled={occupe !== null}
+                            onClick={() =>
+                              void agir(`debut:${e.id}`, () => eodApi.pointer(id, e.id, 'debut'))
+                            }
+                          >
+                            <Play size={12} /> Démarrer
+                          </button>
+                        ) : (
+                          <span className={styles.vide}>—</span>
+                        )
+                      ) : e.fin === null ? (
+                        <>
+                          <span className={styles.horodate}>{heure(e.debut)}</span>
+                          {peutEcrire && (
                             <button
-                              className={styles.pointer}
-                              disabled={occupe !== null}
-                              onClick={() =>
-                                void agir(`debut:${e.id}`, () => eodApi.pointer(id, e.id, 'debut'))
-                              }
-                            >
-                              <Play size={13} /> Démarrer
-                            </button>
-                          ) : (
-                            <span className={styles.vide}>—</span>
-                          )}
-                        </td>
-                        <td className={styles.colHeure}>
-                          {e.fin !== null ? (
-                            <span className={styles.horodate}>{heure(e.fin)}</span>
-                          ) : peutEcrire ? (
-                            <button
+                              type="button"
                               className={styles.pointer}
                               disabled={occupe !== null}
                               onClick={() =>
                                 void agir(`fin:${e.id}`, () => eodApi.pointer(id, e.id, 'fin'))
                               }
                             >
-                              <Check size={13} /> Terminer
+                              <Check size={12} /> Terminer
                             </button>
-                          ) : (
-                            <span className={styles.vide}>—</span>
                           )}
-                        </td>
-                      </>
-                    )}
+                        </>
+                      ) : (
+                        <>
+                          <span className={styles.horodate}>
+                            {heure(e.debut)}
+                            <ArrowRight size={12} className={styles.fleche} />
+                            {heure(e.fin)}
+                          </span>
+                          <span className={styles.duree}>{duree(e.debut, e.fin)}</span>
+                        </>
+                      )}
 
-                    <td className={styles.colStatut}>
-                      <StatusBadge couleur={COULEUR_STATUT[e.statut]}>{e.statut}</StatusBadge>
                       {peutEcrire && (
                         <div className={styles.verdicts}>
                           {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => (
                             <button
+                              type="button"
                               key={v.statut}
-                              className={styles.verdict}
+                              className={cx(
+                                styles.verdict,
+                                v.danger === true && styles.verdictDanger,
+                              )}
                               title={v.libelle}
+                              aria-label={`${v.libelle} — ${e.libelle}`}
                               disabled={occupe !== null}
                               onClick={() => poserVerdict(e, v.statut)}
                             >
                               <v.icone size={13} />
                             </button>
                           ))}
+                          <button
+                            type="button"
+                            className={styles.verdict}
+                            title="Consigner une observation"
+                            aria-label={`Consigner une observation — ${e.libelle}`}
+                            disabled={occupe !== null}
+                            onClick={() => consigner(e, null)}
+                          >
+                            <MessageSquarePlus size={13} />
+                          </button>
+                          {/* Retirer l'étape : le geste le plus destructeur de la ligne, donc le
+                              dernier, séparé des verdicts et confirmé avant d'agir. */}
+                          <button
+                            type="button"
+                            className={cx(styles.verdict, styles.verdictDanger, styles.retrait)}
+                            title="Retirer cette étape de la soirée"
+                            aria-label={`Retirer l’étape « ${e.libelle} »`}
+                            disabled={occupe !== null}
+                            onClick={() => setASupprimer(e)}
+                          >
+                            <X size={13} />
+                          </button>
                         </div>
                       )}
-                    </td>
+                    </div>
 
-                    <td>
-                      <Journal
-                        etape={e}
-                        deplie={deplies.has(e.id)}
-                        onBasculer={() => basculerJournal(e.id)}
-                      />
-                      {peutEcrire ? (
-                        <button
-                          className={styles.consigner}
-                          disabled={occupe !== null}
-                          onClick={() => consigner(e, null)}
-                        >
-                          <MessageSquarePlus size={13} />
-                          Consigner
-                        </button>
-                      ) : (
-                        e.observations.length === 0 && <span className={styles.vide}>—</span>
-                      )}
-                    </td>
+                    {e.observations.length > 0 && (
+                      <div className={styles.dessous}>
+                        <Journal
+                          etape={e}
+                          deplie={deplies.has(e.id)}
+                          onBasculer={() => basculerJournal(e.id)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          ))}
 
-                    <td className={styles.colRetrait}>
-                      {peutEcrire && (
-                        <button
-                          className={styles.retrait}
-                          title="Retirer cette étape de la soirée"
-                          disabled={occupe !== null}
-                          onClick={() => setASupprimer(e)}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        );
-      })}
-
-      {peutEcrire && (
-        <div className={styles.piedDeroule}>
-          <Button variante="secondaire" onClick={() => setAjout(true)}>
-            <Plus size={16} />
-            Ajouter une étape à cette soirée
-          </Button>
-          <span className={styles.mesureDetail}>
-            Une vérification exceptionnelle, un rattrapage : elle n’entre pas dans le déroulé de
-            référence.
-          </span>
+          {peutEcrire && (
+            <div className={styles.piedDeroule}>
+              <Button variante="secondaire" onClick={() => setAjout(true)}>
+                <Plus size={16} />
+                Ajouter une étape
+              </Button>
+              <span className={styles.aparte}>
+                Une vérification exceptionnelle, un rattrapage : elle n’entre pas dans le déroulé de
+                référence.
+              </span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <Modale
         ouverte={exportOuvert}
@@ -561,13 +723,14 @@ export function EodJourneePage(): JSX.Element {
           </Button>
         }
       >
-        <p className={styles.mesureDetail}>
+        <p className={styles.cible}>
           {soiree.reste > 0
             ? `${soiree.reste} étape(s) ne sont pas encore réglées : le rapport les montrera « À faire ».`
             : 'Toutes les étapes sont réglées : le rapport rend compte de la nuit entière.'}
         </p>
         <div className={styles.formats}>
           <button
+            type="button"
             className={styles.format}
             disabled={exportEnCours}
             onClick={() => void exporterPdf()}
@@ -579,14 +742,18 @@ export function EodJourneePage(): JSX.Element {
               déroulé complet et emplacements de visa.
             </span>
           </button>
-          <button className={styles.format} onClick={() => telechargerTableur('xlsx')}>
+          <button
+            type="button"
+            className={styles.format}
+            onClick={() => telechargerTableur('xlsx')}
+          >
             <FileSpreadsheet size={18} />
             <span className={styles.formatNom}>Excel</span>
             <span className={styles.formatQuoi}>
               Le tableau tel que la Production le lit depuis toujours, pour retraiter les heures.
             </span>
           </button>
-          <button className={styles.format} onClick={() => telechargerTableur('csv')}>
+          <button type="button" className={styles.format} onClick={() => telechargerTableur('csv')}>
             <Table2 size={18} />
             <span className={styles.formatNom}>CSV</span>
             <span className={styles.formatQuoi}>Les mêmes lignes, sans mise en forme.</span>
@@ -594,9 +761,9 @@ export function EodJourneePage(): JSX.Element {
         </div>
       </Modale>
 
-      {/* Consigner : le geste qui manquait. Une observation s'ajoute au journal, elle n'écrase
-          rien — et quand c'est une agence qui a bloqué, elle porte les trois informations que la
-          hiérarchie réclame au matin : laquelle, à quelle heure on a relancé, ce qui a été fait. */}
+      {/* Consigner : une observation s'ajoute au journal, elle n'écrase rien — et quand c'est une
+          agence qui a bloqué, elle porte les trois informations que la hiérarchie réclame au
+          matin : laquelle, à quelle heure on a relancé, ce qui a été fait. */}
       <Modale
         ouverte={consigne !== null}
         onFermer={fermerConsigne}
@@ -625,22 +792,25 @@ export function EodJourneePage(): JSX.Element {
         }
       >
         {consigne !== null && (
-          <p className={styles.mesureDetail}>
+          <p className={styles.cible}>
             {consigne.etape.section} · {consigne.etape.libelle}
           </p>
         )}
         <div className={styles.natures}>
           {(
             [
-              { valeur: 'note', libelle: 'Observation' },
-              { valeur: 'incident', libelle: 'Incident sur une agence' },
+              { valeur: 'note', libelle: 'Observation', icone: MessageSquarePlus },
+              { valeur: 'incident', libelle: 'Incident sur une agence', icone: Building2 },
             ] as const
           ).map((n) => (
             <button
+              type="button"
               key={n.valeur}
               className={natureObs === n.valeur ? styles.natureActive : styles.nature}
+              aria-pressed={natureObs === n.valeur}
               onClick={() => setNatureObs(n.valeur)}
             >
+              <n.icone size={14} />
               {n.libelle}
             </button>
           ))}
@@ -689,7 +859,7 @@ export function EodJourneePage(): JSX.Element {
             }
           />
         </label>
-        <p className={styles.mesureDetail}>
+        <p className={styles.avertissement}>
           Une fois consignée, une observation ne se corrige ni ne s’efface : elle est signée et
           horodatée. Ce qu’il faut rectifier se dit dans la suivante.
         </p>
@@ -767,7 +937,7 @@ export function EodJourneePage(): JSX.Element {
           </>
         }
       >
-        <p className={styles.mesureDetail}>
+        <p className={styles.cible}>
           {soiree.reste} étape(s) ne sont pas réglées. Dites pourquoi la soirée s’arrête là : sans
           cette note, les étapes restées «&nbsp;À faire&nbsp;» ne se reliront pas.
         </p>

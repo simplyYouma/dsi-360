@@ -253,7 +253,7 @@
   flex-direction: column;
   gap: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .champ textarea {
   width: 100%;

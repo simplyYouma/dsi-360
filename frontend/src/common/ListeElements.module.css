@@ -142,7 +142,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   transition:
     border-color 0.15s ease,
