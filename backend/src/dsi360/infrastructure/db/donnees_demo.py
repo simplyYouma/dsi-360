@@ -1390,14 +1390,26 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
             if e["section"] == PART_3 and e["statut"] == COMPLETE and not en_cours:
                 for _ in range(random.randint(0, 3)):
                     instant = (e["debut"] or debut) + timedelta(minutes=random.randint(5, 55))
+                    agence = random.choice(AGENCES_CORE)
                     await _observation_eod(
                         conn,
                         nature="incident",
                         texte=random.choice(ACTIONS_RELANCE),
-                        agence=random.choice(AGENCES_CORE),
+                        agence=agence,
                         relance=instant,
                         moment=instant + timedelta(minutes=random.randint(1, 6)),
                         **signature,
+                    )
+                    # La relance est une étape du déroulé — la ligne « RELANCE » du rapport —
+                    # rangée sous celle qui a bloqué, avec son début, sa fin et son verdict.
+                    await conn.execute(
+                        "INSERT INTO core.eod_etape"
+                        "(activite_id, section, libelle, nature, ordre, statut, debut, fin,"
+                        " relance_de, agence, cree_le, maj_le)"
+                        " VALUES ($1,$2,$3,'horaire',$4,'Complété',$5,$6,$7,$8,$9,$9)",
+                        activite_id, e["section"], f"RELANCE · {agence}", e["ordre"],
+                        instant, instant + timedelta(minutes=random.randint(4, 20)),
+                        etape_id, agence, instant,
                     )
 
         # Le second opérateur de la nuit : une soirée se tient rarement seul.

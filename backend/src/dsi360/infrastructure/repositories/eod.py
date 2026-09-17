@@ -15,7 +15,10 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-_CHAMPS = "id::text AS id, section, libelle, nature, aide, ordre, statut, debut, fin, valeur"
+_CHAMPS = (
+    "id::text AS id, section, libelle, nature, aide, ordre, statut, debut, fin, valeur, "
+    "relance_de::text AS relance_de, agence"
+)
 _CHAMPS_MODELE = "id::text AS id, section, libelle, nature, aide, ordre, actif"
 
 #: Champs qu'une mise à jour d'étape peut toucher. Tout le reste (section, libellé, nature) décrit
@@ -68,7 +71,10 @@ async def lister(session: AsyncSession, activite_id: str) -> list[RowMapping]:
     lignes = await session.execute(
         text(
             f"SELECT {_CHAMPS} FROM core.eod_etape WHERE activite_id = cast(:a as uuid) "
-            "ORDER BY ordre, cree_le"
+            # Une relance porte le rang de l'étape qu'elle rejoue : elle se range juste après
+            # elle, sans renuméroter le déroulé, et deux relances se suivent dans l'ordre où
+            # elles ont eu lieu.
+            "ORDER BY ordre, (relance_de IS NOT NULL), cree_le"
         ),
         {"a": activite_id},
     )
@@ -107,23 +113,33 @@ async def creer(session: AsyncSession, activite_id: str, champs: dict[str, Any])
             {"a": activite_id},
         )
     ligne = (
-        await session.execute(
-            text(
-                "INSERT INTO core.eod_etape "
-                "(activite_id, section, libelle, nature, aide, ordre) "
-                "VALUES (cast(:a as uuid), :section, :libelle, :nature, :aide, :ordre) "
-                f"RETURNING {_CHAMPS}"
-            ),
-            {
-                "a": activite_id,
-                "section": champs["section"],
-                "libelle": champs["libelle"],
-                "nature": champs.get("nature", "horaire"),
-                "aide": champs.get("aide"),
-                "ordre": ordre,
-            },
+        (
+            await session.execute(
+                text(
+                    "INSERT INTO core.eod_etape "
+                    "(activite_id, section, libelle, nature, aide, ordre, statut, debut, "
+                    " relance_de, agence) "
+                    "VALUES (cast(:a as uuid), :section, :libelle, :nature, :aide, :ordre, "
+                    "        :statut, :debut, cast(:relance_de as uuid), :agence) "
+                    f"RETURNING {_CHAMPS}"
+                ),
+                {
+                    "a": activite_id,
+                    "section": champs["section"],
+                    "libelle": champs["libelle"],
+                    "nature": champs.get("nature", "horaire"),
+                    "aide": champs.get("aide"),
+                    "ordre": ordre,
+                    "statut": champs.get("statut", "À faire"),
+                    "debut": champs.get("debut"),
+                    "relance_de": champs.get("relance_de"),
+                    "agence": champs.get("agence"),
+                },
+            )
         )
-    ).mappings().one()
+        .mappings()
+        .one()
+    )
     return ligne
 
 
@@ -252,22 +268,26 @@ async def creer_observation(
 ) -> RowMapping:
     """Ajoute une ligne au journal d'une étape et la rend telle qu'elle se lira."""
     ligne = (
-        await session.execute(
-            text(
-                "WITH nouvelle AS ("
-                "  INSERT INTO core.eod_observation "
-                "  (etape_id, activite_id, nature, agence, relance_le, texte, "
-                "   auteur_id, auteur_email) "
-                "  VALUES (cast(:e as uuid), cast(:a as uuid), :nature, :agence, :relance_le, "
-                "          :texte, cast(:auteur_id as uuid), :auteur_email) "
-                "  RETURNING *"
-                ") "
-                f"SELECT {_CHAMPS_OBSERVATION} FROM nouvelle o "
-                "LEFT JOIN core.utilisateur u ON u.id = o.auteur_id"
-            ),
-            {"e": etape_id, "a": activite_id, **champs},
+        (
+            await session.execute(
+                text(
+                    "WITH nouvelle AS ("
+                    "  INSERT INTO core.eod_observation "
+                    "  (etape_id, activite_id, nature, agence, relance_le, texte, "
+                    "   auteur_id, auteur_email) "
+                    "  VALUES (cast(:e as uuid), cast(:a as uuid), :nature, :agence, :relance_le, "
+                    "          :texte, cast(:auteur_id as uuid), :auteur_email) "
+                    "  RETURNING *"
+                    ") "
+                    f"SELECT {_CHAMPS_OBSERVATION} FROM nouvelle o "
+                    "LEFT JOIN core.utilisateur u ON u.id = o.auteur_id"
+                ),
+                {"e": etape_id, "a": activite_id, **champs},
+            )
         )
-    ).mappings().one()
+        .mappings()
+        .one()
+    )
     return ligne
 
 

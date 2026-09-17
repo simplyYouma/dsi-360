@@ -70,7 +70,13 @@ Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumé
 > **l'agence**, **l'heure de relance**, **ce qui a été fait** — et la base refuse qu'il en manque
 > une. L'heure se tape comme elle se lit (« 01H12 ») ; le serveur en déduit la journée, car l'EOD
 > franchit minuit. Les **relances d'agence** se comptent à part des **anomalies** : l'une ne se
-> déduit pas de l'autre.
+> déduit pas de l'autre. **Et une relance est une étape, pas une note.** Le rapport réel l'écrit
+> ainsi : sous l'étape en anomalie, « RELANCE | 20H15 | 20H20 | Complete » — un début, une fin, un
+> verdict. Consigner un incident d'agence pose donc une ligne `RELANCE · <agence>` juste sous
+> l'étape qui a bloqué (`core.eod_etape.relance_de`, même section, même rang), **En cours depuis
+> l'heure de relance**, pointée avec les mêmes gestes, comptée dans le même avancement, exportée
+> sur la même ligne. Nous l'avions réduite à une observation : on savait qu'elle avait eu lieu,
+> jamais combien de temps elle avait pris ni comment elle s'était terminée.
 >
 > **« Démarrer » pose l'instant présent — et laisse rattraper une ligne oubliée.** L'écran ne
 > demande la date à l'opérateur qu'en dernier recours : un clic sur « Démarrer » suffit, l'instant

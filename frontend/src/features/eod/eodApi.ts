@@ -45,6 +45,11 @@ export interface EtapeEod {
   debut: string | null;
   fin: string | null;
   valeur: string | null;
+  /** L'étape que celle-ci rejoue : une relance d'agence est une étape à part entière, rangée
+   *  sous celle qui a bloqué — la ligne « RELANCE » du rapport. `null` pour le déroulé lui-même. */
+  relance_de: string | null;
+  /** L'agence relancée, quand l'étape est une relance. */
+  agence: string | null;
   /** Le journal de l'étape, dans l'ordre où la nuit s'est vécue. */
   observations: ObservationEod[];
 }

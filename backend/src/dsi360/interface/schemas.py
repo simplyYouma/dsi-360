@@ -631,6 +631,11 @@ class EtapeEod(BaseModel):
     fin: datetime | None = None
     #: Ce qu'affichait l'écran, pour les étapes de nature « valeur » (date système relevée).
     valeur: str | None = None
+    #: L'étape que celle-ci rejoue : une relance d'agence est une étape à part entière, rangée
+    #: sous celle qui a bloqué — la ligne « RELANCE » du rapport. `None` pour le déroulé lui-même.
+    relance_de: str | None = None
+    #: L'agence relancée, quand l'étape est une relance.
+    agence: str | None = None
     #: Le journal de l'étape, dans l'ordre où la nuit s'est vécue. Il a remplacé le champ de notes
     #: unique, qui s'écrasait à chaque saisie : sur « PART 3 », une agence bloque, puis une autre.
     observations: list[ObservationEod] = []

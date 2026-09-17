@@ -473,6 +473,23 @@
   color: var(--text-muted);
 }
 
+/* Une relance : la reprise d'une étape qui a bloqué, rangée juste sous elle et en retrait. Le
+   coude dit d'où elle vient ; le fond, à peine plus sombre, la distingue du déroulé de référence
+   sans en faire une alerte — l'alerte, c'est l'anomalie au-dessus. */
+.etapeRelance {
+  padding-left: calc(var(--space-4) + 22px);
+  background: color-mix(in srgb, var(--bg-subtle) 45%, transparent);
+}
+.etapeRelance .libelle {
+  letter-spacing: 0.02em;
+}
+.coude {
+  flex: none;
+  margin-right: 6px;
+  vertical-align: -2px;
+  color: var(--text-muted);
+}
+
 .pastille {
   display: grid;
   place-items: center;

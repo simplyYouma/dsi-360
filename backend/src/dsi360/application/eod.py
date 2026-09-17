@@ -25,6 +25,7 @@ from dsi360.domain.eod import (
     ANOMALIE,
     COMPLETE,
     EN_COURS,
+    HORAIRE,
     INCIDENT,
     MODULE,
     NON_APPLICABLE,
@@ -143,6 +144,31 @@ def pointage(quoi: str, etape: dict[str, Any], maintenant: datetime) -> dict[str
     if etape.get("debut") is None:
         fixes["debut"] = maintenant
     return fixes
+
+
+def preparer_relance(parent: dict[str, Any], observation: dict[str, Any]) -> dict[str, Any]:
+    """L'étape RELANCE que pose un incident d'agence, rattachée à l'étape qu'elle rejoue.
+
+    Le rapport réel l'écrit ainsi : sous l'étape en anomalie, une ligne « RELANCE » avec son début,
+    sa fin et son verdict. Une relance n'est donc pas une note en marge — c'est une étape qu'on
+    pointe avec les mêmes gestes, comptée dans le même avancement, exportée sur la même ligne.
+
+    Elle naît **En cours, depuis l'heure de relance** : consigner « relancée à 20H15 » dit que le
+    traitement tourne depuis 20H15. L'opérateur la termine quand elle aboutit — ou la passe en
+    anomalie si l'agence bloque encore, ce qui posera une seconde relance sous la première.
+    """
+    agence = str(observation.get("agence") or "").strip()
+    return {
+        "section": parent["section"],
+        "libelle": f"RELANCE · {agence}" if agence else "RELANCE",
+        "nature": HORAIRE,
+        # Le rang du parent : elle se range juste après lui, le déroulé n'est pas renuméroté.
+        "ordre": parent["ordre"],
+        "relance_de": parent["id"],
+        "agence": agence or None,
+        "debut": observation.get("relance_le"),
+        "statut": EN_COURS,
+    }
 
 
 def etat_de_la_nuit(statuts: list[str]) -> dict[str, int]:

@@ -9,6 +9,7 @@ import {
   Circle,
   CircleDot,
   Clock,
+  CornerDownRight,
   FileDown,
   FileSpreadsheet,
   FileText,
@@ -734,6 +735,9 @@ export function EodJourneePage(): JSX.Element {
                       e.statut === 'En cours' && styles.etapeActive,
                       e.statut === 'Anomalie' && styles.etapeAnomalie,
                       e.statut === 'Non applicable' && styles.etapeSansObjet,
+                      // Une relance se range sous l'étape qu'elle rejoue, en retrait : on lit
+                      // d'un coup d'œil qu'elle n'est pas une étape du déroulé mais sa reprise.
+                      e.relance_de !== null && styles.etapeRelance,
                     )}
                   >
                     <span
@@ -750,7 +754,16 @@ export function EodJourneePage(): JSX.Element {
                     </span>
 
                     <div className={styles.intitule}>
-                      <span className={styles.libelle}>{e.libelle}</span>
+                      <span className={styles.libelle}>
+                        {e.relance_de !== null && (
+                          <CornerDownRight
+                            size={13}
+                            className={styles.coude}
+                            aria-label="Relance de l’étape précédente"
+                          />
+                        )}
+                        {e.libelle}
+                      </span>
                       {marque !== undefined && (
                         <span className={cx(styles.marque, marque)}>{verdict.mot}</span>
                       )}
@@ -837,16 +850,31 @@ export function EodJourneePage(): JSX.Element {
                                    démarré : ce qu'on a commencé doit pouvoir se clore, et une
                                    anomalie constatée en cours de route n'y change rien. */
                             e.debut !== null && peutEcrire ? (
-                              <button
-                                type="button"
-                                className={styles.pointer}
-                                disabled={occupe !== null}
-                                onClick={() =>
-                                  void agir(`fin:${e.id}`, () => eodApi.pointer(id, e.id, 'fin'))
-                                }
-                              >
-                                <Check size={12} /> Terminer
-                              </button>
+                              <SelecteurHeureEod
+                                desactive={occupe !== null}
+                                onChoisir={(hh, mm) => {
+                                  const fin = resoudreHeure(hh, mm);
+                                  void agir(`fin:${e.id}`, () =>
+                                    // Même chemin que le rattrapage d'un début : le PATCH
+                                    // générique, jamais une seconde route pour la même heure.
+                                    eodApi.majEtape(id, e.id, {
+                                      statut: 'Complété',
+                                      fin: fin.toISOString(),
+                                    }),
+                                  );
+                                }}
+                                trigger={({ onClick, ref }) => (
+                                  <button
+                                    ref={ref}
+                                    type="button"
+                                    className={styles.pointer}
+                                    disabled={occupe !== null}
+                                    onClick={onClick}
+                                  >
+                                    <Check size={12} /> Terminer
+                                  </button>
+                                )}
+                              />
                             ) : (
                               <span className={styles.vide}>—</span>
                             )}
@@ -1191,8 +1219,10 @@ export function EodJourneePage(): JSX.Element {
             onChange={(e) => setTexteObs(e.target.value)}
             placeholder={
               natureObs === 'incident'
-                ? 'Ex. POSTEOPD3 bloqué, session purgée puis relancée — reprise OK.'
-                : 'Ex. Batch terminé sans rejet.'
+                ? // Ce que les vrais rapports contiennent : un code d'erreur, un nom de batch,
+                  // collés tels quels depuis l'écran du core banking — pas une phrase racontée.
+                  'Ex. Error code AE-VALS-053 sur POSTEOPD3 — batch relancé, reprise OK.'
+                : 'Ex. The jobs are started but the date is still 09/09/2026.'
             }
           />
         </label>

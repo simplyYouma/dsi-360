@@ -617,6 +617,78 @@ async def test_le_rapport_porte_les_relances_d_agence(
     assert "POSTEOPD3 relancé, reprise OK." in corps
 
 
+async def test_un_incident_pose_une_etape_relance_sous_l_etape_qui_a_bloque(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Le rapport réel l'écrit ainsi : sous l'étape en anomalie, « RELANCE | 20H15 | 20H20 |
+    Complete ». Une relance a un début, une fin, un verdict — c'est une étape, pas une note."""
+    operateur = await creer_utilisateur(session, email="eod.relance.etape@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-25")
+    parent = _etape(
+        await _detail(client, operateur, ident), "Post EOFI_1 for all branch including 000 BAM"
+    )
+
+    r = await client.post(
+        f"/eod/{ident}/etapes/{parent['id']}/observations",
+        headers=entetes(operateur),
+        json={
+            "nature": "incident",
+            "agence": "018",
+            "relance": "20H15",
+            "texte": "Error code AE-VALS-053, relance du batch.",
+        },
+    )
+    assert r.status_code == 201, r.text
+    etapes = r.json()["etapes"]
+
+    # Juste sous le parent, même section, En cours depuis l'heure de relance, l'agence en clair.
+    rang = next(i for i, e in enumerate(etapes) if e["id"] == parent["id"])
+    relance = etapes[rang + 1]
+    assert relance["relance_de"] == parent["id"]
+    assert relance["libelle"] == "RELANCE · 018"
+    assert relance["section"] == parent["section"]
+    assert relance["agence"] == "018"
+    assert relance["statut"] == "En cours"
+    assert relance["debut"] is not None and relance["debut"].endswith("T20:15:00Z")
+    # Une étape de plus dans la nuit : l'avancement la compte, comme le rapport la compte.
+    assert r.json()["nb_etapes"] == 29
+
+    # Elle se termine comme n'importe quelle étape.
+    r = await client.post(
+        f"/eod/{ident}/etapes/{relance['id']}/pointer",
+        headers=entetes(operateur),
+        json={"quoi": "fin"},
+    )
+    assert r.status_code == 200, r.text
+    finie = next(e for e in r.json()["etapes"] if e["id"] == relance["id"])
+    assert finie["statut"] == "Complété"
+    assert finie["fin"] is not None
+
+    # Et le rapport du soir porte la ligne RELANCE avec ses heures — la forme que la hiérarchie
+    # lit depuis toujours.
+    r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
+    corps = r.content.decode("utf-8-sig", errors="replace")
+    assert "RELANCE · 018" in corps
+    assert "20H15" in corps
+
+
+async def test_une_simple_note_ne_pose_aucune_relance(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Seul l'incident d'agence relance quelque chose ; une observation ordinaire n'ajoute rien."""
+    operateur = await creer_utilisateur(session, email="eod.note.sans.relance@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-24")
+    etape = _etape(await _detail(client, operateur, ident), "EODM")
+    r = await client.post(
+        f"/eod/{ident}/etapes/{etape['id']}/observations",
+        headers=entetes(operateur),
+        json={"nature": "note", "texte": "Batch terminé sans rejet."},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["nb_etapes"] == 28
+    assert all(e["relance_de"] is None for e in r.json()["etapes"])
+
+
 async def test_la_liste_resume_chaque_nuit(client: AsyncClient, session: AsyncSession) -> None:
     """La liste doit dire d'un coup d'œil où en est la nuit et si elle a dérapé."""
     operateur = await creer_utilisateur(session, email="eod.liste@afgbank.ml")

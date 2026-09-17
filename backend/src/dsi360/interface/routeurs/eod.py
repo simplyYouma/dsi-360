@@ -38,6 +38,7 @@ from dsi360.application.eod import (
     ouvrir_journee,
     pointage,
     preparer_observation,
+    preparer_relance,
     rafraichir_avancement,
 )
 from dsi360.domain.eod import INCIDENT, MODULE, ordre_section
@@ -82,9 +83,7 @@ routeur = APIRouter(prefix="/eod", tags=["eod"])
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
 #: Pointer, corriger, clore : le gestionnaire de la soirée, ses contributeurs, l'administrateur.
-Acteur = Annotated[
-    dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))
-]
+Acteur = Annotated[dict[str, Any], Depends(exiger_role_activite_courant(MODULE, _ACCES, {ACTEUR}))]
 
 
 def _donnees(r: RowMapping) -> dict[str, Any]:
@@ -622,6 +621,29 @@ async def _consigner(
             "texte": str(ligne["texte"]),
         },
     )
+    # Un incident d'agence, c'est une relance : elle prend sa place dans le déroulé, juste sous
+    # l'étape qu'elle rejoue, En cours depuis l'heure consignée. C'est la ligne « RELANCE » du
+    # rapport de la banque — avec un début, une fin et un verdict, comme toute étape.
+    if str(ligne["nature"]) == INCIDENT:
+        parent = await eod_repo.par_id(session, etape_id, ident)
+        if parent is not None:
+            relance = await eod_repo.creer(
+                session, ident, preparer_relance(dict(parent), dict(ligne))
+            )
+            await audit.consigner(
+                session,
+                action="CREATION",
+                acteur_id=acteur["id"],
+                acteur_email=acteur["email"],
+                module=MODULE,
+                cible_type="eod_etape",
+                cible_id=str(relance["id"]),
+                nouvelle={
+                    "section": str(relance["section"]),
+                    "libelle": str(relance["libelle"]),
+                    "relance_de": etape_id,
+                },
+            )
     return dict(ligne)
 
 
