@@ -115,6 +115,15 @@ const MOTIFS_SANS_OBJET = [
   { court: 'Hors EOD', texte: 'Traitement déjà exécuté hors de la soirée EOD.' },
 ];
 
+/** La couleur d'une issue de soirée. « Clôturé avec réserves » n'est pas « Clôturé » et « Annulé »
+ *  n'est ni l'un ni l'autre : ce sont trois verdicts, et l'écran doit le dire avant le clic. */
+const ISSUE: Record<string, string | undefined> = {
+  Clôturé: styles.issueSuccès,
+  'Clôturé avec réserves': styles.issueReserves,
+  Annulé: styles.issueAnnule,
+  'En cours': styles.issueDemarrage,
+};
+
 /** Pourquoi un champ ne s'ouvre pas : on n'interdit jamais sans le dire. */
 const TITRE_LECTURE = 'Le pointage revient aux acteurs de la soirée.';
 
@@ -515,11 +524,21 @@ export function EodJourneePage(): JSX.Element {
             <FileDown size={16} />
             Rapport du soir
           </Button>
+          {/* Chaque issue porte sa couleur : la nuit s'est bien passée (vert), elle laisse des
+              réserves (ambre), elle n'a pas eu lieu (rouge). Quatre boutons blancs alignés
+              donnaient trois décisions de portées très différentes pour un même geste — et la plus
+              lourde, « Annulé », ne se distinguait en rien de la plus banale. Celle que les étapes
+              justifient est en outre soulignée : le serveur conseille, l'écran le montre. */}
           {peutEcrire &&
             soiree.transitions_possibles.map((vers) => (
               <Button
                 key={vers}
-                variante={vers === soiree.cloture_conseillee ? 'primaire' : 'secondaire'}
+                variante="secondaire"
+                className={cx(
+                  styles.issue,
+                  ISSUE[vers],
+                  vers === soiree.cloture_conseillee && styles.issueConseillee,
+                )}
                 disabled={occupe !== null}
                 onClick={() => void transitionner(vers)}
               >

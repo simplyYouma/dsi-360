@@ -90,6 +90,57 @@
   flex-wrap: wrap;
 }
 
+/* Les issues de la soirée : trois verdicts de portées très différentes, alignés côte à côte. Un
+   fond teinté plutôt qu'un aplat : les jetons `--status-*-bg` existent dans les deux thèmes, là où
+   une encre blanche sur vert plein serait illisible en thème sombre. */
+.issue {
+  border-width: 1px;
+  font-weight: var(--weight-medium);
+}
+.issueSuccès {
+  border-color: color-mix(in srgb, var(--status-ok) 40%, var(--border));
+  background: var(--status-ok-bg);
+  color: var(--status-ok);
+}
+.issueSuccès:hover:not(:disabled) {
+  border-color: var(--status-ok);
+  background: color-mix(in srgb, var(--status-ok) 18%, var(--status-ok-bg));
+}
+.issueReserves {
+  border-color: color-mix(in srgb, var(--status-warn) 40%, var(--border));
+  background: var(--status-warn-bg);
+  color: var(--status-warn);
+}
+.issueReserves:hover:not(:disabled) {
+  border-color: var(--status-warn);
+  background: color-mix(in srgb, var(--status-warn) 18%, var(--status-warn-bg));
+}
+.issueAnnule {
+  border-color: color-mix(in srgb, var(--status-danger) 40%, var(--border));
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+.issueAnnule:hover:not(:disabled) {
+  border-color: var(--status-danger);
+  background: color-mix(in srgb, var(--status-danger) 18%, var(--status-danger-bg));
+}
+/* Démarrer la soirée n'est pas une issue : c'est la mise en route, dans la teinte de « En cours ». */
+.issueDemarrage {
+  border-color: color-mix(in srgb, var(--cat-1) 40%, var(--border));
+  background: color-mix(in srgb, var(--cat-1) 10%, transparent);
+  color: var(--cat-1);
+}
+.issueDemarrage:hover:not(:disabled) {
+  border-color: var(--cat-1);
+  background: color-mix(in srgb, var(--cat-1) 18%, transparent);
+}
+/* Celle que les étapes justifient : un liseré intérieur, et non une couleur de plus — le sens est
+   déjà pris par le verdict, il ne reste que l'insistance. */
+.issueConseillee {
+  box-shadow: inset 0 0 0 1px currentcolor;
+  font-weight: var(--weight-semibold);
+}
+
 /* --- La nuit en un regard ------------------------------------------------------------------ */
 /*
  * Une seule carte, et une hiérarchie : l'avancement tient la moitié gauche parce que c'est la

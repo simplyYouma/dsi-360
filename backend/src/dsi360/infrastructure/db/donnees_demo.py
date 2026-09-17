@@ -1335,7 +1335,13 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
             " $3,$4,4,4,$5,$6,'SAISIE',$7,$8,$9,$10,$11,$12::jsonb) RETURNING id",
             reference,
             titre_journee(journee),
-            cats.get("FIN_DE_MOIS" if fin_de_mois else "QUOTIDIEN"),
+            cats.get(
+                "FIN_ANNEE"
+                if (journee.month, journee.day) == (12, 31)
+                else "FIN_DE_MOIS"
+                if fin_de_mois
+                else "QUOTIDIEN"
+            ),
             responsable,
             priorite,
             statut,

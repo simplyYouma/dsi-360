@@ -38,3 +38,85 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
 }
+
+/* --- Ouvrir une soirée ---------------------------------------------------------------------- */
+/*
+ * La modale disait l'essentiel en petits caractères gris sous les champs, et proposait le type
+ * dans une liste déroulante. Or ouvrir une soirée, c'est deux décisions : quelle journée on clôt,
+ * et si elle porte un arrêté. Les deux se voient maintenant, et la seconde se déduit de la
+ * première.
+ */
+
+.contexte {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+.contexteIcone {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+.contexteQuoi {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.contexteOu {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Ce que le champ attend, SOUS le champ : une indication posée dedans disparaît à la première
+   frappe, au moment précis où l'on en aurait besoin. */
+.indice {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.types {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+
+.type {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.type:hover {
+  border-color: var(--text-muted);
+}
+.typeChoisi {
+  border-color: var(--secondary);
+  background: var(--secondary-subtle);
+  box-shadow: inset 0 0 0 1px var(--secondary);
+}
+
+.typeNom {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.typeSens {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

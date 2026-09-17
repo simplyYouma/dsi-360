@@ -62,8 +62,11 @@ CATEGORIES: dict[str, list[tuple[str, str]]] = {
     # L'EOD de fin de mois embarque des traitements que les autres soirs ne voient pas
     # (arrêté, sauvegarde EOM) : le distinguer permet de ne pas comparer des soirées différentes.
     "eod": [
-        ("QUOTIDIEN", "EOD quotidien"),
-        ("FIN_DE_MOIS", "EOD de fin de mois"),
+        # Les noms du core banking, tels qu'ils se lisent sur ses écrans — une étiquette qu'il
+        # faudrait traduire de tête à 2 h du matin n'aide personne.
+        ("QUOTIDIEN", "EOD"),
+        ("FIN_DE_MOIS", "EOM"),
+        ("FIN_ANNEE", "EOY"),
     ],
     "gouvernance": [
         ("COPIL", "COPIL"),

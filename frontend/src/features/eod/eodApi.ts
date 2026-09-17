@@ -86,6 +86,15 @@ export interface DetailEod extends SoireeEod {
   permissions: Permissions;
 }
 
+/** Un type de soirée. Le CODE ne bouge pas (« FIN_DE_MOIS ») ; le libellé, lui, est celui que le
+ *  core banking affiche (« EOM ») et se renomme depuis l'administration. C'est donc le code qui
+ *  sert à raisonner — jamais le libellé. */
+export interface CategorieEod {
+  id: string;
+  code: string;
+  libelle: string;
+}
+
 export interface NouvelleSoiree {
   journee: string;
   categorie_id?: string | null;
@@ -130,8 +139,7 @@ export const eodApi = {
   ): Promise<DetailEod> => api.post(`/eod/${id}/etapes`, corps),
   supprimerEtape: (id: string, etapeId: string): Promise<DetailEod> =>
     api.del(`/eod/${id}/etapes/${etapeId}`),
-  categories: (): Promise<{ id: string; code: string; libelle: string }[]> =>
-    api.get('/referentiels/categories?module=eod'),
+  categories: (): Promise<CategorieEod[]> => api.get('/referentiels/categories?module=eod'),
 };
 
 /** Le déroulé, coupé en sections dans l'ordre où le serveur l'a rendu.
@@ -180,7 +188,8 @@ export function heureObservation(o: ObservationEod): string {
  * Partagé par le PDF et par l'écran : si chacun composait sa ligne, le document remis à la
  * hiérarchie ne dirait pas tout à fait ce que l'opérateur a lu en la consignant. */
 export function ligneObservation(o: ObservationEod): string {
-  const tete = o.nature === 'incident' ? `${heureObservation(o)} · ${o.agence ?? ''}` : heureObservation(o);
+  const tete =
+    o.nature === 'incident' ? `${heureObservation(o)} · ${o.agence ?? ''}` : heureObservation(o);
   return `${tete} — ${o.texte}`;
 }
 

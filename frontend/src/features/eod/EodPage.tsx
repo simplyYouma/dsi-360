@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Plus, TriangleAlert } from 'lucide-react';
+import { Building2, CalendarClock, Plus, TriangleAlert } from 'lucide-react';
 import {
   Button,
   Modale,
@@ -15,12 +15,12 @@ import { BarreAvancement } from '@/common/BarreAvancement';
 import { CelluleReference } from '@/common/CelluleReference';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { SelecteurDate } from '@/common/SelecteurDate';
-import { SelecteurCategorie } from '@/common/SelecteurCategorie';
+import { cx } from '@/common/cx';
 import { BadgeStatut } from '@/common/statuts';
 import { ErreurApi } from '@/lib/api';
-import type { CategorieRef, FiltresListe } from '@/features/incidents/incidentsApi';
+import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
-import { eodApi, heure, jour, type SoireeEod } from './eodApi';
+import { eodApi, heure, jour, type CategorieEod, type SoireeEod } from './eodApi';
 import propres from './EodPage.module.css';
 
 /** La veille : une soirée ouverte le 16 au matin clôt la journée du 15. */
@@ -28,6 +28,25 @@ function journeeParDefaut(): string {
   const d = new Date();
   d.setHours(12, 0, 0, 0);
   return new Date(d.getTime() - 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Ce que chaque type de soirée veut dire, sous son nom de trois lettres. Le core banking dit
+ *  « EOD », « EOM », « EOY » ; la première fois qu'on ouvre l'écran, on a besoin de la phrase. */
+const SENS_TYPE: Record<string, string> = {
+  QUOTIDIEN: 'Soirée ordinaire',
+  FIN_DE_MOIS: 'Arrêté mensuel — traitements de fin de mois en plus',
+  FIN_ANNEE: 'Arrêté annuel — la nuit la plus longue de l’année',
+};
+
+/** Le type que la DATE commande. Le 31 décembre porte les traitements annuels, le dernier jour du
+ *  mois les mensuels : le déduire évite d'ouvrir un EOD ordinaire un soir d'arrêté, erreur qui ne
+ *  se voit qu'au moment où les batchs manquent. L'opérateur garde la main — il reste juge. */
+function typeAttendu(iso: string): string {
+  const [a, m, j] = iso.split('-').map(Number);
+  if (a === undefined || m === undefined || j === undefined) return 'QUOTIDIEN';
+  if (m === 12 && j === 31) return 'FIN_ANNEE';
+  const dernierJour = new Date(a, m, 0).getDate();
+  return j === dernierJour ? 'FIN_DE_MOIS' : 'QUOTIDIEN';
 }
 
 const COLONNES: Colonne<SoireeEod>[] = [
@@ -141,7 +160,7 @@ export function EodPage(): JSX.Element {
 
   const [modale, setModale] = useState(false);
   const [journee, setJournee] = useState<string | null>(journeeParDefaut());
-  const [categories, setCategories] = useState<CategorieRef[]>([]);
+  const [categories, setCategories] = useState<CategorieEod[]>([]);
   const [categorie, setCategorie] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
@@ -167,6 +186,15 @@ export function EodPage(): JSX.Element {
     if (!modale) return;
     void eodApi.categories().then(setCategories);
   }, [modale]);
+
+  // Le type suit la date : la changer reprend la main sur un choix précédent, parce que c'est bien
+  // la date qui décide si la nuit porte un arrêté. Un clic sur un type le fixe jusqu'à la prochaine
+  // date choisie.
+  useEffect(() => {
+    if (journee === null || categories.length === 0) return;
+    const voulu = categories.find((c) => c.code === typeAttendu(journee));
+    setCategorie(voulu?.id ?? null);
+  }, [journee, categories]);
 
   const ouvrir = async (): Promise<void> => {
     if (journee === null) return;
@@ -239,29 +267,54 @@ export function EodPage(): JSX.Element {
           </>
         }
       >
+        <div className={propres.contexte}>
+          <CalendarClock size={18} className={propres.contexteIcone} />
+          <div>
+            <div className={propres.contexteQuoi}>Une seule soirée par journée comptable.</div>
+            <div className={propres.contexteOu}>
+              Le déroulé de référence — vingt-huit étapes — est posé d’emblée : il n’y a rien
+              d’autre à saisir avant de pointer la première.
+            </div>
+          </div>
+        </div>
+
         <label className={styles.champ}>
           <span>Journée comptable à clore</span>
           <SelecteurDate valeur={journee} onChange={setJournee} placeholder="jj/mm/aaaa" />
+          <span className={propres.indice}>
+            La date de la journée qu’on <strong>clôt</strong>, et non celle de la saisie : une
+            soirée commencée le 15 au soir se termine le 16 au matin.
+          </span>
         </label>
-        <p className={propres.aparte}>
-          La date de la journée qu’on clôt — pas celle de la saisie : une soirée commencée le 15 au
-          soir se termine le 16 au matin.
-        </p>
+
         {categories.length > 0 && (
           <div className={styles.champ}>
             <span>Type de soirée</span>
-            <SelecteurCategorie
-              categories={categories}
-              valeur={categorie}
-              onChange={setCategorie}
-              module="eod"
-            />
+            {/* Trois lettres, et ce qu'elles veulent dire : le type se lit d'un coup d'œil, et
+                celui que la date commande est proposé d'avance. */}
+            <div className={propres.types}>
+              {categories.map((c) => (
+                <button
+                  type="button"
+                  key={c.id}
+                  className={cx(propres.type, categorie === c.id && propres.typeChoisi)}
+                  aria-pressed={categorie === c.id}
+                  onClick={() => setCategorie(c.id)}
+                >
+                  <span className={propres.typeNom}>{c.libelle}</span>
+                  <span className={propres.typeSens}>{SENS_TYPE[c.code] ?? ''}</span>
+                </button>
+              ))}
+            </div>
+            {journee !== null &&
+              categories.find((c) => c.id === categorie)?.code === typeAttendu(journee) &&
+              typeAttendu(journee) !== 'QUOTIDIEN' && (
+                <span className={propres.indice}>
+                  Proposé d’après la date : c’est un soir d’arrêté.
+                </span>
+              )}
           </div>
         )}
-        <p className={propres.aparte}>
-          Le déroulé de référence est posé d’emblée : il n’y a rien d’autre à saisir avant de
-          pointer la première étape.
-        </p>
       </Modale>
     </div>
   );
