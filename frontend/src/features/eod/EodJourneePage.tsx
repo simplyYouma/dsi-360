@@ -298,7 +298,7 @@ export function EodJourneePage(): JSX.Element {
           <div>
             <div className={styles.reference}>{soiree.reference}</div>
             <h1 className={styles.titre}>
-              Fin de journée — {jour(soiree.journee)}
+              EOD — {jour(soiree.journee)}
               <BadgeStatut statut={soiree.statut} module="eod" />
               {soiree.categorie !== null && (
                 <StatusBadge couleur="var(--cat-6)">{soiree.categorie}</StatusBadge>

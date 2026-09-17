@@ -17,13 +17,25 @@ import json
 import os
 import random
 import sys
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 import asyncpg
 
+from dsi360.application.eod import titre_journee
 from dsi360.config import get_settings
 from dsi360.domain.activite import PREFIXE_REFERENCE, calculer_criticite, calculer_priorite
+from dsi360.domain.eod import (
+    A_FAIRE,
+    ADDITIONNELLES,
+    ANOMALIE,
+    COMPLETE,
+    NON_APPLICABLE,
+    PART_3,
+    VALEUR,
+)
+from dsi360.domain.eod import EN_COURS as ETAPE_EN_COURS
+from dsi360.domain.eod import avancement as avancement_eod
 from dsi360.domain.etats import GATES_VALIDATION, ordre_etats, transitions_possibles
 from dsi360.domain.revue import MOIS_PAR_PERIODICITE, prochaine_revue
 from dsi360.domain.sla import CiblesSla, echeances
@@ -326,6 +338,11 @@ TACHES_TITRES = [
 # Fil de discussion, par module : un projet ne se commente pas comme un incident. Un commentaire
 # hors sujet (« escaladé au N2 » sur un projet) rendrait les écrans de démonstration trompeurs.
 COMMENTAIRES: dict[str, list[str]] = {
+    "eod": [
+        "Soirée démarrée à l'heure, aucune transaction en attente.",
+        "Relance d'agence signalée à l'astreinte, traitée dans la foulée.",
+        "Rapport du soir transmis à la hiérarchie.",
+    ],
     "incident": [
         "Prise en charge, analyse des journaux en cours.",
         "Reproduit en recette : le service ne redémarre pas après la bascule.",
@@ -476,6 +493,50 @@ MOTIFS_AVANCEMENT: tuple[str, ...] = (
     "Comité tenu, décisions consignées et responsables désignés.",
     "Recette terminée, mise en production planifiée avec les agences.",
 )
+
+
+# --- EOD : les soirées de production, rejouées nuit après nuit ---
+#
+# Sans elles, le module le plus quotidien de la plateforme s'ouvrirait vide : ni déroulé à pointer,
+# ni nuit passée à relire, et des analyses sans rien à dire. On rejoue trois semaines — assez pour
+# que la durée moyenne, l'étape qui retarde les autres et les nuits à réserves aient du sens.
+
+#: Nombre de nuits rejouées, la soirée en cours comprise.
+NUITS_EOD = 21
+
+#: Les agences telles que le CORE BANKING les nomme — « 000 BAM », et non le libellé du parc.
+#: C'est ce vocabulaire-là que l'opérateur lit sur son écran à 1 h du matin, donc celui qu'il
+#: recopie dans un incident (cf. eod_repo.agences : l'écran propose le référentiel, sans l'imposer).
+AGENCES_CORE = ["000 BAM", "000 BHO", "001 HAM", "002 KTI", "003 SEG", "004 MPT", "005 KYS"]
+
+#: Ce qu'on relève en passant, une nuit qui se déroule normalement.
+NOTES_EOD = [
+    "EODM démarré à l'heure, aucune transaction en attente.",
+    "Sauvegarde vérifiée : taille conforme à celle de la veille.",
+    "Batch SMSJOBBR terminé sans rejet.",
+    "Bascule de date confirmée sur deux postes.",
+    "Canaux rouverts, premiers accès applicatifs vérifiés.",
+]
+
+#: Ce qu'on écrit quand une agence bloque. Toujours ce qui a été FAIT — un constat nu n'apprend
+#: rien à celui qui relit la nuit au matin.
+ACTIONS_RELANCE = [
+    "Sessions restées ouvertes fermées, poste relancé.",
+    "Batch repris depuis la dernière étape validée.",
+    "Lien opérateur rétabli, traitement relancé.",
+    "Verrou de table levé après contrôle, reprise normale.",
+]
+
+#: Pourquoi une étape a mal fini. Une anomalie sans explication ne se relit pas six semaines plus
+#: tard — le serveur l'exige, la démonstration ne fait pas exception.
+ANOMALIES_EOD = [
+    "Batch terminé en erreur, repris manuellement après contrôle des soldes.",
+    "Traitement resté sur la journée de la veille : reprise faite, à surveiller demain.",
+    "Rejet sur un lot de messages sortants, relancé sans nouvelle erreur.",
+]
+
+#: Le soir où ce n'est pas la fin du mois, la sauvegarde EOM n'a pas lieu d'être.
+SANS_OBJET_EOM = "Pas de fin de mois ce soir : sauvegarde EOM sans objet."
 
 
 def _dsn() -> str:
@@ -1110,6 +1171,234 @@ async def _niveaux_support(conn: asyncpg.Connection, utilisateurs: list[str]) ->
         )
 
 
+def _duree_etape(section: str) -> int:
+    """Minutes vraisemblables pour une étape, selon sa section.
+
+    Les PART ne coûtent pas ce que coûte une vérification de batch : c'est « PART 3 — EOD till
+    Post MARKBOD for all branches » qui tient la nuit en haleine, et c'est là que les agences
+    bloquent. Une durée uniforme ferait mentir la seule analyse que le module doit servir : quelle
+    étape retarde les autres.
+    """
+    if section == PART_3:
+        return random.randint(25, 70)
+    if section.startswith("PART"):
+        return random.randint(10, 35)
+    return random.randint(2, 12)
+
+
+async def _observation_eod(
+    conn: asyncpg.Connection,
+    *,
+    etape_id: str,
+    activite_id: str,
+    auteur_id: str,
+    auteur_email: str,
+    nature: str,
+    texte: str,
+    moment: datetime,
+    agence: str | None = None,
+    relance: datetime | None = None,
+) -> None:
+    """Une ligne au journal d'une étape : horodatée, signée, définitive."""
+    await conn.execute(
+        "INSERT INTO core.eod_observation"
+        "(etape_id, activite_id, nature, agence, relance_le, texte, auteur_id, auteur_email,"
+        " cree_le) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+        etape_id, activite_id, nature, agence, relance, texte, auteur_id, auteur_email, moment,
+    )
+
+
+async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de cas de figure
+    conn: asyncpg.Connection, utilisateurs: list[str], annee: int
+) -> int:
+    """Rejoue les dernières nuits d'exploitation : déroulé pointé, anomalies, relances d'agence.
+
+    Le déroulé est recopié depuis ``core.eod_modele_etape`` — celui que le seed vient de poser —
+    plutôt que tenu ici une seconde fois : c'est exactement ce que fait l'ouverture d'une vraie
+    soirée, et deux déroulés finiraient par diverger.
+    """
+    modele = await conn.fetch(
+        "SELECT section, libelle, nature, aide, ordre FROM core.eod_modele_etape "
+        "WHERE actif ORDER BY ordre"
+    )
+    if not modele:
+        print("EOD : déroulé de référence absent, aucune soirée créée (lancez le seed).")
+        return 0
+
+    matrice = await _matrice(conn, "eod")
+    cats = {
+        r["code"]: r["id"]
+        for r in await conn.fetch("SELECT code, id FROM core.categorie WHERE module='eod'")
+    }
+    emails = {
+        r["id"]: str(r["email"])
+        for r in await conn.fetch(
+            "SELECT id, email FROM core.utilisateur WHERE id = ANY($1::uuid[])", utilisateurs
+        )
+    }
+    prefixe = PREFIXE_REFERENCE["eod"]
+    aujourdhui = datetime.now(UTC).date()
+    creees = 0
+
+    for rang in range(NUITS_EOD - 1, -1, -1):
+        journee = aujourdhui - timedelta(days=rang)
+        # La soirée de ce soir est encore en cours : sans elle, l'écran de pointage n'aurait rien
+        # à pointer, et c'est pourtant le geste que le module existe pour porter.
+        en_cours = rang == 0
+        fin_de_mois = (journee + timedelta(days=1)).day == 1
+        # Une nuit sur six dérape : assez pour que « Clôturé avec réserves » pèse dans les
+        # statistiques, assez rare pour que la normale reste la normale.
+        avec_reserves = not en_cours and random.random() < 0.17
+
+        debut = datetime.combine(journee, time(20, 30), tzinfo=UTC) + timedelta(
+            minutes=random.randint(0, 25)
+        )
+        horaires = [i for i, e in enumerate(modele) if e["nature"] != VALEUR]
+        anomalies = set(random.sample(horaires, random.randint(1, 2))) if avec_reserves else set()
+        # Où s'arrête le pointage d'une soirée encore en cours : ni au tout début (rien à lire),
+        # ni trop près de la fin (elle serait finissable et paraîtrait oubliée).
+        butoir = (
+            random.randint(len(modele) // 3, (2 * len(modele)) // 3) if en_cours else len(modele)
+        )
+
+        etapes: list[dict[str, Any]] = []
+        curseur = debut
+        for i, e in enumerate(modele):
+            fixe: dict[str, Any] = {
+                "section": str(e["section"]),
+                "libelle": str(e["libelle"]),
+                "nature": str(e["nature"]),
+                "aide": e["aide"],
+                "ordre": e["ordre"],
+                "debut": None,
+                "fin": None,
+                "valeur": None,
+            }
+            if i > butoir:
+                fixe["statut"] = A_FAIRE
+            elif i == butoir and en_cours:
+                fixe["statut"] = ETAPE_EN_COURS
+                fixe["debut"] = curseur
+            elif e["nature"] == VALEUR:
+                # Ce qui compte n'est pas quand on a regardé, mais ce qu'on a lu : avant la
+                # bascule, la date système est la journée qu'on clôt ; après, le jour suivant.
+                apres = str(e["section"]) == ADDITIONNELLES
+                fixe["statut"] = COMPLETE
+                fixe["valeur"] = (journee + timedelta(days=1) if apres else journee).strftime(
+                    "%d/%m/%Y"
+                )
+            elif e["libelle"] == "Backup before EOM" and not fin_de_mois:
+                fixe["statut"] = NON_APPLICABLE
+            else:
+                fixe["statut"] = ANOMALIE if i in anomalies else COMPLETE
+                fixe["debut"] = curseur
+                curseur = curseur + timedelta(minutes=_duree_etape(str(e["section"])))
+                fixe["fin"] = curseur
+                curseur = curseur + timedelta(minutes=random.randint(0, 4))
+            etapes.append(fixe)
+
+        statuts = [str(e["statut"]) for e in etapes]
+        fin_soiree = curseur
+        if en_cours:
+            statut = "En cours"
+        else:
+            statut = "Clôturé avec réserves" if avec_reserves else "Clôturé"
+
+        priorite = calculer_priorite(4, 4)
+        ech = echeances(priorite, debut, matrice)
+        reference = f"{prefixe}-{annee}-{NUITS_EOD - rang:05d}"
+        responsable = random.choice(utilisateurs)
+        activite_id = await conn.fetchval(
+            "INSERT INTO core.activite"
+            "(reference, module, titre, direction_id, categorie_id, responsable_id, impact,"
+            " urgence, priorite, statut, source, sla_prise_en_charge_le, sla_resolution_le,"
+            " cree_le, pris_en_charge_le, cloture_le, donnees)"
+            " VALUES ($1,'eod',$2,(SELECT id FROM core.direction WHERE code='DSI'),"
+            " $3,$4,4,4,$5,$6,'SAISIE',$7,$8,$9,$10,$11,$12::jsonb) RETURNING id",
+            reference,
+            titre_journee(journee),
+            cats.get("FIN_DE_MOIS" if fin_de_mois else "QUOTIDIEN"),
+            responsable,
+            priorite,
+            statut,
+            ech.prise_en_charge_le,
+            ech.resolution_le,
+            debut,
+            debut,
+            # Seul « Clôturé » pose un `cloture_le` — « Clôturé avec réserves » n'en pose aucun,
+            # exactement comme la transition réelle (application/activites._CLOTURES).
+            fin_soiree if statut == "Clôturé" else None,
+            json.dumps({"journee": journee.isoformat(), "avancement": avancement_eod(statuts)}),
+        )
+        creees += 1
+
+        for e in etapes:
+            etape_id = await conn.fetchval(
+                "INSERT INTO core.eod_etape"
+                "(activite_id, section, libelle, nature, aide, ordre, statut, debut, fin, valeur,"
+                " cree_le, maj_le) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) RETURNING id",
+                activite_id, e["section"], e["libelle"], e["nature"], e["aide"], e["ordre"],
+                e["statut"], e["debut"], e["fin"], e["valeur"], debut,
+            )
+            auteur = random.choice(utilisateurs)
+            quand = e["fin"] or e["debut"] or debut
+            signature = {
+                "etape_id": etape_id,
+                "activite_id": activite_id,
+                "auteur_id": auteur,
+                "auteur_email": emails[auteur],
+            }
+
+            # Un verdict défavorable s'explique, toujours : le serveur le refuse autrement
+            # (STATUTS_A_JUSTIFIER), et une démonstration qui montrerait l'inverse mentirait.
+            if e["statut"] == ANOMALIE:
+                await _observation_eod(
+                    conn, nature="note", texte=random.choice(ANOMALIES_EOD), moment=quand,
+                    **signature,
+                )
+            elif e["statut"] == NON_APPLICABLE:
+                await _observation_eod(
+                    conn, nature="note", texte=SANS_OBJET_EOM, moment=quand, **signature
+                )
+            elif e["statut"] == COMPLETE and random.random() < 0.12:
+                await _observation_eod(
+                    conn, nature="note", texte=random.choice(NOTES_EOD), moment=quand, **signature
+                )
+
+            # Les relances d'agence se comptent à part des anomalies : une agence relancée n'est
+            # pas une étape en échec, c'est la nuit qui dure. Elles arrivent là où la nuit se
+            # joue — sur PART 3, l'étape la plus longue.
+            if e["section"] == PART_3 and e["statut"] == COMPLETE and not en_cours:
+                for _ in range(random.randint(0, 3)):
+                    instant = (e["debut"] or debut) + timedelta(minutes=random.randint(5, 55))
+                    await _observation_eod(
+                        conn,
+                        nature="incident",
+                        texte=random.choice(ACTIONS_RELANCE),
+                        agence=random.choice(AGENCES_CORE),
+                        relance=instant,
+                        moment=instant + timedelta(minutes=random.randint(1, 6)),
+                        **signature,
+                    )
+
+        # Le second opérateur de la nuit : une soirée se tient rarement seul.
+        autres = [u for u in utilisateurs if u != responsable]
+        if autres:
+            await conn.execute(
+                "INSERT INTO core.activite_acteur (activite_id, utilisateur_id, role) "
+                "VALUES ($1,$2,'CONTRIBUTEUR') "
+                "ON CONFLICT (activite_id, utilisateur_id, role) DO NOTHING",
+                activite_id, random.choice(autres),
+            )
+        await _journal_cycle_de_vie(
+            conn, "eod", reference, statut, debut, None if en_cours else fin_soiree
+        )
+        if random.random() < 0.3:
+            await _commentaires(conn, activite_id, utilisateurs, debut, 2, "eod")
+
+    return creees
+
+
 async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de démo
     # Garde-fou *fail-closed* : ce script EFFACE toutes les activités avant de régénérer la démo.
     # `environnement` vaut « dev » par défaut : se fier à cette valeur laisserait le script détruire
@@ -1384,6 +1673,10 @@ async def creer_donnees() -> None:  # noqa: C901 - générateur linéaire de dé
                     await _liens(conn, activite_id, module, cree_le, EMAILS_DEMO[0])
                 if responsable is not None and random.random() < 0.5:
                     await _acteurs(conn, activite_id, utilisateurs, responsable, statut, module)
+
+        # Les soirées EOD ne passent pas par la boucle générique : elles ne se rédigent pas,
+        # elles se pointent — vingt-huit étapes, des relances d'agence, deux façons de finir.
+        total += await _soirees_eod(conn, utilisateurs, annee)
 
         # Quelques notifications réalistes pour peupler la cloche (référence + titre réels).
         activites_recentes = await conn.fetch(

@@ -187,7 +187,7 @@ export function EodPage(): JSX.Element {
     <div className={styles.page}>
       <header className={styles.entete}>
         <div>
-          <h1 className={styles.titre}>EOD — Fin de journée</h1>
+          <h1 className={styles.titre}>EOD</h1>
           <p className={styles.sous}>
             Le traitement de clôture quotidien du core banking : déroulé pointé, anomalies, rapport
             du soir.
