@@ -127,8 +127,6 @@ export function ChangementsPage(): JSX.Element {
     base: '/changements',
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'ce changement',
-    consequence: 'Son dossier RFC, ses tâches et les décisions du comité partent avec lui.',
     onSupprime: () => void charger(page),
   });
 

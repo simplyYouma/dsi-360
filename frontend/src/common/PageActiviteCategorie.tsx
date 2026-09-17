@@ -196,8 +196,6 @@ export function PageActiviteCategorie({
     base: base,
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'ce dossier',
-    consequence: 'Ses documents, ses liens et sa discussion partent avec lui.',
     onSupprime: () => void charger(page),
   });
 

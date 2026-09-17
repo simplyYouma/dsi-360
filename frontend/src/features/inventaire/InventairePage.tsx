@@ -207,8 +207,6 @@ export function InventairePage(): JSX.Element {
     base: '/inventaire',
     id: (e) => e.id,
     libelle: (e) => e.code_immo ?? e.designation,
-    nature: 'ce matériel',
-    consequence: 'Son historique, ses constats et ses pièces jointes partent avec lui.',
     onSupprime: () => void charger(),
   });
   useEffect(() => chargerStats(), [chargerStats, total]);

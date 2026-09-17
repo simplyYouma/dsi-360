@@ -128,8 +128,6 @@ export function ProjetsPage(): JSX.Element {
     base: '/projets',
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'ce projet',
-    consequence: 'Ses tâches, ses jalons, ses documents et sa discussion partent avec lui.',
     onSupprime: () => void charger(page),
   });
 

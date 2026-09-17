@@ -145,8 +145,6 @@ export function ApplicationsPage(): JSX.Element {
     base: '/applications',
     id: (a) => a.id,
     libelle: (a) => a.nom,
-    nature: 'cette application',
-    consequence: 'Ses responsables désignés et son historique partent avec elle.',
     onSupprime: () => void charger(),
   });
   useEffect(() => chargerStats(), [chargerStats, total]);

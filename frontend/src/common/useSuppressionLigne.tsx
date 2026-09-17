@@ -16,10 +16,6 @@ interface Options<T> {
   libelle: (ligne: T) => string;
   /** Recharger la liste : la ligne effacée doit disparaître sans que l'on rafraîchisse la page. */
   onSupprime: () => void;
-  /** Nature de l'objet, pour la phrase de confirmation (défaut « ce dossier »). */
-  nature?: string;
-  /** Ce que la suppression emporte AUSSI, dit en clair avant le clic. */
-  consequence?: string;
 }
 
 interface Resultat<T> {
@@ -39,17 +35,11 @@ interface Resultat<T> {
  *    pas proposer ce qu'il refuserait — un bouton qui échoue toujours vaut moins que pas de bouton.
  * 2. **Confirmée, et la confirmation NOMME la ligne.** « Supprimer cet élément ? » fait cliquer
  *    sans regarder ; « Supprimer INC-2026-00042 ? » fait relire.
- * 3. **Définitive, et l'écran le dit.** Ce n'est pas une corbeille : ce qui part ne revient pas —
- *    seul le journal d'audit en garde la trace. Le dire après coup serait trop tard.
+ * 3. **Définitive, et l'écran le dit — en une phrase.** Ce qui part ne revient pas, seul le
+ *    journal d'audit en garde la trace. Un paragraphe d'explications se saute dès la deuxième
+ *    fois : ce qui doit être lu tient en une ligne.
  */
-export function useSuppressionLigne<T>({
-  base,
-  id,
-  libelle,
-  onSupprime,
-  nature = 'ce dossier',
-  consequence,
-}: Options<T>): Resultat<T> {
+export function useSuppressionLigne<T>({ base, id, libelle, onSupprime }: Options<T>): Resultat<T> {
   const { moi } = useAuth();
   const { notifier } = useToast();
   const [cible, setCible] = useState<T | null>(null);
@@ -77,11 +67,11 @@ export function useSuppressionLigne<T>({
             ? null
             : {
                 titre: `Supprimer ${libelle(cible)}`,
-                message:
-                  `${libelle(cible)} sera définitivement supprimé. ` +
-                  (consequence !== undefined ? `${consequence} ` : '') +
-                  `Ce n’est pas une mise en corbeille : seul le journal d’audit en gardera la ` +
-                  `trace. Pour arrêter ${nature} sans l’effacer, changez plutôt son statut.`,
+                // Court, parce qu'on le relit à chaque suppression : le titre nomme la fiche, la
+                // phrase dit ce qui compte — c'est définitif, et l'audit en garde la trace. Le
+                // reste (ce qui part avec elle, comment arrêter un dossier sans l'effacer) est du
+                // cours, pas une information de décision.
+                message: 'Suppression définitive. Seul le journal d’audit en gardera la trace.',
                 libelleConfirmer: 'Supprimer définitivement',
                 variante: 'danger',
                 action: () => supprimer(cible),

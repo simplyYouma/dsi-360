@@ -131,9 +131,6 @@ export function DemandesPage(): JSX.Element {
     base: '/demandes',
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'cette demande',
-    consequence:
-      'Le prochain import quotidien la recréera si elle existe encore dans SysAid — sans ses commentaires ni ses pièces jointes.',
     onSupprime: () => void charger(page),
   });
 

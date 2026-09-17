@@ -141,8 +141,6 @@ export function RisquesPage(): JSX.Element {
     base: '/risques',
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'ce risque',
-    consequence: 'Son plan de traitement et ses revues partent avec lui.',
     onSupprime: () => void charger(page),
   });
 

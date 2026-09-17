@@ -145,8 +145,6 @@ export function AuditPage(): JSX.Element {
     base: '/audit',
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'cette recommandation',
-    consequence: 'Ses justificatifs et son plan d’action partent avec elle.',
     onSupprime: () => void charger(page),
   });
 

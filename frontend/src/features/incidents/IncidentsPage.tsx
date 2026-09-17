@@ -141,9 +141,6 @@ export function IncidentsPage(): JSX.Element {
     base: '/incidents',
     id: (r) => r.id,
     libelle: (r) => r.reference,
-    nature: 'cet incident',
-    consequence:
-      'Le prochain import quotidien le recréera s’il existe encore dans SysAid — sans ses commentaires ni ses pièces jointes.',
     onSupprime: () => void charger(page),
   });
 

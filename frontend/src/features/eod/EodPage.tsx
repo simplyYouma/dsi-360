@@ -192,8 +192,6 @@ export function EodPage(): JSX.Element {
     base: '/eod',
     id: (s) => s.id,
     libelle: (s) => s.reference,
-    nature: 'cette soirée',
-    consequence: 'Son déroulé pointé, ses observations et ses relances d’agence partent avec elle.',
     onSupprime: () => void charger(page),
   });
 
