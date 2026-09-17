@@ -387,7 +387,69 @@ function dessinerVisas(pdf: jsPDF, y: number, largeurUtile: number): void {
  * Les étapes sont prises telles que le serveur les rend : ce document doit montrer la nuit comme
  * elle s'est pointée, pas comme on la réordonnerait après coup.
  */
-export async function exporterRapportEodPdf(soiree: DetailEod): Promise<void> {
+/** Une capture lue pour le PDF : ses données, ses dimensions, son format. jsPDF ne devine ni
+ *  la taille ni le format d'un blob — et le serveur ne garde que du PNG ou du JPEG. */
+async function lireCapture(
+  blob: Blob,
+): Promise<{ donnees: string; largeur: number; hauteur: number; format: 'PNG' | 'JPEG' }> {
+  const donnees = await new Promise<string>((resoudre, rejeter) => {
+    const lecteur = new FileReader();
+    lecteur.onload = () => resoudre(String(lecteur.result));
+    lecteur.onerror = () => rejeter(new Error('Capture illisible.'));
+    lecteur.readAsDataURL(blob);
+  });
+  const image = await new Promise<HTMLImageElement>((resoudre, rejeter) => {
+    const img = new Image();
+    img.onload = () => resoudre(img);
+    img.onerror = () => rejeter(new Error('Capture illisible.'));
+    img.src = donnees;
+  });
+  return {
+    donnees,
+    largeur: image.naturalWidth,
+    hauteur: image.naturalHeight,
+    format: blob.type === 'image/png' ? 'PNG' : 'JPEG',
+  };
+}
+
+/** Les captures de la nuit, SOUS le tableau, à sa largeur — comme dans le classeur, comme dans le
+ *  document que la Production remettait : la preuve de ce qui est pointé au-dessus, que la
+ *  hiérarchie lit après. Une capture qui ne tient pas dans la page ouvre la suivante ; une
+ *  capture plus haute qu'une page entière est réduite pour y tenir, jamais coupée. */
+async function dessinerCaptures(
+  pdf: jsPDF,
+  soiree: DetailEod,
+  captures: Blob[],
+  y: number,
+  largeurUtile: number,
+  largeurPage: number,
+  basUtile: number,
+): Promise<number> {
+  for (const blob of captures) {
+    const c = await lireCapture(blob);
+    if (c.largeur === 0) continue;
+    let largeur = largeurUtile;
+    let hauteur = (c.hauteur * largeur) / c.largeur;
+    if (y + hauteur + 6 > basUtile) {
+      pdf.addPage();
+      y = dessinerRappel(pdf, soiree, largeurPage);
+    }
+    // Plus haute que ce qui reste d'une page neuve : on la reduit, on ne la coupe pas.
+    const hauteurMax = basUtile - y - 6;
+    if (hauteur > hauteurMax) {
+      hauteur = hauteurMax;
+      largeur = (c.largeur * hauteur) / c.hauteur;
+    }
+    pdf.addImage(c.donnees, c.format, MARGE, y + 6, largeur, hauteur);
+    y += hauteur + 12;
+  }
+  return y;
+}
+
+export async function exporterRapportEodPdf(
+  soiree: DetailEod,
+  captures: Blob[] = [],
+): Promise<void> {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const largeurPage = pdf.internal.pageSize.getWidth();
   const hauteurPage = pdf.internal.pageSize.getHeight();
@@ -445,6 +507,8 @@ export async function exporterRapportEodPdf(soiree: DetailEod): Promise<void> {
       y += h;
     }
   }
+
+  y = await dessinerCaptures(pdf, soiree, captures, y, largeurUtile, largeurPage, basUtile);
 
   // Page nue si les visas ne tiennent pas : `pageSuivante` y poserait un en-tête de tableau qui
   // n'annoncerait aucune ligne.

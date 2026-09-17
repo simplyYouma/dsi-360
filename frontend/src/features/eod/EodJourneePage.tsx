@@ -30,7 +30,7 @@ import { ModaleConfirmation } from '@/common/ModaleConfirmation';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgeStatut } from '@/common/statuts';
 import { cx } from '@/common/cx';
-import { ErreurApi, telecharger } from '@/lib/api';
+import { api, ErreurApi, recupererBlob, telecharger } from '@/lib/api';
 import {
   eodApi,
   estAnomalie,
@@ -379,7 +379,15 @@ export function EodJourneePage(): JSX.Element {
   const exporterPdf = async (): Promise<void> => {
     setExportEnCours(true);
     try {
-      await exporterRapportEodPdf(soiree);
+      // Les captures de la nuit vont en pied du PDF, comme en pied du classeur : on les lit
+      // avant de composer — ce sont les pièces jointes images de la soirée.
+      const documents = await api.get<{ id: string; type_mime: string }[]>(`/eod/${id}/documents`);
+      const captures = await Promise.all(
+        documents
+          .filter((d) => d.type_mime.startsWith('image/'))
+          .map((d) => recupererBlob(`/eod/${id}/documents/${d.id}`)),
+      );
+      await exporterRapportEodPdf(soiree, captures);
       setExportOuvert(false);
     } catch {
       notifier("Le rapport n'a pas pu être composé.", 'erreur');
