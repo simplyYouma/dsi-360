@@ -12,6 +12,7 @@ import { FilAriane } from './FilAriane';
 import { Notifications } from './Notifications';
 import { BandeauIncarnation, SelecteurVue } from './SelecteurVue';
 import { RechercheGlobale } from './RechercheGlobale';
+import { VeilleEod } from '@/features/eod/VeilleEod';
 import styles from './AppShell.module.css';
 
 const CLE_REPLI = 'dsi360.sidebar.replie';
@@ -149,6 +150,12 @@ export function AppShell(): JSX.Element | null {
           <FilAriane />
           <Outlet />
         </main>
+
+        {/* La soirée EOD en cours reste sous les yeux où qu'on aille : une étape tourne pendant
+            qu'on ouvre un incident, et c'est le temps qu'elle prend qui décide de relancer une
+            agence. La veilleuse ne s'affiche que quand il y a une nuit ouverte, et s'efface sur la
+            page EOD — répéter à côté ce que l'écran montre déjà serait du bruit. */}
+        <VeilleEod />
       </div>
     </div>
   );

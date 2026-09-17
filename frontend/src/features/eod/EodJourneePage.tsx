@@ -6,19 +6,20 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  ChevronDown,
   Circle,
   CircleDot,
   Clock,
   FileDown,
   FileSpreadsheet,
   FileText,
+  MessageSquare,
   MessageSquarePlus,
   Play,
   Plus,
   RotateCcw,
   SlashSquare,
   Table2,
+  Timer,
   TriangleAlert,
   X,
   type LucideIcon,
@@ -80,12 +81,6 @@ const VERDICTS: {
     icone: SlashSquare,
     classe: styles.verdictSansObjet,
   },
-  {
-    statut: 'À faire',
-    libelle: 'Remettre à faire',
-    icone: RotateCcw,
-    classe: styles.verdictReprise,
-  },
 ];
 
 /** Ce que la modale annonce, selon le geste qui l'a ouverte. Sans cela, « Anomalie » et
@@ -111,11 +106,6 @@ const MARQUES: Record<string, string | undefined> = {
   'Non applicable': styles.marqueSansObjet,
   'En cours': styles.marqueEnCours,
 };
-
-/** Au-delà, le journal d'une étape se replie : une étape qui a vu six agences bloquer pousserait
- *  les suivantes hors de l'écran, et c'est le déroulé qu'on vient lire en premier. Les plus
- *  récentes restent visibles — c'est là qu'on en est. */
-const JOURNAL_VISIBLE = 3;
 
 /** Ce que la modale d'observation est en train de consigner : sur quelle étape, et le cas échéant
  *  le verdict qui l'a déclenchée (posé dans le même appel que l'observation). */
@@ -147,57 +137,59 @@ function duree(debut: string, fin: string): string {
   return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
 }
 
-/** Le journal d'une étape : ce qui s'est passé, dans l'ordre, signé et horodaté.
+/** LA BANDE DE LA NUIT — le journal d'une étape, réduit à sa ligne de temps.
  *
- * Il a remplacé le champ d'observations unique, qui s'écrasait à chaque saisie. Sur « PART 3 »,
- * une agence bloque à 01H12, on relance ; une autre bloque à 01H40, on relance encore. L'ancienne
- * forme ne gardait que la dernière phrase tapée : au matin, il ne restait rien à relire.
+ * Empilées en paragraphes, trois observations occupaient plus de place que l'étape elle-même : sur
+ * vingt-huit lignes, le déroulé disparaissait sous ses commentaires, et une nuit bavarde devenait
+ * illisible. Or ce qu'on cherche d'abord n'est pas le texte : c'est **combien de fois ça a coincé,
+ * et à quelle heure**. Chaque observation devient donc un jeton horodaté, tous sur une seule ligne.
+ * Le texte, lui, s'ouvre au clic — sous la bande, sans quitter l'étape ni ouvrir de modale, comme
+ * les justifications d'avancement ailleurs dans l'application.
  *
  * Les lignes ne se corrigent pas et ne s'effacent pas — l'API n'offre pas le geste. Une erreur se
  * rattrape par l'observation suivante, qui la date et la signe (principe n° 4). */
-function Journal({
-  etape,
-  deplie,
-  onBasculer,
-}: {
-  etape: EtapeEod;
-  deplie: boolean;
-  onBasculer: () => void;
-}): JSX.Element | null {
-  const total = etape.observations.length;
-  if (total === 0) return null;
-  const caches = deplie ? 0 : Math.max(0, total - JOURNAL_VISIBLE);
-  const visibles = etape.observations.slice(caches);
+function Journal({ etape }: { etape: EtapeEod }): JSX.Element | null {
+  const [ouverte, setOuverte] = useState<string | null>(null);
+  if (etape.observations.length === 0) return null;
+  const lue = etape.observations.find((o) => o.id === ouverte) ?? null;
 
   return (
-    <>
-      {caches > 0 && (
-        <button type="button" className={styles.journalPlus} onClick={onBasculer}>
-          <ChevronDown size={12} />
-          {caches} observation{caches > 1 ? 's' : ''} plus ancienne{caches > 1 ? 's' : ''}
-        </button>
-      )}
-      <ul className={styles.journalListe}>
-        {visibles.map((o) => (
-          <li
+    <div className={styles.trace}>
+      <div className={styles.traceRang}>
+        {etape.observations.map((o) => (
+          <button
+            type="button"
             key={o.id}
-            className={o.nature === 'incident' ? styles.obsIncident : styles.obs}
-            /* L'auteur en infobulle et non en ligne : on ne le cherche qu'en cas de doute, et il
-               repousserait le texte qu'on vient lire. */
-            title={o.auteur ?? undefined}
-          >
-            <span className={styles.obsHeure}>{heureObservation(o)}</span>
-            {o.nature === 'incident' && o.agence !== null && (
-              <span className={styles.obsAgence}>
-                <Building2 size={11} />
-                {o.agence}
-              </span>
+            className={cx(
+              styles.jeton,
+              o.nature === 'incident' && styles.jetonIncident,
+              o.id === ouverte && styles.jetonOuvert,
             )}
-            <span className={styles.obsTexte}>{o.texte}</span>
-          </li>
+            onClick={() => setOuverte(o.id === ouverte ? null : o.id)}
+            aria-expanded={o.id === ouverte}
+            title={o.texte}
+          >
+            {o.nature === 'incident' ? <Building2 size={11} /> : <MessageSquare size={11} />}
+            {heureObservation(o)}
+            {o.nature === 'incident' && o.agence !== null && (
+              <span className={styles.jetonAgence}>{o.agence}</span>
+            )}
+          </button>
         ))}
-      </ul>
-    </>
+      </div>
+      {lue !== null && (
+        <div
+          className={cx(styles.traceCarte, lue.nature === 'incident' && styles.traceCarteIncident)}
+        >
+          <span className={styles.traceTexte}>{lue.texte}</span>
+          <span className={styles.traceSignature}>
+            {heureObservation(lue)}
+            {lue.agence !== null && ` · ${lue.agence}`}
+            {lue.auteur !== null && ` · ${lue.auteur}`}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -224,8 +216,8 @@ export function EodJourneePage(): JSX.Element {
   const [relance, setRelance] = useState('');
   const [texteObs, setTexteObs] = useState('');
   const [agences, setAgences] = useState<string[]>([]);
-  // Étapes dont on a déplié le journal entier.
-  const [deplies, setDeplies] = useState<Set<string>>(new Set());
+  // L'étape dont on s'apprête à reprendre le pointage. Le geste efface une heure : il se confirme.
+  const [aReprendre, setAReprendre] = useState<EtapeEod | null>(null);
   // L'instant courant, pour le compteur des étapes démarrées.
   const [instant, setInstant] = useState(() => Date.now());
 
@@ -392,12 +384,31 @@ export function EodJourneePage(): JSX.Element {
     void agir(`statut:${etape.id}`, () => eodApi.majEtape(id, etape.id, { statut }));
   };
 
-  const basculerJournal = (etapeId: string): void =>
-    setDeplies((anciens) => {
-      const suivants = new Set(anciens);
-      if (!suivants.delete(etapeId)) suivants.add(etapeId);
-      return suivants;
-    });
+  /** REPRENDRE une étape : on s'est trompé de verdict, ou l'étape a été close trop tôt et le
+   *  traitement repart.
+   *
+   *  Ce que ça fait, et pourquoi : l'étape repasse « En cours », son heure de FIN est effacée, son
+   *  heure de DÉBUT est conservée. Le compteur repart donc de l'heure de départ d'origine et
+   *  continue de courir — c'est la même étape qui se poursuit, pas une nouvelle. Remettre le
+   *  compteur à zéro ferait disparaître le temps déjà passé, qui est précisément ce que la DSI
+   *  relit au matin. Le journal, lui, ne bouge pas : ce qui a été consigné reste.
+   *
+   *  Une étape jamais démarrée n'a rien à reprendre : elle retombe simplement « À faire ». */
+  const reprendre = (etape: EtapeEod): Promise<void> =>
+    agir(`reprise:${etape.id}`, () =>
+      eodApi.majEtape(
+        id,
+        etape.id,
+        etape.debut === null
+          ? { statut: 'À faire' }
+          : etape.fin === null
+            ? // Étape en cours : on annule le démarrage. Le compteur s'arrête et l'heure de départ
+              // s'efface — c'est un clic de trop sur une liste de vingt-huit lignes, pas un travail
+              // qui a eu lieu.
+              { statut: 'À faire', vider_debut: true }
+            : { statut: 'En cours', vider_fin: true },
+      ),
+    );
 
   // Ce que la modale d'observation annonce, et ce qu'elle exige. L'explication n'est obligatoire
   // que si l'étape n'en porte pas déjà une : corriger un verdict ne doit pas obliger à retaper ce
@@ -722,7 +733,7 @@ export function EodJourneePage(): JSX.Element {
                             )}
                             title="Temps écoulé depuis le démarrage"
                           >
-                            <span className={styles.pouls} aria-hidden="true" />
+                            <Timer size={12} className={styles.pouls} aria-hidden="true" />
                             {chrono(e.debut, instant)}
                           </span>
                           {peutEcrire && (
@@ -751,6 +762,24 @@ export function EodJourneePage(): JSX.Element {
 
                       {peutEcrire && (
                         <div className={styles.verdicts}>
+                          {/* Reprendre : seulement là où il y a quelque chose à reprendre — une
+                              étape qui n'a jamais démarré n'a pas de pointage à défaire. */}
+                          {(estReglee(e) || e.debut !== null) && (
+                            <button
+                              type="button"
+                              className={cx(styles.verdict, styles.verdictReprise)}
+                              title={
+                                e.debut !== null && e.fin === null
+                                  ? 'Annuler le démarrage'
+                                  : 'Reprendre l’étape (le pointage repart)'
+                              }
+                              aria-label={`Reprendre l’étape « ${e.libelle} »`}
+                              disabled={occupe !== null}
+                              onClick={() => setAReprendre(e)}
+                            >
+                              <RotateCcw size={13} />
+                            </button>
+                          )}
                           {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => (
                             <button
                               type="button"
@@ -792,11 +821,7 @@ export function EodJourneePage(): JSX.Element {
 
                     {e.observations.length > 0 && (
                       <div className={styles.dessous}>
-                        <Journal
-                          etape={e}
-                          deplie={deplies.has(e.id)}
-                          onBasculer={() => basculerJournal(e.id)}
-                        />
+                        <Journal etape={e} />
                       </div>
                     )}
                   </div>
@@ -1116,6 +1141,36 @@ export function EodJourneePage(): JSX.Element {
           placeholder="Ex. Reprise reportée au matin, batch EMS relancé par l'éditeur."
         />
       </Modale>
+
+      <ModaleConfirmation
+        demande={
+          aReprendre === null
+            ? null
+            : {
+                titre:
+                  aReprendre.debut !== null && aReprendre.fin === null
+                    ? 'Annuler le démarrage'
+                    : 'Reprendre cette étape',
+                message:
+                  aReprendre.debut === null
+                    ? `« ${aReprendre.libelle} » redevient « À faire ».`
+                    : aReprendre.fin === null
+                      ? `Le compteur de « ${aReprendre.libelle} » s’arrête et son heure de ` +
+                        `démarrage (${heure(aReprendre.debut)}) est effacée. L’étape redevient ` +
+                        `« À faire ». Les observations déjà consignées restent.`
+                      : `« ${aReprendre.libelle} » repasse « En cours ». L’heure de fin est ` +
+                        `effacée ; le compteur repart de ${heure(aReprendre.debut)} et continue ` +
+                        `de courir — c’est la même étape qui se poursuit. Les observations déjà ` +
+                        `consignées restent.`,
+                libelleConfirmer:
+                  aReprendre.debut !== null && aReprendre.fin === null
+                    ? 'Annuler le démarrage'
+                    : 'Reprendre',
+                action: () => reprendre(aReprendre),
+              }
+        }
+        onFermer={() => setAReprendre(null)}
+      />
 
       <ModaleConfirmation
         demande={
