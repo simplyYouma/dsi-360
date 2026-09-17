@@ -733,6 +733,13 @@ export function EodJourneePage(): JSX.Element {
                     key={e.id}
                     className={cx(
                       styles.etape,
+                      // Rien n'y a encore été entrepris : la ligne s'efface un peu. Sur
+                      // vingt-huit étapes, ce qui reste à faire ne doit pas peser autant que ce
+                      // qui a eu lieu — l'œil descend jusqu'au gris, et c'est là qu'il travaille.
+                      e.statut === 'À faire' &&
+                        e.debut === null &&
+                        e.observations.length === 0 &&
+                        styles.etapeVierge,
                       e.statut === 'En cours' && styles.etapeActive,
                       (e.statut === 'Anomalie' || anomalies > 0) && styles.etapeAnomalie,
                       e.statut === 'Non applicable' && styles.etapeSansObjet,

@@ -450,6 +450,27 @@
   background: color-mix(in srgb, var(--bg-subtle) 55%, transparent);
 }
 
+/* Une étape que rien n'a encore touchée : ni pointage, ni observation. Elle s'efface — le libellé
+   en gris, la pastille et les commandes en retrait — sans jamais devenir illisible : c'est le
+   déroulé de la nuit, on doit pouvoir le lire en entier. Au survol, elle reprend sa densité :
+   c'est le moment où l'on s'apprête à agir dessus. */
+.etapeVierge .libelle,
+.etapeVierge .valeur {
+  color: var(--text-muted);
+}
+.etapeVierge .pastille,
+.etapeVierge .pointage {
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+.etapeVierge:hover .libelle {
+  color: var(--text);
+}
+.etapeVierge:hover .pastille,
+.etapeVierge:hover .pointage {
+  opacity: 1;
+}
+
 /* L'étape en cours : la seule qui compte à l'instant où l'on regarde. */
 .etapeActive {
   background: color-mix(in srgb, var(--cat-1) 5%, transparent);
