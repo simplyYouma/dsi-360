@@ -59,12 +59,51 @@ const VERDICT: Record<StatutEtape, { couleur: string; icone: LucideIcon; mot: st
   'Non applicable': { couleur: 'var(--text-muted)', icone: SlashSquare, mot: 'Non applicable' },
 };
 
-/** Verdicts qu'on peut poser à la main, hors pointage. */
-const VERDICTS: { statut: StatutEtape; libelle: string; icone: LucideIcon; danger?: boolean }[] = [
-  { statut: 'Anomalie', libelle: 'Signaler une anomalie', icone: TriangleAlert, danger: true },
-  { statut: 'Non applicable', libelle: 'Sans objet ce soir', icone: SlashSquare },
-  { statut: 'À faire', libelle: 'Remettre à faire', icone: RotateCcw },
+/** Verdicts qu'on peut poser à la main, hors pointage. Chacun porte AU SURVOL la couleur de ce
+ *  qu'il fait : cinq boutons gris côte à côte n'annoncent rien, et l'on lisait l'infobulle avant
+ *  d'oser cliquer. */
+const VERDICTS: {
+  statut: StatutEtape;
+  libelle: string;
+  icone: LucideIcon;
+  classe: string | undefined;
+}[] = [
+  {
+    statut: 'Anomalie',
+    libelle: 'Signaler une anomalie',
+    icone: TriangleAlert,
+    classe: styles.verdictAnomalie,
+  },
+  {
+    statut: 'Non applicable',
+    libelle: 'Sans objet ce soir',
+    icone: SlashSquare,
+    classe: styles.verdictSansObjet,
+  },
+  {
+    statut: 'À faire',
+    libelle: 'Remettre à faire',
+    icone: RotateCcw,
+    classe: styles.verdictReprise,
+  },
 ];
+
+/** Ce que la modale annonce, selon le geste qui l'a ouverte. Sans cela, « Anomalie » et
+ *  « Consigner » ouvraient le même écran : on ne savait plus lequel des deux on avait déclenché. */
+const ANNONCE: Record<string, { titre: string; quoi: string }> = {
+  Anomalie: {
+    titre: 'Signaler une anomalie',
+    quoi: 'L’étape passe en « Anomalie » — dites ce qui a coincé.',
+  },
+  'Non applicable': {
+    titre: 'Marquer l’étape sans objet',
+    quoi: 'L’étape ne s’applique pas ce soir — dites pourquoi.',
+  },
+};
+
+/** Au-delà, une étape qui tourne encore n'est plus dans les clous et son compteur vire à l'ambre :
+ *  c'est le moment où, dans la vraie nuit, on relance l'agence. */
+const ETAPE_LONGUE_MS = 45 * 60_000;
 
 /** Les trois verdicts qui ne vont pas de soi portent leur mot en clair, à côté du libellé. */
 const MARQUES: Record<string, string | undefined> = {
@@ -83,6 +122,18 @@ const JOURNAL_VISIBLE = 3;
 interface Consigne {
   etape: EtapeEod;
   verdict: StatutEtape | null;
+}
+
+/** Le temps écoulé depuis le démarrage — « 04:21 », « 1:12:40 ».
+ *
+ * « 09H01 » ne répond pas à « ça fait combien de temps que ça tourne ? », qui est LA question de
+ * la nuit : c'est elle qui décide de relancer une agence, et on la posait montre en main. */
+function chrono(debut: string, maintenant: number): string {
+  const total = Math.max(0, Math.floor((maintenant - new Date(debut).getTime()) / 1000));
+  const h = Math.floor(total / 3600);
+  const mm = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const ss = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 /** Combien de temps l'étape a duré — « 12 min », « 1 h 05 ».
@@ -175,6 +226,8 @@ export function EodJourneePage(): JSX.Element {
   const [agences, setAgences] = useState<string[]>([]);
   // Étapes dont on a déplié le journal entier.
   const [deplies, setDeplies] = useState<Set<string>>(new Set());
+  // L'instant courant, pour le compteur des étapes démarrées.
+  const [instant, setInstant] = useState(() => Date.now());
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -188,6 +241,19 @@ export function EodJourneePage(): JSX.Element {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  /** La minuterie ne bat que s'il y a quelque chose à compter : une soirée close n'entretient
+   *  aucun compteur, et un écran laissé ouvert au bureau ne réveille rien. */
+  const compteurEnCours =
+    soiree?.etapes.some((e) => e.nature !== 'valeur' && e.debut !== null && e.fin === null) ===
+    true;
+
+  useEffect(() => {
+    if (!compteurEnCours) return undefined;
+    setInstant(Date.now());
+    const minuterie = window.setInterval(() => setInstant(Date.now()), 1000);
+    return () => window.clearInterval(minuterie);
+  }, [compteurEnCours]);
 
   // Le réseau d'agences n'est chargé qu'à la première ouverture de la modale : c'est un référentiel
   // stable, et l'écran de pointage n'en a pas besoin pour s'afficher.
@@ -284,13 +350,20 @@ export function EodJourneePage(): JSX.Element {
 
   const fermerConsigne = (): void => setConsigne(null);
 
-  /** Pose le verdict et l'observation en un seul appel quand les deux vont ensemble. */
+  /** Pose le verdict et l'observation en un seul appel quand les deux vont ensemble — et le
+   *  verdict seul quand l'étape porte déjà son explication. */
   const envoyerObservation = async (): Promise<void> => {
     if (consigne === null) return;
     const { etape, verdict } = consigne;
+    const texte = texteObs.trim();
+    if (verdict !== null && texte === '') {
+      await agir(`statut:${etape.id}`, () => eodApi.majEtape(id, etape.id, { statut: verdict }));
+      fermerConsigne();
+      return;
+    }
     const observation: NouvelleObservation = {
       nature: natureObs,
-      texte: texteObs.trim(),
+      texte,
       agence: natureObs === 'incident' ? agence : null,
       relance: natureObs === 'incident' ? relance.trim() : null,
     };
@@ -302,12 +375,17 @@ export function EodJourneePage(): JSX.Element {
     fermerConsigne();
   };
 
-  /** Pose un verdict. Ceux qui, sans un mot, seraient refusés par le serveur passent par la modale
-   *  — mais seulement tant que l'étape n'a rien au journal : une explication déjà consignée n'a
-   *  pas à être retapée à chaque correction du verdict. */
+  /** Pose un verdict.
+   *
+   * « Anomalie » et « Non applicable » ouvrent TOUJOURS la modale. Le même bouton, auparavant,
+   * tantôt l'ouvrait, tantôt basculait l'étape sans rien demander — selon qu'une observation
+   * existait déjà, ce que rien à l'écran ne disait. Un geste qui change de nature au gré d'un état
+   * invisible ne s'apprivoise pas : on finit par cliquer en espérant.
+   *
+   * Quand l'explication est déjà au journal, la modale s'ouvre quand même mais n'exige plus rien —
+   * elle le dit, et son bouton devient « Poser le verdict ». */
   const poserVerdict = (etape: EtapeEod, statut: StatutEtape): void => {
-    const aExpliquer = statut === 'Anomalie' || statut === 'Non applicable';
-    if (aExpliquer && etape.observations.length === 0) {
+    if (statut === 'Anomalie' || statut === 'Non applicable') {
       consigner(etape, statut);
       return;
     }
@@ -320,6 +398,27 @@ export function EodJourneePage(): JSX.Element {
       if (!suivants.delete(etapeId)) suivants.add(etapeId);
       return suivants;
     });
+
+  // Ce que la modale d'observation annonce, et ce qu'elle exige. L'explication n'est obligatoire
+  // que si l'étape n'en porte pas déjà une : corriger un verdict ne doit pas obliger à retaper ce
+  // qui est écrit deux lignes plus bas.
+  const annonce = consigne?.verdict != null ? ANNONCE[consigne.verdict] : undefined;
+  const expliqueDeja = consigne !== null && consigne.etape.observations.length > 0;
+  const texteVide = texteObs.trim().length === 0;
+  const verdictSeul = consigne?.verdict != null && texteVide;
+  const observationComplete =
+    texteObs.trim().length >= 2 &&
+    (natureObs !== 'incident' || ((agence ?? '').trim() !== '' && relance.trim() !== ''));
+  const posePossible = verdictSeul ? expliqueDeja : observationComplete;
+  // « Sans objet » ne se raconte pas comme un incident d'agence : le choix de nature n'aurait ici
+  // qu'une réponse. On ne montre pas un aiguillage à une seule voie.
+  const naturesOffertes = consigne?.verdict !== 'Non applicable';
+  const IconeAnnonce =
+    consigne?.verdict === 'Anomalie'
+      ? TriangleAlert
+      : consigne?.verdict === 'Non applicable'
+        ? SlashSquare
+        : MessageSquarePlus;
 
   const allerA = (ancre: string): void =>
     document.getElementById(ancre)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -615,6 +714,17 @@ export function EodJourneePage(): JSX.Element {
                       ) : e.fin === null ? (
                         <>
                           <span className={styles.horodate}>{heure(e.debut)}</span>
+                          <span
+                            className={cx(
+                              styles.chrono,
+                              instant - new Date(e.debut).getTime() > ETAPE_LONGUE_MS &&
+                                styles.chronoLong,
+                            )}
+                            title="Temps écoulé depuis le démarrage"
+                          >
+                            <span className={styles.pouls} aria-hidden="true" />
+                            {chrono(e.debut, instant)}
+                          </span>
                           {peutEcrire && (
                             <button
                               type="button"
@@ -645,10 +755,7 @@ export function EodJourneePage(): JSX.Element {
                             <button
                               type="button"
                               key={v.statut}
-                              className={cx(
-                                styles.verdict,
-                                v.danger === true && styles.verdictDanger,
-                              )}
+                              className={cx(styles.verdict, v.classe)}
                               title={v.libelle}
                               aria-label={`${v.libelle} — ${e.libelle}`}
                               disabled={occupe !== null}
@@ -659,7 +766,7 @@ export function EodJourneePage(): JSX.Element {
                           ))}
                           <button
                             type="button"
-                            className={styles.verdict}
+                            className={cx(styles.verdict, styles.verdictObservation)}
                             title="Consigner une observation"
                             aria-label={`Consigner une observation — ${e.libelle}`}
                             disabled={occupe !== null}
@@ -671,7 +778,7 @@ export function EodJourneePage(): JSX.Element {
                               dernier, séparé des verdicts et confirmé avant d'agir. */}
                           <button
                             type="button"
-                            className={cx(styles.verdict, styles.verdictDanger, styles.retrait)}
+                            className={cx(styles.verdict, styles.verdictRetrait, styles.retrait)}
                             title="Retirer cette étape de la soirée"
                             aria-label={`Retirer l’étape « ${e.libelle} »`}
                             disabled={occupe !== null}
@@ -723,20 +830,35 @@ export function EodJourneePage(): JSX.Element {
           </Button>
         }
       >
-        <p className={styles.cible}>
-          {soiree.reste > 0
-            ? `${soiree.reste} étape(s) ne sont pas encore réglées : le rapport les montrera « À faire ».`
-            : 'Toutes les étapes sont réglées : le rapport rend compte de la nuit entière.'}
-        </p>
+        <div className={cx(styles.contexte, soiree.reste > 0 && styles.contexteClore)}>
+          {soiree.reste > 0 ? (
+            <TriangleAlert size={18} className={styles.contexteIcone} />
+          ) : (
+            <CheckCircle2 size={18} className={styles.contexteIcone} />
+          )}
+          <div className={styles.contexteCorps}>
+            <span className={styles.contexteQuoi}>
+              {soiree.reste > 0
+                ? `${soiree.reste} étape(s) ne sont pas encore réglées`
+                : 'La nuit est complète'}
+            </span>
+            <span className={styles.contexteOu}>
+              {soiree.reste > 0
+                ? 'Le rapport les montrera « À faire » — il dit la nuit telle qu’elle a été pointée.'
+                : 'Le rapport rend compte du déroulé entier, anomalies et relances comprises.'}
+            </span>
+          </div>
+        </div>
         <div className={styles.formats}>
           <button
             type="button"
-            className={styles.format}
+            className={cx(styles.format, styles.formatPhare)}
             disabled={exportEnCours}
             onClick={() => void exporterPdf()}
           >
             <FileText size={18} />
             <span className={styles.formatNom}>{exportEnCours ? 'Composition…' : 'PDF'}</span>
+            <span className={styles.formatMarque}>le document du soir</span>
             <span className={styles.formatQuoi}>
               Le document qui se remet et s’archive : en-tête AFG Bank Mali, synthèse de la nuit,
               déroulé complet et emplacements de visa.
@@ -767,54 +889,70 @@ export function EodJourneePage(): JSX.Element {
       <Modale
         ouverte={consigne !== null}
         onFermer={fermerConsigne}
-        titre={
-          consigne?.verdict === null || consigne === null
-            ? 'Consigner une observation'
-            : `« ${consigne.verdict} » — dire ce qui s’est passé`
-        }
+        titre={annonce?.titre ?? 'Consigner une observation'}
         pied={
           <>
             <Button variante="secondaire" onClick={fermerConsigne}>
               Annuler
             </Button>
             <Button
-              disabled={
-                occupe !== null ||
-                texteObs.trim().length < 2 ||
-                (natureObs === 'incident' &&
-                  ((agence ?? '').trim() === '' || relance.trim() === ''))
-              }
+              disabled={occupe !== null || !posePossible}
               onClick={() => void envoyerObservation()}
             >
-              Consigner
+              {verdictSeul ? 'Poser le verdict' : 'Consigner'}
             </Button>
           </>
         }
       >
+        {/* La bannière nomme le geste et porte sa couleur : « Anomalie » et « Consigner »
+            ouvraient le même écran, et l'on ne savait plus lequel des deux on avait déclenché. */}
         {consigne !== null && (
-          <p className={styles.cible}>
-            {consigne.etape.section} · {consigne.etape.libelle}
-          </p>
+          <div
+            className={cx(
+              styles.contexte,
+              consigne.verdict === 'Anomalie' && styles.contexteAnomalie,
+            )}
+          >
+            <IconeAnnonce size={18} className={styles.contexteIcone} />
+            <div className={styles.contexteCorps}>
+              <span className={styles.contexteQuoi}>
+                {annonce?.quoi ?? 'Une ligne de plus au journal de l’étape.'}
+              </span>
+              <span className={styles.contexteOu}>
+                {consigne.etape.section} · {consigne.etape.libelle}
+              </span>
+              {/* Ce que l'étape dit déjà. Annoncer « facultatif, l'étape est expliquée » sans
+                  montrer l'explication demanderait de fermer la modale pour la vérifier. */}
+              {expliqueDeja && consigne.verdict !== null && (
+                <span className={styles.contexteDeja}>
+                  Dernière observation —{' '}
+                  {consigne.etape.observations[consigne.etape.observations.length - 1]?.texte}
+                </span>
+              )}
+            </div>
+          </div>
         )}
-        <div className={styles.natures}>
-          {(
-            [
-              { valeur: 'note', libelle: 'Observation', icone: MessageSquarePlus },
-              { valeur: 'incident', libelle: 'Incident sur une agence', icone: Building2 },
-            ] as const
-          ).map((n) => (
-            <button
-              type="button"
-              key={n.valeur}
-              className={natureObs === n.valeur ? styles.natureActive : styles.nature}
-              aria-pressed={natureObs === n.valeur}
-              onClick={() => setNatureObs(n.valeur)}
-            >
-              <n.icone size={14} />
-              {n.libelle}
-            </button>
-          ))}
-        </div>
+        {naturesOffertes && (
+          <div className={styles.natures}>
+            {(
+              [
+                { valeur: 'note', libelle: 'Observation', icone: MessageSquarePlus },
+                { valeur: 'incident', libelle: 'Incident sur une agence', icone: Building2 },
+              ] as const
+            ).map((n) => (
+              <button
+                type="button"
+                key={n.valeur}
+                className={natureObs === n.valeur ? styles.natureActive : styles.nature}
+                aria-pressed={natureObs === n.valeur}
+                onClick={() => setNatureObs(n.valeur)}
+              >
+                <n.icone size={14} />
+                {n.libelle}
+              </button>
+            ))}
+          </div>
+        )}
 
         {natureObs === 'incident' && (
           <>
@@ -841,12 +979,21 @@ export function EodJourneePage(): JSX.Element {
                 /* Pré-remplie à l'instant : on consigne sur le moment, et l'opérateur ne tape que
                    ce qu'il corrige. Le serveur en déduit la journée — l'EOD franchit minuit. */
               />
+              <span className={styles.indice}>
+                Telle qu’elle se lit sur l’écran — « 01H12 ». La date se déduit : l’EOD franchit
+                minuit.
+              </span>
             </label>
           </>
         )}
 
         <label className={styles.champ}>
-          <span>{natureObs === 'incident' ? 'Ce qui a été fait' : 'Observation'}</span>
+          <span>
+            {natureObs === 'incident' ? 'Ce qui a été fait' : 'Observation'}
+            {expliqueDeja && consigne?.verdict != null && (
+              <span className={styles.facultatif}> — facultatif, l’étape est déjà expliquée</span>
+            )}
+          </span>
           <textarea
             className={styles.note}
             rows={3}
@@ -893,9 +1040,21 @@ export function EodJourneePage(): JSX.Element {
           </>
         }
       >
+        <div className={styles.contexte}>
+          <Plus size={18} className={styles.contexteIcone} />
+          <div className={styles.contexteCorps}>
+            <span className={styles.contexteQuoi}>Une étape pour cette soirée seulement.</span>
+            <span className={styles.contexteOu}>
+              Le déroulé de référence n’est pas touché : les nuits suivantes ne la verront pas.
+            </span>
+          </div>
+        </div>
         <label className={styles.champ}>
           <span>Section</span>
           <input value={sectionNouvelle} onChange={(e) => setSectionNouvelle(e.target.value)} />
+          <span className={styles.indice}>
+            Une section inconnue se range en fin de déroulé, jamais au milieu.
+          </span>
         </label>
         <label className={styles.champ}>
           <span>Intitulé</span>
@@ -937,10 +1096,18 @@ export function EodJourneePage(): JSX.Element {
           </>
         }
       >
-        <p className={styles.cible}>
-          {soiree.reste} étape(s) ne sont pas réglées. Dites pourquoi la soirée s’arrête là : sans
-          cette note, les étapes restées «&nbsp;À faire&nbsp;» ne se reliront pas.
-        </p>
+        <div className={cx(styles.contexte, styles.contexteClore)}>
+          <TriangleAlert size={18} className={styles.contexteIcone} />
+          <div className={styles.contexteCorps}>
+            <span className={styles.contexteQuoi}>
+              {soiree.reste} étape(s) ne sont pas réglées.
+            </span>
+            <span className={styles.contexteOu}>
+              Dites pourquoi la soirée s’arrête là : sans cette note, les étapes restées « À faire »
+              ne se reliront pas.
+            </span>
+          </div>
+        </div>
         <textarea
           className={styles.note}
           rows={3}
