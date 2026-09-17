@@ -735,8 +735,8 @@ export function EodJourneePage(): JSX.Element {
                 const verdict = VERDICT[e.statut];
                 const Pastille = verdict.icone;
                 const marque = MARQUES[e.statut];
-                // Les anomalies de l'étape : au journal, pas au verdict. La ligne les porte en
-                // rouge et les compte — « Completed » et « Branch 018 Error » à la fois.
+                // Les anomalies de l'étape : au journal, pas au verdict. Les jetons les montrent
+                // déjà, un par un, avec l'heure et l'agence — pas de badge qui les recompte.
                 const anomalies = e.observations.filter(estAnomalie).length;
                 return (
                   <div
@@ -777,12 +777,6 @@ export function EodJourneePage(): JSX.Element {
                       </span>
                       {marque !== undefined && (
                         <span className={cx(styles.marque, marque)}>{verdict.mot}</span>
-                      )}
-                      {anomalies > 0 && (
-                        <span className={cx(styles.marque, styles.marqueAnomalie)}>
-                          <TriangleAlert size={11} />
-                          {anomalies === 1 ? 'Anomalie' : `${anomalies} anomalies`}
-                        </span>
                       )}
                       {e.aide !== null && <span className={styles.aide}>{e.aide}</span>}
                       {/* La plateforme SAIT ce que « System Date » doit lire : la journée qu'on
