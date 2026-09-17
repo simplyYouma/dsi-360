@@ -85,6 +85,24 @@
   background: color-mix(in srgb, var(--bg-subtle) 60%, transparent);
 }
 
+/* Une étape qui tourne : sa section, son libellé, son compteur. Elles s'empilent quand plusieurs
+   tournent de front — les PART se lancent souvent à la suite. */
+.ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ligne + .ligne {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.autres {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
 .section {
   font-size: var(--text-xs);
   letter-spacing: 0.05em;
@@ -114,6 +132,12 @@
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
   color: var(--cat-1);
+}
+
+/* À plusieurs, les compteurs se serrent : trois chiffres de 22 px feraient de la veilleuse une
+   page à eux seuls. */
+.chronoSerre {
+  font-size: var(--text-base);
 }
 
 .pouls {

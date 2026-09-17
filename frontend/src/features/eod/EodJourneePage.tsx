@@ -25,7 +25,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button, Modale, StatusBadge, useToast } from '@/design-system/primitives';
-import { ChampInline } from '@/common/ChampInline';
+import { SelecteurDate } from '@/common/SelecteurDate';
 import { ModaleConfirmation } from '@/common/ModaleConfirmation';
 import { SelecteurListe } from '@/common/SelecteurListe';
 import { BadgeStatut } from '@/common/statuts';
@@ -100,6 +100,9 @@ const ANNONCE: Record<string, { titre: string; quoi: string }> = {
  *  c'est le moment où, dans la vraie nuit, on relance l'agence. */
 const ETAPE_LONGUE_MS = 45 * 60_000;
 
+/** Pourquoi un champ ne s'ouvre pas : on n'interdit jamais sans le dire. */
+const TITRE_LECTURE = 'Le pointage revient aux acteurs de la soirée.';
+
 /** Les trois verdicts qui ne vont pas de soi portent leur mot en clair, à côté du libellé. */
 const MARQUES: Record<string, string | undefined> = {
   Anomalie: styles.marqueAnomalie,
@@ -112,6 +115,19 @@ const MARQUES: Record<string, string | undefined> = {
 interface Consigne {
   etape: EtapeEod;
   verdict: StatutEtape | null;
+}
+
+/** La date relevée, telle qu'elle est stockée (« 17/09/2026 »), ramenée à l'ISO du calendrier.
+ *
+ * On continue d'ÉCRIRE le format français : c'est celui que le rapport du soir remet à la
+ * hiérarchie, et le changer pour l'ISO obligerait à retoucher l'export pour un confort d'écran.
+ * Une valeur tapée autrefois à la main et illisible ne casse rien : le calendrier s'ouvre vierge. */
+function isoDepuisValeur(valeur: string | null): string | null {
+  if (valeur === null) return null;
+  const texte = valeur.trim();
+  const fr = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(texte);
+  if (fr !== null) return `${fr[3]}-${fr[2]}-${fr[1]}`;
+  return /^\d{4}-\d{2}-\d{2}$/.test(texte) ? texte : null;
 }
 
 /** Le temps écoulé depuis le démarrage — « 04:21 », « 1:12:40 ».
@@ -692,19 +708,23 @@ export function EodJourneePage(): JSX.Element {
                         // « System Date » : ce qui compte n'est pas quand on a regardé, mais ce
                         // qu'on a lu.
                         <span className={styles.colValeur}>
-                          <ChampInline
-                            valeur={e.valeur ?? ''}
-                            indication="jj/mm/aaaa"
-                            lectureSeule={!peutEcrire}
-                            onValider={(v) =>
+                          {/* Un calendrier, et non un champ libre : on relève une DATE, à 2 h du
+                              matin, et « 17/9/26 », « 17-09-2026 » ou une coquille à un chiffre
+                              près partaient droit dans le rapport du soir. Le mois s'y lit en
+                              toutes lettres, en français. */}
+                          <SelecteurDate
+                            valeur={isoDepuisValeur(e.valeur)}
+                            onChange={(iso) =>
                               void agir(`valeur:${e.id}`, () =>
                                 eodApi.majEtape(id, e.id, {
-                                  valeur: v,
-                                  statut: v.trim() === '' ? 'À faire' : 'Complété',
+                                  valeur: iso === null ? '' : jour(iso),
+                                  statut: iso === null ? 'À faire' : 'Complété',
                                 }),
                               )
                             }
-                            aria-label={`Valeur relevée — ${e.libelle}`}
+                            placeholder="jj/mm/aaaa"
+                            desactive={!peutEcrire}
+                            titreDesactive={TITRE_LECTURE}
                           />
                         </span>
                       ) : (

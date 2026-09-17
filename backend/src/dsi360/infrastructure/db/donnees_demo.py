@@ -1253,6 +1253,7 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
         debut = datetime.combine(journee, time(20, 30), tzinfo=UTC) + timedelta(
             minutes=random.randint(0, 25)
         )
+
         horaires = [i for i, e in enumerate(modele) if e["nature"] != VALEUR]
         anomalies = set(random.sample(horaires, random.randint(1, 2))) if avec_reserves else set()
         # Où s'arrête le pointage d'une soirée encore en cours : ni au tout début (rien à lire),
@@ -1296,6 +1297,23 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
                 fixe["fin"] = curseur
                 curseur = curseur + timedelta(minutes=random.randint(0, 4))
             etapes.append(fixe)
+
+        # La soirée du jour se joue MAINTENANT. Calée à 20H30 comme les autres, son étape en cours
+        # démarrait plusieurs heures dans le FUTUR quand on ouvre la démonstration en journée : le
+        # compteur affichait « 00:00 » et la veilleuse annonçait une nuit qui n'avait pas commencé.
+        # On décale donc toute la soirée pour que l'étape en cours ait démarré il y a peu — c'est
+        # l'étape qui tient l'écran, pas l'heure d'ouverture.
+        if en_cours:
+            reference_temps = etapes[butoir]["debut"] if butoir < len(etapes) else None
+            if reference_temps is not None:
+                vise = datetime.now(UTC) - timedelta(minutes=random.randint(10, 40))
+                decalage = vise - reference_temps
+                debut += decalage
+                curseur += decalage
+                for e in etapes:
+                    for borne in ("debut", "fin"):
+                        if e[borne] is not None:
+                            e[borne] += decalage
 
         statuts = [str(e["statut"]) for e in etapes]
         fin_soiree = curseur

@@ -3,13 +3,18 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, MoonStar, Timer, TriangleAlert, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { cleAcces } from '@/features/shell/navigation';
-import { eodApi, heure, jour, type DetailEod } from './eodApi';
+import { cx } from '@/common/cx';
+import { eodApi, heure, jour, type DetailEod, type EtapeEod } from './eodApi';
 import styles from './VeilleEod.module.css';
 
 /** Toutes les 45 s : une soirée se pointe à la main, rien n'y bouge à la seconde. Assez souvent
  *  pour qu'un collègue qui pointe depuis son poste se voie ici, assez rarement pour ne pas
  *  entretenir une conversation permanente avec le serveur. */
 const RAFRAICHISSEMENT_MS = 45_000;
+
+/** Combien d'étapes en cours la veilleuse montre avant de compter le reste. Trois tiennent dans
+ *  un coin d'écran ; au-delà, le rappel deviendrait une seconde page. */
+const MONTREES = 3;
 
 const CLE_REPLI = 'dsi360.eod.veille.replie';
 /** La soirée que l'on a explicitement écartée. On garde son identifiant, et non un simple
@@ -32,6 +37,12 @@ function ecrire(cle: string, valeur: string | null): void {
   } catch {
     /* Navigation privée, stockage refusé : la veilleuse fonctionne, elle oublie juste ses réglages. */
   }
+}
+
+/** Les étapes qui tournent : démarrées, pas encore closes. Il y en a couramment plusieurs — les
+ *  PART se lancent souvent à la suite sans attendre la fin de la précédente. */
+function etapesEnCours(soiree: DetailEod): EtapeEod[] {
+  return soiree.etapes.filter((e) => e.nature !== 'valeur' && e.debut !== null && e.fin === null);
 }
 
 /** Temps écoulé « 04:21 » / « 1:12:40 ». Recopié court plutôt que partagé : la page de pointage a
@@ -66,17 +77,20 @@ export function VeilleEod(): JSX.Element | null {
   const [instant, setInstant] = useState(() => Date.now());
 
   const autorise = moi !== null && (moi.transverse || moi.acces.includes(cleAcces('/eod')));
-  // Sur la page EOD, la veilleuse n'a rien à ajouter : tout y est déjà, en plus grand.
-  const surLaPage = pathname.startsWith('/eod');
-  const actif = autorise && !surLaPage;
 
   const rafraichir = useCallback(async (): Promise<void> => {
     try {
       const { elements } = await eodApi.lister(1, { etat: 'en_cours' });
-      const ouverte = elements[0];
-      // La liste dit qu'une soirée est ouverte ; le détail seul porte les étapes, donc l'étape en
-      // cours et l'heure à laquelle elle a démarré — c'est tout l'objet de la veilleuse.
-      setSoiree(ouverte === undefined ? null : await eodApi.detail(ouverte.id));
+      if (elements.length === 0) {
+        setSoiree(null);
+        return;
+      }
+      // La liste dit QUELLES soirées sont ouvertes ; le détail seul porte les étapes, donc celles
+      // qui tournent et depuis quand — c'est tout l'objet de la veilleuse. Quand plusieurs nuits
+      // sont ouvertes (une reprise de la veille, un rattrapage), on suit celle où le travail se
+      // passe, et non la première venue : c'est là qu'un compteur court.
+      const details = await Promise.all(elements.slice(0, 3).map((e) => eodApi.detail(e.id)));
+      setSoiree(details.find((d) => etapesEnCours(d).length > 0) ?? details[0] ?? null);
     } catch {
       // Un rappel qui tombe en panne ne doit pas emporter la page qu'on est en train de lire, ni
       // faire surgir une alerte : on garde le dernier état connu et l'on retentera dans 45 s.
@@ -84,23 +98,26 @@ export function VeilleEod(): JSX.Element | null {
   }, []);
 
   useEffect(() => {
-    if (!actif) return undefined;
+    if (!autorise) return undefined;
     void rafraichir();
     const minuterie = window.setInterval(() => void rafraichir(), RAFRAICHISSEMENT_MS);
     return () => window.clearInterval(minuterie);
-  }, [actif, rafraichir]);
+  }, [autorise, rafraichir]);
 
-  const etape = soiree?.etapes.find(
-    (e) => e.nature !== 'valeur' && e.debut !== null && e.fin === null,
-  );
+  const enCours = soiree === null ? [] : etapesEnCours(soiree);
+  const compte = enCours.length;
 
   useEffect(() => {
-    if (etape === undefined) return undefined;
+    if (compte === 0) return undefined;
     const minuterie = window.setInterval(() => setInstant(Date.now()), 1000);
     return () => window.clearInterval(minuterie);
-  }, [etape]);
+  }, [compte]);
 
-  if (!actif || soiree === null || soiree.id === ecartee) return null;
+  if (!autorise || soiree === null || soiree.id === ecartee) return null;
+  // Elle s'efface sur la fiche de la soirée qu'elle suit — y répéter l'écran serait du bruit — mais
+  // reste sur la LISTE des soirées, qui ne dit ni quelle étape tourne ni depuis quand. La faire
+  // disparaître dès l'URL « /eod » la rendait insaisissable.
+  if (pathname === `/eod/${soiree.id}`) return null;
 
   const basculer = (): void => {
     setReplie((r) => {
@@ -157,22 +174,35 @@ export function VeilleEod(): JSX.Element | null {
       </header>
 
       <button type="button" className={styles.corps} onClick={ouvrir}>
-        {etape === undefined ? (
+        {compte === 0 ? (
           <span className={styles.attente}>
             {soiree.reste === 0
               ? 'Toutes les étapes sont réglées — la soirée attend sa clôture.'
               : 'Aucune étape démarrée pour le moment.'}
           </span>
         ) : (
-          <>
-            <span className={styles.section}>{etape.section}</span>
-            <span className={styles.etape}>{etape.libelle}</span>
-            <span className={styles.chrono}>
-              <Timer size={13} className={styles.pouls} aria-hidden="true" />
-              {ecoule(etape.debut ?? '', instant)}
-              <span className={styles.depuis}>depuis {heure(etape.debut)}</span>
-            </span>
-          </>
+          enCours.slice(0, MONTREES).map((e) => {
+            const depart = new Date(e.debut ?? '').getTime();
+            const aVenir = depart > instant;
+            return (
+              <span key={e.id} className={styles.ligne}>
+                <span className={styles.section}>{e.section}</span>
+                <span className={styles.etape}>{e.libelle}</span>
+                <span className={cx(styles.chrono, compte > 1 && styles.chronoSerre)}>
+                  <Timer size={13} className={styles.pouls} aria-hidden="true" />
+                  {/* Un départ situé dans le futur — une soirée préparée d'avance — ne se compte
+                      pas : afficher « 00:00 » laisserait croire qu'elle vient de démarrer. */}
+                  {aVenir ? '—' : ecoule(e.debut ?? '', instant)}
+                  <span className={styles.depuis}>
+                    {aVenir ? `prévue ${heure(e.debut)}` : `depuis ${heure(e.debut)}`}
+                  </span>
+                </span>
+              </span>
+            );
+          })
+        )}
+        {compte > MONTREES && (
+          <span className={styles.autres}>+ {compte - MONTREES} autre(s) en cours</span>
         )}
 
         <span className={styles.rail}>
