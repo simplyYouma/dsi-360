@@ -460,11 +460,12 @@
 }
 
 /* Une anomalie se repère en parcourant, sans lire les badges un à un. */
-/* Une anomalie se signale par son filet, sa marque et ses jetons — pas par un fond rouge sur
-   toute la ligne : trois anomalies sur PART 3 teintaient la moitié de l'écran, et le rouge ne
-   voulait plus rien dire. */
+/* Une anomalie se signale par sa marque et ses jetons, rien d'autre — ni fond ni filet rouge
+   sur la ligne : trois anomalies sur PART 3 teintaient la moitié de l'écran, et le rouge ne
+   voulait plus rien dire. La classe reste pour ce qu'elle commande encore : les commandes de la
+   ligne restent visibles, c'est là qu'on vient agir. */
 .etapeAnomalie {
-  box-shadow: inset 3px 0 0 var(--status-danger);
+  box-shadow: none;
 }
 
 /* Ce qui ne s'appliquait pas ce soir-là s'efface, sans disparaître : la décision reste lisible. */

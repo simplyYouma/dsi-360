@@ -755,7 +755,8 @@ async def test_une_anomalie_se_consigne_sans_changer_le_verdict_de_l_etape(
     # Et le rapport dit l'anomalie à sa place — sur la ligne de l'étape, en clair.
     r = await client.get(f"/eod/{ident}/rapport?format=csv", headers=entetes(operateur))
     corps = r.content.decode("utf-8-sig", errors="replace")
-    assert "ANOMALIE — Error code AE-VALS-053 sur 018." in corps
+    # Tel que tapé : ni heure ni mot devant — les colonnes d'heures et de verdict sont à côté.
+    assert "Error code AE-VALS-053 sur 018." in corps
 
 
 async def test_une_simple_note_ne_pose_aucune_relance(

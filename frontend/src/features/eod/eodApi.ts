@@ -223,9 +223,9 @@ export function heureObservation(o: ObservationEod): string {
  * Partagé par le PDF et par l'écran : si chacun composait sa ligne, le document remis à la
  * hiérarchie ne dirait pas tout à fait ce que l'opérateur a lu en la consignant. */
 export function ligneObservation(o: ObservationEod): string {
-  const tete =
-    o.nature === 'incident' ? `${heureObservation(o)} · ${o.agence ?? ''}` : heureObservation(o);
-  return `${tete} — ${o.texte}`;
+  // Le texte tel qu'il a été tapé — les heures et le verdict ont leurs colonnes. L'incident garde
+  // son agence en tête ; la ligne RELANCE, dessous, porte l'heure. Même règle que le serveur.
+  return o.nature === 'incident' ? `${o.agence ?? ''} — ${o.texte}` : o.texte;
 }
 
 /** Heure du moment, à la notation de la saisie (« 01H12 ») : l'incident se consigne sur l'instant,

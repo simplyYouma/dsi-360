@@ -41,7 +41,7 @@ from dsi360.application.eod import (
     preparer_relance,
     rafraichir_avancement,
 )
-from dsi360.domain.eod import ANOMALIE_OBS, INCIDENT, MODULE, ordre_section
+from dsi360.domain.eod import INCIDENT, MODULE, ordre_section
 from dsi360.domain.etats import est_etat_terminal, est_termine, transitions_possibles
 from dsi360.domain.sla import statut_sla
 from dsi360.domain.texte import phrase_propre
@@ -99,18 +99,17 @@ def _heure(valeur: datetime | None) -> str:
 
 
 def _ligne_journal(o: RowMapping | dict[str, Any]) -> str:
-    """Une observation, telle qu'elle se lit dans la colonne « Observations » du rapport.
+    """Une observation, telle qu'elle se lit dans la colonne « Statut / Observations » du rapport.
 
-    L'incident d'agence sort en tête avec l'heure de relance et l'agence — les deux questions que
-    la hiérarchie pose en premier quand une nuit a dérapé. Une note ordinaire se contente de
-    l'heure à laquelle elle a été consignée.
+    Le texte tel que l'opérateur l'a tapé, comme dans le document que la Production remettait
+    déjà : « The Jobs are started but the date is still 09/09/2026… », « Next Execution Date:
+    2026-09-10 07:50:00 ». Les heures et le verdict ont leurs colonnes ; les répéter devant chaque
+    phrase encombrait la seule colonne qu'on lit vraiment. L'incident d'agence garde son agence en
+    tête — la ligne RELANCE, juste dessous, porte l'heure.
     """
     if o["nature"] == INCIDENT:
-        return f"{_heure(o['relance_le'])} · {o['agence']} — {o['texte']}"
-    if o["nature"] == ANOMALIE_OBS:
-        # Le mot en tête : dans une colonne qui mêle notes et anomalies, c'est lui qu'on cherche.
-        return f"{_heure(o['cree_le'])} · ANOMALIE — {o['texte']}"
-    return f"{_heure(o['cree_le'])} — {o['texte']}"
+        return f"{o['agence']} — {o['texte']}"
+    return str(o["texte"])
 
 
 def _responsable(r: RowMapping) -> dict[str, str] | None:
