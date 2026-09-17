@@ -460,12 +460,11 @@
 }
 
 /* Une anomalie se repère en parcourant, sans lire les badges un à un. */
+/* Une anomalie se signale par son filet, sa marque et ses jetons — pas par un fond rouge sur
+   toute la ligne : trois anomalies sur PART 3 teintaient la moitié de l'écran, et le rouge ne
+   voulait plus rien dire. */
 .etapeAnomalie {
-  background: color-mix(in srgb, var(--status-danger) 5%, transparent);
   box-shadow: inset 3px 0 0 var(--status-danger);
-}
-.etapeAnomalie:hover {
-  background: color-mix(in srgb, var(--status-danger) 8%, transparent);
 }
 
 /* Ce qui ne s'appliquait pas ce soir-là s'efface, sans disparaître : la décision reste lisible. */

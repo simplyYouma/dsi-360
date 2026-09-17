@@ -1223,7 +1223,6 @@ export function EodJourneePage(): JSX.Element {
                   </button>
                 )}
               />
-              <span className={styles.indice}>L’instant, sauf correction.</span>
             </div>
           </div>
         )}
@@ -1263,10 +1262,11 @@ export function EodJourneePage(): JSX.Element {
             value={texteObs}
             onChange={(e) => setTexteObs(e.target.value)}
             placeholder={
+              // Ce que les vrais rapports contiennent : un code d'erreur, un nom de batch, collés
+              // tels quels depuis l'écran du core banking — pas une phrase racontée. L'incident,
+              // lui, n'a pas d'exemple : l'agence et l'heure disent déjà l'essentiel.
               natureObs === 'incident'
-                ? // Ce que les vrais rapports contiennent : un code d'erreur, un nom de batch,
-                  // collés tels quels depuis l'écran du core banking — pas une phrase racontée.
-                  'Ex. Error code AE-VALS-053 sur POSTEOPD3 — batch relancé, reprise OK.'
+                ? undefined
                 : natureObs === 'anomalie'
                   ? 'Ex. Completed for all branch expected 018 — Error code AE-VALS-053.'
                   : 'Ex. The jobs are started but the date is still 09/09/2026.'
