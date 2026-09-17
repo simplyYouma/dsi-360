@@ -12,7 +12,6 @@ import {
 import { BandeauStats } from '@/common/BandeauStats';
 import { BoutonsExport } from '@/common/BoutonsExport';
 import { BarreAvancement } from '@/common/BarreAvancement';
-import { CelluleReference } from '@/common/CelluleReference';
 import { FiltreTickets } from '@/common/FiltreTickets';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { cx } from '@/common/cx';
@@ -55,9 +54,10 @@ const COLONNES: Colonne<SoireeEod>[] = [
     entete: 'Référence',
     valeur: (s) => s.reference,
     largeur: '170px',
-    rendu: (s) => (
-      <CelluleReference reference={s.reference} nombre={s.nb_commentaires} nonVus={s.nb_non_vus} />
-    ),
+    // Pas de pastille de discussion : une soirée EOD ne se commente pas, elle se pointe — sa
+    // fiche n'a aucun fil de discussion. Un compteur qui annonce des messages qu'aucun écran
+    // n'affiche promet une page qui n'existe pas.
+    rendu: (s) => <span className={propres.reference}>{s.reference}</span>,
   },
   {
     cle: 'journee',

@@ -338,11 +338,6 @@ TACHES_TITRES = [
 # Fil de discussion, par module : un projet ne se commente pas comme un incident. Un commentaire
 # hors sujet (« escaladé au N2 » sur un projet) rendrait les écrans de démonstration trompeurs.
 COMMENTAIRES: dict[str, list[str]] = {
-    "eod": [
-        "Soirée démarrée à l'heure, aucune transaction en attente.",
-        "Relance d'agence signalée à l'astreinte, traitée dans la foulée.",
-        "Rapport du soir transmis à la hiérarchie.",
-    ],
     "incident": [
         "Prise en charge, analyse des journaux en cours.",
         "Reproduit en recette : le service ne redémarre pas après la bascule.",
@@ -1417,8 +1412,6 @@ async def _soirees_eod(  # noqa: C901 - une nuit d'exploitation a beaucoup de ca
         await _journal_cycle_de_vie(
             conn, "eod", reference, statut, debut, None if en_cours else fin_soiree
         )
-        if random.random() < 0.3:
-            await _commentaires(conn, activite_id, utilisateurs, debut, 2, "eod")
 
     return creees
 
