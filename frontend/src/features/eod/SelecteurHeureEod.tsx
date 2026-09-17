@@ -160,11 +160,13 @@ export function SelecteurHeureEod({
       if (popoverRef.current?.contains(e.target as Node) ?? false) return;
       setOuvert(false);
     };
-    document.addEventListener('mousedown', surClic);
+    // En capture : le panneau d'une modale arrête la propagation de `mousedown`, et un
+    // clic fait dans la modale mais hors du popover ne parviendrait jamais ici sinon.
+    document.addEventListener('mousedown', surClic, true);
     document.addEventListener('scroll', surDefilement, true);
     window.addEventListener('resize', surDefilement);
     return () => {
-      document.removeEventListener('mousedown', surClic);
+      document.removeEventListener('mousedown', surClic, true);
       document.removeEventListener('scroll', surDefilement, true);
       window.removeEventListener('resize', surDefilement);
     };

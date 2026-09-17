@@ -98,8 +98,10 @@ export function SelecteurDate({
         (ref.current?.contains(n) ?? false) || (popoverRef.current?.contains(n) ?? false);
       if (!dedans) setOuvert(false);
     };
-    document.addEventListener('mousedown', surClic);
-    return () => document.removeEventListener('mousedown', surClic);
+    // En capture : le panneau d'une modale arrête la propagation de `mousedown`, et un
+    // clic fait dans la modale mais hors du calendrier ne parviendrait jamais ici sinon.
+    document.addEventListener('mousedown', surClic, true);
+    return () => document.removeEventListener('mousedown', surClic, true);
   }, []);
 
   // Popover en position fixe (calcul au clic) : bascule vers le haut si peu de place en bas ;

@@ -74,12 +74,10 @@ const VERDICTS: {
   icone: LucideIcon;
   classe: string | undefined;
 }[] = [
-  {
-    statut: 'Anomalie',
-    libelle: 'Signaler une anomalie',
-    icone: TriangleAlert,
-    classe: styles.verdictAnomalie,
-  },
+  // « Anomalie » n'est plus un bouton de la rangée : signaler une anomalie et consigner une
+  // observation ouvraient la même modale — deux icônes pour un seul écran. L'anomalie se choisit
+  // désormais DANS la modale de consignation. « Sans objet » reste à part : c'est une décision,
+  // pas un compte rendu, et elle ne demande pas que l'étape ait démarré.
   {
     statut: 'Non applicable',
     libelle: 'Sans objet ce soir',
@@ -445,30 +443,23 @@ export function EodJourneePage(): JSX.Element {
     void agir(`statut:${etape.id}`, () => eodApi.majEtape(id, etape.id, { statut }));
   };
 
-  /** REPRENDRE une étape : on s'est trompé de verdict, ou l'étape a été close trop tôt et le
-   *  traitement repart.
+  /** REMETTRE une étape à l'état initial : « À faire », sans heure de début ni de fin, compteur
+   *  à zéro, valeur relevée effacée. Un seul geste, un seul résultat.
    *
-   *  Ce que ça fait, et pourquoi : l'étape repasse « En cours », son heure de FIN est effacée, son
-   *  heure de DÉBUT est conservée. Le compteur repart donc de l'heure de départ d'origine et
-   *  continue de courir — c'est la même étape qui se poursuit, pas une nouvelle. Remettre le
-   *  compteur à zéro ferait disparaître le temps déjà passé, qui est précisément ce que la DSI
-   *  relit au matin. Le journal, lui, ne bouge pas : ce qui a été consigné reste.
-   *
-   *  Une étape jamais démarrée n'a rien à reprendre : elle retombe simplement « À faire ». */
+   *  La première version distinguait « annuler le démarrage » (tout effacer) de « reprendre »
+   *  (garder le début, effacer la fin) selon l'état de l'étape. Le même bouton faisait donc deux
+   *  choses différentes, et l'opérateur qui voulait repartir de zéro se retrouvait avec un compteur
+   *  qui courait depuis une heure. On tranche : reprendre, c'est recommencer. Ce qui a été fait
+   *  avant n'est pas perdu pour autant — le journal d'observations ne bouge pas, et la trace des
+   *  heures effacées reste au journal d'audit. */
   const reprendre = (etape: EtapeEod): Promise<void> =>
     agir(`reprise:${etape.id}`, () =>
-      eodApi.majEtape(
-        id,
-        etape.id,
-        etape.debut === null
-          ? { statut: 'À faire' }
-          : etape.fin === null
-            ? // Étape en cours : on annule le démarrage. Le compteur s'arrête et l'heure de départ
-              // s'efface — c'est un clic de trop sur une liste de vingt-huit lignes, pas un travail
-              // qui a eu lieu.
-              { statut: 'À faire', vider_debut: true }
-            : { statut: 'En cours', vider_fin: true },
-      ),
+      eodApi.majEtape(id, etape.id, {
+        statut: 'À faire',
+        vider_debut: true,
+        vider_fin: true,
+        ...(etape.nature === 'valeur' ? { valeur: '' } : {}),
+      }),
     );
 
   // Ce que la modale d'observation annonce, et ce qu'elle exige. L'explication n'est obligatoire
@@ -920,11 +911,7 @@ export function EodJourneePage(): JSX.Element {
                                 <button
                                   type="button"
                                   className={cx(styles.verdict, styles.verdictReprise)}
-                                  title={
-                                    e.debut !== null && e.fin === null
-                                      ? 'Annuler le démarrage'
-                                      : 'Reprendre l’étape (le pointage repart)'
-                                  }
+                                  title="Remettre à l’état initial (À faire, compteur à zéro)"
                                   aria-label={`Reprendre l’étape « ${e.libelle} »`}
                                   disabled={occupe !== null}
                                   onClick={() => setAReprendre(e)}
@@ -932,26 +919,19 @@ export function EodJourneePage(): JSX.Element {
                                   <RotateCcw size={13} />
                                 </button>
                               )}
-                              {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => {
-                                const gele = nonDemarree && v.statut === 'Anomalie';
-                                return (
-                                  <button
-                                    type="button"
-                                    key={v.statut}
-                                    className={cx(
-                                      styles.verdict,
-                                      v.classe,
-                                      gele && styles.verdictGele,
-                                    )}
-                                    title={gele ? raisonGel : v.libelle}
-                                    aria-label={`${v.libelle} — ${e.libelle}`}
-                                    disabled={occupe !== null || gele}
-                                    onClick={() => poserVerdict(e, v.statut)}
-                                  >
-                                    <v.icone size={13} />
-                                  </button>
-                                );
-                              })}
+                              {VERDICTS.filter((v) => v.statut !== e.statut).map((v) => (
+                                <button
+                                  type="button"
+                                  key={v.statut}
+                                  className={cx(styles.verdict, v.classe)}
+                                  title={v.libelle}
+                                  aria-label={`${v.libelle} — ${e.libelle}`}
+                                  disabled={occupe !== null}
+                                  onClick={() => poserVerdict(e, v.statut)}
+                                >
+                                  <v.icone size={13} />
+                                </button>
+                              ))}
                               <button
                                 type="button"
                                 className={cx(
@@ -959,7 +939,11 @@ export function EodJourneePage(): JSX.Element {
                                   styles.verdictObservation,
                                   nonDemarree && styles.verdictGele,
                                 )}
-                                title={nonDemarree ? raisonGel : 'Consigner une observation'}
+                                title={
+                                  nonDemarree
+                                    ? raisonGel
+                                    : 'Consigner (observation, incident, anomalie)'
+                                }
                                 aria-label={`Consigner une observation — ${e.libelle}`}
                                 disabled={occupe !== null || nonDemarree}
                                 onClick={() => consigner(e, null)}
@@ -1093,7 +1077,11 @@ export function EodJourneePage(): JSX.Element {
               disabled={occupe !== null || !posePossible}
               onClick={() => void envoyerObservation()}
             >
-              {verdictSeul ? 'Poser le verdict' : 'Consigner'}
+              {verdictSeul
+                ? 'Poser le verdict'
+                : consigne?.verdict === 'Anomalie'
+                  ? 'Consigner l’anomalie'
+                  : 'Consigner'}
             </Button>
           </>
         }
@@ -1125,6 +1113,31 @@ export function EodJourneePage(): JSX.Element {
               )}
             </div>
           </div>
+        )}
+        {/* L'anomalie se décide ICI, d'une bascule : c'est le même écran que l'observation, et
+            deux icônes pour y entrer faisaient croire à deux gestes. La bascule teinte la bannière
+            au-dessus — on voit ce qu'on s'apprête à poser avant de l'avoir posé. */}
+        {consigne !== null && consigne.verdict !== 'Non applicable' && (
+          <button
+            type="button"
+            className={cx(styles.bascule, consigne.verdict === 'Anomalie' && styles.basculeActive)}
+            aria-pressed={consigne.verdict === 'Anomalie'}
+            onClick={() =>
+              setConsigne({
+                ...consigne,
+                verdict: consigne.verdict === 'Anomalie' ? null : 'Anomalie',
+              })
+            }
+          >
+            <TriangleAlert size={14} />
+            <span className={styles.basculeTexte}>
+              L’étape finit en anomalie
+              <span className={styles.basculeSens}>
+                Son verdict passe à « Anomalie » — ce qui s’écrit ici l’explique.
+              </span>
+            </span>
+            <span className={styles.basculeCase} aria-hidden="true" />
+          </button>
         )}
         {naturesOffertes && (
           <div className={styles.natures}>
@@ -1342,25 +1355,11 @@ export function EodJourneePage(): JSX.Element {
           aReprendre === null
             ? null
             : {
-                titre:
-                  aReprendre.debut !== null && aReprendre.fin === null
-                    ? 'Annuler le démarrage'
-                    : 'Reprendre cette étape',
+                titre: 'Remettre à l’état initial',
                 message:
-                  aReprendre.debut === null
-                    ? `« ${aReprendre.libelle} » redevient « À faire ».`
-                    : aReprendre.fin === null
-                      ? `Le compteur de « ${aReprendre.libelle} » s’arrête et son heure de ` +
-                        `démarrage (${heure(aReprendre.debut)}) est effacée. L’étape redevient ` +
-                        `« À faire ». Les observations déjà consignées restent.`
-                      : `« ${aReprendre.libelle} » repasse « En cours ». L’heure de fin est ` +
-                        `effacée ; le compteur repart de ${heure(aReprendre.debut)} et continue ` +
-                        `de courir — c’est la même étape qui se poursuit. Les observations déjà ` +
-                        `consignées restent.`,
-                libelleConfirmer:
-                  aReprendre.debut !== null && aReprendre.fin === null
-                    ? 'Annuler le démarrage'
-                    : 'Reprendre',
+                  `« ${aReprendre.libelle} » redevient « À faire » : heures effacées, compteur à ` +
+                  `zéro. Les observations déjà consignées restent au journal.`,
+                libelleConfirmer: 'Remettre à zéro',
                 action: () => reprendre(aReprendre),
               }
         }
