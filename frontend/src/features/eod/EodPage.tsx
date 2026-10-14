@@ -21,6 +21,7 @@ import { ErreurApi } from '@/lib/api';
 import type { FiltresListe } from '@/features/incidents/incidentsApi';
 import styles from '@/features/incidents/IncidentsPage.module.css';
 import { eodApi, heure, jour, type CategorieEod, type SoireeEod } from './eodApi';
+import { ImportClasseur } from './ImportClasseur';
 import propres from './EodPage.module.css';
 
 /** La veille : une soirée ouverte le 16 au matin clôt la journée du 15. */
@@ -237,6 +238,9 @@ export function EodPage(): JSX.Element {
         </div>
         <div className={propres.actions}>
           <BoutonsExport base="/eod" />
+          {/* Le dépôt ouvre la soirée lui-même quand elle manque : il vit donc ici, à côté de
+              l'ouverture manuelle, et non sur la fiche d'une soirée qui n'existe pas encore. */}
+          <ImportClasseur onImporte={() => void charger(page)} />
           <Button onClick={() => setModale(true)}>
             <Plus size={16} />
             Ouvrir une soirée

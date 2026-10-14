@@ -18,7 +18,7 @@ journée et se corrigent librement. Retoucher le modèle ne réécrit jamais une
 """
 
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Final, NamedTuple
 
 MODULE: Final = "eod"
@@ -188,6 +188,32 @@ def resoudre_relance(saisie: str, maintenant: datetime) -> datetime | None:
     if candidat > local + _AVANCE_TOLEREE:
         candidat -= timedelta(days=1)
     return candidat
+
+
+def heure_de_la_nuit(saisie: str, journee: date) -> datetime | None:
+    """« 20H29 » → l'horodatage dans la soirée qui clôt ``journee``. ``None`` si illisible.
+
+    Sert à relire une nuit **passée**, consignée ailleurs puis reprise ici — un classeur du soir,
+    par exemple. ``resoudre_relance`` ne conviendrait pas : elle se repère sur l'instant courant,
+    or on relit parfois une soirée vieille de plusieurs semaines.
+
+    La soirée commence l'après-midi du jour comptable et s'achève au matin du lendemain : une heure
+    nue ne suffit donc pas à se situer. On tranche à **midi** — avant, c'est le lendemain ; après,
+    c'est le jour même.
+
+    Le passage de minuit ne se déduit surtout pas de l'ordre des lignes. Le rapport réel n'est pas
+    monotone : le 13/10/2026, « Check Pending Transactions » démarre à 16H00 après une ligne de
+    17H55, parce que ce contrôle court depuis l'après-midi. Lire ce recul comme un passage de
+    minuit aurait renvoyé la ligne au lendemain, et faussé toute la durée de la nuit.
+    """
+    trouve = _HEURE.match(saisie.strip())
+    if trouve is None:
+        return None
+    heures, minutes = int(trouve.group(1)), int(trouve.group(2))
+    if heures > 23 or minutes > 59:
+        return None
+    jour = journee if heures >= 12 else journee + timedelta(days=1)
+    return datetime.combine(jour, time(heures, minutes)).astimezone()
 
 
 def manque_a_l_incident(agence: str | None) -> str | None:

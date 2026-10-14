@@ -14,13 +14,19 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.application.import_eod import importer_classeur as importer_classeur_eod
 from dsi360.application.import_equipements import importer_classeur
 from dsi360.application.ingestion import importer_tickets
 from dsi360.infrastructure import ingestion as infra_tickets
 from dsi360.infrastructure import ingestion_equipements as infra_equipements
 from dsi360.infrastructure.classeur import apercu_intitules, feuille_avec_entetes
 from dsi360.infrastructure.db import session_scope
-from dsi360.interface.schemas import EtatImports, RapportImport, RapportImportEquipements
+from dsi360.interface.schemas import (
+    EtatImports,
+    RapportImport,
+    RapportImportEod,
+    RapportImportEquipements,
+)
 from dsi360.interface.securite import exiger_acces
 
 routeur = APIRouter(prefix="/import", tags=["ingestion"])
@@ -39,6 +45,10 @@ ORDER BY j.cible_type, j.id DESC
 _NATURE = {"rapport_tickets": "tickets", "equipement": "equipements"}
 Session = Annotated[AsyncSession, Depends(session_scope)]
 Courant = Annotated[dict[str, Any], Depends(exiger_acces(_ACCES))]
+#: Le classeur du soir fait exception : il n'alimente pas un référentiel commun, il remplit **une**
+#: soirée. Le droit qui compte est donc celui de l'EOD, pas celui des imports — exiger « import »
+#: aurait privé de ce raccourci l'opérateur de garde, seul concerné, en pleine nuit.
+CourantEod = Annotated[dict[str, Any], Depends(exiger_acces("eod"))]
 
 _MAX = 20 * 1024 * 1024  # 20 Mo
 
@@ -82,6 +92,23 @@ async def importer_equipements(
     try:
         return await importer_classeur(session, contenu, courant)
     except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+
+@routeur.post("/eod", response_model=RapportImportEod)
+async def importer_eod(
+    fichier: UploadFile, courant: CourantEod, session: Session
+) -> dict[str, Any]:
+    """Classeur du soir. Ouvre la soirée si elle manque, et ne récrit jamais ce qui est pointé."""
+    contenu = await fichier.read()
+    _lire(contenu)
+    try:
+        return await importer_classeur_eod(session, contenu, courant)
+    except ValueError as exc:
+        # `ClasseurIllisible` et `ClasseurSansJournee` en dérivent : dans les deux cas, le message
+        # dit ce qui manque au fichier — l'écran n'a qu'à le relayer.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc

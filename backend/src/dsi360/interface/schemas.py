@@ -1077,6 +1077,25 @@ class RapportImportEquipements(BaseModel):
     series_en_double: int = 0
 
 
+class RapportImportEod(BaseModel):
+    """Compte-rendu du dépôt d'un classeur du soir, tel qu'affiché après l'import."""
+
+    #: Journée comptable lue sur le premier « System Date » du rapport — pas sur le nom du fichier,
+    #: qui se contredit déjà d'un exemplaire à l'autre.
+    journee: str
+    reference: str
+    soiree_id: str
+    #: La soirée n'existait pas : le dépôt l'a ouverte. Sinon il a rempli celle qui existait.
+    creee: bool
+    etapes_renseignees: int
+    #: Étapes déjà pointées à l'écran, laissées intactes : l'import ne récrit jamais par-dessus.
+    etapes_conservees: int
+    observations_ajoutees: int
+    #: Intitulés que le déroulé de référence ne connaît pas. Rendus pour être vus : une ligne
+    #: perdue en silence vaut moins qu'une ligne refusée à voix haute.
+    lignes_non_reconnues: list[str] = []
+
+
 class RapportImport(BaseModel):
     total: int
     incidents: int

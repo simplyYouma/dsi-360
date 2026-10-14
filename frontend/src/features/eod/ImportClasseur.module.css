@@ -1,0 +1,104 @@
+/* Dépôt du classeur du soir, et compte rendu de ce qu'il a — ou n'a pas — rempli. */
+
+.explication {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* La zone de dépôt accepte le glisser comme le clic : la nuit, on arrive du dossier Windows où
+ * le classeur vient d'être enregistré. */
+.zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface);
+  text-align: center;
+}
+
+.zoneSurvolee {
+  border-color: var(--text-muted);
+  background: var(--surface-2, var(--bg));
+}
+
+.icone {
+  color: var(--text-muted);
+}
+
+.zoneTitre {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.rapport {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.resume {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.comptes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.comptes > div {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface);
+}
+
+.comptes dt {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.comptes dd {
+  margin: 2px 0 0;
+  font-size: var(--text-xl);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* Ce que le dépôt n'a pas su ranger. La couleur est réservée au sens : ici, quelque chose
+ * demande une décision. */
+.inconnues {
+  padding: var(--space-3);
+  border-left: 3px solid var(--status-warn);
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--status-warn) 8%, transparent);
+  font-size: var(--text-sm);
+}
+
+.inconnuesTitre {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.inconnues ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  color: var(--text);
+}
+
+.inconnuesAide {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+}
