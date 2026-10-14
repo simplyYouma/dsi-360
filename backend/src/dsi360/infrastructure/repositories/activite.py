@@ -51,12 +51,41 @@ _BASE = """
 
 
 async def prochaine_reference(session: AsyncSession, module: str, annee: int) -> str:
+    """Le prochain numéro du module pour l'année — et qui n'a **jamais** servi.
+
+    Ce numéro se tirait du COMPTE des fiches existantes. Une suppression le faisait alors reculer,
+    et deux conséquences s'ensuivaient, toutes deux constatées en production le 14/10/2026 :
+
+    * la référence proposée retombait sur une qui existe déjà — `activite_reference_key` refusait
+      l'insertion, et le module devenait **définitivement incréable** (le compte ne remontait
+      jamais). C'est ce qui a bloqué l'ouverture des soirées EOD après la suppression de
+      `EOD-2026-00003` : huit fiches, donc « 00009 » proposé, déjà pris ;
+    * quand c'était la DERNIÈRE fiche qui partait, le numéro se réattribuait en silence. Le
+      journal d'audit désigne les activités par leur **référence**, en texte, précisément pour
+      survivre à leur suppression : deux soirées distinctes s'y sont retrouvées sous
+      « EOD-2026-00003 ». Une référence qui désigne deux choses ne prouve plus rien.
+
+    On numérote donc à partir du plus grand numéro **jamais attribué**, lu à la fois sur les fiches
+    vivantes et sur le journal — append-only, lui seul se souvient de ce qui a disparu. Le compteur
+    ne recule plus, et une référence effacée n'est jamais rendue à la circulation.
+    """
     prefixe = PREFIXE_REFERENCE[module]
     # Sérialise la numérotation par module pour éviter les doublons concurrents.
     await session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:m))"), {"m": module})
     motif = f"{prefixe}-{annee}-%"
     n = await session.scalar(
-        text("SELECT count(*) FROM core.activite WHERE module = :m AND reference LIKE :p"),
+        text(
+            # `substring(… from '(\\d+)$')` rend le groupe capturé, donc le numéro de fin — et NULL
+            # si la ligne n'en porte pas, que `max` ignore. Le filtre LIKE écarte déjà les cibles
+            # du journal qui ne sont pas des activités (étapes, liens, documents : des UUID).
+            "SELECT coalesce(max(numero), 0) FROM ("
+            "  SELECT substring(reference from '(\\d+)$')::int AS numero"
+            "    FROM core.activite WHERE module = :m AND reference LIKE :p"
+            "  UNION ALL"
+            "  SELECT substring(cible_id from '(\\d+)$')::int AS numero"
+            "    FROM audit.journal WHERE module = :m AND cible_id LIKE :p"
+            ") AS attribues"
+        ),
         {"m": module, "p": motif},
     )
     return f"{prefixe}-{annee}-{(n or 0) + 1:05d}"
