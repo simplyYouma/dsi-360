@@ -41,6 +41,7 @@ import {
   heureObservation,
   jour,
   resoudreHeure,
+  type CategorieEod,
   type DetailEod,
   type EtapeEod,
   type NatureObservation,
@@ -273,6 +274,8 @@ export function EodJourneePage(): JSX.Element {
   //: recharge alors sans que l'on redemande la soirée entière.
   const [versionNotes, setVersionNotes] = useState(0);
   const [exportOuvert, setExportOuvert] = useState(false);
+  const [typesOuvert, setTypesOuvert] = useState(false);
+  const [types, setTypes] = useState<CategorieEod[]>([]);
   const [exportEnCours, setExportEnCours] = useState(false);
 
   // --- Consigner une observation ---------------------------------------------------------------
@@ -379,6 +382,13 @@ export function EodJourneePage(): JSX.Element {
 
   const peutEcrire = soiree.permissions.peut_travailler;
   const pointee = soiree.nb_etapes - soiree.reste;
+
+  /** Les types se chargent à l'ouverture de la modale, et une seule fois : une liste de trois
+   *  éléments n'a pas à être réclamée à chaque affichage d'une fiche. */
+  const ouvrirTypes = async (): Promise<void> => {
+    setTypesOuvert(true);
+    if (types.length === 0) setTypes(await eodApi.categories());
+  };
 
   /** Le PDF se compose dans le navigateur, à partir de la soirée déjà chargée : aucun aller-retour
    *  serveur, et le document sort même si le réseau vient de lâcher — la nuit, ça compte. */
@@ -534,8 +544,26 @@ export function EodJourneePage(): JSX.Element {
             <h1 className={styles.titre}>
               EOD — {jour(soiree.journee)}
               <BadgeStatut statut={soiree.statut} module="eod" />
-              {soiree.categorie !== null && (
-                <StatusBadge couleur="var(--cat-6)">{soiree.categorie}</StatusBadge>
+              {/* Le type se déduit de la date à l'ouverture. Il reste corrigeable ici : un arrêté
+                  décalé, ou une soirée reprise d'un classeur qui n'en disait rien, se tranche à la
+                  main sans rouvrir la nuit. */}
+              {peutEcrire ? (
+                <button
+                  type="button"
+                  className={styles.typeBouton}
+                  onClick={() => void ouvrirTypes()}
+                  title="Changer le type de la soirée"
+                >
+                  {soiree.categorie !== null ? (
+                    <StatusBadge couleur="var(--cat-6)">{soiree.categorie}</StatusBadge>
+                  ) : (
+                    <span className={styles.typeAbsent}>Type à renseigner</span>
+                  )}
+                </button>
+              ) : (
+                soiree.categorie !== null && (
+                  <StatusBadge couleur="var(--cat-6)">{soiree.categorie}</StatusBadge>
+                )
               )}
             </h1>
           </div>
@@ -1053,6 +1081,40 @@ export function EodJourneePage(): JSX.Element {
           </section>
         </div>
       </div>
+
+      <Modale
+        ouverte={typesOuvert}
+        onFermer={() => setTypesOuvert(false)}
+        titre="Type de la soirée"
+        pied={
+          <Button variante="secondaire" onClick={() => setTypesOuvert(false)}>
+            Fermer
+          </Button>
+        }
+      >
+        <p className={styles.mesureDetail}>
+          Il se déduit de la date à l’ouverture — EOM le dernier jour du mois, EOY le 31 décembre,
+          EOD le reste du temps. Corrigez-le ici si la nuit a porté autre chose.
+        </p>
+        <div className={styles.types}>
+          {types.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={cx(styles.type, soiree.categorie === t.libelle && styles.typeChoisi)}
+              aria-pressed={soiree.categorie === t.libelle}
+              disabled={occupe !== null}
+              onClick={() => {
+                void agir('type', () => eodApi.changerType(id, t.id)).then(() =>
+                  setTypesOuvert(false),
+                );
+              }}
+            >
+              {t.libelle}
+            </button>
+          ))}
+        </div>
+      </Modale>
 
       <Modale
         ouverte={exportOuvert}

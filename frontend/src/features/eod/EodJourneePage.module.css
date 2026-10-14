@@ -397,6 +397,66 @@
   scroll-margin-top: var(--space-5);
 }
 
+/* --- Le type de la soirée ------------------------------------------------------------------ */
+
+/* Le badge devient cliquable sans en avoir l'air : il reste un badge, et c'est le survol qui dit
+ * qu'on peut le changer. Un bouton dessiné comme tel, dans un titre, l'aurait encombré. */
+.typeBouton {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.typeBouton:hover {
+  opacity: 0.75;
+}
+
+/* Un type manquant ne se cache pas : c'est une information à fournir, pas un champ facultatif. */
+.typeAbsent {
+  padding: 2px 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-full, 999px);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.types {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-3);
+}
+
+.type {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full, 999px);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.type:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
+.typeChoisi {
+  border-color: var(--cat-6);
+  background: color-mix(in srgb, var(--cat-6) 12%, transparent);
+  color: var(--text);
+}
+
+.type:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
 .sectionEntete {
   display: flex;
   align-items: center;

@@ -190,6 +190,33 @@ def resoudre_relance(saisie: str, maintenant: datetime) -> datetime | None:
     return candidat
 
 
+#: Codes des types de soirée, tels que l'opérateur les lit sur ses écrans (EOD, EOM, EOY).
+QUOTIDIEN: Final = "QUOTIDIEN"
+FIN_DE_MOIS: Final = "FIN_DE_MOIS"
+FIN_ANNEE: Final = "FIN_ANNEE"
+
+
+def type_attendu(journee: date) -> str:
+    """Le type que la date d'une soirée commande, avant toute intervention.
+
+    Il se déduit, il ne se demande pas : la date d'une nuit dit déjà si elle porte les traitements
+    mensuels ou annuels. Laisser le champ vide — ce que faisait l'import — oblige à le renseigner
+    vingt-huit fois pour la seule raison qu'on ne l'a pas calculé une fois.
+
+    La fin d'année ne se confond pas avec une fin de mois : le 31 décembre porte les traitements
+    annuels EN PLUS des mensuels, et c'est la nuit la plus longue de l'année.
+
+    Ce n'est qu'un **défaut** : le serveur ne s'en sert que si personne n'a choisi, et le type
+    reste corrigeable sur la fiche. L'écran d'ouverture présélectionne de son côté (`typeAttendu`,
+    dans EodPage) — une suggestion que l'opérateur voit et confirme, là où celle-ci tranche pour
+    les créations qui n'ont pas d'écran, l'import au premier chef.
+    """
+    if journee.month == 12 and journee.day == 31:
+        return FIN_ANNEE
+    lendemain = journee + timedelta(days=1)
+    return FIN_DE_MOIS if lendemain.month != journee.month else QUOTIDIEN
+
+
 def heure_de_la_nuit(saisie: str, journee: date) -> datetime | None:
     """« 20H29 » → l'horodatage dans la soirée qui clôt ``journee``. ``None`` si illisible.
 

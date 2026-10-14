@@ -57,6 +57,7 @@ from dsi360.interface.routeurs.activites_communs import (
 )
 from dsi360.interface.routeurs.documents_communs import enregistrer_documents
 from dsi360.interface.schemas import (
+    CategorieDemande,
     CreationReponse,
     EodCreation,
     EodDetail,
@@ -573,6 +574,51 @@ async def ajouter_etape(
         nouvelle={"section": ligne["section"], "libelle": ligne["libelle"]},
     )
     await rafraichir_avancement(session, ident)
+    return await _detail_complet(session, await _charger(session, ident, courant), courant)
+
+
+@routeur.patch("/{ident}/type", response_model=EodDetail)
+async def changer_type(
+    ident: str, corps: CategorieDemande, courant: Acteur, session: Session
+) -> dict[str, Any]:
+    """Corrige le type d'une soirée — EOD, EOM, EOY.
+
+    Il se déduit de la date à l'ouverture, et cela suffit presque toujours. Presque : un arrêté
+    décalé, un mois clos la veille d'un jour férié, une soirée importée d'un classeur qui n'en
+    disait rien — il faut pouvoir trancher à la main, sans rouvrir la nuit.
+
+    Le geste revient à l'acteur de la soirée et non au seul administrateur : celui qui la conduit
+    sait ce qu'elle portait, et attendre un administrateur pour une étiquette bloquerait le rapport
+    du matin.
+    """
+    r = await _charger(session, ident, courant)
+    if corps.categorie_id is not None:
+        connue = await session.scalar(
+            text("SELECT 1 FROM core.categorie WHERE id::text = :c AND module = :m"),
+            {"c": corps.categorie_id, "m": MODULE},
+        )
+        if connue is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Type inconnu pour l'EOD."
+            )
+    await session.execute(
+        text(
+            "UPDATE core.activite SET categorie_id = cast(:c as uuid) "
+            "WHERE id = cast(:id as uuid)"
+        ),
+        {"c": corps.categorie_id, "id": ident},
+    )
+    await audit.consigner(
+        session,
+        action="MODIFICATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type=MODULE,
+        cible_id=r["reference"],
+        ancienne={"categorie_id": str(r["categorie_id"]) if r["categorie_id"] else None},
+        nouvelle={"categorie_id": corps.categorie_id},
+    )
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
 
 

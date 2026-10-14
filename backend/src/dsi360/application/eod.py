@@ -17,6 +17,7 @@ import json
 from datetime import UTC, date, datetime
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dsi360.domain.activite import calculer_priorite
@@ -35,6 +36,7 @@ from dsi360.domain.eod import (
     manque_a_l_incident,
     resoudre_relance,
     reste_a_faire,
+    type_attendu,
 )
 from dsi360.domain.etats import etat_initial
 from dsi360.domain.sla import echeances
@@ -83,6 +85,15 @@ async def ouvrir_journee(
     existante = await eod_repo.journee_existante(session, jour)
     if existante is not None:
         raise JourneeDejaOuverte(existante)
+
+    # Personne n'a choisi de type : la date en commande un. C'est le cas de l'import, qui n'a pas
+    # d'écran pour le demander — et laisser le champ vide obligeait à le renseigner à la main
+    # après coup, pour la seule raison qu'on ne l'avait pas calculé.
+    if categorie_id is None:
+        categorie_id = await session.scalar(
+            text("SELECT id::text FROM core.categorie WHERE module = :m AND code = :c"),
+            {"m": MODULE, "c": type_attendu(journee)},
+        )
 
     maintenant = datetime.now(UTC)
     impact_retenu = impact or _IMPACT_DEFAUT

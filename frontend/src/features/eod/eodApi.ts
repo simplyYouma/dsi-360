@@ -169,6 +169,10 @@ export const eodApi = {
   supprimerEtape: (id: string, etapeId: string): Promise<DetailEod> =>
     api.del(`/eod/${id}/etapes/${etapeId}`),
   categories: (): Promise<CategorieEod[]> => api.get('/referentiels/categories?module=eod'),
+  /** Corrige le type d'une soirée — EOD, EOM, EOY. Il se déduit de la date à l'ouverture, mais un
+   *  arrêté décalé ou une soirée reprise d'un classeur demande parfois de trancher à la main. */
+  changerType: (id: string, categorieId: string | null): Promise<DetailEod> =>
+    api.patch(`/eod/${id}/type`, { categorie_id: categorieId }),
 };
 
 /** Le déroulé, coupé en sections dans l'ordre où le serveur l'a rendu.

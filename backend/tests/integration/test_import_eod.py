@@ -70,7 +70,7 @@ async def _etapes(session: AsyncSession, soiree_id: str) -> dict[str, Any]:
             {"a": soiree_id},
         )
     ).mappings()
-    return {str(l["libelle"]): dict(l) for l in lignes}
+    return {str(ligne["libelle"]): dict(ligne) for ligne in lignes}
 
 
 async def test_le_depot_ouvre_la_soiree_et_la_remplit(
@@ -143,6 +143,64 @@ async def test_une_etape_deja_pointee_survit_au_depot(
     etapes = await _etapes(session, soiree)
     # 20H00 saisi à l'écran, et non 17H55 lu dans le fichier.
     assert etapes["Intégration fichier CARTHAGO"]["debut"].hour == 20
+
+
+async def _type_de(session: AsyncSession, soiree_id: str) -> str | None:
+    return await session.scalar(
+        text(
+            "SELECT c.libelle FROM core.activite a "
+            "JOIN core.categorie c ON c.id = a.categorie_id WHERE a.id = cast(:i as uuid)"
+        ),
+        {"i": soiree_id},
+    )
+
+
+async def test_le_type_se_deduit_de_la_date(client: AsyncClient, session: AsyncSession) -> None:
+    """Un dépôt ne laisse pas la colonne « Type » vide : la date dit déjà ce que la nuit portait."""
+    agent = await creer_utilisateur(session, email="prod.eod5@afgbank.ml", profil="ADMIN")
+
+    ordinaire = await _deposer(client, agent, _classeur(_NUIT))
+    assert await _type_de(session, ordinaire["soiree_id"]) == "EOD"
+
+    # Le 31 mai clôt le mois : la soirée porte les traitements mensuels en plus.
+    fin_de_mois = [["System Date", datetime(2026, 5, 31), None, "Complete"]]
+    rapport = await _deposer(client, agent, _classeur(fin_de_mois))
+    assert await _type_de(session, rapport["soiree_id"]) == "EOM"
+
+
+async def test_le_type_se_corrige_a_la_main(client: AsyncClient, session: AsyncSession) -> None:
+    """Un arrêté décalé se tranche à la main, sans rouvrir la nuit."""
+    agent = await creer_utilisateur(session, email="prod.eod6@afgbank.ml", profil="ADMIN")
+    rapport = await _deposer(client, agent, _classeur(_NUIT))
+    assert await _type_de(session, rapport["soiree_id"]) == "EOD"
+
+    voulu = await session.scalar(
+        text("SELECT id::text FROM core.categorie WHERE module = 'eod' AND code = 'FIN_ANNEE'")
+    )
+    r = await client.patch(
+        f"/eod/{rapport['soiree_id']}/type",
+        headers=entetes(agent),
+        json={"categorie_id": voulu},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["categorie"] == "EOY"
+    assert await _type_de(session, rapport["soiree_id"]) == "EOY"
+
+
+async def test_un_type_etranger_au_module_est_refuse(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    agent = await creer_utilisateur(session, email="prod.eod7@afgbank.ml", profil="ADMIN")
+    rapport = await _deposer(client, agent, _classeur(_NUIT))
+    autre = await session.scalar(
+        text("SELECT id::text FROM core.categorie WHERE module <> 'eod' LIMIT 1")
+    )
+    r = await client.patch(
+        f"/eod/{rapport['soiree_id']}/type",
+        headers=entetes(agent),
+        json={"categorie_id": autre},
+    )
+    assert r.status_code == 400, r.text
 
 
 async def test_un_intitule_inconnu_est_montre_et_non_perdu(
