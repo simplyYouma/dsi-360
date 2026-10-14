@@ -20,6 +20,7 @@ from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.domain.etats import ABANDONNE, statuts_de_phase, transitions_possibles
 from tests.integration.conftest import creer_utilisateur, entetes
 
 
@@ -101,6 +102,81 @@ async def test_deux_soirees_pour_la_meme_nuit_sont_refusees(
     r = await client.post("/eod", headers=entetes(operateur), json={"journee": "2026-09-12"})
     assert r.status_code == 409, r.text
     assert "EOD-2026-" in r.json()["detail"]
+    # Et il dit comment en sortir : sans cela, l'opérateur de garde n'a qu'une impasse.
+    assert "Annulez" in r.json()["detail"]
+
+
+async def test_une_soiree_annulee_libere_sa_journee(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """« Annulé » dit que la nuit n'a pas eu lieu : elle ne doit pas réserver sa date pour autant.
+
+    C'est le cas réel d'une soirée ouverte sur la mauvaise date. Avant, il fallait la **supprimer**
+    pour récupérer la journée — effacer l'histoire pour contourner un index. Maintenant on
+    l'annule : la trace et sa justification restent, la nuit se repointe.
+    """
+    operateur = await creer_utilisateur(session, email="eod.annulee@afgbank.ml")
+    premiere = await _ouvrir(client, operateur, "2026-08-20")
+
+    r = await client.post("/eod", headers=entetes(operateur), json={"journee": "2026-08-20"})
+    assert r.status_code == 409, "tant qu'elle est vivante, elle occupe la date"
+
+    r = await client.post(
+        f"/eod/{premiere}/transition",
+        headers=entetes(operateur),
+        json={"vers": "Annulé", "note": "Ouverte sur la mauvaise date."},
+    )
+    assert r.status_code == 200, r.text
+
+    seconde = await _ouvrir(client, operateur, "2026-08-20")
+    assert seconde != premiere
+
+    # La soirée annulée n'a pas disparu : c'est tout l'intérêt de ne plus avoir à la supprimer.
+    assert (await _detail(client, operateur, premiere))["statut"] == "Annulé"
+    assert (await _detail(client, operateur, seconde))["statut"] == "Préparé"
+
+
+async def test_deux_soirees_annulees_peuvent_coexister_sur_la_meme_nuit(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """L'index ne contraint que les vivantes : deux tentatives ratées ne se bloquent pas l'une
+    l'autre, sinon la deuxième correction serait impossible."""
+    operateur = await creer_utilisateur(session, email="eod.deuxannulees@afgbank.ml")
+    for _ in range(2):
+        ident = await _ouvrir(client, operateur, "2026-08-19")
+        r = await client.post(
+            f"/eod/{ident}/transition",
+            headers=entetes(operateur),
+            json={"vers": "Annulé", "note": "Essai."},
+        )
+        assert r.status_code == 200, r.text
+    await _ouvrir(client, operateur, "2026-08-19")
+
+
+async def test_l_index_d_unicite_suit_la_definition_du_domaine(session: AsyncSession) -> None:
+    """Le prédicat de `uq_eod_journee` est du SQL littéral : rien ne le relie au domaine.
+
+    Ce test est ce lien. Le jour où l'EOD gagnerait un second état d'abandon — ou rouvrirait une
+    porte de sortie à « Annulé », qui est aujourd'hui terminal — l'index laisserait passer deux
+    soirées vivantes sur la même nuit, en silence. Il échouera d'abord.
+    """
+    abandons = statuts_de_phase(ABANDONNE, module="eod")
+    assert abandons == ["Annulé"], "l'index ne connaît que « Annulé » comme soirée sans effet"
+    assert transitions_possibles("eod", "Annulé") == [], (
+        "une soirée annulée qui pourrait revenir entrerait en collision avec celle qui l'a "
+        "remplacée : l'index devrait alors être repensé"
+    )
+
+    predicat = await session.scalar(
+        text(
+            "SELECT pg_get_expr(indpred, indrelid) FROM pg_index "
+            "WHERE indexrelid = cast(:i as regclass)"
+        ),
+        {"i": "core.uq_eod_journee"},
+    )
+    assert predicat is not None, "l'index partiel doit porter un prédicat"
+    for attendu in abandons:
+        assert attendu in predicat, f"« {attendu} » doit sortir de la contrainte d'unicité"
 
 
 # --- Pointer la soirée --------------------------------------------------------------------------
@@ -352,6 +428,51 @@ async def test_la_note_de_cloture_rejoint_le_journal_de_bord(
         text("SELECT texte FROM core.note WHERE activite_id = cast(:id as uuid)"), {"id": ident}
     )
     assert texte == "Maintenance éditeur : pas d'EOD ce soir."
+
+    # …et elle se RELIT. Elle partait jusqu'ici en base sans qu'aucune route ne la rende : le
+    # « pourquoi » d'une annulation n'existait que pour qui savait lire la table. Il compte, car
+    # annuler est devenu la façon de corriger une soirée ouverte sur la mauvaise date.
+    r = await client.get(f"/eod/{ident}/notes", headers=entetes(operateur))
+    assert r.status_code == 200, r.text
+    journal = r.json()
+    assert [n["texte"] for n in journal] == ["Maintenance éditeur : pas d'EOD ce soir."]
+    assert journal[0]["contexte"] == "Annulé", "la note dit de quelle décision elle répond"
+    assert journal[0]["auteur"] is not None
+
+
+async def test_le_journal_de_bord_accepte_une_note_libre(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Une consigne, un arbitrage : tout ne naît pas d'une transition. La note libre n'a pas de
+    contexte — c'est ce qui la distingue d'une justification."""
+    operateur = await creer_utilisateur(session, email="eod.notelibre@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-18")
+
+    r = await client.post(
+        f"/eod/{ident}/notes",
+        headers=entetes(operateur),
+        json={"texte": "Reprise confiée à l'équipe du matin, consigne passée au chef de quart."},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["contexte"] is None
+
+    r = await client.get(f"/eod/{ident}/notes", headers=entetes(operateur))
+    assert len(r.json()) == 1
+
+
+async def test_un_passant_ne_note_rien_sur_la_nuit_d_un_autre(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Lire le journal de bord ne donne pas prise dessus : écrire engage la nuit de quelqu'un."""
+    operateur = await creer_utilisateur(session, email="eod.bord.titulaire@afgbank.ml")
+    passant = await creer_utilisateur(session, email="eod.bord.passant@afgbank.ml")
+    ident = await _ouvrir(client, operateur, "2026-08-17")
+
+    assert (await client.get(f"/eod/{ident}/notes", headers=entetes(passant))).status_code == 200
+    r = await client.post(
+        f"/eod/{ident}/notes", headers=entetes(passant), json={"texte": "Vu de loin."}
+    )
+    assert r.status_code == 403, r.text
 
 
 # --- Le journal d'une étape ---------------------------------------------------------------------

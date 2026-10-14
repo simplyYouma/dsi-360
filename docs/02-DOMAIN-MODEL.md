@@ -79,13 +79,25 @@ changement, projet, recommandation, risque). Socle commun à toutes :
   Chaque étape porte un **journal d'observations append-only** (`core.eod_observation`) et non un
   champ de notes réécrit à chaque saisie : sur « PART 3 », une agence bloque à 01H12, on relance ;
   une autre bloque à 01H40, on relance encore — un champ unique n'aurait gardé que la dernière
-  phrase tapée. Une observation de nature **`incident`** porte les trois informations que la
-  hiérarchie réclame au matin — **l'agence**, **l'heure de relance**, **ce qui a été fait** — et
-  la base refuse qu'il en manque une (`ck_eod_observation_incident`). Ni correction ni suppression :
+  phrase tapée. Une observation de nature **`incident`** porte ce que la hiérarchie réclame au
+  matin — **l'agence** et **ce qui a été fait** — et la base refuse que l'agence manque
+  (`ck_eod_observation_incident`). Elle ne porte **pas d'heure** : posée d'office à la saisie,
+  celle-ci se lisait comme un démarrage automatique de la relance ; c'est la ligne `RELANCE`
+  (une **étape**, cf. `core.eod_etape.relance_de`), que l'opérateur démarre lui-même, qui dit
+  quand. Ni correction ni suppression :
   une observation qui se réécrit après coup ne prouve plus rien ; l'erreur se rattrape par la
   suivante, qui la date et la signe. Les **relances d'agence** se comptent à part des **anomalies** :
   une agence peut être relancée sans que l'étape finisse en anomalie, et une anomalie de batch ne
   touche parfois aucune agence — l'un ne se déduit pas de l'autre.
+  **Unicité :** au plus une soirée **vivante** par journée comptable (`uq_eod_journee`, index
+  unique partiel). Une soirée `Annulé` sort de la contrainte — elle n'a pas eu lieu, et sa date
+  doit pouvoir être repointée sans qu'on ait à la supprimer. Sûr parce que `Annulé` est terminal :
+  elle ne peut pas revenir heurter celle qui l'a remplacée.
+  **Journal de bord** (`core.note`, comme les projets) : les décisions prises sur la nuit entière,
+  dont la justification exigée pour clore une soirée inachevée ou l'annuler (`contexte` = état
+  visé). Elle s'écrivait sans qu'aucune route ne la rende : le « pourquoi » d'une annulation
+  n'existait que pour qui savait lire la table. Il compte d'autant plus qu'annuler est devenu la
+  façon de corriger une date.
 
 ## 4. Référentiels paramétrables (Single Source Of Truth)
 

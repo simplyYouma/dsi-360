@@ -59,7 +59,19 @@ Neuf modules du cahier, livrés par phases (cf. §7) — plus les ajouts assumé
 > (`core.eod_etape`) ; l'avancement s'en déduit, il ne se déclare pas. Deux fins distinctes —
 > « Clôturé » et « Clôturé avec réserves » — pour que les nuits qui ont dérapé restent comptables.
 > Le rapport du soir s'exporte dans la forme exacte où la hiérarchie le lit depuis toujours.
-> Une seule soirée par journée comptable (index unique sur `donnees->>'journee'`).
+> Une seule soirée **vivante** par journée comptable (index unique partiel sur
+> `donnees->>'journee'`). **Une soirée annulée ne réserve plus sa date** : « Annulé » dit que la
+> nuit n'a pas eu lieu, et une soirée ouverte sur la mauvaise date se corrige en l'annulant —
+> sa trace, sa justification et ses étapes restent, la journée redevient ouvrable. Auparavant il
+> fallait la **supprimer** pour récupérer la date : on effaçait l'histoire pour contourner un
+> index. Le prédicat de l'index est du SQL littéral, donc rien ne le relie au domaine : c'est un
+> test qui tient le lien (il relit `pg_index` et le compare à `statuts_de_phase(ABANDONNE)`), et
+> il repose sur le fait que « Annulé » est **terminal** — une soirée annulée qui pourrait revenir
+> entrerait en collision avec celle qui l'a remplacée. Corollaire : cette justification doit se
+> **relire**. Elle partait en base sans qu'aucune route ne la rende — le « pourquoi » d'une
+> annulation n'existait que pour qui savait lire la table. La soirée a donc son **journal de bord**
+> (`core.note`, comme les projets), affiché en queue de fiche : les décisions prises sur la nuit
+> entière, là où le journal d'une étape raconte la nuit minute par minute.
 >
 > **Les observations d'une étape s'historisent, elles ne s'écrasent pas.** Le champ de notes
 > unique gardait la dernière phrase tapée : sur « PART 3 », une agence bloque à 01H12, on relance ;

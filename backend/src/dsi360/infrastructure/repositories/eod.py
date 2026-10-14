@@ -15,6 +15,16 @@ from typing import Any, cast
 from sqlalchemy import CursorResult, RowMapping, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dsi360.domain import etats
+from dsi360.domain.eod import MODULE
+from dsi360.infrastructure import phases_sql
+
+#: « La soirée n'a pas eu lieu » — la phase `abandonne` du module, rendue en SQL. Tirée du domaine
+#: et non recopiée : le jour où l'EOD gagnerait un second état d'abandon, cette condition le
+#: saurait toute seule. Seul le prédicat de l'index `uq_eod_journee` doit alors être revu, et un
+#: test le rappelle en comparant les deux.
+_ABANDONNEE = phases_sql.condition(etats.ABANDONNE, colonne="statut", modules=(MODULE,))
+
 _CHAMPS = (
     "id::text AS id, section, libelle, nature, aide, ordre, statut, debut, fin, valeur, "
     "relance_de::text AS relance_de, agence"
@@ -217,15 +227,21 @@ async def agregats(session: AsyncSession, activite_ids: list[str]) -> dict[str, 
 
 
 async def journee_existante(session: AsyncSession, journee: str) -> str | None:
-    """Référence de la soirée déjà ouverte pour cette date, le cas échéant.
+    """Référence de la soirée **vivante** déjà ouverte pour cette date, le cas échéant.
 
     Permet de refuser un doublon en le **nommant** — « EOD-2026-00042 couvre déjà cette nuit » —
     plutôt que de laisser remonter une violation d'index que personne ne sait interpréter.
+
+    Une soirée annulée ne compte pas : « Annulé » dit que la nuit n'a pas eu lieu. Elle garde sa
+    trace et sa justification, mais elle ne réserve plus sa date — sinon, corriger une ouverture
+    faite sur la mauvaise date obligerait à supprimer la soirée fautive, c'est-à-dire à effacer
+    l'histoire pour contourner un index. Même définition que le prédicat de `uq_eod_journee`,
+    tirée du domaine plutôt que recopiée : deux listes de statuts finiraient par diverger.
     """
     reference = await session.scalar(
         text(
             "SELECT reference FROM core.activite "
-            "WHERE module = 'eod' AND donnees ->> 'journee' = :j"
+            f"WHERE module = 'eod' AND NOT ({_ABANDONNEE}) AND donnees ->> 'journee' = :j"
         ),
         {"j": journee},
     )

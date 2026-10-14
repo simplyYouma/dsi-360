@@ -126,6 +126,16 @@ export interface MajEtape {
   vider_fin?: boolean;
 }
 
+/** Note du journal de bord d'une soirée. `contexte` porte l'état visé quand la note justifie une
+ *  transition (« Annulé », « Clôturé ») ; il est nul pour une note libre. */
+export interface NoteSoiree {
+  id: string;
+  texte: string;
+  contexte: string | null;
+  auteur: string | null;
+  cree_le: string;
+}
+
 export const eodApi = {
   lister: (page: number, f?: FiltresListe): Promise<{ elements: SoireeEod[]; total: number }> =>
     api.get(`/eod?${chaineFiltres(page, f)}`),
@@ -133,6 +143,13 @@ export const eodApi = {
   ouvrir: (corps: NouvelleSoiree): Promise<{ id: string }> => api.post('/eod', corps),
   transition: (id: string, vers: string, note?: string): Promise<DetailEod> =>
     api.post(`/eod/${id}/transition`, { vers, note }),
+  // Journal de bord de la soirée — les décisions prises sur la nuit entière, dont la
+  // justification exigée pour la clore inachevée ou l'annuler. Elle partait en base sans que la
+  // fiche sache la relire : annuler étant devenu la façon de corriger une date, le « pourquoi »
+  // doit se lire à côté de la soirée annulée.
+  notes: (id: string): Promise<NoteSoiree[]> => api.get(`/eod/${id}/notes`),
+  creerNote: (id: string, texte: string): Promise<NoteSoiree> =>
+    api.post(`/eod/${id}/notes`, { texte }),
   // Toutes les écritures d'étape renvoient la soirée entière : l'avancement, la clôture
   // conseillée et le compte d'anomalies changent à chaque geste. Les recalculer à l'écran, c'est
   // les voir diverger de ce que le serveur garde.

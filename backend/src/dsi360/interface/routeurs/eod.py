@@ -64,6 +64,8 @@ from dsi360.interface.schemas import (
     EtapeEodCreation,
     EtapeEodMaj,
     EtapeModeleEod,
+    NoteCreation,
+    NoteItem,
     ObservationEodCreation,
     PageEod,
     PointageEod,
@@ -311,9 +313,14 @@ async def ouvrir(corps: EodCreation, courant: Courant, session: Session) -> dict
             acteur=courant,
         )
     except JourneeDejaOuverte as exc:
+        # Le refus dit aussi comment en sortir : une soirée ouverte par erreur sur la mauvaise
+        # date se règle en l'annulant — « Annulé » libère la journée — sans rien effacer.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"La soirée {exc.reference} couvre déjà cette journée.",
+            detail=(
+                f"La soirée {exc.reference} couvre déjà cette journée. "
+                "Annulez-la pour en rouvrir une sur cette date."
+            ),
         ) from exc
     if poses == 0:
         # Le déroulé de référence est vide : la soirée existe mais n'a rien à pointer. Le dire
@@ -402,10 +409,11 @@ async def exporter(
 async def supprimer_soiree(ident: str, courant: Courant, session: Session) -> None:
     """Suppression définitive d'une soirée, réservée à l'administrateur.
 
-    Une nuit ouverte sur la mauvaise date bloque la bonne — l'unicité porte sur la journée
-    comptable — et la corriger n'est pas possible : c'est elle qui fait l'identité de la soirée.
-    Sans ce geste, il fallait vivre avec une soirée fantôme dans les statistiques. Ce qu'elle
-    contenait passe au journal d'audit avant de disparaître.
+    Pour une nuit ouverte sur la mauvaise date, **« Annulé » suffit désormais** : la journée
+    comptable redevient ouvrable sans que rien ne disparaisse (cf. `uq_eod_journee`). Ce geste-ci
+    reste pour ce qui n'aurait jamais dû exister — un doublon saisi à la main, un essai — et non
+    pour une soirée qui a eu lieu, fût-elle ratée. Ce qu'elle contenait passe au journal d'audit
+    avant de disparaître.
     """
     exiger_admin(courant)
     r = await _charger(session, ident, courant)
@@ -464,6 +472,65 @@ async def transitionner(
         )
         await session.commit()
     return await _detail_complet(session, await _charger(session, ident, courant), courant)
+
+
+# --- Le journal de bord de la soirée ------------------------------------------------------------
+#
+# La soirée écrivait déjà dans `core.note` sans jamais pouvoir s'y relire : la justification exigée
+# pour clore une nuit inachevée ou pour l'annuler partait en base et n'apparaissait nulle part. Or
+# c'est devenu la pièce maîtresse d'une correction de date — annuler libère la journée, et le
+# « pourquoi » doit rester lisible à côté de la soirée annulée, pas seulement au journal d'audit
+# que seuls les administrateurs consultent.
+#
+# Distinct du journal d'une étape (`core.eod_observation`) : celui-ci raconte la nuit minute par
+# minute, celui-là porte les décisions prises sur la soirée entière.
+
+
+@routeur.get("/{ident}/notes", response_model=list[NoteItem])
+async def lister_notes(ident: str, courant: Courant, session: Session) -> list[dict[str, Any]]:
+    await _charger(session, ident, courant)
+    lignes = (
+        await session.execute(
+            text(
+                "SELECT n.id::text AS id, n.texte, n.contexte, n.auteur_email AS auteur, "
+                "n.cree_le FROM core.note n WHERE n.activite_id = cast(:id as uuid) "
+                "ORDER BY n.cree_le DESC"
+            ),
+            {"id": ident},
+        )
+    ).mappings().all()
+    return [dict(x) for x in lignes]
+
+
+@routeur.post("/{ident}/notes", response_model=NoteItem, status_code=status.HTTP_201_CREATED)
+async def creer_note(
+    ident: str, corps: NoteCreation, courant: Acteur, session: Session
+) -> dict[str, Any]:
+    """Note libre sur la soirée (`contexte` à NULL) — les justifications de transition, elles,
+    portent l'état visé et sont écrites par `transitionner`."""
+    soiree = await _charger(session, ident, courant)
+    ligne = (
+        await session.execute(
+            text(
+                "INSERT INTO core.note (activite_id, texte, auteur_email) "
+                "VALUES (cast(:aid as uuid), :texte, :email) "
+                "RETURNING id::text AS id, texte, contexte, auteur_email AS auteur, cree_le"
+            ),
+            {"aid": ident, "texte": corps.texte.strip(), "email": courant["email"]},
+        )
+    ).mappings().one()
+    await audit.consigner(
+        session,
+        action="CREATION",
+        acteur_id=courant["id"],
+        acteur_email=courant["email"],
+        module=MODULE,
+        cible_type="note",
+        cible_id=str(soiree["reference"]),
+        nouvelle={"texte": corps.texte.strip()[:200]},
+    )
+    await session.commit()
+    return dict(ligne)
 
 
 # --- Le déroulé pointé ------------------------------------------------------------------------

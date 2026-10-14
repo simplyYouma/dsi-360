@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button, Modale, StatusBadge, useToast } from '@/design-system/primitives';
+import { JournalNotes } from '@/common/JournalNotes';
 import { SelecteurDate } from '@/common/SelecteurDate';
 import { ModaleConfirmation } from '@/common/ModaleConfirmation';
 import { SelecteurListe } from '@/common/SelecteurListe';
@@ -268,6 +269,9 @@ export function EodJourneePage(): JSX.Element {
   const [aSupprimer, setASupprimer] = useState<EtapeEod | null>(null);
   const [transitionVisee, setTransitionVisee] = useState<string | null>(null);
   const [noteTransition, setNoteTransition] = useState('');
+  //: Incrémenté quand une transition vient d'écrire sa justification : le journal de bord se
+  //: recharge alors sans que l'on redemande la soirée entière.
+  const [versionNotes, setVersionNotes] = useState(0);
   const [exportOuvert, setExportOuvert] = useState(false);
   const [exportEnCours, setExportEnCours] = useState(false);
 
@@ -502,9 +506,13 @@ export function EodJourneePage(): JSX.Element {
       setTransitionVisee(vers);
       return;
     }
+    const justifiee = noteTransition.trim() !== '';
     await agir(`transition:${vers}`, () =>
       eodApi.transition(id, vers, noteTransition || undefined),
     );
+    // La justification vient d'être écrite au journal de bord : il doit la montrer sans que
+    // l'opérateur ait à recharger la page pour vérifier que son explication a bien été prise.
+    if (justifiee) setVersionNotes((v) => v + 1);
     setTransitionVisee(null);
     setNoteTransition('');
   };
@@ -1026,6 +1034,23 @@ export function EodJourneePage(): JSX.Element {
               une étape » : une étape exceptionnelle se rattrape en la consignant ; la capture, elle,
               se dépose chaque nuit. */}
           <DepotImagesEod soireeId={id} peutEcrire={peutEcrire} />
+
+          {/* Le journal de bord de la soirée — les décisions prises sur la nuit entière.
+              La justification exigée pour clore une nuit inachevée ou pour l'annuler partait
+              jusqu'ici en base sans que personne puisse la relire. Elle compte : annuler est
+              devenu la façon de corriger une soirée ouverte sur la mauvaise date, et « pourquoi »
+              doit se lire à côté de la soirée annulée, pas seulement au journal d'audit que seuls
+              les administrateurs consultent.
+              Distinct du journal d'une étape : celui-ci raconte la nuit minute par minute. */}
+          <section className={styles.bord}>
+            <h2 className={styles.bordTitre}>Journal de bord</h2>
+            <JournalNotes
+              charger={() => eodApi.notes(id)}
+              creer={(texte) => eodApi.creerNote(id, texte)}
+              version={versionNotes}
+              placeholder="Noter une décision sur la soirée (report, consigne, arbitrage…)"
+            />
+          </section>
         </div>
       </div>
 
