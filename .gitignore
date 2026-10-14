@@ -5,6 +5,12 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# Rapports EOD déposés à la racine pour être chargés dans la plateforme. Ce sont des documents
+# d'exploitation réels — des nuits de la banque, pas du code — et ils n'ont donc pas à être
+# versionnés. Les ignorer évite surtout qu'ils fassent échouer l'avant-vol de
+# METTRE-A-JOUR-DSI360.bat, dont le remède affiché propose un `git clean -fd` qui les effacerait.
+EOD *.xls*
+
 # Build
 dist/
 build/
